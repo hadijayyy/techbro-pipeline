@@ -27,7 +27,7 @@ def _load_creds():
 
 _creds = _load_creds()
 APP_ID = _creds.get("THREADS_APP_ID", "")
-APP_SECRET=_creds...T", "")
+APP_SECRET = _creds.get("THREADS_APP_SECRET", "")
 REDIRECT_URI = "https://developers.facebook.com/tools/explorer/"
 SCOPES = "threads_basic,threads_content_publish"
 
@@ -148,7 +148,8 @@ if __name__ == "__main__":
 
     print("\n" + "=" * 60)
     print("DONE! Save these:")
-    print(f"  THREADS_TOKEN=***    print(f"  THREADS_USER_ID={user.get('id', '')}")
+    print(f"  THREADS_TOKEN={long_token}")
+    print(f"  THREADS_USER_ID={user.get('id', '')}")
     print("=" * 60)
 
     do_test = input("\nTest post? (y/n): ").strip().lower()

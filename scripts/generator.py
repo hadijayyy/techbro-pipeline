@@ -172,6 +172,9 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
         text = re.sub(r'  +', ' ', text)
         text = re.sub(r'\n \n', '\n\n', text)
         
+        # Strip fake quotes: remove text in single quotes that looks like dialogue
+        text = re.sub(r"'[^']{5,}'\.?", '', text)
+        
         # Strip hallucinated URLs (source_url re-appended to CTA at the end)
         text = re.sub(r'https?://\S+', '', text).strip()
         
