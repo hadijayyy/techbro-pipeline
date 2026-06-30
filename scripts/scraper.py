@@ -84,6 +84,14 @@ PENALTY = [
 EXCLUDE = [
     "prediksi cuaca", "ramalan zodiak", "gosip", "skor akhir",
     "jadwal pertandingan", "transfer pemain",
+    # Sensitif / kasus pribadi / tragedi
+    "kasus kematian", "kematian dokter", "korban meninggal", "mayat",
+    "pembunuhan", "bunuh diri", "kecelakaan maut", "tenggelam",
+    "pemerkosaan", "pencabulan", "kdrt", "penganiayaan",
+    "viral di", "heboh", "kontroversi", "sindir", "sindiran",
+    # Gosip / selebriti / hiburan ringan
+    "rumah tangga", "cerai", "perselingkuhan",
+    "hamil", "menikah", "resepsi", "lamaran",
 ]
 
 # Pre-compiled regex — unique match per tier (not count)
