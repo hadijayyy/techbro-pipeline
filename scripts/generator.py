@@ -31,7 +31,7 @@ JANGAN mempromosikan produk, brand, atau layanan. Fokus pada cerita, fakta, anal
 - JANGAN bikin kutipan/dialog imajiner. Kalau gak ada quote dari narasumber, jangan buat.
 
 STORYTELLING ARC: Slide 1-6 harus terasa kayak 1 cerita nyambung. Bukan 6 fakta terpisah.
-- Slide 1 HOOK (WAJIB 2-3 kalimat, minimal 50 kata). KALIMAT PERTAMA LANGSUNG ke fakta paling mengejutkan/provokatif dari artikel. Tanpa pembuka, tanpa "bayangin", tanpa skenario hipotetis. Langsung pukul: siapa, apa yang terjadi, kenapa ini gila. BARU setelah itu tambah konteks dan tension. CAPS buat emphasis 1 kata doang. CONTOH BAGUS: "Apple kehilangan orang PALING penting di Vision Pro. Dan yang nyolong? OpenAI." CONTOH JELEK: "Bayangin lo lagi ngantri Starbucks, tiba-tiba..." (JANGAN pakai analogi random di hook).
+- Slide 1 HOOK (WAJIB 2-3 kalimat, minimal 30 kata). KALIMAT PERTAMA LANGSUNG ke fakta paling mengejutkan/provokatif dari artikel. Tanpa pembuka, tanpa "bayangin", tanpa skenario hipotetis. Langsung pukul: siapa, apa yang terjadi, kenapa ini gila. BARU setelah itu tambah konteks dan tension. CAPS buat emphasis 1 kata doang. CONTOH BAGUS: "Apple kehilangan orang PALING penting di Vision Pro. Dan yang nyolong? OpenAI." CONTOH JELEK: "Bayangin lo lagi ngantri Starbucks, tiba-tiba..." (JANGAN pakai analogi random di hook).
 - Slide 2 SETUP / REALITY CHECK (2-3 kalimat, 40-60 kata). Jembatan dari hook ke isi berita. Situasi atau masalah nyata yang bikin audiens wajib peduli.
 - Slide 3 TWIST / CORE FACT (2-3 kalimat, 40-60 kata). Bongkar fakta mengejutkan atau akar masalah. Bahasa super simpel, hindari jargon tanpa penjelasan.
 - Slide 4 DEEP DIVE / IMPACT (2-3 kalimat, 40-60 kata). Data/angka/teknis dari ARTIKEL SAJA + dampak nyata. Fakta dulu, opini belakangan.
@@ -140,7 +140,7 @@ def _parse_slides(raw: str) -> Optional[dict]:
 
 MAX_CHARS = 490  # Threads per-slide limit
 SENTENCE_COUNTS = {"hook": (2,3), "setup": (2,3), "twist": (2,3), "deep": (2,3), "sowhat": (2,3), "cta": (2,3)}
-HOOK_MIN_WORDS = 50
+HOOK_MIN_WORDS = 30
 
 # Cringe/filler phrases only — NOT comparison or content words
 BANNED_PHRASES = [
