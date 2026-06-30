@@ -1,12 +1,11 @@
 #!/bin/bash
 # techbro-pipeline: scrape → generate → post (1 article per run)
-# Random delay for anti-bot: 0-2400s (0-40min)
-# Combined with hourly cron → actual interval ~60-100 min
+# Small jitter: 0-5 min for anti-bot
 set -euo pipefail
 
-# Random jitter: 0-40 minutes
-JITTER=$(( RANDOM % 2401 ))
-echo "=== Sleeping ${JITTER}s (~$((JITTER/60))min) jitter ==="
+# Small jitter: 0-5 minutes
+JITTER=$(( RANDOM % 301 ))
+echo "=== Sleeping ${JITTER}s jitter ==="
 sleep "$JITTER"
 
 cd /home/ubuntu/techbro

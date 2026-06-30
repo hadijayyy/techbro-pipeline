@@ -32,67 +32,107 @@ def _title_overlap(t1: str, t2: str) -> float:
 
 def run(top_n: int = TOP_N, dry_run: bool = False):
     t0 = time.time()
+    conn = get_db()
+    staged_this_run = False
 
     # 1. Scrape + score
     print(f"[1/3] Scraping top {top_n} articles...")
     articles = scrape_all(top_n)
-    if not articles:
-        print("  No fresh articles found. Done.")
-        return
-
-    print(f"  Found {len(articles)} articles")
-    conn = get_db()
 
     # Get already-posted/staged article titles for dedup
     posted_titles = [row['title'] for row in conn.execute(
         "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id"
     ).fetchall()]
 
-    for art in articles:
-        print(f"\n  [{art['source']}] score={art['score']} | {art['title'][:60]}...")
+    if articles:
+        print(f"  Found {len(articles)} articles")
 
-        # Dedup: skip if already posted/staged (URL or title match)
-        skip = False
-        for pt in posted_titles:
-            if _title_overlap(art['title'], pt) > 0.5:
-                print(f"  [DEDUP] Similar to already-posted: {pt[:60]}...")
-                skip = True
-                break
-        if skip:
-            continue
+        for art in articles:
+            print(f"\n  [{art['source']}] score={art['score']} | {art['title'][:60]}...")
 
-        # 2. Upsert article to DB
-        article_id = upsert_article(conn, art)
-        print(f"  Article #{article_id} saved to DB")
+            # Dedup: skip if already posted/staged (title similarity)
+            skip = False
+            for pt in posted_titles:
+                if _title_overlap(art['title'], pt) > 0.5:
+                    print(f"  [DEDUP] Similar to already-posted: {pt[:60]}...")
+                    skip = True
+                    break
+            if skip:
+                continue
 
-        if dry_run:
-            print("  [DRY RUN] Skipping generation")
-            continue
+            # 2. Upsert article to DB
+            article_id = upsert_article(conn, art)
+            print(f"  Article #{article_id} saved to DB")
 
-        # 3. Generate carousel
-        print(f"  [2/3] Generating carousel via LM...")
-        slides = generate_carousel(art["title"], art["body"], art.get("image", ""), art.get("url", ""))
-        if not slides:
-            print("  ERROR: LM generation failed")
-            continue
+            if dry_run:
+                print("  [DRY RUN] Skipping generation")
+                continue
 
-        provider = slides.pop("_provider", "unknown")
-        print(f"  Generated via {provider}")
+            # 3. Generate carousel
+            print(f"  [2/3] Generating carousel via LM...")
+            slides = generate_carousel(art["title"], art["body"], art.get("image", ""), art.get("url", ""))
+            if not slides:
+                print("  ERROR: LM generation failed")
+                continue
 
-        # 4. Stage post
-        post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", ""))
-        posted_titles.append(art['title'])  # add to dedup list for this batch
-        print(f"  [3/3] Post #{post_id} staged in DB")
+            provider = slides.pop("_provider", "unknown")
+            print(f"  Generated via {provider}")
 
-        # Preview
-        print(f"  Hook: {slides.get('hook', '?')[:80]}")
-        print(f"  CTA:  {slides.get('cta', '?')[:80]}")
+            # 4. Stage post
+            post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", ""))
+            posted_titles.append(art['title'])
+            staged_this_run = True
+            print(f"  [3/3] Post #{post_id} staged in DB")
+            print(f"  Hook: {slides.get('hook', '?')[:80]}")
+            print(f"  CTA:  {slides.get('cta', '?')[:80]}")
+            break  # one article per run
+    else:
+        print("  No fresh articles from scraper.")
+
+    # Fallback: if nothing staged from fresh scrape, pick best unposted from DB
+    if not staged_this_run:
+        print("  Checking DB for unposted articles...")
+        unposted = conn.execute("""
+            SELECT a.id, a.title, a.body, a.url, a.image, a.score
+            FROM articles a
+            WHERE a.id NOT IN (SELECT article_id FROM posts)
+            ORDER BY a.score DESC
+            LIMIT ?
+        """, (top_n,)).fetchall()
+
+        if unposted:
+            for art in unposted:
+                print(f"  [DB] score={art['score']} | {art['title'][:60]}")
+
+                if dry_run:
+                    print("  [DRY RUN] Skipping generation")
+                    continue
+
+                print(f"  [2/3] Generating carousel via LM...")
+                slides = generate_carousel(art["title"], art["body"], art["image"] or "", art["url"] or "")
+                if not slides:
+                    print("  ERROR: LM generation failed")
+                    continue
+
+                provider = slides.pop("_provider", "unknown")
+                print(f"  Generated via {provider}")
+
+                post_id = stage_post(conn, art["id"], slides, slides.get("caption", ""), slides.get("hashtags", ""))
+                staged_this_run = True
+                print(f"  [3/3] Post #{post_id} staged in DB")
+                print(f"  Hook: {slides.get('hook', '?')[:80]}")
+                print(f"  CTA:  {slides.get('cta', '?')[:80]}")
+                break  # one article per run
+        else:
+            print("  No unposted articles in DB.")
 
     stats = get_stats(conn)
     elapsed = time.time() - t0
     print(f"\n{'='*50}")
     print(f"Done in {elapsed:.1f}s")
     print(f"DB: {stats['articles']} articles | {stats['staged']} staged | {stats['posted']} posted")
+    if not staged_this_run:
+        print("No posts staged this run.")
     conn.close()
 
 if __name__ == "__main__":
