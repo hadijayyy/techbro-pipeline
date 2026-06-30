@@ -27,4 +27,7 @@ python3 scripts/pipeline.py --top 1 2>&1
 # 2. Post staged
 python3 scripts/poster.py 2>&1
 
+# 3. Send report to Telegram
+python3 scripts/report.py 2>&1
+
 echo "=== Done: $(date) ==="
