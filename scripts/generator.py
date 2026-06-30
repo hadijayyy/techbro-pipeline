@@ -79,6 +79,9 @@ def _call_mistral(title: str, body: str) -> Optional[str]:
     return None
 
 def _call_groq(title: str, body: str) -> Optional[str]:
+    if not GROQ_KEY:
+        print("  Groq skipped (no GROQ_API_KEY)")
+        return None
     try:
         r = httpx.post(
             "https://api.groq.com/openai/v1/chat/completions",
