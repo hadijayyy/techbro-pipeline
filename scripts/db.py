@@ -81,6 +81,11 @@ def mark_posted(conn, post_id: int, thread_post_id: str):
         (thread_post_id, post_id))
     conn.commit()
 
+def mark_failed(conn, article_id: int):
+    """Mark article as failed generation — skip in future fallback."""
+    conn.execute("INSERT INTO posts (article_id, status) VALUES (?, 'failed')", (article_id,))
+    conn.commit()
+
 def get_staged_posts(conn, limit: int = 5) -> list:
     return [dict(r) for r in conn.execute(
         "SELECT p.*, a.title, a.url, a.image, a.source FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='staged' ORDER BY p.id DESC LIMIT ?",

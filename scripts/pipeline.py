@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from scraper import scrape_all
 from generator import generate_carousel
-from db import get_db, upsert_article, stage_post, get_stats
+from db import get_db, upsert_article, stage_post, get_stats, mark_failed
 
 TOP_N = 1  # articles per run
 
@@ -73,6 +73,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
             slides = generate_carousel(art["title"], art["body"], art.get("image", ""), art.get("url", ""))
             if not slides:
                 print("  ERROR: LM generation failed")
+                mark_failed(conn, article_id)
                 continue
 
             provider = slides.pop("_provider", "unknown")
@@ -95,7 +96,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
         unposted = conn.execute("""
             SELECT a.id, a.title, a.body, a.url, a.image, a.score
             FROM articles a
-            WHERE a.id NOT IN (SELECT article_id FROM posts)
+            WHERE a.id NOT IN (SELECT article_id FROM posts WHERE status != 'failed')
             ORDER BY a.score DESC
             LIMIT ?
         """, (top_n,)).fetchall()
@@ -112,6 +113,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
                 slides = generate_carousel(art["title"], art["body"], art["image"] or "", art["url"] or "")
                 if not slides:
                     print("  ERROR: LM generation failed")
+                    mark_failed(conn, art["id"])
                     continue
 
                 provider = slides.pop("_provider", "unknown")
