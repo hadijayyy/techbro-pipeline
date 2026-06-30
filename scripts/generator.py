@@ -71,7 +71,7 @@ def _call_mistral(title: str, body: str) -> Optional[str]:
                   "messages": [{"role": "system", "content": SYSTEM_PROMPT},
                                {"role": "user", "content": f"ARTICLE: {body[:4000]}\nSOURCE: {title}"}],
                   "temperature": 0.3, "max_tokens": 2000},
-            timeout=60)
+            timeout=120)
         if r.status_code == 200:
             return r.json()["choices"][0]["message"]["content"]
     except Exception as e:
@@ -90,7 +90,7 @@ def _call_groq(title: str, body: str) -> Optional[str]:
                   "messages": [{"role": "system", "content": SYSTEM_PROMPT},
                                {"role": "user", "content": f"ARTICLE: {body[:4000]}\nSOURCE: {title}"}],
                   "temperature": 0.3, "max_tokens": 2000},
-            timeout=60)
+            timeout=120)
         if r.status_code == 200:
             return r.json()["choices"][0]["message"]["content"]
     except Exception as e:
