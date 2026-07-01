@@ -14,6 +14,14 @@ SYSTEM_PROMPT = """Lo "Bro" — Content Creator & Scriptwriter handal di Threads
 
 Target audiens: anak muda Indonesia ambisius yang tertarik technology, self-improvement, dan bisnis/entrepreneurship. Gaya bahasa kasual Jakarta/Tangerang (gua/lu), relate dengan keseharian. Hindari formal: "merupakan", "tersebut", "berdasarkan".
 
+[JIKA ARTIKEL DALAM BAHASA INGGRIS]
+JANGAN translate literal. Tulis ULANG dari nol dengan bahasa Indonesia gaul yang natural, seolah lo lagi cerita ke temen nongkrong. Contoh:
+- JELEK: "playbook itu BUBAR" → BAGUS: "cara lama udah gak jalan"
+- JELEK: "DI TENGAH 40s" → BAGUS: "Pas umur 40-an"
+- JELEK: "recovery time lebih lama" → BAGUS: "pulihnya lebih lama"
+- JELEK: "kapasitas lo beneran berubah" → BAGUS: "badan lo emang udah beda"
+Prinsip: pembaca harus GAK SADAR ini dari artikel Inggris. Harus terasa kayak lo yang ngalamin sendiri dan lagi cerita.
+
 6-slide narrative arc. Bukan listicle. Bukan recap. Tension → revelation → payoff.
 
 JANGAN mempromosikan produk, brand, atau layanan. Fokus pada cerita, fakta, analisis, opini kritis.
@@ -62,14 +70,22 @@ Output strict JSON, no markdown fences, flat keys only:
 {"slide_1":"","slide_2":"","slide_3":"","slide_4":"","slide_5":"","slide_6":"","caption":"","hashtags":""}
 """
 
-def _call_mistral(title: str, body: str) -> Optional[str]:
+def _build_user_msg(title: str, body: str, source: str = "") -> str:
+    """Build user message, with language note for English sources."""
+    english_sources = {"lifehacker", "lifehack", "psychtoday"}
+    lang_note = ""
+    if source in english_sources:
+        lang_note = "[NOTE: Artikel ini dalam bahasa Inggris. Tulis ULANG dalam bahasa Indonesia gaul, jangan translate literal.]\n\n"
+    return f"{lang_note}ARTICLE: {body[:4000]}\nSOURCE: {title}"
+
+def _call_mistral(title: str, body: str, source: str = "") -> Optional[str]:
     try:
         r = httpx.post(
             "https://api.mistral.ai/v1/chat/completions",
             headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
             json={"model": "mistral-large-latest",
                   "messages": [{"role": "system", "content": SYSTEM_PROMPT},
-                               {"role": "user", "content": f"ARTICLE: {body[:4000]}\nSOURCE: {title}"}],
+                               {"role": "user", "content": _build_user_msg(title, body, source)}],
                   "temperature": 0.3, "max_tokens": 2000},
             timeout=120)
         if r.status_code == 200:
@@ -78,7 +94,7 @@ def _call_mistral(title: str, body: str) -> Optional[str]:
         print(f"  Mistral error: {e}")
     return None
 
-def _call_groq(title: str, body: str) -> Optional[str]:
+def _call_groq(title: str, body: str, source: str = "") -> Optional[str]:
     if not GROQ_KEY:
         print("  Groq skipped (no GROQ_API_KEY)")
         return None
@@ -88,7 +104,7 @@ def _call_groq(title: str, body: str) -> Optional[str]:
             headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
             json={"model": "llama-3.3-70b-versatile",
                   "messages": [{"role": "system", "content": SYSTEM_PROMPT},
-                               {"role": "user", "content": f"ARTICLE: {body[:4000]}\nSOURCE: {title}"}],
+                               {"role": "user", "content": _build_user_msg(title, body, source)}],
                   "temperature": 0.3, "max_tokens": 2000},
             timeout=120)
         if r.status_code == 200:
@@ -184,8 +200,13 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
         text = re.sub(r'  +', ' ', text)
         text = re.sub(r'\n \n', '\n\n', text)
         
-        # Strip fake quotes: remove text in single quotes that looks like dialogue
-        text = re.sub(r"'[^']{5,}'\.?", '', text)
+        # Strip fake DIALOGUE only — not emphasis terms like 'hustle culture'
+        # Dialogue = long quotes (30+ chars) OR quotes with ? or ! (likely imagined speech)
+        # Short quoted terms (under 30 chars, no ?!.) are kept as emphasis
+        text = re.sub(r"'[^']{30,}'", '', text)  # very long = likely dialogue
+        text = re.sub(r"'[^']+[?!][^']*'", '', text)  # has ? or ! = likely dialogue
+        text = re.sub(r'"[^"]{30,}"', '', text)
+        text = re.sub(r'"[^"]+[?!][^"]*"', '', text)
         
         # Strip hallucinated URLs (source_url re-appended to CTA at the end)
         text = re.sub(r'https?://\S+', '', text).strip()
@@ -228,14 +249,14 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
     
     return slides
 
-def generate_carousel(title: str, body: str, image_url: str = "", source_url: str = "") -> Optional[dict]:
-    raw = _call_mistral(title, body)
+def generate_carousel(title: str, body: str, image_url: str = "", source_url: str = "", source: str = "") -> Optional[dict]:
+    raw = _call_mistral(title, body, source)
     slides = _parse_slides(raw) if raw else None
     if slides:
         slides["_provider"] = "mistral"
         return _postprocess_slides(slides, source_url)
     print("  Mistral failed, trying Groq...")
-    raw = _call_groq(title, body)
+    raw = _call_groq(title, body, source)
     slides = _parse_slides(raw) if raw else None
     if slides:
         slides["_provider"] = "groq"
