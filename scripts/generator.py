@@ -144,9 +144,58 @@ def _get_banned() -> list:
 
 # ─── API calls ────────────────────────────────────────────────────
 
+# ─── Prompt rotation: different angles per article type ────────
+
+ANGLES = {
+    "news": [
+        "Write as BREAKING NEWS — first paragraph is the most shocking fact.",
+        "Write as EXCLUSIVE INSIDER — what most people missed about this story.",
+        "Write as INDUSTRY ANALYSIS — why this matters for the next 5 years.",
+    ],
+    "product": [
+        "Write as FIRST IMPRESSIONS — what it feels like to use this.",
+        "Write as COMPARISON — how this stacks up against the competition.",
+        "Write as EARLY ADOPTER — why you should care before everyone else does.",
+    ],
+    "impact": [
+        "Write as CAREER ADVISORY — how this affects your job/skills.",
+        "Write as INVESTOR THESIS — what this means for money/markets.",
+        "Write as FUTURE PREDICTION — where this leads in 2-3 years.",
+    ],
+    "controversy": [
+        "Write as DEVIL'S ADVOCATE — the contrarian take nobody's saying.",
+        "Write as ETHICAL DEBATE — both sides of the argument.",
+        "Write as PATTERN RECOGNITION — what history tells us about this.",
+    ],
+}
+
+def _classify_article(title: str, body: str) -> str:
+    """Classify article type for prompt rotation."""
+    text = (title + " " + body[:500]).lower()
+    
+    product_words = {"launch", "release", "introduces", "unveils", "new feature", "update", "beta", "app", "tool", "product"}
+    impact_words = {"layoff", "jobs", "career", "replace", "automation", "workforce", "salary", "hiring", "funding", "valuation", "ipo"}
+    controversy_words = {"banned", "lawsuit", "regulation", "controversy", "ethical", "bias", "safety", "risk", "danger", "control", "censorship"}
+    
+    if any(w in text for w in controversy_words):
+        return "controversy"
+    if any(w in text for w in product_words):
+        return "product"
+    if any(w in text for w in impact_words):
+        return "impact"
+    return "news"
+
+def _get_angle(article_type: str) -> str:
+    """Get a rotating angle instruction for the article type."""
+    import random
+    angles = ANGLES.get(article_type, ANGLES["news"])
+    return random.choice(angles)
+
 def _build_user_msg(title: str, body: str, source: str = "") -> str:
+    article_type = _classify_article(title, body)
+    angle = _get_angle(article_type)
     prompt = _get_prompt()
-    return f"ARTICLE: {body[:4000]}\nSOURCE: {title}"
+    return f"ANGLE: {angle}\n\nARTICLE: {body[:4000]}\nSOURCE: {title}"
 
 def _call_mistral(title: str, body: str, source: str = "") -> Optional[str]:
     prompt = _get_prompt()

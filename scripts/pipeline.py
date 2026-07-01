@@ -40,6 +40,36 @@ def _title_overlap(t1: str, t2: str) -> float:
         return 0.0
     return len(w1 & w2) / len(w1 | w2)
 
+# Known entities that indicate same topic when combined
+_ENTITIES = {
+    "openai", "anthropic", "google", "meta", "microsoft", "apple", "nvidia",
+    "amazon", "tesla", "deepseek", "mistral", "cohere", "claude", "gpt",
+    "gemini", "chatgpt", "copilot", "cursor", "midjourney", "sora",
+    "sonnet", "opus", "mythos", "fable", "lama", "llama",
+}
+
+def _extract_topic(title: str) -> set[str]:
+    """Extract entity/topic keywords from title."""
+    words = set(_normalize_title(title).split())
+    return words & _ENTITIES
+
+def _is_same_topic(title1: str, title2: str) -> bool:
+    """Check if two titles are about the same topic (entity + action)."""
+    topic1 = _extract_topic(title1)
+    topic2 = _extract_topic(title2)
+    if not topic1 or not topic2:
+        return False
+    # Same entity = same topic
+    overlap = topic1 & topic2
+    if overlap:
+        # Check if the action is also similar (launch/launch, fire/fire)
+        w1 = set(_normalize_title(title1).split()) - _ENTITIES - {"the", "a", "an", "is", "to", "for", "and", "of", "in", "its"}
+        w2 = set(_normalize_title(title2).split()) - _ENTITIES - {"the", "a", "an", "is", "to", "for", "and", "of", "in", "its"}
+        action_overlap = len(w1 & w2) / max(len(w1 | w2), 1)
+        if action_overlap > 0.3:
+            return True
+    return False
+
 def run(top_n: int = TOP_N, dry_run: bool = False):
     t0 = time.time()
     conn = get_db()
@@ -65,11 +95,15 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
         for art in articles:
             print(f"\n  [{art['source']}] score={art['score']} | {art['title'][:60]}...")
 
-            # Dedup: skip if already posted/staged (title similarity)
+            # Dedup: skip if already posted/staged (title similarity OR same topic)
             skip = False
             for pt in posted_titles:
                 if _title_overlap(art['title'], pt) > 0.5:
-                    print(f"  [DEDUP] Similar to already-posted: {pt[:60]}...")
+                    print(f"  [DEDUP] Similar title: {pt[:60]}...")
+                    skip = True
+                    break
+                if _is_same_topic(art['title'], pt):
+                    print(f"  [DEDUP] Same topic as: {pt[:60]}...")
                     skip = True
                     break
             if skip:

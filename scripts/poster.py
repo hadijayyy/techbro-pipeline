@@ -190,6 +190,96 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
     conn.close()
 
 
+def fetch_engagement(media_id: str) -> dict | None:
+    """Fetch engagement metrics for a Threads post."""
+    if not TOKEN:
+        return None
+    try:
+        # Threads API: get insights for a media container
+        r = httpx.get(
+            f"{GRAPH}/{media_id}",
+            params={
+                "fields": "insights.metric(likes,replies,reposts,views)",
+                "access_token": TOKEN,
+            },
+            timeout=15
+        )
+        if r.status_code != 200:
+            print(f"  [ERR] Engagement fetch failed: {r.status_code}")
+            return None
+        
+        data = r.json()
+        insights = data.get("insights", {}).get("data", [])
+        
+        metrics = {}
+        for item in insights:
+            name = item.get("name", "")
+            value = item.get("values", [{}])[0].get("value", 0)
+            metrics[name] = value
+        
+        return {
+            "likes": metrics.get("likes", 0),
+            "replies": metrics.get("replies", 0),
+            "reposts": metrics.get("reposts", 0),
+            "views": metrics.get("views", 0),
+        }
+    except Exception as e:
+        print(f"  [ERR] Engagement fetch error: {e}")
+        return None
+
+
+def track_engagement(limit: int = 10) -> dict:
+    """Fetch engagement for recent posted posts and store in DB."""
+    from db import get_db
+    
+    conn = get_db()
+    
+    # Get recent posted posts with thread_post_id
+    rows = conn.execute('''
+        SELECT p.id, p.thread_post_id, p.slide_hook
+        FROM posts p
+        WHERE p.status = 'posted' AND p.thread_post_id IS NOT NULL
+        ORDER BY p.posted_at DESC
+        LIMIT ?
+    ''', (limit,)).fetchall()
+    
+    tracked = 0
+    total_likes = 0
+    total_views = 0
+    
+    for row in rows:
+        post_id = row['id']
+        media_id = row['thread_post_id']
+        
+        metrics = fetch_engagement(media_id)
+        if not metrics:
+            continue
+        
+        # Store in performance table
+        conn.execute('''
+            INSERT INTO performance (post_id, likes, replies, reposts, views)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (post_id, metrics['likes'], metrics['replies'], 
+              metrics['reposts'], metrics['views']))
+        
+        tracked += 1
+        total_likes += metrics['likes']
+        total_views += metrics['views']
+        
+        hook = row['slide_hook'][:40] if row['slide_hook'] else '...'
+        print(f"  [{post_id}] {hook} | 👁 {metrics['views']} ❤️ {metrics['likes']} 🔄 {metrics['reposts']}")
+    
+    conn.commit()
+    conn.close()
+    
+    return {"tracked": tracked, "total_likes": total_likes, "total_views": total_views}
+
+
 if __name__ == "__main__":
     dry = "--dry-run" in sys.argv
-    post_from_db(dry_run=dry)
+    track = "--track" in sys.argv
+    
+    if track:
+        track_engagement()
+    else:
+        post_from_db(dry_run=dry)
