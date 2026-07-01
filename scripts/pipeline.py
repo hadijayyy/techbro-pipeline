@@ -70,7 +70,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
 
             # 3. Generate carousel
             print(f"  [2/3] Generating carousel via LM...")
-            slides = generate_carousel(art["title"], art["body"], art.get("image", ""), art.get("url", ""), art.get("source", ""))
+            slides = generate_carousel(art["title"], art["body"], art["image"] or "", art["url"] or "", art["source"] if "source" in art.keys() else "")
             if not slides:
                 print("  ERROR: LM generation failed")
                 mark_failed(conn, article_id)
@@ -110,7 +110,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
                     continue
 
                 print(f"  [2/3] Generating carousel via LM...")
-                slides = generate_carousel(art["title"], art["body"], art["image"] or "", art["url"] or "", art.get("source", ""))
+                slides = generate_carousel(art["title"], art["body"], art["image"] or "", art["url"] or "", art["source"] if "source" in art.keys() else "")
                 if not slides:
                     print("  ERROR: LM generation failed")
                     mark_failed(conn, art["id"])
