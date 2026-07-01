@@ -60,6 +60,18 @@ JANGAN mempromosikan produk, brand, atau layanan. Fokus pada cerita, fakta, anal
 - JANGAN pakai em-dash (—) atau en-dash (–). Ganti koma. Ini cerita mengalir, bukan berita.
 - JANGAN bikin kutipan/dialog imajiner. Kalau gak ada quote dari narasumber, jangan buat.
 
+[TERJEMAH NATURAL]
+Bahasa Indonesia dulu. Tech terms English boleh (AI, startup, coding, deploy, crash), tapi:
+- "subtract" → "buang" / "kurangi"
+- "build for worst day" → "bangun sistem buat hari terburuk"
+- "playbook" → "cara lama" / "strategi"
+- "recovery time" → "waktu pulih"
+- "discipline" → "disiplin"
+- "hustle" → "kerja keras" / "semangat"
+- "level up" → "naik level" / "upgrade"
+- "toxic productivity" → acceptable (sudah umum di Indo)
+- "growth" → "berkembang" / "naik level"
+
 STORYTELLING ARC: Slide 1-6 harus terasa kayak 1 cerita nyambung. Bukan 6 fakta terpisah.
 
 SLIDE 1 — HOOK (WAJIB 2-3 kalimat, minimal 30 kata)
@@ -263,13 +275,14 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
         text = re.sub(r'  +', ' ', text)
         text = re.sub(r'\n \n', '\n\n', text)
         
-        # Strip fake DIALOGUE only — not emphasis terms like 'hustle culture'
-        # Dialogue = long quotes (30+ chars) OR quotes with ? or ! (likely imagined speech)
-        # Short quoted terms (under 30 chars, no ?!.) are kept as emphasis
-        text = re.sub(r"'[^']{30,}'", '', text)  # very long = likely dialogue
-        text = re.sub(r"'[^']+[?!][^']*'", '', text)  # has ? or ! = likely dialogue
-        text = re.sub(r'"[^"]{30,}"', '', text)
+        # Strip ALL single quotes (Threads gak render, mencegah broken artifacts)
+        text = text.replace("'", "")
+        # Strip double quotes (dialogue)
+        text = re.sub(r'"[^"]{20,}"', '', text)
         text = re.sub(r'"[^"]+[?!][^"]*"', '', text)
+        
+        # Strip hallucinated source title fragments (e.g. "the Renovation Decade]")
+        text = re.sub(r'\bthe [A-Z][a-z]+ [A-Z][a-z]+\b', '', text)
         
         # Strip hallucinated URLs (source_url re-appended to CTA at the end)
         text = re.sub(r'https?://\S+', '', text).strip()

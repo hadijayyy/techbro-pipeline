@@ -136,9 +136,14 @@ test("postproc_source_url", test_source_url_in_cta)
 
 def test_fake_quote_strip():
     from generator import _postprocess_slides
-    s = {"hook":"H.","setup":"S.","twist":"T.","deep":"Ini kata mereka: 'ini dialog imajiner yang panjang'.","sowhat":"SW.","cta":"C."}
+    # Single quotes stripped (chars removed, content kept) — Threads gak render
+    s = {"hook":"H.","setup":"S.","twist":"T.","deep":"Ini kata mereka: 'dialog panjang'.","sowhat":"SW.","cta":"C."}
     p = _postprocess_slides(s, "")
-    assert "imajiner" not in p["deep"], f"Fake quote remains: {p['deep']}"
+    assert "'" not in p["deep"], f"Single quote remains: {p['deep']}"
+    # Double quotes long (20+ chars) stripped entirely
+    s2 = {"hook":"H.","setup":"S.","twist":"T.","deep":"Kata mereka: \"ini dialog imajiner yang sangat panjang dan harus dihapus\".","sowhat":"SW.","cta":"C."}
+    p2 = _postprocess_slides(s2, "")
+    assert "imajiner" not in p2["deep"], f"Fake quote remains: {p2['deep']}"
 test("postproc_fake_quotes", test_fake_quote_strip)
 
 
