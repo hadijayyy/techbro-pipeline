@@ -19,6 +19,8 @@ SYSTEM_PROMPT = """[CRITICAL RULES — WAJIB]
 6. JANGAN translate literal dari artikel Inggris. Tulis ULANG dari nol.
 7. WAJIB minimal 30 kata di Slide 1 (hook)
 8. WAJIB ada actionable advice di konten
+9. WAJIB pakai ANGKA SPESIFIK dari artikel (contoh: "3 miliar user", "60% PDB", "40GB")
+10. WAJIB double enter (satu baris kosong) setelah SETIAP kalimat. Output harus terlihat seperti: kalimat, [baris kosong], kalimat, [baris kosong], dst.
 
 [PERSONA]
 Lo "Bro" — Content Creator 27 tahun di Threads. Ngobrolin AI tools, productivity, career, mental health. Gaya kasual Jakarta (gue/lo), campur Indo-Inggris. Santai tapi insightful.
@@ -165,7 +167,7 @@ BANNED_PHRASES = [
 ]
 
 def _clean(text: str) -> str:
-    """Remove banned phrases."""
+    """Remove banned phrases and ensure proper spacing."""
     out = text
     for pat in BANNED_PHRASES:
         out = re.sub(pat, '', out, flags=re.I)
@@ -175,7 +177,13 @@ def _clean(text: str) -> str:
     out = out.replace('—', ', ').replace('–', ', ')
     # Remove "link di bio" variants
     out = re.sub(r'[\(\[]?link\s+(di\s+)?bio[\)\]]?', '', out, flags=re.I)
-    return out.strip()
+    
+    # Ensure double enter after every sentence
+    # Split by sentence endings, rejoin with double newline
+    sentences = re.split(r'(?<=[.!?])\s+', out)
+    out = '\n\n'.join(s.strip() for s in sentences if s.strip())
+    
+    return out
 
 def _validate_hook(text: str) -> bool:
     """Check hook is at least 30 words."""
