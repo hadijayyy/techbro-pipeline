@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scraper.py — 7 sources: Kompas, Detik, CNN Tech, CNN Lifestyle, CNBC Lifestyle, CNBC MyMoney, Liputan6 Bisnis
+scraper.py — 10 sources: Kompas, Detik, Detik Health, CNN Tech, CNN Lifestyle, CNBC Lifestyle, CNBC MyMoney, Liputan6 Bisnis, IDN Times, Hipwee
 """
 import re
 import json
@@ -93,6 +93,19 @@ EXCLUDE = [
     "rumah tangga", "cerai", "perselingkuhan",
     "hamil", "menikah", "resepsi", "lamaran",
 ]
+# TIPS_BONUS = boost tips & tricks content
+TIPS_BONUS = [
+    "tips", "cara", "trik", "rahasia", "hack", "panduan", "langkah",
+    "strategi", "tutorial", "cara mudah", "cara cepat",
+    "begini cara", "ini dia", "yang perlu", "harus tahu",
+    "wajib tahu", "jangan sampai", "hindari", "perhatikan",
+]
+# NEWS_PENALTY = pure news signals (not tips)
+NEWS_PENALTY = [
+    "rilis", "peluncuran", "pengumuman", "resmi", "tutup operasi",
+    "tutup layanan", "bakal", "akan", "segera", "rencana",
+    "rencanakan", "targetkan", "anggarkan",
+]
 
 # Pre-compiled regex — unique match per tier (not count)
 _TIER1_SET = {k.lower() for k in TIER1}
@@ -100,6 +113,8 @@ _TIER2_SET = {k.lower() for k in TIER2}
 _TIER3_SET = {k.lower() for k in TIER3}
 _PENALTY_RE = re.compile("|".join(re.escape(k.lower()) for k in PENALTY))
 _EXCL_RE    = re.compile("|".join(re.escape(k.lower()) for k in EXCLUDE))
+_TIPS_RE    = re.compile("|".join(re.escape(k.lower()) for k in TIPS_BONUS))
+_NEWS_RE    = re.compile("|".join(re.escape(k.lower()) for k in NEWS_PENALTY))
 
 
 def _unique_matches(text: str, keywords: set) -> int:
@@ -135,6 +150,14 @@ def score_article(title: str, body: str) -> int:
     t3 = _unique_matches(title_l, _TIER3_SET) * 4  + _unique_matches(body_l, _TIER3_SET) * 2
 
     s = t1 + t2 + t3
+
+    # Tips & tricks bonus: boost articles with how-to/tips signals
+    tips_hits = len(set(_TIPS_RE.findall(text)))
+    s += tips_hits * 8
+
+    # News penalty: reduce pure news (rilis, pengumuman, etc.)
+    news_hits = len(set(_NEWS_RE.findall(text)))
+    s -= news_hits * 6
 
     # Penalty: product review/promo patterns
     penalty_count = len(_PENALTY_RE.findall(text))
@@ -244,6 +267,9 @@ _DETIK_SEL  = [("div", re.compile("detail__body-text")), ("div", re.compile("itp
 _CNN_SEL    = [("div", re.compile("detail-text")), ("div", re.compile("content-det"))]
 _CNBC_SEL   = [("div", re.compile("detail-text")), ("div", re.compile("cnbc-body"))]
 _LIP6_SEL   = [("div", re.compile("container-main")), ("div", re.compile("read-page__content"))]
+_IDN_SEL    = [("div", re.compile("article-content")), ("div", re.compile("content-body")), ("article", None)]
+_HIPWEE_SEL = [("div", re.compile("article-content")), ("div", re.compile("post-content")), ("div", re.compile("entry-content"))]
+_DETIX_HEALTH_SEL = [("div", re.compile("detail__body-text")), ("div", re.compile("itp_bodycontent"))]
 
 async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str) -> dict | None:
     try:
@@ -273,6 +299,12 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str)
             body = extract_body(soup, _CNBC_SEL)
         elif source == "liputan6_bisnis":
             body = extract_body(soup, _LIP6_SEL)
+        elif source == "detik_health":
+            body = extract_body(soup, _DETIX_HEALTH_SEL)
+        elif source == "idntimes":
+            body = extract_body(soup, _IDN_SEL)
+        elif source == "hipwee":
+            body = extract_body(soup, _HIPWEE_SEL)
         else:
             return None
         if not body:
@@ -391,6 +423,49 @@ async def get_links_liputan6_bisnis(client: httpx.AsyncClient) -> list[str]:
         pass
     return list(links)[:50]
 
+async def get_links_detik_health(client: httpx.AsyncClient) -> list[str]:
+    """Detik Health — tips sehat, mental health, wellness."""
+    links = set()
+    try:
+        r = await client.get("https://health.detik.com/rss", timeout=12)
+        for m in re.finditer(r"<link>([^<]+)</link>", r.text):
+            url = m.group(1).strip()
+            if "health.detik.com/" in url and "/d-" in url:
+                links.add(url.split("?")[0])
+    except Exception:
+        pass
+    return list(links)[:50]
+
+async def get_links_idntimes(client: httpx.AsyncClient) -> list[str]:
+    """IDN Times — lifestyle, Gen Z, career tips."""
+    links = set()
+    try:
+        r = await client.get("https://www.idntimes.com/life", timeout=12)
+        soup = BeautifulSoup(r.text, "html.parser")
+        for a in soup.find_all("a", href=True):
+            href = str(a["href"])
+            # IDN Times article pattern: /life/.../slug or /business/.../slug
+            if "idntimes.com/" in href and re.search(r"idntimes\.com/\w+/.+", href):
+                links.add(href.split("?")[0])
+    except Exception:
+        pass
+    return list(links)[:50]
+
+async def get_links_hipwee(client: httpx.AsyncClient) -> list[str]:
+    """Hipwee — tips produktif, self-improvement, motivation."""
+    links = set()
+    try:
+        r = await client.get("https://www.hipwee.com/", timeout=12)
+        soup = BeautifulSoup(r.text, "html.parser")
+        for a in soup.find_all("a", href=True):
+            href = str(a["href"])
+            # Hipwee article: hipwee.com/category/slug or hipwee.com/n/slug
+            if "hipwee.com/" in href and re.search(r"hipwee\.com/(?!top|editors|community|dashboard|user|category|promo)[\w-]+/[\w-]+", href):
+                links.add(href.split("?")[0])
+    except Exception:
+        pass
+    return list(links)[:50]
+
 async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
         link_tasks = await asyncio.gather(
@@ -401,10 +476,13 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_cnbc_lifestyle(client),
             get_links_cnbc_mymoney(client),
             get_links_liputan6_bisnis(client),
+            get_links_detik_health(client),
+            get_links_idntimes(client),
+            get_links_hipwee(client),
             return_exceptions=True,
         )
         all_tasks = []
-        for src, links in zip(["kompas", "detik", "cnn", "cnn_lifestyle", "cnbc_lifestyle", "cnbc_mymoney", "liputan6_bisnis"], link_tasks):
+        for src, links in zip(["kompas", "detik", "cnn", "cnn_lifestyle", "cnbc_lifestyle", "cnbc_mymoney", "liputan6_bisnis", "detik_health", "idntimes", "hipwee"], link_tasks):
             if not isinstance(links, list) or not links:
                 continue
             for url in links:
@@ -441,6 +519,7 @@ if __name__ == "__main__":
         "kompas": "Kompas Tekno", "detik": "Detik Inet", "cnn": "CNN Indonesia",
         "cnn_lifestyle": "CNN Gaya Hidup", "cnbc_lifestyle": "CNBC Lifestyle",
         "cnbc_mymoney": "CNBC MyMoney", "liputan6_bisnis": "Liputan6 Bisnis",
+        "detik_health": "Detik Health", "idntimes": "IDN Times", "hipwee": "Hipwee",
     }
     for i, art in enumerate(results, 1):
         dt_str = art["date"].strftime("%Y-%m-%d %H:%M WIB") if art["date"] else "unknown date"
