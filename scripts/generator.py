@@ -167,7 +167,7 @@ BANNED_PHRASES = [
 ]
 
 def _clean(text: str) -> str:
-    """Remove banned phrases and ensure proper spacing."""
+    """Remove banned phrases, fix grammar issues, ensure proper spacing."""
     out = text
     for pat in BANNED_PHRASES:
         out = re.sub(pat, '', out, flags=re.I)
@@ -178,12 +178,13 @@ def _clean(text: str) -> str:
     # Remove "link di bio" variants
     out = re.sub(r'[\(\[]?link\s+(di\s+)?bio[\)\]]?', '', out, flags=re.I)
     
-    # Ensure double enter after every sentence
-    # Split by sentence endings, rejoin with double newline
-    sentences = re.split(r'(?<=[.!?])\s+', out)
-    out = '\n\n'.join(s.strip() for s in sentences if s.strip())
+    # Fix orphan punctuation: lines starting with , ; : . ! ?
+    out = re.sub(r'(?m)^\s*[,;:.\!?]+\s*', '', out)
     
-    return out
+    # Remove empty lines that result from cleaning (keep max double newline)
+    out = re.sub(r'\n{3,}', '\n\n', out)
+    
+    return out.strip()
 
 def _validate_hook(text: str) -> bool:
     """Check hook is at least 30 words."""
