@@ -62,51 +62,44 @@ Output strict JSON, no markdown fences:
 """
 
 PROMPT_ID = """[ROLE]
-Lo adalah "Bro", content creator tech Indonesia umur 27 tahun di Threads. Target lo: anak muda ambitious, pekerja kantoran, dan tech enthusiast Indonesia. Lo bukan reporter berita — lo adalah storyteller yang ngebongkar berita tech/AI jadi cerita yang relate sama kehidupan sehari-hari. Bahasa lo: natural, conversational, pake "gue/lo", campuran Indonesia-Inggris (tech terms tetap Inggris: AI, startup, coding, agent). Gaya lo: kayak lagi ngobrol sama temen di kopi, bukan kayak baca koran.
+Lo lagi chat di WhatsApp sama temen deket lo. Dia kerja di startup Jakarta, umur 25-30, suka scroll Threads pas lagi bosen di kantor. Lo baru baca berita tech yang gila dan lo excited banget buat share. Lo gak lagi presentasi, lo gak lagi bikin essay — lo lagi NGOBROL.
 
 [TASK]
-Ubah artikel ini jadi 6-slide Threads narrative yang feels seperti cerita pribadi, bukan berita. Ambil data paling mengejutkan, insight yang counterintuitive, dan angka real dari artikel. Frame semuanya dari sudut pandang: "Gimana ini ngaruh ke hidup lo sehari-hari, karir, atau produktivitas?" Contoh: berita "CEO resign" → jadi "Tanda lo harus resign dari kantor lo". Jangan translate literal — rewrite dari nol dengan konteks Indonesia.
+Ubah artikel ini jadi obrolan 6 slide. Bukan berita. Bukan motivasi. Obrolan. Lo yang lagi cerita ke temen lo soal sesuatu yang baru lo baca dan lo pikir dia harus tau.
 
-[STORYTELLING RULES]
-- Setiap slide harus feel kayak chapter dalam cerita, bukan bullet point
-- Gunakan analogi dari kehidupan Indonesia: macet Jakarta, cicilan motor, kopi sachet, WFH, side hustle
-- Pace: slide 1-2 = tarik masuk, slide 3 = plot twist, slide 4 = solusi, slide 5 = wisdom, slide 6 = ajak diskusi
-- Setiap slide harus ada minimal satu kalimat pendek yang punchy (3-7 kata) untuk emphasis
-- Jangan pernah terdengar seperti mesin — terdengar seperti manusia yang lagi sharing pengalaman
+[CARA NULIS]
+- Kalimat pendek. Campur Indonesia-Inggris natural (bukan dipaksakan). Tech terms tetap Inggris.
+- Gak usah sok pinter. Gak usah sok dalam. Tulis kayak lo ngomong.
+- Tiap slide: 2-4 kalimat MAX. Beberapa cuma 1 kalimat pendek juga gapapa.
+- Gak perlu tiap slide ada "analogi kehidupan Indonesia". Kadang beritanya emang menarik sendiri, gausa dipaksain relate ke cicilan motor.
+- LO BOLEH bilang "anjir", "gila sih", "seriusan?", "gimana ceritanya?" — itu natural.
+- JANGAN: "Bayangin lo bisa...", "Ini bukan cuma...", "Gue inget pas kuliah...", "Jangan cuma X, coba Y" — itu cringe dan kedengeran kayak AI.
 
-[OUTPUT]
-Format strictly as a flat JSON with keys "slide_1" to "slide_6", "caption", "hashtags". Tulis dalam prose (no bullets). Variasi ritme antara kalimat pendek yang nendang dan kalimat panjang yang mengalir.
+[SLIDE STRUCTURE]
 
-- slide_1 (Hook, under 30 words, MAX 2 sentences): Langsung hantam dengan fakta/angka paling shocking dari artikel. Capitalize SATU kata untuk emphasis. Pilih salah satu format hook ini (jangan ulang yang sama):
-  1. REALIZATION: "Gue baru sadar..."
-  2. OPINION: "Jujur, gue [emosi] soal..."
-  3. QUESTION: "Lo tau gak...?"
-  4. SCENARIO: "Bayangin lo lagi [situasi]..."
-  5. CONTRAST: "Katanya [ekspektasi]... Tapi kenyataannya?"
-  6. DATA: "[Angka] orang [konteks]. Lo termasuk?"
+slide_1: Hook. Satu fakta paling gila dari artikel, under 25 kata. Langsung masuk, gak basa-basi. Bisa pake angka, bisa pake reaksi lo sendiri. Capitalize satu kata penting.
 
-- slide_2 (Setup, 40-60 words, MAX 3 sentences): Hubungin berita ini ke struggle sehari-hari orang Indonesia (9-5 grind, macet, cicilan, WFH culture, side hustle). Pembaca harus mikir: "Anjir, ini gue banget"
+slide_2: Context. Kenapa ini penting? Jelasin dalam bahasa manusia. Gak perlu relate ke kehidupan sehari-hari kalo gak natural. Kadang emang beritanya teknis dan itu fine.
 
-- slide_3 (Twist, 40-60 words, MAX 3 sentences): Bongkar root cause atau fakta yang bikin kaget. Jelasin pake bahasa sehari-hari tanpa jargon yang gatekeeping.
+slide_3: The "wait, what?" moment. Fakta kedua yang bikin orang scroll balik. Yang bikin mereka screenshot.
 
-- slide_4 (Tips, 40-60 words, MAX 3 sentences): Kasih advice actionable yang bisa langsung lo praktekin. Spesifik, bukan generik.
+slide_4: What lo pikirin. Bukan tips generik. Pendapat lo. Analisis lo. Kenapa ini menarik menurut lo. Atau satu insight yang gak obvious.
 
-- slide_5 (Lesson, 30-50 words, MAX 3 sentences): Deliver mindset shift atau punchline yang bikin orang mau share karena mereka relate.
+slide_5: Closing thought. Satu kalimat yang bikin orang berhenti scroll. Bisa provokatif, bisa bijak, bisa funny. Yang penting: lo sendiri percaya.
 
-- slide_6 (CTA, 30-40 words, MAX 3 sentences): Akhiri dengan pertanyaan yang provokatif, ajak debate, atau challenge yang bikin audience mau comment.
+slide_6: Question. Satu pertanyaan singkat yang bikin orang mau jawab. Bukan pertanyaan retoris yang basi.
 
-caption: 1-2 kalimat summary + hashtags
+caption: 1 kalimat + hashtags
 
 [STRICT RULES]
-- JANGAN pake emoji/emoticon sama sekali
-- JANGAN pake em-dash (—) atau en-dash (–); ganti koma
-- JANGAN pake "link di bio" atau bikin quote palsu ("temen gue", "keluarga gue" kecuali dari artikel)
-- JANGAN fabricate cerita, event, nama, atau statistik. Semua harus 100% akurat dari artikel
-- JANGAN translate literal dari artikel Inggris. Rewrite dari nol
-- WAJIB include angka spesifik dari artikel
-- WAJIB reject product promotions. Kalau artikel pure promo/pricing, output: {"error":"product_promo"}
+- Zero emoji
+- Zero em-dash/en-dash, pakai koma
+- Zero "link di bio" atau quote palsu
+- Zero fabricate. Semua dari artikel.
+- Angka spesifik WAJIB ada (minimal 1 per post)
+- Pure product promo = {"error":"product_promo"}
 
-Output strict JSON, no markdown fences:
+Output strict JSON:
 {"slide_1":"","slide_2":"","slide_3":"","slide_4":"","slide_5":"","slide_6":"","caption":"","hashtags":""}
 """
 
@@ -319,19 +312,134 @@ def _validate_hook(text: str) -> tuple[bool, list[str]]:
     return valid, issues
 
 def _score_hook(text: str) -> int:
-    """Score a hook 0-6. Higher = better engagement."""
+    """Score a hook 0-10. Higher = better engagement."""
     score = 0
     words = text.split()
-    if len(words) <= 30 and len(words) >= 10: score += 1  # sweet spot: 10-30 words
-    if bool(re.search(r'\d+', text)): score += 1
+    text_lower = text.lower()
+    word_count = len(words)
+
+    # 1. Length sweet spot (10-25 words)
+    if 10 <= word_count <= 25:
+        score += 1
+
+    # 2. Has specific number
+    if re.search(r'\d+', text):
+        score += 1
+
+    # 3. Curiosity/emotional trigger
     curiosity = {'secret', 'shocking', 'surprising', 'unexpected', 'never',
                  'actually', 'real', 'truth', 'mistake', 'breakthrough',
-                 'just', 'new', 'first', 'only', 'biggest', 'most', 'worst', 'best'}
-    if any(w in text.lower() for w in curiosity): score += 1
-    if text.rstrip().endswith(('?', '!')): score += 1
-    if any(w in text.lower().split() for w in {'you', 'your', 'i', 'we', 'our', 'my'}): score += 1
-    if len(set(re.findall(r'[A-Z]{2,}', text))) > 0: score += 1  # emphasis words
+                 'just', 'new', 'first', 'only', 'biggest', 'most', 'worst', 'best',
+                 'gila', 'seriusan', 'anjir', 'parah', 'gilanya', 'ternyata'}
+    if any(w in text_lower for w in curiosity):
+        score += 1
+
+    # 4. Engagement punctuation (? or !)
+    if text.rstrip().endswith(('?', '!')):
+        score += 1
+
+    # 5. Personal pronouns (ID: gue/lo/kita, EN: you/your/i/we)
+    personal = {'you', 'your', 'i', 'we', 'our', 'my', 'gue', 'lo', 'kita', 'lu'}
+    if any(w in text_lower.split() for w in personal):
+        score += 1
+
+    # 6. CAPS emphasis (2+ uppercase chars in a row)
+    if re.search(r'[A-Z]{2,}', text):
+        score += 1
+
+    # 7. Punchy (under 20 words)
+    if word_count <= 20:
+        score += 1
+
+    # 8. Contrast/tension words
+    tension = {'but', 'however', 'yet', 'actually', 'turns', 'except', 'wait',
+               'tapi', 'ternyata', 'padahal', 'eh', 'taunya'}
+    if any(w in text_lower.split() for w in tension):
+        score += 1
+
+    # 9. Specificity (proper nouns or tech terms)
+    specificity = {'ai', 'openai', 'anthropic', 'claude', 'gpt', 'google', 'nvidia',
+                   'microsoft', 'meta', 'apple', 'tesla', 'spacex', 'github', 'api',
+                   'llm', 'startup', 'python', 'javascript', 'blockchain'}
+    if any(w in text_lower.split() for w in specificity):
+        score += 1
+
+    # 10. Strong opening (doesn't start with weak words)
+    weak_openers = {'the', 'a', 'an', 'in', 'it', 'this', 'that', 'there', 'ini', 'itu', 'ada'}
+    first_word = words[0].lower().strip('.,!?') if words else ''
+    if first_word and first_word not in weak_openers:
+        score += 1
+
     return score
+
+
+def _rewrite_hook(hook: str, article_title: str, body: str, score: int) -> tuple[str, int]:
+    """Auto-rewrite hook if score < 7. Returns (new_hook, new_score)."""
+    if score >= 7:
+        return hook, score
+
+    # Build feedback on what's missing
+    words = hook.split()
+    text_lower = hook.lower()
+    missing = []
+
+    if not (10 <= len(words) <= 25):
+        missing.append("keep it between 10-25 words")
+    if not re.search(r'\d+', hook):
+        # Try to extract number from article
+        nums = re.findall(r'\d[\d,.]*\+?\s*(?:%|percent|million|billion|thousand|gen|cell|researcher|scientist|company)?', body[:500].lower())
+        if nums:
+            missing.append(f"add a number from the article (like {nums[0].strip()})")
+        else:
+            missing.append("add a specific number")
+    curiosity = {'shocking', 'surprising', 'never', 'actually', 'first', 'new', 'just', 'gila', 'seriusan', 'ternyata'}
+    if not any(w in text_lower for w in curiosity):
+        missing.append("add a curiosity word (shocking, baru, ternyata, gila)")
+    if not hook.rstrip().endswith(('?', '!')):
+        missing.append("end with ? or !")
+    if not re.search(r'[A-Z]{2,}', hook):
+        missing.append("CAPITALIZE one important word for emphasis")
+
+    if not missing:
+        return hook, score
+
+    prompt_fix = f"""Rewrite this hook to score higher. Current issues: {', '.join(missing)}.
+
+Original hook: {hook}
+Article title: {article_title}
+
+Rules:
+- Under 25 words, MAX 2 sentences
+- Must include at least one specific number
+- Capitalize ONE key word
+- End with ? or ! if it's a question/exclamation
+- Mix Indonesian-English naturally
+- Sound like a real person texting, not an AI
+
+Return ONLY the rewritten hook text, nothing else."""
+
+    try:
+        import httpx, os
+        key = os.getenv("MISTRAL_API_KEY", "")
+        if not key:
+            return hook, score
+        r = httpx.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"model": "mistral-large-latest",
+                  "messages": [{"role": "user", "content": prompt_fix}],
+                  "temperature": 0.4, "max_tokens": 100},
+            timeout=30)
+        if r.status_code == 200:
+            new_hook = r.json()["choices"][0]["message"]["content"].strip().strip('"')
+            new_score = _score_hook(new_hook)
+            if new_score > score:
+                print(f"  [REWRITE] Hook {score}/10 → {new_score}/10: {new_hook[:60]}...")
+                return new_hook, new_score
+    except Exception as e:
+        print(f"  [REWRITE] Error: {e}")
+
+    return hook, score
 
 def _generate_variant(title: str, body: str, source: str, provider: str, hook_instruction: str = "") -> Optional[dict]:
     """Generate one carousel variant. Returns parsed dict or None."""
@@ -425,7 +533,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
             v["_provider"] = prov
             hook_score = _score_hook(v["slide_1"])
             variants.append((v, hook_score))
-            print(f"  [A/B] Variant {i}: hook score {hook_score}/6 via {prov}")
+            print(f"  [A/B] Variant {i}: hook score {hook_score}/10 via {prov}")
 
     # If primary fails both times, try fallback
     if len(variants) < 2:
@@ -434,7 +542,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
             v["_provider"] = fallback
             hook_score = _score_hook(v["slide_1"])
             variants.append((v, hook_score))
-            print(f"  [A/B] Fallback variant: hook score {hook_score}/6 via {fallback}")
+            print(f"  [A/B] Fallback variant: hook score {hook_score}/10 via {fallback}")
 
     if not variants:
         return None
@@ -442,7 +550,14 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     # Pick best hook score
     variants.sort(key=lambda x: x[1], reverse=True)
     data, best_score = variants[0]
-    print(f"  [A/B] Winner: hook score {best_score}/6 ({len(variants)} variants)")
+    print(f"  [A/B] Winner: hook score {best_score}/10 ({len(variants)} variants)")
+
+    # Auto-rewrite hook if score < 7
+    if "slide_1" in data and best_score < 7:
+        new_hook, new_score = _rewrite_hook(data["slide_1"], title, body, best_score)
+        if new_score > best_score:
+            data["slide_1"] = new_hook
+            best_score = new_score
 
     # Validate winning hook
     if "slide_1" in data:
@@ -450,7 +565,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         if not valid:
             print(f"[HOOK] Issues: {', '.join(issues)}")
         else:
-            print(f"[HOOK] Valid (score: {best_score}/6)")
+            print(f"[HOOK] Valid (score: {best_score}/10)")
 
     data["_provider"] = data.get("_provider", primary)
     data["_lang"] = CONTENT_LANG
