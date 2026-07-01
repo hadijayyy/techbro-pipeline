@@ -26,39 +26,47 @@ HEADERS = {
 
 # ─── Scoring Keywords ────────────────────────────────────────────
 
-# TIER1 = hot AI/tech topics (title 3x weight)
+# TIER1 = hot topics yang bikin orang Indonesia PEDULI (title 3x weight)
 TIER1 = [
-    # AI Models & Companies
+    # AI Impact (emosional: takut kehilangan kerja)
+    "phk", "layoff", "dirumahkan", "ai replace", "ai gantikan", "automasi",
+    "kehilangan pekerjaan", "ai jobs", "ai agent", "vibe coding",
+    # AI Models & Companies (masih menarik)
     "openai", "anthropic", "claude", "gpt", "gemini", "deepseek", "llama",
-    "mistral", "cohere", "ai model", "language model", "llm", "agi",
-    # AI Products & Tools
-    "copilot", "cursor", "midjourney", "sora", "chatgpt", "ai agent",
-    "ai assistant", "ai tool", "ai coding", "vibe coding",
-    # AI Impact
-    "ai replace", "ai jobs", "layoff", "automation", "phk",
-    "deepfake", "ai safety", "ai regulation", "ai ethics",
-    # Big Tech AI
-    "nvidia", "apple ai", "google ai", "meta ai", "microsoft ai",
-    "amazon ai", "samsung ai",
-    # Hot Topics
-    "ai chip", "gpu", "quantum", "robot", "humanoid",
-    "ai startup", "ai funding", "ai valuation",
+    "mistral", "chatgpt", "copilot", "cursor", "ai model", "llm", "agi",
+    # Startup Indonesia (relatable: Gojek, Tokopedia, etc.)
+    "gojek", "tokopedia", "traveloka", "bukalapak", "blibli", "shopee",
+    "tiktok shop", "grab", "sea group", "goto", "startup indonesia",
+    "unicorn", "decacorn",
+    # Fintech & Money (emosional: duit)
+    "pinjol", "fintech", "ovo", "gopay", "dana", "shopeepay",
+    "kripto", "crypto", "investasi", "saham", "digital bank",
+    # Regulation & Drama
+    "kominfo", "pse", "blokir", "sensor", "uu ite", "peraturan",
+    "pelanggaran data", "data bocor", "privasi",
 ]
 
-# TIER2 = tech adjacent
+# TIER2 = tech adjacent (masih relate)
 TIER2 = [
-    "semiconductor", "chip", "data center", "cloud", "saas",
-    "startup", "venture capital", "funding", "ipo", "valuation",
-    "privacy", "cybersecurity", "hack", "breach", "encryption",
-    "crypto", "blockchain", "web3",
-    "remote work", "productivity", "workflow",
-    "open source", "developer", "engineering",
+    # Indonesian Economy & Tech
+    "startup", "funding", "pendanaan", "valuasi", "ipo", "akuisisi",
+    "umkm", "digital", "transformasi digital", "ecommerce", "e-commerce",
+    "remote work", "wfh", "wfo", "hybrid", "freelance", "side hustle",
+    # Global Tech (tetap menarik kalo ada angle Indonesia)
+    "semiconductor", "chip", "gpu", "nvidia", "apple", "google", "meta",
+    "microsoft", "amazon", "tesla", "spacex",
+    # Security
+    "cybersecurity", "hack", "breach", "malware", "scam", "penipuan",
+    "phishing",
+    # Social & Content
+    "tiktok", "instagram", "threads", "twitter", "x", "youtube",
+    "influencer", "content creator", "monetisasi",
 ]
 
-# TIER3 = generic tech
+# TIER3 = generic (low weight)
 TIER3 = [
     "technology", "innovation", "digital", "platform", "app",
-    "software", "hardware", "tech", "silicon valley",
+    "teknologi", "inovasi", "aplikasi",
 ]
 
 # PENALTY = product reviews/promos
@@ -296,6 +304,14 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             body = extract_body(soup, _WIRED_SEL)
         elif source in ("hn", "anthropic"):
             body = extract_body(soup, _HN_SEL)
+        elif source in ("cnbc_id", "detik", "liputan6", "kumparan"):
+            # Indonesian sources: try common selectors
+            _ID_SEL = [
+                ("div", "detail-text"), ("div", "article-content"),
+                ("div", "content-text"), ("div", "read__content"),
+                ("div", "article_body"), ("article", None),
+            ]
+            body = extract_body(soup, _ID_SEL)
         else:
             return None
 
@@ -443,18 +459,122 @@ async def get_links_hn(client: httpx.AsyncClient) -> list[tuple[str, datetime | 
 
 # ─── Main Scraper ────────────────────────────────────────────────
 
+async def get_links_cnbc_indonesia(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """CNBC Indonesia Tech — startup, fintech, crypto, regulasi."""
+    items = []
+    try:
+        r = await client.get("https://www.cnbcindonesia.com/tech/rss", timeout=12)
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip().split("?")[0]
+            dt = None
+            if date_m:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:20]
+
+
+async def get_links_detik_inet(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Detik Inet — gadget, internet, social media, viral tech."""
+    items = []
+    try:
+        r = await client.get("https://inet.detik.com/rss", timeout=12)
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip().split("?")[0]
+            dt = None
+            if date_m:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:20]
+
+
+async def get_links_liputan6_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Liputan6 Tekno — gadget, apps, viral tech stories."""
+    items = []
+    try:
+        r = await client.get("https://www.liputan6.com/tekno/rss", timeout=12)
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip().split("?")[0]
+            dt = None
+            if date_m:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:20]
+
+
+async def get_links_kumparan_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Kumparan Tekno — Indonesian tech news, startup ecosystem."""
+    items = []
+    try:
+        r = await client.get("https://kumparan.com/feed/tekno", timeout=12)
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip().split("?")[0]
+            dt = None
+            if date_m:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:20]
+
+
+# ─── Main Scraper ────────────────────────────────────────────────
+
 async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
         # 1. Gather links from RSS feeds + HN
+        # Priority: Indonesian sources first, global for breaking news
         link_tasks = await asyncio.gather(
-            get_links_techcrunch(client),
-            get_links_theverge(client),
-            get_links_arstechnica(client),
-            get_links_wired(client),
+            get_links_cnbc_indonesia(client),
+            get_links_detik_inet(client),
+            get_links_liputan6_tekno(client),
+            get_links_kumparan_tekno(client),
             get_links_hn(client),
+            get_links_techcrunch(client),
             return_exceptions=True,
         )
-        source_names = ["techcrunch", "theverge", "arstechnica", "wired", "hn"]
+        source_names = ["cnbc_id", "detik", "liputan6", "kumparan", "hn", "techcrunch"]
 
         # 2. Build scrape tasks
         all_tasks = []
