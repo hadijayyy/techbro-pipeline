@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""generator.py — Generate 6-slide carousel via Mistral (primary) / Groq (fallback)."""
+"""generator.py — Generate 6-slide carousel via Mistral (primary) / Groq (fallback).
+Switch language with CONTENT_LANG=en|id in .env
+"""
 import httpx
 import json
 import re
@@ -9,8 +11,104 @@ import os
 
 GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
 MISTRAL_KEY = os.environ.get("MISTRAL_API_KEY", "")
+CONTENT_LANG = os.environ.get("CONTENT_LANG", "en").lower()
 
-SYSTEM_PROMPT = """[CRITICAL RULES — WAJIB]
+# ─── Prompts ──────────────────────────────────────────────────────
+
+PROMPT_EN = """[CRITICAL RULES — MANDATORY]
+1. Do NOT use: "my friend said", "my mom/dad said", "my family said", "my coworker said" — unless it's actually in the article
+2. Do NOT fabricate stories/events that don't exist in the article
+3. Do NOT use emoji/emoticons (😳, 👀, 🤣, 😱, etc). Write without visual symbols.
+4. Do NOT use em-dash (—) or en-dash (–). Use commas instead.
+5. Do NOT say "link in bio"
+6. Hook MUST be 30+ words
+7. Content MUST have actionable advice
+8. MUST use SPECIFIC NUMBERS from the article (e.g. "3 billion users", "60% of GDP", "40GB")
+
+[PERSONA]
+You're "Bro" — a 27-year-old Tech content creator on Threads. You talk about AI tools, productivity hacks, career advice, mental health. Casual, direct, insightful. Not a news anchor.
+
+Target: ambitious young professionals globally who are into AI, productivity, career growth.
+
+[MISSION]
+You're a STORYTELLER, not a news anchor. Extract tips/lessons from articles, wrap them in stories that make readers think "holy shit, this affects me too."
+
+Transformations:
+- "CEO resigns" → Tips: "Signs you should quit your job"
+- "AI diagnoses cancer" → Tips: "3 ways AI can help you right now"
+- "Gen Z job hopping" → Tips: "When is the right time to switch jobs"
+
+Find: "oh shit" facts, counterintuitive expert takes, "wait, really?" numbers, trends that directly impact readers' lives.
+
+[FORMAT]
+- 6 slides, JSON flat (slide_1 to slide_6)
+- Max 4 sentences per slide, vary rhythm
+- Prose only, no bullets
+- Casual English, conversational tone. Contractions OK (you're, don't, it's, that's)
+- Mix short punchy sentences with longer ones
+
+[SLIDE STRUCTURE]
+
+SLIDE 1 — HOOK (2-3 sentences, 30+ words)
+MOST shocking/provocative fact from the article. Hit hard.
+CAPS for emphasis on 1 word only.
+
+VARIATION (pick 1, vary between posts):
+1. REALIZATION: "I just realized... [shocking fact]"
+2. OPINION: "Honestly, I'm [emotion] about [topic]. [Fact]"
+3. QUESTION: "Did you know... [provocative fact]?"
+4. QUOTE: "[Name] said: '[insight]'. And they're right."
+5. CONTRAST: "[Expectation]... But reality? [Reality]"
+6. DATA DROP: "[Specific number] people [context]. Are you one of them?"
+
+NUMBERS: Use specific numbers from the article, or IMPACT/CONSEQUENCE.
+
+SLIDE 2 — SETUP (2-3 sentences, 40-60 words)
+Bridge to the REAL problem. Everyday analogies (9-5 grind, broke college student, hustle culture).
+Make reader think: "Yeah, I deal with this too"
+
+SLIDE 3 — TWIST (2-3 sentences, 40-60 words)
+Shocking fact or root cause. "Wait, that's why...?"
+Avoid jargon without explanation.
+
+SLIDE 4 — TIPS (2-3 sentences, 40-60 words)
+Actionable advice from the article. "Here's what you can do: [tip 1], [tip 2]"
+
+SLIDE 5 — LESSON (2-3 sentences, 30-50 words)
+Mindset shift. One sentence that makes people share: "this is so me"
+
+SLIDE 6 — CTA (2-3 sentences, 30-40 words)
+MUST make people comment:
+1. PROVOCATIVE: "Is [provocation]? Or [alternative]?"
+2. PERSONAL: "Have you ever [action]? Drop it in the comments."
+3. DEBATE: "Hot take: [controversial opinion]. Agree or disagree?"
+4. RANKING: "What matters more: [A] or [B]?"
+5. CHALLENGE: "Try [action] for a week. Let me know how it goes."
+
+[GROUNDING]
+ALL facts/numbers/names from the article. Rephrase OK, lying not OK.
+- Don't add stats/numbers not in the article
+- Don't name people the article doesn't name
+- Direct quotes ONLY if the article actually quotes someone
+- Analogies: SITUATIONS OK, fake NUMBERS not OK
+
+[CONTENT RULES]
+- NO product promotion. REJECT if product launch/specs/pricing. Return {"error":"product_promo"}
+- VALID: AI tools, productivity, career, mental health, life hacks
+- MUST have TIPS/LESSONS/ACTIONABLE ADVICE
+- Focus: "How can AI make you more productive?" or "Productivity tips for the AI era"
+
+[PERSONAL VOICE]
+- First person POV (I/you)
+- OK: opinions, reactions, observations about real news
+- Example: "I saw this news and immediately thought..."
+- DON'T: "Yesterday I was talking to my friend..." (fabricated)
+
+Output strict JSON, no markdown fences:
+{"slide_1":"","slide_2":"","slide_3":"","slide_4":"","slide_5":"","slide_6":"","caption":"",hashtags":""}
+"""
+
+PROMPT_ID = """[CRITICAL RULES — WAJIB]
 1. JANGAN pakai: "temen gue", "bapak/emak gue", "keluarga gue", "rekan kerja gue" — kecuali beneran ada di artikel
 2. JANGAN fabricate stories/events yang gak pernah ada di artikel
 3. JANGAN pakai emoji/emoticon (😳, 👀, 🤣, 😱, dll)
@@ -103,51 +201,22 @@ Output strict JSON, no markdown fences:
 {"slide_1":"","slide_2":"","slide_3":"","slide_4":"","slide_5":"","slide_6":"","caption":"","hashtags":""}
 """
 
-def _build_user_msg(title: str, body: str, source: str = "") -> str:
-    """Build user message, with language note for English sources."""
-    english_sources = {"lifehacker", "lifehack", "psychtoday"}
-    lang_note = ""
-    if source in english_sources:
-        lang_note = "[NOTE: Artikel Inggris. Tulis ULANG dalam bahasa Indonesia gaul.]\n\n"
-    return f"{lang_note}ARTICLE: {body[:4000]}\nSOURCE: {title}"
+def _get_prompt() -> str:
+    return PROMPT_ID if CONTENT_LANG == "id" else PROMPT_EN
 
-def _call_mistral(title: str, body: str, source: str = "") -> Optional[str]:
-    try:
-        r = httpx.post(
-            "https://api.mistral.ai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
-            json={"model": "mistral-large-latest",
-                  "messages": [{"role": "system", "content": SYSTEM_PROMPT},
-                               {"role": "user", "content": _build_user_msg(title, body, source)}],
-                  "temperature": 0.3, "max_tokens": 2000},
-            timeout=120)
-        if r.status_code == 200:
-            return r.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        print(f"Mistral error: {e}")
-    return None
+# ─── Banned phrases (per language) ────────────────────────────────
 
-def _call_groq(title: str, body: str, source: str = "") -> Optional[str]:
-    if not GROQ_KEY:
-        print("Groq skipped (no GROQ_API_KEY)")
-        return None
-    try:
-        r = httpx.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
-            json={"model": "llama-3.3-70b-versatile",
-                  "messages": [{"role": "system", "content": SYSTEM_PROMPT},
-                               {"role": "user", "content": _build_user_msg(title, body, source)}],
-                  "temperature": 0.3, "max_tokens": 2000},
-            timeout=120)
-        if r.status_code == 200:
-            return r.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        print(f"Groq error: {e}")
-    return None
+BANNED_EN = [
+    r'\bmy friend said\b', r'\bmy mom said\b', r'\bmy dad said\b',
+    r'\bmy family said\b', r'\bmy coworker said\b', r'\bmy buddy said\b',
+    r'\blink in bio\b', r'\bmy friend told me\b',
+    r'\baccording to my\b', r'\bmy parents said\b',
+    r'\bliterally\b', r'\blike\b(?=\s+literally)',
+    r'\bepic\b', r'\binsane\b', r'\bcrazy\b(?!\s+thing)',
+    r'\bthat\'s wild\b', r'\bno way\b',
+]
 
-# ─── Post-processing ─────────────────────────────────────────────
-BANNED_PHRASES = [
+BANNED_ID = [
     r'\bgeleng[- ]geleng\b', r'\bgaruk kepala\b', r'\bkayak dari masa depan\b',
     r'\bgila sih\b', r'\bgila banget\b', r'\bgila kan\b',
     r'\bkebayang gak\b', r'\byang bener aja\b', r'\bwaduh\b',
@@ -162,31 +231,82 @@ BANNED_PHRASES = [
     r'\bkatanya\b', r'\bkonon\b', r'\bdikabarkan\b',
 ]
 
+BANNED_COMMON = [
+    # Emojis (catch-all)
+    r'[\U00010000-\U0010ffff\u2600-\u27bf\u200d\u20e3\u2702-\u27b0]+',
+]
+
+def _get_banned() -> list:
+    lang_banned = BANNED_ID if CONTENT_LANG == "id" else BANNED_EN
+    return lang_banned + BANNED_COMMON
+
+# ─── API calls ────────────────────────────────────────────────────
+
+def _build_user_msg(title: str, body: str, source: str = "") -> str:
+    prompt = _get_prompt()
+    return f"ARTICLE: {body[:4000]}\nSOURCE: {title}"
+
+def _call_mistral(title: str, body: str, source: str = "") -> Optional[str]:
+    prompt = _get_prompt()
+    try:
+        r = httpx.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
+            json={"model": "mistral-large-latest",
+                  "messages": [{"role": "system", "content": prompt},
+                               {"role": "user", "content": _build_user_msg(title, body, source)}],
+                  "temperature": 0.3, "max_tokens": 2000},
+            timeout=120)
+        if r.status_code == 200:
+            return r.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        print(f"Mistral error: {e}")
+    return None
+
+def _call_groq(title: str, body: str, source: str = "") -> Optional[str]:
+    if not GROQ_KEY:
+        print("Groq skipped (no GROQ_API_KEY)")
+        return None
+    prompt = _get_prompt()
+    try:
+        r = httpx.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
+            json={"model": "llama-3.3-70b-versatile",
+                  "messages": [{"role": "system", "content": prompt},
+                               {"role": "user", "content": _build_user_msg(title, body, source)}],
+                  "temperature": 0.3, "max_tokens": 2000},
+            timeout=120)
+        if r.status_code == 200:
+            return r.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        print(f"Groq error: {e}")
+    return None
+
+# ─── Post-processing ─────────────────────────────────────────────
+
 def _clean(text: str) -> str:
-    """Remove banned phrases, fix grammar issues, ensure proper spacing."""
+    """Remove banned phrases, fix grammar issues, enforce whitespace."""
     out = text
-    for pat in BANNED_PHRASES:
+    banned = _get_banned()
+    for pat in banned:
         out = re.sub(pat, '', out, flags=re.I)
-    # Remove emojis
-    out = re.sub(r'[\U00010000-\U0010ffff\u2600-\u27bf\u200d\u20e3\u2702-\u27b0]+', '', out)
+
     # Remove em-dashes, en-dashes
     out = out.replace('—', ', ').replace('–', ', ')
-    # Remove "link di bio" variants
-    out = re.sub(r'[\(\[]?link\s+(di\s+)?bio[\)\]]?', '', out, flags=re.I)
-    
+
+    # Remove "link in bio" / "link di bio" variants
+    out = re.sub(r'[\(\[]?link\s+(in|di)\s+bio[\)\]]?', '', out, flags=re.I)
+
     # Fix orphan punctuation: lines starting with , ; : . ! ?
     out = re.sub(r'(?m)^\s*[,;:.\!?]+\s*', '', out)
-    
+
     # Enforce: one sentence per line, separated by double newline
-    # Step 1: normalize — collapse existing newlines into single space
     out = re.sub(r'\n+', ' ', out)
-    # Step 2: strip multiple spaces
     out = re.sub(r' {2,}', ' ', out).strip()
-    # Step 3: split by sentence endings (. ! ?) followed by space
     sentences = re.split(r'(?<=[.!?])\s+', out)
-    # Step 4: rejoin with double newline
     out = '\n\n'.join(s.strip() for s in sentences if s.strip())
-    
+
     return out
 
 def _validate_hook(text: str) -> bool:
@@ -199,7 +319,7 @@ def _validate_hook(text: str) -> bool:
 
 def generate_carousel(title: str, body: str, image: str = "", url: str = "", source: str = "") -> Optional[dict]:
     """Generate 6-slide carousel content."""
-    # Try Mistral first, fallback to Groq
+    print(f"[LANG] {CONTENT_LANG}")
     raw = _call_mistral(title, body, source)
     provider = "mistral"
     if raw is None:
@@ -208,10 +328,9 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         provider = "groq"
     if raw is None:
         return None
-    
+
     # Parse JSON
     try:
-        # Handle potential markdown code blocks
         cleaned = raw.strip()
         if cleaned.startswith("```"):
             cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
@@ -221,19 +340,19 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         print(f"JSON parse error: {e}")
         print(f"Raw response:\n{raw[:500]}")
         return None
-    
+
     # Validate & clean all slides
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:
             data[key] = _clean(data[key])
-    
+
     # Validate hook length
     if "slide_1" in data:
         _validate_hook(data["slide_1"])
-    
-    # Add provider info
+
     data["_provider"] = provider
-    
+    data["_lang"] = CONTENT_LANG
+
     return data
 
 # ─── CLI ──────────────────────────────────────────────────────────
@@ -242,14 +361,14 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python generator.py <article_id>")
         sys.exit(1)
-    
+
     from db import get_db
     conn = get_db()
     article = conn.execute("SELECT * FROM articles WHERE id=?", (sys.argv[1],)).fetchone()
     if not article:
         print(f"Article {sys.argv[1]} not found")
         sys.exit(1)
-    
+
     result = generate_carousel(article["title"], article["body"], article["source"])
     if result:
         print(json.dumps(result, indent=2, ensure_ascii=False))
