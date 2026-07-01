@@ -12,8 +12,8 @@ from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse, urlunparse
 
 UTC = timezone.utc
-MAX_AGE_HOURS = 24
-FALLBACK_HOURS = 48  # fallback if 24h yields nothing
+MAX_AGE_HOURS = 12
+FALLBACK_HOURS = 24  # fallback if 12h yields nothing
 TOP_N = 1
 
 HEADERS = {
@@ -112,9 +112,9 @@ def score_article(title: str, body: str, date=None, hn_score: int = 0) -> int:
 
     s = t1 + t2 + t3
 
-    # HN virality bonus
+    # HN virality bonus: 500pts = +100, 1000pts = +100 (capped)
     if hn_score > 0:
-        s += min(hn_score // 10, 50)  # cap at +50
+        s += min(hn_score // 5, 100)
 
     # Recency: exponential decay. 0h = +30, 24h = +0
     if date:
@@ -458,8 +458,6 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     # 4. Score and sort with source diversity
     articles = []
     seen = set()
-    source_count = {}
-    MAX_PER_SOURCE = 2
     for art in results:
         if not isinstance(art, dict):
             continue
@@ -471,10 +469,39 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
         if art["score"] > 20:
             articles.append(art)
 
+    # 5. Cross-source virality: if same topic in 2+ sources, boost
+    topic_map: dict[str, list[dict]] = {}
+    for art in articles:
+        # Extract key topic words from title (skip common words)
+        words = set(re.findall(r'\b[a-z]{4,}\b', art["title"].lower()))
+        stop = {"this", "that", "with", "from", "have", "been", "will", "more", "than", "about", "just", "into", "your", "they", "their", "what", "when", "which", "were", "also", "could", "would", "should", "like", "very", "most", "some", "only"}
+        keywords = words - stop
+        matched = False
+        for topic, group in topic_map.items():
+            topic_words = set(topic.split())
+            # Jaccard similarity > 0.3 = same topic
+            if keywords and topic_words and len(keywords & topic_words) / len(keywords | topic_words) > 0.3:
+                group.append(art)
+                matched = True
+                break
+        if not matched:
+            topic_map[" ".join(sorted(keywords)[:5])] = [art]
+
+    # Boost articles that appear in 2+ sources
+    for topic, group in topic_map.items():
+        if len(group) >= 2:
+            sources = set(art["source"] for art in group)
+            if len(sources) >= 2:
+                for art in group:
+                    art["score"] = min(art["score"] + 30, 150)
+                    art["virality"] = f"cross-source ({len(sources)} sources)"
+
     articles.sort(key=lambda x: x["score"], reverse=True)
 
     # Source diversity: max 2 per source
     diversified = []
+    source_count: dict[str, int] = {}
+    MAX_PER_SOURCE = 2
     for art in articles:
         src = art["source"]
         if source_count.get(src, 0) < MAX_PER_SOURCE:
