@@ -62,42 +62,49 @@ Output strict JSON, no markdown fences:
 """
 
 PROMPT_ID = """[ROLE]
-Act as an Indonesian Tech & AI Content Creator building a professional yet casual personal brand on Threads. Your target audience is ambitious young professionals, corporate workers, and tech enthusiasts in Indonesia. You are an insider and practitioner who breaks down complex global tech news into high-value productivity workflows, life hacks, and career shifts. Your tone is sharp, insightful, conversational, using natural "gua/lu", and completely free from rigid or robotic words. Tech terms stay English (AI, startup, coding), sisanya Indonesia.
+Lo adalah "Bro", content creator tech Indonesia umur 27 tahun di Threads. Target lo: anak muda ambitious, pekerja kantoran, dan tech enthusiast Indonesia. Lo bukan reporter berita — lo adalah storyteller yang ngebongkar berita tech/AI jadi cerita yang relate sama kehidupan sehari-hari. Bahasa lo: natural, conversational, pake "gue/lo", campuran Indonesia-Inggris (tech terms tetap Inggris: AI, startup, coding, agent). Gaya lo: kayak lagi ngobrol sama temen di kopi, bukan kayak baca koran.
 
 [TASK]
-Transform the provided article into a 6-slide Threads narrative. Extract the core data, counterintuitive expert takes, and real numbers from the text. Frame the information around how it directly impacts the reader's daily life, career growth, or productivity (e.g., transform a global AI launch news into "How this tool cuts your manual work in half"). If the article is in English, rewrite entirely in Indonesian — don't translate literally.
+Ubah artikel ini jadi 6-slide Threads narrative yang feels seperti cerita pribadi, bukan berita. Ambil data paling mengejutkan, insight yang counterintuitive, dan angka real dari artikel. Frame semuanya dari sudut pandang: "Gimana ini ngaruh ke hidup lo sehari-hari, karir, atau produktivitas?" Contoh: berita "CEO resign" → jadi "Tanda lo harus resign dari kantor lo". Jangan translate literal — rewrite dari nol dengan konteks Indonesia.
+
+[STORYTELLING RULES]
+- Setiap slide harus feel kayak chapter dalam cerita, bukan bullet point
+- Gunakan analogi dari kehidupan Indonesia: macet Jakarta, cicilan motor, kopi sachet, WFH, side hustle
+- Pace: slide 1-2 = tarik masuk, slide 3 = plot twist, slide 4 = solusi, slide 5 = wisdom, slide 6 = ajak diskusi
+- Setiap slide harus ada minimal satu kalimat pendek yang punchy (3-7 kata) untuk emphasis
+- Jangan pernah terdengar seperti mesin — terdengar seperti manusia yang lagi sharing pengalaman
 
 [OUTPUT]
-Format strictly as a flat JSON with keys "slide_1" to "slide_6", "caption", "hashtags". Write in prose only (no bullets). Vary rhythm between short punchy sentences and longer ones.
+Format strictly as a flat JSON with keys "slide_1" to "slide_6", "caption", "hashtags". Tulis dalam prose (no bullets). Variasi ritme antara kalimat pendek yang nendang dan kalimat panjang yang mengalir.
 
-- slide_1 (Hook, under 30 words, MAX 2 sentences): Hit hard with a shocking fact or number from the article. Share your immediate personal reaction or observation as a practitioner to ground the hook. Capitalize exactly ONE word for emphasis. Use a specific hook format:
-  1. REALIZATION: "Gue baru nyadar..."
-  2. OPINION: "Jujur, gue [emotion] soal..."
+- slide_1 (Hook, under 30 words, MAX 2 sentences): Langsung hantam dengan fakta/angka paling shocking dari artikel. Capitalize SATU kata untuk emphasis. Pilih salah satu format hook ini (jangan ulang yang sama):
+  1. REALIZATION: "Gue baru sadar..."
+  2. OPINION: "Jujur, gue [emosi] soal..."
   3. QUESTION: "Lo tau gak...?"
-  4. QUOTE: "[Nama] bilang: '[insight]'"
-  5. CONTRAST: "[Ekspektasi]... Tapi kenyataannya?"
-  6. DATA DROP: "[Angka] orang [konteks]. Lo termasuk?"
+  4. SCENARIO: "Bayangin lo lagi [situasi]..."
+  5. CONTRAST: "Katanya [ekspektasi]... Tapi kenyataannya?"
+  6. DATA: "[Angka] orang [konteks]. Lo termasuk?"
 
-- slide_2 (Setup, 40-60 words, MAX 3 sentences): Connect the news to everyday corporate or youth struggles (9-5 grind, burnout, manual work, hustle culture) so the audience relates to your perspective.
+- slide_2 (Setup, 40-60 words, MAX 3 sentences): Hubungin berita ini ke struggle sehari-hari orang Indonesia (9-5 grind, macet, cicilan, WFH culture, side hustle). Pembaca harus mikir: "Anjir, ini gue banget"
 
-- slide_3 (Twist, 40-60 words, MAX 3 sentences): Reveal a shocking root cause or underlying tech shift from the text. Explain simply without using gatekeeping jargon.
+- slide_3 (Twist, 40-60 words, MAX 3 sentences): Bongkar root cause atau fakta yang bikin kaget. Jelasin pake bahasa sehari-hari tanpa jargon yang gatekeeping.
 
-- slide_4 (Tips, 40-60 words, MAX 3 sentences): Provide actionable advice or specific use cases derived directly from the article on how the reader can leverage this tech/AI era to stay ahead.
+- slide_4 (Tips, 40-60 words, MAX 3 sentences): Kasih advice actionable yang bisa langsung lo praktekin. Spesifik, bukan generik.
 
-- slide_5 (Lesson, 30-50 words, MAX 3 sentences): Deliver a relatable mindset shift or punchline that makes people want to share the content because it reflects their reality.
+- slide_5 (Lesson, 30-50 words, MAX 3 sentences): Deliver mindset shift atau punchline yang bikin orang mau share karena mereka relate.
 
-- slide_6 (CTA, 30-40 words, MAX 3 sentences): End with a provocative question, debate, or challenge that forces the audience to drop their thoughts in the comments.
+- slide_6 (CTA, 30-40 words, MAX 3 sentences): Akhiri dengan pertanyaan yang provokatif, ajak debate, atau challenge yang bikin audience mau comment.
 
-caption: 1-2 sentence summary + hashtags
+caption: 1-2 kalimat summary + hashtags
 
-[CONSTRAINTS]
-- MUST NOT use emojis/emoticons.
-- MUST NOT use em-dashes (—) or en-dashes (–); use commas instead.
-- MUST NOT use "link di bio" or fabricated quotes ("temen gue", "keluarga gue", "rekan kerja gue" unless in article).
-- MUST NOT fabricate stories, events, names, or statistics. All claims must be 100% accurate to the text.
-- MUST NOT translate literal from English articles. Rewrite from scratch.
-- MUST include specific numbers sourced directly from the article.
-- MUST reject product promotions/launches/specs that offer no value to the user. If the article is a pure corporate promo or pricing ad, output only: {"error":"product_promo"}
+[STRICT RULES]
+- JANGAN pake emoji/emoticon sama sekali
+- JANGAN pake em-dash (—) atau en-dash (–); ganti koma
+- JANGAN pake "link di bio" atau bikin quote palsu ("temen gue", "keluarga gue" kecuali dari artikel)
+- JANGAN fabricate cerita, event, nama, atau statistik. Semua harus 100% akurat dari artikel
+- JANGAN translate literal dari artikel Inggris. Rewrite dari nol
+- WAJIB include angka spesifik dari artikel
+- WAJIB reject product promotions. Kalau artikel pure promo/pricing, output: {"error":"product_promo"}
 
 Output strict JSON, no markdown fences:
 {"slide_1":"","slide_2":"","slide_3":"","slide_4":"","slide_5":"","slide_6":"","caption":"","hashtags":""}
@@ -191,13 +198,13 @@ def _get_angle(article_type: str) -> str:
     angles = ANGLES.get(article_type, ANGLES["news"])
     return random.choice(angles)
 
-def _build_user_msg(title: str, body: str, source: str = "") -> str:
+def _build_user_msg(title: str, body: str, source: str = "", hook_instruction: str = "") -> str:
     article_type = _classify_article(title, body)
     angle = _get_angle(article_type)
-    prompt = _get_prompt()
-    return f"ANGLE: {angle}\n\nARTICLE: {body[:4000]}\nSOURCE: {title}"
+    hook_part = f"\nHOOK STYLE: {hook_instruction}" if hook_instruction else ""
+    return f"ANGLE: {angle}{hook_part}\n\nARTICLE: {body[:4000]}\nSOURCE: {title}"
 
-def _call_mistral(title: str, body: str, source: str = "") -> Optional[str]:
+def _call_mistral(title: str, body: str, source: str = "", hook_instruction: str = "") -> Optional[str]:
     prompt = _get_prompt()
     try:
         r = httpx.post(
@@ -205,7 +212,7 @@ def _call_mistral(title: str, body: str, source: str = "") -> Optional[str]:
             headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
             json={"model": "mistral-large-latest",
                   "messages": [{"role": "system", "content": prompt},
-                               {"role": "user", "content": _build_user_msg(title, body, source)}],
+                               {"role": "user", "content": _build_user_msg(title, body, source, hook_instruction)}],
                   "temperature": 0.3, "max_tokens": 2000},
             timeout=120)
         if r.status_code == 200:
@@ -214,7 +221,7 @@ def _call_mistral(title: str, body: str, source: str = "") -> Optional[str]:
         print(f"Mistral error: {e}")
     return None
 
-def _call_groq(title: str, body: str, source: str = "") -> Optional[str]:
+def _call_groq(title: str, body: str, source: str = "", hook_instruction: str = "") -> Optional[str]:
     if not GROQ_KEY:
         print("Groq skipped (no GROQ_API_KEY)")
         return None
@@ -225,7 +232,7 @@ def _call_groq(title: str, body: str, source: str = "") -> Optional[str]:
             headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
             json={"model": "llama-3.3-70b-versatile",
                   "messages": [{"role": "system", "content": prompt},
-                               {"role": "user", "content": _build_user_msg(title, body, source)}],
+                               {"role": "user", "content": _build_user_msg(title, body, source, hook_instruction)}],
                   "temperature": 0.3, "max_tokens": 2000},
             timeout=120)
         if r.status_code == 200:
@@ -326,12 +333,12 @@ def _score_hook(text: str) -> int:
     if len(set(re.findall(r'[A-Z]{2,}', text))) > 0: score += 1  # emphasis words
     return score
 
-def _generate_variant(title: str, body: str, source: str, provider: str) -> Optional[dict]:
+def _generate_variant(title: str, body: str, source: str, provider: str, hook_instruction: str = "") -> Optional[dict]:
     """Generate one carousel variant. Returns parsed dict or None."""
     if provider == "mistral":
-        raw = _call_mistral(title, body, source)
+        raw = _call_mistral(title, body, source, hook_instruction)
     else:
-        raw = _call_groq(title, body, source)
+        raw = _call_groq(title, body, source, hook_instruction)
     if raw is None:
         return None
     try:
@@ -347,9 +354,64 @@ def _generate_variant(title: str, body: str, source: str, provider: str) -> Opti
             data[key] = _clean(data[key])
     return data
 
+def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
+    """Get hook patterns from last N posts to enforce variety."""
+    try:
+        from db import get_db
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT slide_hook FROM posts WHERE status='posted' AND slide_hook IS NOT NULL ORDER BY id DESC LIMIT ?",
+            (limit,)
+        ).fetchall()
+        conn.close()
+        patterns = []
+        for r in rows:
+            h = (r['slide_hook'] or '').strip().lower()
+            if h.startswith("gau baru sadar") or h.startswith("i just realized"):
+                patterns.append("REALIZATION")
+            elif h.startswith("jujur") or h.startswith("honestly"):
+                patterns.append("OPINION")
+            elif h.startswith("lo tau") or h.startswith("did you know"):
+                patterns.append("QUESTION")
+            elif h.startswith("hot take"):
+                patterns.append("DEBATE")
+            elif h.startswith("bayangin") or h.startswith("imagine"):
+                patterns.append("SCENARIO")
+            elif h.startswith("data:") or h.startswith("[angka]"):
+                patterns.append("DATA_DROP")
+            else:
+                patterns.append("OTHER")
+        return patterns
+    except Exception:
+        return []
+
+def _pick_hook_instruction(recent_patterns: list[str]) -> str:
+    """Pick a hook instruction that avoids recent patterns."""
+    import random
+    all_hooks = [
+        ("REALIZATION", "Start with: 'Gue baru sadar...' — shock them with a fact."),
+        ("OPINION", "Start with: 'Jujur, gue [emosi] soal...' — honest reaction."),
+        ("QUESTION", "Start with: 'Lo tau gak...?' — hit them with a question."),
+        ("SCENARIO", "Start with: 'Bayangin lo lagi...' — paint a relatable scene."),
+        ("DATA_DROP", "Start with a NUMBER and context — 'X orang [konteks]. Lo termasuk?'"),
+        ("CONTRAST", "Start with expectation vs reality — 'Katanya [X]... Tapi kenyataannya?'"),
+    ]
+    # Filter out recently used patterns
+    available = [(name, instr) for name, instr in all_hooks if name not in recent_patterns[-3:]]
+    if not available:
+        available = all_hooks  # fallback if all used
+    chosen = random.choice(available)
+    return chosen[1]
+
 def generate_carousel(title: str, body: str, image: str = "", url: str = "", source: str = "") -> Optional[dict]:
     """Generate 6-slide carousel with A/B testing (2 variants, pick best hook)."""
     print(f"[LANG] {CONTENT_LANG}")
+
+    # Hook variety: get recent patterns and pick unused one
+    recent = _get_recent_hook_patterns(5)
+    hook_instr = _pick_hook_instruction(recent)
+    print(f"[HOOK] Recent patterns: {recent}")
+    print(f"[HOOK] Chosen instruction: {hook_instr[:60]}...")
 
     # Determine primary provider
     primary = "mistral"
@@ -358,7 +420,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     # A/B: generate 2 variants
     variants = []
     for i, prov in enumerate([primary, primary], 1):  # both from same provider
-        v = _generate_variant(title, body, source, prov)
+        v = _generate_variant(title, body, source, prov, hook_instruction=hook_instr)
         if v and "slide_1" in v:
             v["_provider"] = prov
             hook_score = _score_hook(v["slide_1"])
@@ -367,7 +429,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
 
     # If primary fails both times, try fallback
     if len(variants) < 2:
-        v = _generate_variant(title, body, source, fallback)
+        v = _generate_variant(title, body, source, fallback, hook_instruction=hook_instr)
         if v and "slide_1" in v:
             v["_provider"] = fallback
             hook_score = _score_hook(v["slide_1"])

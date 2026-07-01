@@ -75,12 +75,24 @@ def _is_same_topic(title1: str, title2: str) -> bool:
     action_overlap = len(w1 & w2) / max(len(w1 | w2), 1)
     return action_overlap > 0.3
 
+DAILY_POST_LIMIT = 10
+
 def run(top_n: int = TOP_N, dry_run: bool = False):
     t0 = time.time()
     conn = get_db()
     staged_this_run = False
 
-    # 0. Auto-clean old articles (>7 days)
+    # 0. Daily post limit check
+    today_count = conn.execute(
+        "SELECT COUNT(*) as c FROM posts WHERE date(posted_at)=date('now') AND status='posted'"
+    ).fetchone()['c']
+    if today_count >= DAILY_POST_LIMIT and not dry_run:
+        print(f"Daily limit reached ({today_count}/{DAILY_POST_LIMIT}). Skipping.")
+        conn.close()
+        return
+    print(f"[LIMIT] {today_count}/{DAILY_POST_LIMIT} posted today")
+
+    # 1. Auto-clean old articles (>7 days)
     cleaned = cleanup_old(conn, days=7)
     if cleaned["deleted_articles"] > 0:
         print(f"[0/4] Cleaned {cleaned['deleted_articles']} old articles")
