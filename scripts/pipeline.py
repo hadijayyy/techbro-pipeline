@@ -8,6 +8,15 @@ import time
 import argparse
 from pathlib import Path
 
+# Load .env from project root
+_env_path = Path(__file__).parent.parent / ".env"
+if _env_path.exists():
+    for line in _env_path.read_text().splitlines():
+        if "=" in line and not line.startswith("#"):
+            k, _, v = line.partition("=")
+            import os
+            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from scraper import scrape_all
@@ -84,8 +93,8 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
             posted_titles.append(art['title'])
             staged_this_run = True
             print(f"  [3/3] Post #{post_id} staged in DB")
-            print(f"  Hook: {slides.get('hook', '?')[:80]}")
-            print(f"  CTA:  {slides.get('cta', '?')[:80]}")
+            print(f"  Hook: {slides.get('slide_1', slides.get('hook', '?'))[:80]}")
+            print(f"  CTA:  {slides.get('slide_6', slides.get('cta', '?'))[:80]}")
             break  # one article per run
     else:
         print("  No fresh articles from scraper.")
@@ -122,8 +131,8 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
                 post_id = stage_post(conn, art["id"], slides, slides.get("caption", ""), slides.get("hashtags", ""))
                 staged_this_run = True
                 print(f"  [3/3] Post #{post_id} staged in DB")
-                print(f"  Hook: {slides.get('hook', '?')[:80]}")
-                print(f"  CTA:  {slides.get('cta', '?')[:80]}")
+                print(f"  Hook: {slides.get('slide_1', slides.get('hook', '?'))[:80]}")
+                print(f"  CTA:  {slides.get('slide_6', slides.get('cta', '?'))[:80]}")
                 break  # one article per run
         else:
             print("  No unposted articles in DB.")

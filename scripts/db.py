@@ -68,11 +68,18 @@ def upsert_article(conn, art: dict) -> int:
     return conn.execute("SELECT id FROM articles WHERE url = ?", (art["url"],)).fetchone()["id"]
 
 def stage_post(conn, article_id: int, slides: dict, caption: str, hashtags: str) -> int:
+    # Map slide_1→hook, slide_2→setup, slide_3→twist, slide_4→deep, slide_5→sowhat, slide_6→cta
+    key_map = {"slide_1": "hook", "slide_2": "setup", "slide_3": "twist",
+               "slide_4": "deep", "slide_5": "sowhat", "slide_6": "cta"}
+    mapped = {}
+    for new_key, old_key in key_map.items():
+        mapped[old_key] = slides.get(old_key, slides.get(new_key, ""))
+
     conn.execute("""INSERT INTO posts (article_id, status, slide_hook, slide_setup, slide_twist,
         slide_deep, slide_sowhat, slide_cta, caption, hashtags)
         VALUES (?, 'staged', ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (article_id, slides.get("hook",""), slides.get("setup",""), slides.get("twist",""),
-         slides.get("deep",""), slides.get("sowhat",""), slides.get("cta",""), caption, hashtags))
+        (article_id, mapped["hook"], mapped["setup"], mapped["twist"],
+         mapped["deep"], mapped["sowhat"], mapped["cta"], caption, hashtags))
     conn.commit()
     return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
