@@ -75,7 +75,7 @@ def _is_same_topic(title1: str, title2: str) -> bool:
     action_overlap = len(w1 & w2) / max(len(w1 | w2), 1)
     return action_overlap > 0.3
 
-DAILY_POST_LIMIT = 10
+DAILY_POST_LIMIT = 12
 POSTING_HOURS = (7, 22)  # WIB — only post between 07:00-22:00
 
 def run(top_n: int = TOP_N, dry_run: bool = False):
