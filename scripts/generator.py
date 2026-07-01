@@ -80,6 +80,11 @@ CAPS buat emphasis 1 kata doang.
 Hook yang BAGUS bikin pembaca mikir: "Serius? Kok bisa?"
 Hook yang JELEK: pembaca skip karena terlalu generik.
 
+ANGKA DI HOOK:
+1. Kalau artikel punya ANGKA SPESIFIK → pakai langsung ("40GB cuma sampah WA")
+2. Kalau gak ada angka → pakai IMPACT/CONSEQUENCE ("Lo buang 2 jam sehari buat scroll konten gak penting")
+Angka bikin credible. Impact bikin relatable. Minimal salah satu WAJIB ada.
+
 CONTOH BAGUS:
 - "Gen Z diancam KEHILANGAN kerjaan gara-gara AI. Tapi solusinya? John Collison bilang: lo harus kuliah DUA jurusan sekaligus."
 - "Apple kehilangan orang PALING penting di Vision Pro. Dan yang nyolong? OpenAI."
