@@ -189,6 +189,7 @@ def extract_body(soup, selectors: list[tuple]) -> str:
 
 _NOISE_PATTERNS = [
     r"Posts from this topic will be added to your daily email digest",
+    r"Posts from this author will be added to your daily email digest",
     r"Subscribe to.*newsletter",
     r"Sign up for.*newsletter",
     r"Read more about.*on.*TechCrunch",
@@ -196,6 +197,8 @@ _NOISE_PATTERNS = [
     r"Advertisement\b",
     r"^Related:.*$",
     r"^See also:.*$",
+    r"© \d{4}.*All rights reserved",
+    r"Any references to my blogs must be accompanied",
 ]
 
 _NOISE_RE = re.compile("|".join(_NOISE_PATTERNS), re.I | re.M)
@@ -270,7 +273,7 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
         else:
             return None
 
-        if not body or len(body) < 200:
+        if not body or len(body) < 300:
             return None
 
         body = clean_body(body)
@@ -452,9 +455,11 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
         # 3. Scrape all articles
         results = await asyncio.gather(*all_tasks, return_exceptions=True)
 
-    # 4. Score and sort
+    # 4. Score and sort with source diversity
     articles = []
     seen = set()
+    source_count = {}
+    MAX_PER_SOURCE = 2
     for art in results:
         if not isinstance(art, dict):
             continue
@@ -467,7 +472,17 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             articles.append(art)
 
     articles.sort(key=lambda x: x["score"], reverse=True)
-    return articles[:top_n]
+
+    # Source diversity: max 2 per source
+    diversified = []
+    for art in articles:
+        src = art["source"]
+        if source_count.get(src, 0) < MAX_PER_SOURCE:
+            diversified.append(art)
+            source_count[src] = source_count.get(src, 0) + 1
+        if len(diversified) >= top_n:
+            break
+    return diversified
 
 
 def scrape_all(top_n: int = TOP_N) -> list[dict]:
