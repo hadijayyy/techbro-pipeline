@@ -22,8 +22,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 from scraper import scrape_all
 from generator import generate_carousel
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed
+from poster import post_from_db
 
-TOP_N = 1  # articles per run
+TOP_N = 5  # articles per run (pick best unposted)
 
 def _normalize_title(title: str) -> str:
     """Normalize title for dedup: lowercase, strip punctuation, collapse spaces."""
@@ -133,6 +134,11 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
                 print(f"  [3/3] Post #{post_id} staged in DB")
                 print(f"  Hook: {slides.get('slide_1', slides.get('hook', '?'))[:80]}")
                 print(f"  CTA:  {slides.get('slide_6', slides.get('cta', '?'))[:80]}")
+
+                # 4. Post to Threads immediately
+                if not dry_run:
+                    print(f"\n[4/4] Posting to Threads...")
+                    post_from_db(limit=1)
                 break  # one article per run
         else:
             print("  No unposted articles in DB.")
