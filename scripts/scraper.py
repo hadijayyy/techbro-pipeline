@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scraper.py — 10 sources: Kompas, Detik, Detik Health, CNN Tech, CNN Lifestyle, CNBC Lifestyle, CNBC MyMoney, Liputan6 Bisnis, IDN Times, Hipwee
+scraper.py — 11 sources: Kompas, Detik, Detik Health, CNN Tech, CNN Lifestyle, CNBC Lifestyle, CNBC MyMoney, Liputan6 Bisnis, IDN Times, Hipwee, Lifehacker
 """
 import re
 import json
@@ -99,6 +99,10 @@ TIPS_BONUS = [
     "strategi", "tutorial", "cara mudah", "cara cepat",
     "begini cara", "ini dia", "yang perlu", "harus tahu",
     "wajib tahu", "jangan sampai", "hindari", "perhatikan",
+    # English tips keywords (for Lifehacker/international sources)
+    "how to", "trick", "guide", "step by step", "best practices",
+    "productivity", "workflow", "shortcut", "beginner",
+    "hacks", "everyday", "simple ways", "easy ways",
 ]
 # NEWS_PENALTY = pure news signals (not tips)
 NEWS_PENALTY = [
@@ -270,8 +274,9 @@ _LIP6_SEL   = [("div", re.compile("container-main")), ("div", re.compile("read-p
 _IDN_SEL    = [("div", re.compile("article-content")), ("div", re.compile("content-body")), ("article", None)]
 _HIPWEE_SEL = [("div", re.compile("article-content")), ("div", re.compile("post-content")), ("div", re.compile("entry-content"))]
 _DETIX_HEALTH_SEL = [("div", re.compile("detail__body-text")), ("div", re.compile("itp_bodycontent"))]
+_LIFEHACKER_SEL = [("div", re.compile("article-content")), ("div", re.compile("js_post-content")), ("article", None)]
 
-async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str) -> dict | None:
+async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str, rss_date: datetime | None = None) -> dict | None:
     try:
         r = await client.get(url, timeout=12)
         if r.status_code != 200:
@@ -281,7 +286,7 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str)
         title = title_tag.get_text(strip=True) if title_tag else ""
         if not title:
             return None
-        dt = parse_date_from_url(url) or parse_date_from_html(soup)
+        dt = parse_date_from_url(url) or parse_date_from_html(soup) or rss_date
         if not is_fresh(dt):
             return None
         image = get_og_image(soup)
@@ -305,11 +310,15 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str)
             body = extract_body(soup, _IDN_SEL)
         elif source == "hipwee":
             body = extract_body(soup, _HIPWEE_SEL)
+        elif source == "lifehacker":
+            body = extract_body(soup, _LIFEHACKER_SEL)
         else:
             return None
         if not body:
             return None
-        return {"title": title, "date": dt, "image": image, "body": body, "url": url, "source": source}
+        # Source-specific bonus: Lifehacker is inherently tips content
+        source_bonus = 15 if source == "lifehacker" else 0
+        return {"title": title, "date": dt, "image": image, "body": body, "url": url, "source": source, "_source_bonus": source_bonus}
     except Exception:
         return None
 
@@ -466,6 +475,30 @@ async def get_links_hipwee(client: httpx.AsyncClient) -> list[str]:
         pass
     return list(links)[:50]
 
+async def get_links_lifehacker(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Lifehacker — tips, hacks, how-to. Returns (url, pubdate) tuples."""
+    items: list[tuple[str, datetime | None]] = []
+    try:
+        r = await client.get("https://lifehacker.com/rss", timeout=12)
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip().split("?")[0]
+            dt = None
+            if date_m:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).replace(tzinfo=WIB)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:50]
+
 async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
         link_tasks = await asyncio.gather(
@@ -479,14 +512,20 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_detik_health(client),
             get_links_idntimes(client),
             get_links_hipwee(client),
+            get_links_lifehacker(client),
             return_exceptions=True,
         )
         all_tasks = []
-        for src, links in zip(["kompas", "detik", "cnn", "cnn_lifestyle", "cnbc_lifestyle", "cnbc_mymoney", "liputan6_bisnis", "detik_health", "idntimes", "hipwee"], link_tasks):
+        for src, links in zip(["kompas", "detik", "cnn", "cnn_lifestyle", "cnbc_lifestyle", "cnbc_mymoney", "liputan6_bisnis", "detik_health", "idntimes", "hipwee", "lifehacker"], link_tasks):
             if not isinstance(links, list) or not links:
                 continue
-            for url in links:
-                all_tasks.append(scrape_article_async(url, client, src))
+            for item in links:
+                # Lifehacker returns (url, pubdate) tuples
+                if isinstance(item, tuple):
+                    url, rss_date = item
+                    all_tasks.append(scrape_article_async(url, client, src, rss_date=rss_date))
+                else:
+                    all_tasks.append(scrape_article_async(item, client, src))
 
         results = await asyncio.gather(*all_tasks, return_exceptions=True)
 
@@ -498,7 +537,7 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
         if art["url"] in seen:
             continue
         seen.add(art["url"])
-        art["score"] = score_article(art["title"], art["body"])
+        art["score"] = score_article(art["title"], art["body"]) + art.pop("_source_bonus", 0)
         if art["score"] > 25:
             articles.append(art)
 
@@ -520,6 +559,7 @@ if __name__ == "__main__":
         "cnn_lifestyle": "CNN Gaya Hidup", "cnbc_lifestyle": "CNBC Lifestyle",
         "cnbc_mymoney": "CNBC MyMoney", "liputan6_bisnis": "Liputan6 Bisnis",
         "detik_health": "Detik Health", "idntimes": "IDN Times", "hipwee": "Hipwee",
+        "lifehacker": "Lifehacker",
     }
     for i, art in enumerate(results, 1):
         dt_str = art["date"].strftime("%Y-%m-%d %H:%M WIB") if art["date"] else "unknown date"
