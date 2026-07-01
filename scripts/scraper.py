@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scraper.py — 7 tips-focused sources: CNN Lifestyle, CNBC Lifestyle, CNBC MyMoney, Detik Health, IDN Times, Hipwee, Lifehacker, Lifehack.org, Psychology Today
+scraper.py — AI + Productivity focused: CNN Lifestyle, CNBC Lifestyle, Lifehacker, Lifehack.org, Psychology Today
 """
 import re
 import json
@@ -22,56 +22,54 @@ HEADERS = {
     "Referer": "https://www.google.com/",
 }
 
-# Scoring: tips & tricks focused
-# TIER1 = viral gold (AI stories that affect people directly)
+# Scoring: AI + Productivity focused
+# TIER1 = viral gold (AI + productivity that affect people directly)
 TIER1 = [
+    # AI Core
     "kecerdasan buatan", "chatgpt", "openai", "gemini", "claude",
     "anthropic", "llm", "agi", "gpt", "deepfake", "model ai",
-    "phk", "hack", "bobol", "disinformasi", "scam ai", "tipu ai",
-    # Gaya Hidup Produktif
-    "produktif", "self-improvement", "time management", "goal setting",
-    "work-life balance", "burnout", "prokrastinasi",
-    # Life Hacks
+    "copilot", "midjourney", "stable diffusion", "sora", "cursor",
+    # AI Impact on Jobs
+    "phk", "automasi", "ganti pekerjaan", "ai replace", "ai menggantikan",
+    # AI Safety/Scams
+    "hack", "bobol", "disinformasi", "scam ai", "tipu ai", "deepfake",
+    # Productivity Core
+    "produktif", "time management", "goal setting", "work-life balance",
+    "burnout", "prokrastinasi", "fokus", "konsentrasi",
+    # Self-Improvement
+    "self-improvement", "personal growth", "kebiasaan", "rutinitas",
+    "disiplin", "motivasi", "manajemen waktu",
+    # Mental Health
+    "kesehatan mental", "mental health", "depresi", "kecemasan",
+    "self-care", "mindset", "healing", "overthinking",
+    # Life Hacks (AI-powered)
     "life hack", "tips dan trik", "rahasia sukses", "trik jitu",
-    # Entrepreneurship & UMKM
-    "umkm", "wirausaha", "entrepreneur", "bisnis online", "reseller",
-    "dropship", "modal kecil", "passive income", "franchise",
-    # Psikologi & Mindset
-    "psikolog", "kesehatan mental", "mental health", "depresi",
-    "trauma", "self-care", "mindset", "kecemasan",
-    # English psychology/self-improvement
-    "feeling lost", "personal growth", "self-improvement",
-    "mental health", "burnout", "life advice",
+    "shortcut", "cara mudah", "cara cepat", "efisien", "praktis",
 ]
-# TIER2 = cool tech (interesting but less viral)
+# TIER2 = AI adjacent (interesting but less viral)
 TIER2 = [
+    # AI Ecosystem
     "chip", "semikonduktor", "quantum", "neural", "robot",
-    "otomasi", "ai", "machine learning", "gpu",
-    # Gaya Hidup Produktif
-    "kebiasaan", "rutinitas", "disiplin", "motivasi", "inspirasi",
-    "manajemen waktu", "fokus", "konsentrasi", "stres",
-    # Life Hacks
-    "shortcut", "cara mudah", "cara cepat",
-    "efisien", "praktis", "otomatis",
-    # Entrepreneurship & UMKM
-    "omzet", "profit", "modal", "peluang usaha", "strategi bisnis",
-    "marketing", "branding", "customer", "konsumen", "supply chain",
-    # Psikologi & Mindset
-    "kepribadian", "emosi", "konflik",
-    "resilien", "adaptasi", "wellbeing", "terapi",
-    # English self-improvement
-    "energy", "purpose", "clarity", "rebuild",
-    "routine", "habits", "discipline", "motivation",
-]
-# TIER3 = generic tech (rarely scores high alone)
-TIER3 = [
-    "teknologi", "startup", "inovasi",
-    # Gaya Hidup
-    "karir", "sukses", "leadership", "pengembangan diri",
-    # Entrepreneurship & UMKM
-    "pengusaha", "peluang", "strategi", "investasi", "anggaran",
-    # Psikologi & Mindset
+    "gpu", "machine learning", "data science", "prompt engineering",
+    "fine-tuning", "rag", "vector database",
+    # Productivity adjacent
+    "otomasi", "workflow", "sistem", "proses", "otomatis",
+    "efisiensi", "optimasi", "streamline",
+    # Career/Tech
+    "karir", "tech lead", "engineering manager", "remote work",
+    "freelance", "digital nomad", "side hustle",
+    # Psychology adjacent
+    "emosi", "resilien", "adaptasi", "wellbeing", "terapi",
     "anxiety", "overthinking", "healing", "toxic",
+]
+# TIER3 = generic AI/productivity (rarely scores high alone)
+TIER3 = [
+    # AI generic
+    "teknologi", "inovasi", "digital", "platform", "aplikasi",
+    # Productivity generic
+    "sukses", "pengembangan diri", "motivasi", "inspirasi",
+    # Career generic
+    "pekerjaan", "karir", "interview", "lowongan",
 ]
 # PENALTY = product/promo patterns
 PENALTY = [
