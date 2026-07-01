@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scraper.py — 11 sources: Kompas, Detik, Detik Health, CNN Tech, CNN Lifestyle, CNBC Lifestyle, CNBC MyMoney, Liputan6 Bisnis, IDN Times, Hipwee, Lifehacker
+scraper.py — 7 tips-focused sources: CNN Lifestyle, CNBC Lifestyle, CNBC MyMoney, Detik Health, IDN Times, Hipwee, Lifehacker, Lifehack.org, Psychology Today
 """
 import re
 import json
@@ -22,7 +22,7 @@ HEADERS = {
     "Referer": "https://www.google.com/",
 }
 
-# Scoring: viral potential for Indo AI/Tech audience
+# Scoring: tips & tricks focused
 # TIER1 = viral gold (AI stories that affect people directly)
 TIER1 = [
     "kecerdasan buatan", "chatgpt", "openai", "gemini", "claude",
@@ -39,6 +39,9 @@ TIER1 = [
     # Psikologi & Mindset
     "psikolog", "kesehatan mental", "mental health", "depresi",
     "trauma", "self-care", "mindset", "kecemasan",
+    # English psychology/self-improvement
+    "feeling lost", "personal growth", "self-improvement",
+    "mental health", "burnout", "life advice",
 ]
 # TIER2 = cool tech (interesting but less viral)
 TIER2 = [
@@ -56,6 +59,9 @@ TIER2 = [
     # Psikologi & Mindset
     "kepribadian", "emosi", "konflik",
     "resilien", "adaptasi", "wellbeing", "terapi",
+    # English self-improvement
+    "energy", "purpose", "clarity", "rebuild",
+    "routine", "habits", "discipline", "motivation",
 ]
 # TIER3 = generic tech (rarely scores high alone)
 TIER3 = [
@@ -103,6 +109,13 @@ TIPS_BONUS = [
     "how to", "trick", "guide", "step by step", "best practices",
     "productivity", "workflow", "shortcut", "beginner",
     "hacks", "everyday", "simple ways", "easy ways",
+    # Psychology/self-improvement English
+    "relationship", "mental health", "habits", "routine",
+    "self-improvement", "personal growth", "mindset",
+    "productivity tips", "life advice", "practical tips",
+    "improve your", "better life", "daily routine",
+    "step by step", "what to do", "ways to",
+    "morning routine", "evening routine", "daily habits",
 ]
 # NEWS_PENALTY = pure news signals (not tips)
 NEWS_PENALTY = [
@@ -212,6 +225,13 @@ def parse_date_from_url(url: str):
             return datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=WIB)
         except ValueError:
             pass
+    # Psychology Today: /blog/.../202606/... (year+month, no day)
+    m = re.search(r"/(\d{4})(\d{2})/[^/]+$", url)
+    if m:
+        try:
+            return datetime(int(m.group(1)), int(m.group(2)), 1, tzinfo=WIB)
+        except ValueError:
+            pass
     return None
 
 def parse_date_from_html(soup):
@@ -265,16 +285,15 @@ def extract_body(soup, selectors: list[tuple]) -> str:
             return "\n\n".join(paras)
     return ""
 
-# Fix 3: pre-compiled class patterns per source
-_KOMPAS_SEL = [("div", re.compile("read__content")), ("div", re.compile("article-body"))]
-_DETIK_SEL  = [("div", re.compile("detail__body-text")), ("div", re.compile("itp_bodycontent"))]
+# Body selectors per source
 _CNN_SEL    = [("div", re.compile("detail-text")), ("div", re.compile("content-det"))]
 _CNBC_SEL   = [("div", re.compile("detail-text")), ("div", re.compile("cnbc-body"))]
-_LIP6_SEL   = [("div", re.compile("container-main")), ("div", re.compile("read-page__content"))]
 _IDN_SEL    = [("div", re.compile("article-content")), ("div", re.compile("content-body")), ("article", None)]
 _HIPWEE_SEL = [("div", re.compile("article-content")), ("div", re.compile("post-content")), ("div", re.compile("entry-content"))]
 _DETIX_HEALTH_SEL = [("div", re.compile("detail__body-text")), ("div", re.compile("itp_bodycontent"))]
 _LIFEHACKER_SEL = [("div", re.compile("article-content")), ("div", re.compile("js_post-content")), ("article", None)]
+_LIFEHACK_SEL = [("div", re.compile("article-content")), ("div", re.compile("post-content")), ("article", None)]
+_PSYCHTODAY_SEL = [("div", re.compile("entry-content")), ("div", re.compile("article-body")), ("article", None)]
 
 async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str, rss_date: datetime | None = None) -> dict | None:
     try:
@@ -286,24 +305,17 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
         title = title_tag.get_text(strip=True) if title_tag else ""
         if not title:
             return None
-        dt = parse_date_from_url(url) or parse_date_from_html(soup) or rss_date
+        # RSS date > HTML meta > URL pattern (URL often lacks day precision)
+        dt = rss_date or parse_date_from_html(soup) or parse_date_from_url(url)
         if not is_fresh(dt):
             return None
         image = get_og_image(soup)
-        if source == "kompas":
-            body = extract_body(soup, _KOMPAS_SEL)
-        elif source == "detik":
-            body = extract_body(soup, _DETIK_SEL)
-        elif source == "cnn":
-            body = extract_body(soup, _CNN_SEL)
-        elif source == "cnn_lifestyle":
+        if source == "cnn_lifestyle":
             body = extract_body(soup, _CNN_SEL)
         elif source == "cnbc_lifestyle":
             body = extract_body(soup, _CNBC_SEL)
         elif source == "cnbc_mymoney":
             body = extract_body(soup, _CNBC_SEL)
-        elif source == "liputan6_bisnis":
-            body = extract_body(soup, _LIP6_SEL)
         elif source == "detik_health":
             body = extract_body(soup, _DETIX_HEALTH_SEL)
         elif source == "idntimes":
@@ -312,78 +324,25 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             body = extract_body(soup, _HIPWEE_SEL)
         elif source == "lifehacker":
             body = extract_body(soup, _LIFEHACKER_SEL)
+        elif source == "lifehack":
+            body = extract_body(soup, _LIFEHACK_SEL)
+        elif source == "psychtoday":
+            body = extract_body(soup, _PSYCHTODAY_SEL)
         else:
             return None
         if not body:
             return None
-        # Source-specific bonus: Lifehacker is inherently tips content
-        source_bonus = 15 if source == "lifehacker" else 0
+        # All sources are tips-focused, give bonus to all
+        # Higher bonus for international sources (English content scores lower on Indo keywords)
+        source_bonus = 20 if source in ("lifehacker", "lifehack", "psychtoday") else 15
         return {"title": title, "date": dt, "image": image, "body": body, "url": url, "source": source, "_source_bonus": source_bonus}
     except Exception:
         return None
 
-async def get_links_kompas(client: httpx.AsyncClient) -> list[str]:
-    r = await client.get("https://tekno.kompas.com/", timeout=10)
-    soup = BeautifulSoup(r.text, "html.parser")
-    links = set()
-    for a in soup.find_all("a", href=True):
-        href = str(a["href"])
-        if "tekno.kompas.com/read/" in href:
-            links.add(href.split("?")[0])
-    return list(links)[:50]
-
-async def get_links_detik(client: httpx.AsyncClient) -> list[str]:
-    """Detik inet — RSS feed (80+ articles) + HTML fallback."""
-    links = set()
-    # Primary: RSS feed
-    try:
-        r = await client.get("https://inet.detik.com/rss", timeout=12)
-        for m in re.finditer(r"<link>([^<]+)</link>", r.text):
-            url = m.group(1).strip()
-            if re.match(r"https://inet\.detik\.com/[a-z]+/d-\d+/", url):
-                links.add(url.split("?")[0])
-    except Exception:
-        pass
-    # Fallback: HTML listing
-    if len(links) < 10:
-        try:
-            r = await client.get("https://inet.detik.com/", timeout=10)
-            soup = BeautifulSoup(r.text, "html.parser")
-            for a in soup.find_all("a", href=True):
-                href = str(a["href"])
-                if re.match(r"https://inet\.detik\.com/[a-z]+/d-\d+/", href):
-                    links.add(href.split("?")[0])
-        except Exception:
-            pass
-    return list(links)[:50]
-
-async def get_links_cnn(client: httpx.AsyncClient) -> list[str]:
-    """CNN Indonesia teknologi — RSS feed (100 articles) + HTML fallback."""
-    links = set()
-    # Primary: RSS feed
-    try:
-        r = await client.get("https://www.cnnindonesia.com/teknologi/rss", timeout=12)
-        for m in re.finditer(r"<link>([^<]+)</link>", r.text):
-            url = m.group(1).strip()
-            if re.match(r"https://www\.cnnindonesia\.com/teknologi/\d+", url):
-                links.add(url.split("?")[0])
-    except Exception:
-        pass
-    # Fallback: HTML listing
-    if len(links) < 10:
-        try:
-            r = await client.get("https://www.cnnindonesia.com/teknologi", timeout=10)
-            soup = BeautifulSoup(r.text, "html.parser")
-            for a in soup.find_all("a", href=True):
-                href = str(a["href"])
-                if re.match(r"https://www\.cnnindonesia\.com/teknologi/\d+", href):
-                    links.add(href.split("?")[0])
-        except Exception:
-            pass
-    return list(links)[:50]
+# Link getters — tips-focused sources only
 
 async def get_links_cnn_lifestyle(client: httpx.AsyncClient) -> list[str]:
-    """CNN Gaya Hidup — RSS feed (100 articles)."""
+    """CNN Gaya Hidup — RSS feed (lifestyle, psikologi, kesehatan mental)."""
     links = set()
     try:
         r = await client.get("https://www.cnnindonesia.com/gaya-hidup/rss", timeout=12)
@@ -396,7 +355,7 @@ async def get_links_cnn_lifestyle(client: httpx.AsyncClient) -> list[str]:
     return list(links)[:50]
 
 async def get_links_cnbc_lifestyle(client: httpx.AsyncClient) -> list[str]:
-    """CNBC Indonesia lifestyle — RSS <guid> tags (100 articles)."""
+    """CNBC Indonesia lifestyle — RSS <guid> tags (career, finance tips)."""
     links = set()
     try:
         r = await client.get("https://www.cnbcindonesia.com/lifestyle/rss", timeout=12)
@@ -417,17 +376,6 @@ async def get_links_cnbc_mymoney(client: httpx.AsyncClient) -> list[str]:
             url = m.group(1).strip()
             if re.match(r"https://www\.cnbcindonesia\.com/mymoney/\d+", url):
                 links.add(url.split("?")[0])
-    except Exception:
-        pass
-    return list(links)[:50]
-
-async def get_links_liputan6_bisnis(client: httpx.AsyncClient) -> list[str]:
-    """Liputan6 bisnis — sitemap XML (entrepreneurship, UMKM, ekonomi)."""
-    links = set()
-    try:
-        r = await client.get("https://www.liputan6.com/bisnis/sitemap.xml", timeout=12)
-        for m in re.finditer(r"<loc>(https://www\.liputan6\.com/bisnis/read/\d+/[^<]+)</loc>", r.text):
-            links.add(m.group(1).strip())
     except Exception:
         pass
     return list(links)[:50]
@@ -499,24 +447,72 @@ async def get_links_lifehacker(client: httpx.AsyncClient) -> list[tuple[str, dat
         pass
     return items[:50]
 
+async def get_links_lifehack(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Lifehack.org — self-improvement, productivity, life tips. Returns (url, pubdate) tuples."""
+    items: list[tuple[str, datetime | None]] = []
+    try:
+        r = await client.get("https://www.lifehack.org/feed", timeout=12)
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip().split("?")[0]
+            dt = None
+            if date_m:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).replace(tzinfo=WIB)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:50]
+
+async def get_links_psychtoday(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Psychology Today — mental health, relationship, psychology tips. Returns (url, pubdate) tuples."""
+    items: list[tuple[str, datetime | None]] = []
+    try:
+        r = await client.get("https://www.psychologytoday.com/us/front/feed", timeout=12)
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip().split("?")[0]
+            dt = None
+            if date_m:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).replace(tzinfo=WIB)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:50]
+
+
 async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
         link_tasks = await asyncio.gather(
-            get_links_kompas(client),
-            get_links_detik(client),
-            get_links_cnn(client),
             get_links_cnn_lifestyle(client),
             get_links_cnbc_lifestyle(client),
             get_links_cnbc_mymoney(client),
-            get_links_liputan6_bisnis(client),
             get_links_detik_health(client),
             get_links_idntimes(client),
             get_links_hipwee(client),
             get_links_lifehacker(client),
+            get_links_lifehack(client),
+            get_links_psychtoday(client),
             return_exceptions=True,
         )
+        source_names = ["cnn_lifestyle", "cnbc_lifestyle", "cnbc_mymoney", "detik_health", "idntimes", "hipwee", "lifehacker", "lifehack", "psychtoday"]
         all_tasks = []
-        for src, links in zip(["kompas", "detik", "cnn", "cnn_lifestyle", "cnbc_lifestyle", "cnbc_mymoney", "liputan6_bisnis", "detik_health", "idntimes", "hipwee", "lifehacker"], link_tasks):
+        for src, links in zip(source_names, link_tasks):
             if not isinstance(links, list) or not links:
                 continue
             for item in links:
@@ -555,11 +551,11 @@ if __name__ == "__main__":
     results = scrape_all(n)
     elapsed = time.time() - t0
     src_label = {
-        "kompas": "Kompas Tekno", "detik": "Detik Inet", "cnn": "CNN Indonesia",
         "cnn_lifestyle": "CNN Gaya Hidup", "cnbc_lifestyle": "CNBC Lifestyle",
-        "cnbc_mymoney": "CNBC MyMoney", "liputan6_bisnis": "Liputan6 Bisnis",
-        "detik_health": "Detik Health", "idntimes": "IDN Times", "hipwee": "Hipwee",
-        "lifehacker": "Lifehacker",
+        "cnbc_mymoney": "CNBC MyMoney", "detik_health": "Detik Health",
+        "idntimes": "IDN Times", "hipwee": "Hipwee",
+        "lifehacker": "Lifehacker", "lifehack": "Lifehack.org",
+        "psychtoday": "Psychology Today",
     }
     for i, art in enumerate(results, 1):
         dt_str = art["date"].strftime("%Y-%m-%d %H:%M WIB") if art["date"] else "unknown date"
