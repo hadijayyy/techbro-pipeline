@@ -156,13 +156,12 @@ BANNED_PHRASES = [
     r'\bgokil\b', r'\bmantap jiwa\b', r'\bsultan\b',
     r'\bauto\b', r'\bskuy\b', r'\bcuy\b',
     r'\bini gak nyangka\b', r'\bsurprise banget\b',
-    r'\bternyata\b(?!\s+banget)', r'\bhebat\b', r'\bkeren banget\b',
+    r'\bhebat\b', r'\bkeren banget\b',
     r'\btemen gue\b', r'\bbapak gue\b', r'\bemak gue\b',
     r'\bkeluarga gue\b', r'\brekan kerja gue\b', r'\bsahabat gue\b',
     r'\blink di bio\b',
     r'\bsetara \d+x\b',
     r'\bkatanya\b', r'\bkonon\b', r'\bdikabarkan\b',
-    r'(?<!\w)AI(?!\w)', r'(?<!\w)CEO(?!\w)',
 ]
 
 def _clean(text: str) -> str:
