@@ -137,13 +137,24 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
     from db import get_db, get_staged_posts, mark_posted
     
     conn = get_db()
-    staged = get_staged_posts(conn, limit)
-    if not staged:
+    
+    # Get staged posts with article image
+    rows = conn.execute('''
+        SELECT p.*, a.image as article_image, a.url as article_url
+        FROM posts p
+        JOIN articles a ON p.article_id = a.id
+        WHERE p.status = 'staged'
+        ORDER BY p.created_at DESC
+        LIMIT ?
+    ''', (limit,)).fetchall()
+    
+    if not rows:
         print("No staged posts.")
         return
     
-    for post in staged:
-        print(f"\nPosting: {post['title'][:60]}...")
+    for post in rows:
+        post = dict(post)
+        print(f"\nPosting: {post.get('title', 'Untitled')[:60]}...")
         
         # Build slides from DB columns
         slides = []
@@ -156,14 +167,15 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
             print("  [SKIP] No slides")
             continue
         
-        print(f"  {len(slides)} slides, image: {post.get('image', 'none')[:60]}")
+        image_url = post.get('article_image')
+        print(f"  {len(slides)} slides, image: {image_url[:60] if image_url else 'none'}")
         
         if dry_run:
             for i, s in enumerate(slides, 1):
                 print(f"  [{i}] {s[:80]}")
             continue
         
-        post_ids = post_carousel(slides, image_url=post.get('image'))
+        post_ids = post_carousel(slides, image_url=image_url)
         if post_ids:
             mark_posted(conn, post['id'], post_ids[0])
             print(f"  ✓ Thread root: {post_ids[0]}")
