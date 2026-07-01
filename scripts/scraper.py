@@ -216,6 +216,7 @@ _TC_SEL = [
     ("article", None),
 ]
 _VERGE_SEL = [
+    ("div", re.compile("duet--layout--entry-body")),
     ("div", re.compile("article-body|entry-content")),
     ("article", None),
 ]
@@ -227,9 +228,11 @@ _WIRED_SEL = [
     ("div", re.compile("body__inner|article-body|entry-content")),
     ("article", None),
 ]
-_ANTHROPIC_SEL = [
+_HN_SEL = [
     ("article", None),
     ("main", None),
+    ("div", re.compile("post-content|article-content|entry-content|post-body")),
+    ("div", None),  # generic fallback
 ]
 
 async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
@@ -263,7 +266,7 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
         elif source == "wired":
             body = extract_body(soup, _WIRED_SEL)
         elif source in ("hn", "anthropic"):
-            body = extract_body(soup, _ANTHROPIC_SEL)
+            body = extract_body(soup, _HN_SEL)
         else:
             return None
 
