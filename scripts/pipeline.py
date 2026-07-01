@@ -76,13 +76,24 @@ def _is_same_topic(title1: str, title2: str) -> bool:
     return action_overlap > 0.3
 
 DAILY_POST_LIMIT = 10
+POSTING_HOURS = (7, 22)  # WIB — only post between 07:00-22:00
 
 def run(top_n: int = TOP_N, dry_run: bool = False):
     t0 = time.time()
     conn = get_db()
     staged_this_run = False
 
-    # 0. Daily post limit check
+    # 0. Posting hours check (WIB = UTC+7)
+    from datetime import datetime, timezone, timedelta
+    now_wib = datetime.now(timezone(timedelta(hours=7)))
+    current_hour = now_wib.hour
+    if not (POSTING_HOURS[0] <= current_hour < POSTING_HOURS[1]) and not dry_run:
+        print(f"Outside posting hours ({POSTING_HOURS[0]}:00-{POSTING_HOURS[1]}:00 WIB). Now: {current_hour}:00. Skipping.")
+        conn.close()
+        return
+    print(f"[HOURS] {current_hour}:00 WIB — within posting window")
+
+    # 1. Daily post limit check
     today_count = conn.execute(
         "SELECT COUNT(*) as c FROM posts WHERE date(posted_at)=date('now') AND status='posted'"
     ).fetchone()['c']
