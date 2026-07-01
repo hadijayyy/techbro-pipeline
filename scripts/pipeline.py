@@ -188,6 +188,11 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
             print(f"  [3/4] Post #{post_id} staged in DB")
             print(f"  Hook: {slides.get('slide_1', slides.get('hook', '?'))[:80]}")
             print(f"  CTA:  {slides.get('slide_6', slides.get('cta', '?'))[:80]}")
+
+            # 4. Post to Threads immediately
+            if not dry_run:
+                print(f"\n[4/4] Posting to Threads...")
+                post_from_db(limit=1)
             break  # one article per run
     else:
         print("  No fresh articles from scraper.")
