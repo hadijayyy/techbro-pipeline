@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse, urlunparse
 
 WIB = timezone(timedelta(hours=7))
-MAX_AGE_DAYS = 7
+MAX_AGE_DAYS = 30
 TOP_N = 1
 
 HEADERS = {
@@ -147,7 +147,7 @@ def _unique_matches(text: str, keywords: set) -> int:
     return count
 
 
-def score_article(title: str, body: str) -> int:
+def score_article(title: str, body: str, date=None) -> int:
     title_l = title.lower()
     body_l = body[:1000].lower()
     text = title_l + " " + body_l
@@ -179,6 +179,12 @@ def score_article(title: str, body: str) -> int:
     # Penalty: product review/promo patterns
     penalty_count = len(_PENALTY_RE.findall(text))
     s -= penalty_count * 12
+
+    # Recency bonus: newer = higher. Today +20, 30 days ago +0
+    if date:
+        days_old = (datetime.now(WIB) - date).days
+        recency_bonus = max(0, 20 - int(days_old * 20 / 30))
+        s += recency_bonus
 
     return max(0, min(s, 100))
 
@@ -533,7 +539,7 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
         if art["url"] in seen:
             continue
         seen.add(art["url"])
-        art["score"] = score_article(art["title"], art["body"]) + art.pop("_source_bonus", 0)
+        art["score"] = score_article(art["title"], art["body"], art["date"]) + art.pop("_source_bonus", 0)
         if art["score"] > 25:
             articles.append(art)
 
