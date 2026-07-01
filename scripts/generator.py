@@ -81,6 +81,14 @@ CAPS buat emphasis 1 kata doang.
 Hook yang BAGUS bikin pembaca mikir: "Serius? Kok bisa?"
 Hook yang JELEK: pembaca skip karena terlalu generik.
 
+VARIASI HOOK (pilih salah satu, JANGAN semua post pola sama):
+1. REALIZATION: "Gue baru nyadar... [fakta mengejutkan]"
+2. OPINION: "Jujur, gue [emotion] soal [topik]. [Fakta]"
+3. QUESTION: "Lo tau gak... [fakta provokatif]?"
+4. QUOTE: "[Nama] bilang: '[insight]'. Dan ini bener banget."
+5. CONTRAST: "[Ekspektasi]... Tapi kenyataannya? [Realita]"
+6. DATA DROP: "[Angka spesifik] orang [konteks]. Lo termasuk?"
+
 ANGKA DI HOOK:
 1. Kalau artikel punya ANGKA SPESIFIK → pakai langsung ("40GB cuma sampah WA")
 2. Kalau gak ada angka → pakai IMPACT/CONSEQUENCE ("Lo buang 2 jam sehari buat scroll konten gak penting")
@@ -118,13 +126,22 @@ Satu kalimat yang bikin pembaca mikir ulang tentang sesuatu.
 Ini yang bikin orang share — "ini gue banget" atau "ini penting banget"
 
 SLIDE 6 — CTA (2-3 kalimat, 30-40 kata)
-Pertanyaan TERBUKA yang memancing perdebatan.
-Format: pilihan biner (A atau B) ATAU pertanyaan yang bikin mikir.
+WAJIB bikin orang comment. Pakai salah satu formula:
+
+ENGAGEMENT FORMULAS:
+1. PROVOCATIVE: "Menurut lo, [provokasi]? Atau [alternatif]?"
+2. PERSONAL: "Lo sendiri [action]? Cerita di comment."
+3. DEBATE: "Setuju gak kalo [pendapat kontroversial]?"
+4. RANKING: "Mana yang lebih penting: [A] atau [B]?"
+5. CHALLENGE: "Coba deh [action] selama seminggu. Kabarin hasilnya."
+
 WAJIB taruh URL sumber di baris terakhir.
+JANGAN pakai frasa "link di bio".
 
 CONTOH CTA BAGUS:
-- "Lo pilih: tetep cuek sampe sakit, atau mulai pantau tiap hari tapi data lo di tangan perusahaan?"
-- "Menurut lo, PR itu wajib buat UMKM, atau masih bisa ditunda?"
+- "Lo pilih: tetep cuek sampe sakit, atau mulai pantau tiap hari tapi data lo di tangan perusahaan? Cerita di comment."
+- "Setuju gak kalo semua orang WAJIB learn AI sekarang? Gue penasaran pendapat lo."
+- "Mana yang lebih ngeri: di-PHK tanpa peringatan, atau disuruh resign sendiri? Vote di comment."
 
 CLIFFHANGER: Di dasar Slide 1-5, wajib akhirin dengan satu kalimat gantung pendek yang bikin penasaran (misal: "Tapi ngerinya...", "Ini triknya...", "Tapi tunggu..."). Jangan pakai simbol titik/dekoratif, cukup kalimat gantung biasa.
 
@@ -147,6 +164,14 @@ Rules:
 - Konten yang VALID: AI tools (ChatGPT, Gemini, Claude, Midjourney), productivity tips, career advice, mental health, life hacks dengan sudut pandang AI.
 - WAJIB ada TIPS/PELAJARAN/ACTIONABLE ADVICE di konten. Bukan cuma cerita/informasi.
 - Fokus: "Bagaimana AI bisa bantu lo lebih produktif?" atau "Tips productivity yang work di era AI"
+
+PERSONAL VOICE (HONEST):
+- Tulis pakai POV orang pertama (gue/lo)
+- Boleh: opini, reaction, observation terhadap berita nyata
+- Contoh: "Gue liat berita ini dan langsung mikir...", "Jujur, gue [emotion] soal ini"
+- JANGAN fabricate stories/events yang gak pernah ada
+- Contoh BOHONG: "Kemarin gue ngobrol sama temen..." (kalo emang gak ada)
+- Contoh JUJUR: "Gue baca berita ini dan langsung mikir: ini bisa terjadi di mana aja"
 
 Output strict JSON, no markdown fences, flat keys only:
 {"slide_1":"","slide_2":"","slide_3":"","slide_4":"","slide_5":"","slide_6":"","caption":"","hashtags":""}
