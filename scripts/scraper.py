@@ -82,33 +82,50 @@ _TIER3_SET = {k.lower() for k in TIER3}
 _PENALTY_RE = re.compile("|".join(re.escape(k.lower()) for k in PENALTY))
 _EXCL_RE = re.compile("|".join(re.escape(k.lower()) for k in EXCLUDE))
 
+# ─── Stemming (simple suffix stripper for Jaccard dedup) ───────
+
+_STEM_SUFFIXES = ("ing", "tion", "sion", "ment", "ness", "able", "ible",
+                   "ies", "ied", "ing", "ers", "est", "ful", "ous",
+                   "ive", "ize", "ise", "ed", "er", "ly", "es", "s")
+
+
+def _stem(word: str) -> str:
+    """Minimal English stemmer for dedup matching. Strips common suffixes."""
+    if len(word) <= 4:
+        return word
+    for suffix in _STEM_SUFFIXES:
+        if word.endswith(suffix) and len(word) - len(suffix) >= 3:
+            return word[:-len(suffix)]
+    return word
+
 
 def _unique_matches(text: str, keywords: set) -> int:
-    """Count unique keyword matches including bigrams."""
+    """Count unique keyword matches. Uses \\b word boundaries for precision."""
     count = 0
     for kw in keywords:
-        if " " in kw:  # bigram: "ai model", "open source"
-            if kw in text:
-                count += 1
-        elif len(kw) <= 4:
+        if " " in kw:  # bigram: word boundary at phrase edges
             if re.search(r'\b' + re.escape(kw) + r'\b', text):
                 count += 1
-        elif kw in text:
+        elif re.search(r'\b' + re.escape(kw) + r'\b', text):
             count += 1
     return count
 
 
-def score_article(title: str, body: str, date=None, hn_score: int = 0) -> int:
-    title_l = title.lower()
-    body_l = body[:1500].lower()  # scan more body text
-    text = title_l + " " + body_l
-
+def fast_content_filter(title: str, body: str) -> str | None:
+    """Layer 2 fast drop. Returns rejection reason or None if OK."""
+    text = (title + " " + body[:500]).lower()
     if _EXCL_RE.search(text):
-        return 0
+        return "excluded keyword"
+    if len(set(_PENALTY_RE.findall(text))) >= 3:
+        return "penalty keyword"
+    return None
 
-    penalty_hits = len(set(_PENALTY_RE.findall(text)))
-    if penalty_hits >= 3:
-        return 0
+
+def score_article(title: str, body: str, date=None, hn_score: int = 0) -> int:
+    """Score article. Assumes fast_content_filter() already passed."""
+    title_l = title.lower()
+    body_l = body[:1500].lower()
+    text = title_l + " " + body_l
 
     # Title gets 3x weight (readers see title first)
     t1 = _unique_matches(title_l, _TIER1_SET) * 30 + _unique_matches(body_l, _TIER1_SET) * 10
@@ -484,12 +501,12 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
         # Extract key topic words from title (skip common words)
         words = set(re.findall(r'\b[a-z]{4,}\b', art["title"].lower()))
         stop = {"this", "that", "with", "from", "have", "been", "will", "more", "than", "about", "just", "into", "your", "they", "their", "what", "when", "which", "were", "also", "could", "would", "should", "like", "very", "most", "some", "only"}
-        keywords = words - stop
+        keywords = {_stem(w) for w in words - stop}
         matched = False
         for topic, group in topic_map.items():
             topic_words = set(topic.split())
-            # Jaccard similarity > 0.3 = same topic
-            if keywords and topic_words and len(keywords & topic_words) / len(keywords | topic_words) > 0.3:
+            # Jaccard similarity > 0.3 = same topic (words already stemmed)
+            if keywords and topic_words and len(keywords & topic_words) / max(len(keywords | topic_words), 1) > 0.3:
                 group.append(art)
                 matched = True
                 break

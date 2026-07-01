@@ -19,7 +19,7 @@ if _env_path.exists():
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from scraper import scrape_all
+from scraper import scrape_all, score_article, fast_content_filter
 from generator import generate_carousel
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed, cleanup_old
 from poster import post_from_db
@@ -87,32 +87,79 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
 
     # 1. Scrape + score
     print(f"[1/4] Scraping top {top_n} articles...")
+
     articles = scrape_all(top_n)
 
-    # Get already-posted/staged article titles for dedup
+    # Track topics from ALL posts (posted + staged) for dedup
     posted_titles = [row['title'] for row in conn.execute(
         "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id"
     ).fetchall()]
 
+    # Track topics staged THIS run (prevents duplicates within same run)
+    staged_titles_this_run = []
+
     if articles:
-        print(f"  Found {len(articles)} articles")
 
+        # ── LAYER 2: Fast Dedup & Fast Drop ──────────────────────
+        fresh = []
         for art in articles:
-            print(f"\n  [{art['source']}] score={art['score']} | {art['title'][:60]}...")
-
-            # Dedup: skip if already posted/staged (title similarity OR same topic)
+            # 2a. Content filter (exclude/penalty keywords)
+            reject = fast_content_filter(art["title"], art["body"])
+            if reject:
+                print(f"  [DROP] {reject}: {art['title'][:50]}...")
+                continue
+            # 2b. DB dedup (title similarity + entity topic)
             skip = False
-            for pt in posted_titles:
-                if _title_overlap(art['title'], pt) > 0.5:
+            for pt in posted_titles + staged_titles_this_run:
+                if _title_overlap(art["title"], pt) > 0.5:
                     print(f"  [DEDUP] Similar title: {pt[:60]}...")
                     skip = True
                     break
-                if _is_same_topic(art['title'], pt):
+                if _is_same_topic(art["title"], pt):
                     print(f"  [DEDUP] Same topic as: {pt[:60]}...")
                     skip = True
                     break
             if skip:
                 continue
+            fresh.append(art)
+
+        # ── LAYER 3: Scoring Engine (keyword + decay) ────────────
+        for art in fresh:
+            hn_score = art.pop("_hn_score", 0) if "_hn_score" in art else 0
+            art["score"] = score_article(art["title"], art["body"], art.get("date"), hn_score)
+
+        # ── LAYER 4: Cross-Source Virality ───────────────────────
+        import re as _re
+        topic_map: dict[str, list[dict]] = {}
+        _stop = {"this", "that", "with", "from", "have", "been", "will", "more",
+                 "than", "about", "just", "into", "your", "they", "their", "what",
+                 "when", "which", "were", "also", "could", "would", "should",
+                 "like", "very", "most", "some", "only"}
+        for art in fresh:
+            words = set(_re.findall(r'\b[a-z]{4,}\b', art["title"].lower())) - _stop
+            matched = False
+            for topic, group in topic_map.items():
+                topic_words = set(topic.split())
+                if words and topic_words and len(words & topic_words) / max(len(words | topic_words), 1) > 0.3:
+                    group.append(art)
+                    matched = True
+                    break
+            if not matched:
+                topic_map[" ".join(sorted(words)[:5])] = [art]
+        for topic, group in topic_map.items():
+            if len(group) >= 2:
+                sources = set(a["source"] for a in group)
+                if len(sources) >= 2:
+                    for a in group:
+                        a["score"] = min(a["score"] + 30, 150)
+                        a["virality"] = f"cross-source ({len(sources)} sources)"
+
+        # Sort by score desc
+        fresh.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        for art in fresh:
+            vir_tag = f" +{art.get('virality', '')}" if art.get("virality") else ""
+            print(f"\n  [{art['source']}] score={art['score']}{vir_tag} | {art['title'][:60]}...")
 
             # 2. Upsert article to DB
             article_id = upsert_article(conn, art)
@@ -136,6 +183,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
             # 4. Stage post
             post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", ""))
             posted_titles.append(art['title'])
+            staged_titles_this_run.append(art['title'])
             staged_this_run = True
             print(f"  [3/4] Post #{post_id} staged in DB")
             print(f"  Hook: {slides.get('slide_1', slides.get('hook', '?'))[:80]}")
@@ -157,9 +205,15 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
 
         if unposted:
             for art in unposted:
-                # Dedup: skip if already posted/staged (title similarity OR same topic)
+                art = dict(art)
+                # Layer 2: Content filter + DB dedup
+                reject = fast_content_filter(art['title'], art['body'])
+                if reject:
+                    print(f"  [DROP] {reject}: {art['title'][:50]}...")
+                    continue
+
                 skip = False
-                for pt in posted_titles:
+                for pt in posted_titles + staged_titles_this_run:
                     if _title_overlap(art['title'], pt) > 0.5:
                         print(f"  [DEDUP] Similar title: {pt[:60]}...")
                         skip = True
@@ -188,6 +242,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
                 print(f"  Generated via {provider}")
 
                 post_id = stage_post(conn, art["id"], slides, slides.get("caption", ""), slides.get("hashtags", ""))
+                staged_titles_this_run.append(art["title"])
                 staged_this_run = True
                 print(f"  [3/4] Post #{post_id} staged in DB")
                 print(f"  Hook: {slides.get('slide_1', slides.get('hook', '?'))[:80]}")

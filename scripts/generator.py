@@ -24,7 +24,7 @@ Transform the provided article into a 6-slide Threads narrative. Extract the mos
 [OUTPUT]
 Format strictly as a flat JSON with keys "slide_1" to "slide_6", "caption", "hashtags". Write in prose only (no bullets). Vary rhythm between short punchy sentences and longer ones.
 
-- slide_1 (Hook, 30+ words, MAX 3 sentences): Hit hard with a shocking fact/number from the article. Capitalize exactly ONE word for emphasis. Vary hook style between posts:
+- slide_1 (Hook, under 30 words, MAX 2 sentences): Hit hard with a shocking fact/number from the article. Capitalize exactly ONE word for emphasis. Vary hook style between posts:
   1. REALIZATION: "I just realized..."
   2. OPINION: "Honestly, I'm [emotion] about..."
   3. QUESTION: "Did you know...?"
@@ -70,7 +70,7 @@ Transform the provided article into a 6-slide Threads narrative. Extract the cor
 [OUTPUT]
 Format strictly as a flat JSON with keys "slide_1" to "slide_6", "caption", "hashtags". Write in prose only (no bullets). Vary rhythm between short punchy sentences and longer ones.
 
-- slide_1 (Hook, 30+ words, MAX 2 sentences): Hit hard with a shocking fact or number from the article. Share your immediate personal reaction or observation as a practitioner to ground the hook. Capitalize exactly ONE word for emphasis. Use a specific hook format:
+- slide_1 (Hook, under 30 words, MAX 2 sentences): Hit hard with a shocking fact or number from the article. Share your immediate personal reaction or observation as a practitioner to ground the hook. Capitalize exactly ONE word for emphasis. Use a specific hook format:
   1. REALIZATION: "Gue baru nyadar..."
   2. OPINION: "Jujur, gue [emotion] soal..."
   3. QUESTION: "Lo tau gak...?"
@@ -265,9 +265,11 @@ def _validate_hook(text: str) -> tuple[bool, list[str]]:
     issues = []
     words = text.split()
     
-    # 1. Minimum length
-    if len(words) < 25:
-        issues.append(f"too short ({len(words)} words, need 25+)")
+    # 1. Length: under 30 words
+    if len(words) > 30:
+        issues.append(f"too long ({len(words)} words, need under 30)")
+    if len(words) < 10:
+        issues.append(f"too short ({len(words)} words, need 10+)")
     
     # 2. Check for number/impact (increases engagement)
     has_number = bool(re.search(r'\d+', text))
@@ -301,8 +303,8 @@ def _validate_hook(text: str) -> tuple[bool, list[str]]:
     if has_hook_punctuation: score += 1
     if has_personal: score += 1
     
-    # Hook is valid if score >= 3 (at least number + curiosity OR personal + number)
-    valid = score >= 3 and len(words) >= 25
+    # Hook is valid if score >= 3 and length in range
+    valid = score >= 3 and 10 <= len(words) <= 30
     
     if not valid and not issues:
         issues.append(f"hook score {score}/6, need 3+")
@@ -313,7 +315,7 @@ def _score_hook(text: str) -> int:
     """Score a hook 0-6. Higher = better engagement."""
     score = 0
     words = text.split()
-    if len(words) >= 25: score += 1
+    if len(words) <= 30 and len(words) >= 10: score += 1  # sweet spot: 10-30 words
     if bool(re.search(r'\d+', text)): score += 1
     curiosity = {'secret', 'shocking', 'surprising', 'unexpected', 'never',
                  'actually', 'real', 'truth', 'mistake', 'breakthrough',
