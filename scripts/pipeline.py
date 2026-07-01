@@ -46,6 +46,9 @@ _ENTITIES = {
     "amazon", "tesla", "deepseek", "mistral", "cohere", "claude", "gpt",
     "gemini", "chatgpt", "copilot", "cursor", "midjourney", "sora",
     "sonnet", "opus", "mythos", "fable", "lama", "llama",
+    # Product names
+    "godot", "github", "apple", "iphone", "ipad", "macbook", "vision",
+    "spacex", "starlink", "openai", "claude", "science", "agent",
 }
 
 def _extract_topic(title: str) -> set[str]:
@@ -59,16 +62,18 @@ def _is_same_topic(title1: str, title2: str) -> bool:
     topic2 = _extract_topic(title2)
     if not topic1 or not topic2:
         return False
-    # Same entity = same topic
     overlap = topic1 & topic2
-    if overlap:
-        # Check if the action is also similar (launch/launch, fire/fire)
-        w1 = set(_normalize_title(title1).split()) - _ENTITIES - {"the", "a", "an", "is", "to", "for", "and", "of", "in", "its"}
-        w2 = set(_normalize_title(title2).split()) - _ENTITIES - {"the", "a", "an", "is", "to", "for", "and", "of", "in", "its"}
-        action_overlap = len(w1 & w2) / max(len(w1 | w2), 1)
-        if action_overlap > 0.3:
-            return True
-    return False
+    if not overlap:
+        return False
+    # If 2+ entities match (e.g. "claude" + "science"), same topic
+    if len(overlap) >= 2:
+        return True
+    # Single entity: check action similarity
+    stop = {"the", "a", "an", "is", "to", "for", "and", "of", "in", "its", "on", "at", "by"}
+    w1 = set(_normalize_title(title1).split()) - _ENTITIES - stop
+    w2 = set(_normalize_title(title2).split()) - _ENTITIES - stop
+    action_overlap = len(w1 & w2) / max(len(w1 | w2), 1)
+    return action_overlap > 0.3
 
 def run(top_n: int = TOP_N, dry_run: bool = False):
     t0 = time.time()
@@ -143,7 +148,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
     if not staged_this_run:
         print("  Checking DB for unposted articles...")
         unposted = conn.execute("""
-            SELECT a.id, a.title, a.body, a.url, a.image, a.score
+            SELECT a.id, a.title, a.body, a.url, a.image, a.score, a.source
             FROM articles a
             WHERE a.id NOT IN (SELECT article_id FROM posts WHERE status != 'failed')
             ORDER BY a.score DESC
@@ -152,6 +157,20 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
 
         if unposted:
             for art in unposted:
+                # Dedup: skip if already posted/staged (title similarity OR same topic)
+                skip = False
+                for pt in posted_titles:
+                    if _title_overlap(art['title'], pt) > 0.5:
+                        print(f"  [DEDUP] Similar title: {pt[:60]}...")
+                        skip = True
+                        break
+                    if _is_same_topic(art['title'], pt):
+                        print(f"  [DEDUP] Same topic as: {pt[:60]}...")
+                        skip = True
+                        break
+                if skip:
+                    continue
+
                 print(f"  [DB] score={art['score']} | {art['title'][:60]}")
 
                 if dry_run:
