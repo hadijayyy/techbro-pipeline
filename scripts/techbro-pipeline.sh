@@ -12,6 +12,7 @@ sleep "$DELAY"
 # Load API keys from threads-agent .env
 set -a
 source /home/ubuntu/threads-agent/.env
+source /home/ubuntu/techbro/.env
 set +a
 
 LOG="logs/pipeline-$(date +%Y%m%d-%H%M%S).log"
