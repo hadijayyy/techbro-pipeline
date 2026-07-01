@@ -211,50 +211,136 @@ def _clean(text: str) -> str:
 
     return out
 
-def _validate_hook(text: str) -> bool:
-    """Check hook is at least 30 words."""
+def _validate_hook(text: str) -> tuple[bool, list[str]]:
+    """Check hook quality. Returns (valid, list of issues)."""
+    issues = []
     words = text.split()
-    if len(words) < 30:
-        print(f"[WARN] Hook too short ({len(words)} words), need 30+")
-        return False
-    return True
+    
+    # 1. Minimum length
+    if len(words) < 25:
+        issues.append(f"too short ({len(words)} words, need 25+)")
+    
+    # 2. Check for number/impact (increases engagement)
+    has_number = bool(re.search(r'\d+', text))
+    if not has_number:
+        issues.append("no number (numbers increase engagement)")
+    
+    # 3. Check for curiosity/emotional triggers
+    curiosity_words = {
+        "secret", "hidden", "shocking", "surprising", "unexpected", "never",
+        "actually", "real", "truth", "mistake", "wrong", "fail", "success",
+        "breakthrough", "discovered", "revealed", "exposed", "leaked",
+        "just", "new", "first", "only", "biggest", "most", "worst", "best"
+    }
+    text_lower = text.lower()
+    has_curiosity = any(w in text_lower for w in curiosity_words)
+    if not has_curiosity:
+        issues.append("no curiosity trigger (try: secret, shocking, just, new, first)")
+    
+    # 4. Check for question or exclamation (engagement hook)
+    has_hook_punctuation = text.rstrip().endswith(('?', '!'))
+    
+    # 5. Check for personal angle ("you", "your", "I", "we")
+    personal_words = {"you", "your", "i", "we", "our", "my"}
+    has_personal = any(w in text_lower.split() for w in personal_words)
+    
+    # Score the hook
+    score = 0
+    if not issues: score += 2
+    if has_number: score += 1
+    if has_curiosity: score += 1
+    if has_hook_punctuation: score += 1
+    if has_personal: score += 1
+    
+    # Hook is valid if score >= 3 (at least number + curiosity OR personal + number)
+    valid = score >= 3 and len(words) >= 25
+    
+    if not valid and not issues:
+        issues.append(f"hook score {score}/6, need 3+")
+    
+    return valid, issues
 
-def generate_carousel(title: str, body: str, image: str = "", url: str = "", source: str = "") -> Optional[dict]:
-    """Generate 6-slide carousel content."""
-    print(f"[LANG] {CONTENT_LANG}")
-    raw = _call_mistral(title, body, source)
-    provider = "mistral"
-    if raw is None:
-        print("Mistral failed, trying Groq...")
+def _score_hook(text: str) -> int:
+    """Score a hook 0-6. Higher = better engagement."""
+    score = 0
+    words = text.split()
+    if len(words) >= 25: score += 1
+    if bool(re.search(r'\d+', text)): score += 1
+    curiosity = {'secret', 'shocking', 'surprising', 'unexpected', 'never',
+                 'actually', 'real', 'truth', 'mistake', 'breakthrough',
+                 'just', 'new', 'first', 'only', 'biggest', 'most', 'worst', 'best'}
+    if any(w in text.lower() for w in curiosity): score += 1
+    if text.rstrip().endswith(('?', '!')): score += 1
+    if any(w in text.lower().split() for w in {'you', 'your', 'i', 'we', 'our', 'my'}): score += 1
+    if len(set(re.findall(r'[A-Z]{2,}', text))) > 0: score += 1  # emphasis words
+    return score
+
+def _generate_variant(title: str, body: str, source: str, provider: str) -> Optional[dict]:
+    """Generate one carousel variant. Returns parsed dict or None."""
+    if provider == "mistral":
+        raw = _call_mistral(title, body, source)
+    else:
         raw = _call_groq(title, body, source)
-        provider = "groq"
     if raw is None:
         return None
-
-    # Parse JSON
     try:
         cleaned = raw.strip()
         if cleaned.startswith("```"):
             cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
             cleaned = re.sub(r'\s*```$', '', cleaned)
         data = json.loads(cleaned)
-    except json.JSONDecodeError as e:
-        print(f"JSON parse error: {e}")
-        print(f"Raw response:\n{raw[:500]}")
+    except json.JSONDecodeError:
         return None
-
-    # Validate & clean all slides
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:
             data[key] = _clean(data[key])
+    return data
 
-    # Validate hook length
+def generate_carousel(title: str, body: str, image: str = "", url: str = "", source: str = "") -> Optional[dict]:
+    """Generate 6-slide carousel with A/B testing (2 variants, pick best hook)."""
+    print(f"[LANG] {CONTENT_LANG}")
+
+    # Determine primary provider
+    primary = "mistral"
+    fallback = "groq"
+
+    # A/B: generate 2 variants
+    variants = []
+    for i, prov in enumerate([primary, primary], 1):  # both from same provider
+        v = _generate_variant(title, body, source, prov)
+        if v and "slide_1" in v:
+            v["_provider"] = prov
+            hook_score = _score_hook(v["slide_1"])
+            variants.append((v, hook_score))
+            print(f"  [A/B] Variant {i}: hook score {hook_score}/6 via {prov}")
+
+    # If primary fails both times, try fallback
+    if len(variants) < 2:
+        v = _generate_variant(title, body, source, fallback)
+        if v and "slide_1" in v:
+            v["_provider"] = fallback
+            hook_score = _score_hook(v["slide_1"])
+            variants.append((v, hook_score))
+            print(f"  [A/B] Fallback variant: hook score {hook_score}/6 via {fallback}")
+
+    if not variants:
+        return None
+
+    # Pick best hook score
+    variants.sort(key=lambda x: x[1], reverse=True)
+    data, best_score = variants[0]
+    print(f"  [A/B] Winner: hook score {best_score}/6 ({len(variants)} variants)")
+
+    # Validate winning hook
     if "slide_1" in data:
-        _validate_hook(data["slide_1"])
+        valid, issues = _validate_hook(data["slide_1"])
+        if not valid:
+            print(f"[HOOK] Issues: {', '.join(issues)}")
+        else:
+            print(f"[HOOK] Valid (score: {best_score}/6)")
 
-    data["_provider"] = provider
+    data["_provider"] = data.get("_provider", primary)
     data["_lang"] = CONTENT_LANG
-
     return data
 
 # ─── CLI ──────────────────────────────────────────────────────────

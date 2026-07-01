@@ -104,3 +104,21 @@ def get_stats(conn) -> dict:
         "staged": conn.execute("SELECT COUNT(*) c FROM posts WHERE status='staged'").fetchone()["c"],
         "posted": conn.execute("SELECT COUNT(*) c FROM posts WHERE status='posted'").fetchone()["c"],
     }
+
+def cleanup_old(conn, days: int = 7) -> dict:
+    """Delete articles and posts older than N days. Returns counts."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    # Delete posts for old articles
+    old_posts = conn.execute(
+        "DELETE FROM posts WHERE article_id IN (SELECT id FROM articles WHERE scraped_at < ?)",
+        (cutoff,)
+    ).rowcount
+    # Delete old articles
+    old_articles = conn.execute(
+        "DELETE FROM articles WHERE scraped_at < ?", (cutoff,)
+    ).rowcount
+    conn.commit()
+    # Vacuum if we deleted anything
+    if old_articles > 0:
+        conn.execute("VACUUM")
+    return {"deleted_articles": old_articles, "deleted_posts": old_posts}

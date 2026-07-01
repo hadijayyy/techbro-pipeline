@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from scraper import scrape_all
 from generator import generate_carousel
-from db import get_db, upsert_article, stage_post, get_stats, mark_failed
+from db import get_db, upsert_article, stage_post, get_stats, mark_failed, cleanup_old
 from poster import post_from_db
 
 TOP_N = 5  # articles per run (pick best unposted)
@@ -45,8 +45,13 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
     conn = get_db()
     staged_this_run = False
 
+    # 0. Auto-clean old articles (>7 days)
+    cleaned = cleanup_old(conn, days=7)
+    if cleaned["deleted_articles"] > 0:
+        print(f"[0/4] Cleaned {cleaned['deleted_articles']} old articles")
+
     # 1. Scrape + score
-    print(f"[1/3] Scraping top {top_n} articles...")
+    print(f"[1/4] Scraping top {top_n} articles...")
     articles = scrape_all(top_n)
 
     # Get already-posted/staged article titles for dedup
@@ -79,7 +84,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
                 continue
 
             # 3. Generate carousel
-            print(f"  [2/3] Generating carousel via LM...")
+            print(f"  [2/4] Generating carousel via LM...")
             slides = generate_carousel(art["title"], art["body"], art["image"] or "", art["url"] or "", art["source"] if "source" in art.keys() else "")
             if not slides:
                 print("  ERROR: LM generation failed")
@@ -93,7 +98,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
             post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", ""))
             posted_titles.append(art['title'])
             staged_this_run = True
-            print(f"  [3/3] Post #{post_id} staged in DB")
+            print(f"  [3/4] Post #{post_id} staged in DB")
             print(f"  Hook: {slides.get('slide_1', slides.get('hook', '?'))[:80]}")
             print(f"  CTA:  {slides.get('slide_6', slides.get('cta', '?'))[:80]}")
             break  # one article per run
@@ -119,7 +124,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
                     print("  [DRY RUN] Skipping generation")
                     continue
 
-                print(f"  [2/3] Generating carousel via LM...")
+                print(f"  [2/4] Generating carousel via LM...")
                 slides = generate_carousel(art["title"], art["body"], art["image"] or "", art["url"] or "", art["source"] if "source" in art.keys() else "")
                 if not slides:
                     print("  ERROR: LM generation failed")
@@ -131,7 +136,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
 
                 post_id = stage_post(conn, art["id"], slides, slides.get("caption", ""), slides.get("hashtags", ""))
                 staged_this_run = True
-                print(f"  [3/3] Post #{post_id} staged in DB")
+                print(f"  [3/4] Post #{post_id} staged in DB")
                 print(f"  Hook: {slides.get('slide_1', slides.get('hook', '?'))[:80]}")
                 print(f"  CTA:  {slides.get('slide_6', slides.get('cta', '?'))[:80]}")
 

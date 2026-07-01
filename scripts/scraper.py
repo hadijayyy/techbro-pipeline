@@ -84,9 +84,13 @@ _EXCL_RE = re.compile("|".join(re.escape(k.lower()) for k in EXCLUDE))
 
 
 def _unique_matches(text: str, keywords: set) -> int:
+    """Count unique keyword matches including bigrams."""
     count = 0
     for kw in keywords:
-        if len(kw) <= 4:
+        if " " in kw:  # bigram: "ai model", "open source"
+            if kw in text:
+                count += 1
+        elif len(kw) <= 4:
             if re.search(r'\b' + re.escape(kw) + r'\b', text):
                 count += 1
         elif kw in text:
@@ -96,7 +100,7 @@ def _unique_matches(text: str, keywords: set) -> int:
 
 def score_article(title: str, body: str, date=None, hn_score: int = 0) -> int:
     title_l = title.lower()
-    body_l = body[:1000].lower()
+    body_l = body[:1500].lower()  # scan more body text
     text = title_l + " " + body_l
 
     if _EXCL_RE.search(text):
@@ -106,23 +110,28 @@ def score_article(title: str, body: str, date=None, hn_score: int = 0) -> int:
     if penalty_hits >= 3:
         return 0
 
-    t1 = _unique_matches(title_l, _TIER1_SET) * 30 + _unique_matches(body_l, _TIER1_SET) * 15
-    t2 = _unique_matches(title_l, _TIER2_SET) * 12 + _unique_matches(body_l, _TIER2_SET) * 5
-    t3 = _unique_matches(title_l, _TIER3_SET) * 4 + _unique_matches(body_l, _TIER3_SET) * 2
+    # Title gets 3x weight (readers see title first)
+    t1 = _unique_matches(title_l, _TIER1_SET) * 30 + _unique_matches(body_l, _TIER1_SET) * 10
+    t2 = _unique_matches(title_l, _TIER2_SET) * 15 + _unique_matches(body_l, _TIER2_SET) * 5
+    t3 = _unique_matches(title_l, _TIER3_SET) * 5 + _unique_matches(body_l, _TIER3_SET) * 2
 
     s = t1 + t2 + t3
+
+    # Density bonus: if title has 2+ TIER1 keywords, it's a core AI story
+    if _unique_matches(title_l, _TIER1_SET) >= 2:
+        s += 20
 
     # HN virality bonus: 500pts = +100, 1000pts = +100 (capped)
     if hn_score > 0:
         s += min(hn_score // 5, 100)
 
-    # Recency: exponential decay. 0h = +30, 24h = +0
+    # Recency: exponential decay. 0h = +30, 12h = +0
     if date:
         hours_old = (datetime.now(UTC) - date).total_seconds() / 3600
         recency_bonus = max(0, 30 - int(hours_old * 30 / MAX_AGE_HOURS))
         s += recency_bonus
 
-    return max(0, min(s, 100))
+    return max(0, min(s, 150))
 
 
 def fix_image_url(url: str) -> str:
