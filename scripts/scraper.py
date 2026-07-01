@@ -86,7 +86,7 @@ PENALTY = [
     "review lengkap", "kelebihan dan kekurangan", "benchmark",
 ]
 EXCLUDE = [
-    "prediksi cuaca", "ramalan zodiak", "gosip", "skor akhir",
+    "prediksi cuaca", "ramalan zodiak", "zodiak", "gosip", "skor akhir",
     "jadwal pertandingan", "transfer pemain",
     # Sensitif / kasus pribadi / tragedi
     "kasus kematian", "kematian dokter", "korban meninggal", "mayat",
