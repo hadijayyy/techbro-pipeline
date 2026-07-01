@@ -55,8 +55,8 @@ JANGAN mempromosikan produk, brand, atau layanan. Fokus pada cerita, fakta, anal
 - Prose only, no bullets
 - Campur Indo-Inggris. Tech terms tetap English (AI, startup, coding, deploy, crash)
 - Kalimat pendek dicampur panjang. Jangan ritme sama tiap slide
-- "Lo/gua" bukan "Anda/saya". Singkatan: gak, dong, sih, banget, btw
-- Emoji: maks 1 per slide
+- Lo/gua bukan "Anda/saya". Singkatan: gak, dong, sih, banget, btw
+- JANGAN pakai emoji/emoticon (😳, 👀, 🤣, 😱, dll). Tulis tanpa simbol visual.
 - JANGAN pakai em-dash (—) atau en-dash (–). Ganti koma. Ini cerita mengalir, bukan berita.
 - JANGAN bikin kutipan/dialog imajiner. Kalau gak ada quote dari narasumber, jangan buat.
 
