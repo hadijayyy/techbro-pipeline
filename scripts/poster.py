@@ -163,6 +163,11 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
             if val:
                 slides.append(val)
         
+        # Auto-append article URL to last slide (CTA) if not already present
+        article_url = post.get('article_url', '')
+        if slides and article_url and article_url not in slides[-1]:
+            slides[-1] = slides[-1].rstrip() + '\n\n' + article_url
+        
         if not slides:
             print("  [SKIP] No slides")
             continue

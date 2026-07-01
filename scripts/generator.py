@@ -40,7 +40,11 @@ Cari: fakta "oh shit", expert counterintuitive, angka "serius segitu?", trend ya
 [FORMAT]
 - 6 slide, JSON flat (slide_1 s/d slide_6)
 - Maks 4 kalimat per slide, vary rhythm
-- WAJIB double enter setelah SETIAP kalimat (satu kalimat per baris)
+- WAJIB: SATU kalimat PER baris, dipisah ENTER KOSONG (double newline). JANGAN PERNAH gabung 2+ kalimat dalam 1 baris.
+  Contoh format output yang BENAR:
+  "Ini kalimat pertama.\n\nIni kalimat kedua.\n\nIni kalimat ketiga."
+  Contoh format output yang SALAH:
+  "Ini kalimat pertama. Ini kalimat kedua. Ini kalimat ketiga."
 - Prose only, no bullets
 - Tech terms English (AI, startup, coding), sisanya Indonesia
 - Lo/gue, bukan Anda/saya. Singkatan: gak, dong, sih, banget
