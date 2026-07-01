@@ -170,7 +170,8 @@ PERSONAL VOICE (HONEST):
 - Boleh: opini, reaction, observation terhadap berita nyata
 - Contoh: "Gue liat berita ini dan langsung mikir...", "Jujur, gue [emotion] soal ini"
 - JANGAN fabricate stories/events yang gak pernah ada
-- Contoh BOHONG: "Kemarin gue ngobrol sama temen..." (kalo emang gak ada)
+- JANGAN pakai: "temen gue", "bapak/emak gue", "keluarga gue", "rekan kerja gue" — kecuali emang beneran ada
+- Contoh BOHONG: "Kemarin gue ngobrol sama temen...", "Bapak gue bilang..."
 - Contoh JUJUR: "Gue baca berita ini dan langsung mikir: ini bisa terjadi di mana aja"
 
 Output strict JSON, no markdown fences, flat keys only:
