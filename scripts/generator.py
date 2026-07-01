@@ -58,6 +58,7 @@ JANGAN mempromosikan produk, brand, atau layanan. Fokus pada cerita, fakta, anal
 - Lo/gua bukan "Anda/saya". Singkatan: gak, dong, sih, banget, btw
 - JANGAN pakai emoji/emoticon (😳, 👀, 🤣, 😱, dll). Tulis tanpa simbol visual.
 - JANGAN pakai em-dash (—) atau en-dash (–). Ganti koma. Ini cerita mengalir, bukan berita.
+- JANGAN pakai frasa "link di bio" — URL sudah ada di post, gak perlu sebut.
 - JANGAN bikin kutipan/dialog imajiner. Kalau gak ada quote dari narasumber, jangan buat.
 
 [TERJEMAH NATURAL]
@@ -249,6 +250,7 @@ BANNED_PHRASES = [
     r'\bkebayang gak\b', r'\byang bener aja\b',
     r'\btahan dulu\b', r'\bcoba tebak\b', r'\bciyus\b', r'\bmiyap\b',
     r'\bmuka masam\b', r'\bngebet\b',
+    r'\blink di bio\b',  # URL sudah ada di post, gak perlu sebut
 ]
 
 def _count_sentences(text):
