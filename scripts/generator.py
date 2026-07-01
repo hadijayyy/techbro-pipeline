@@ -193,7 +193,7 @@ def _validate_hook(text: str) -> bool:
         return False
     return True
 
-def generate_carousel(title: str, body: str, source: str = "") -> Optional[dict]:
+def generate_carousel(title: str, body: str, image: str = "", url: str = "", source: str = "") -> Optional[dict]:
     """Generate 6-slide carousel content."""
     # Try Mistral first, fallback to Groq
     raw = _call_mistral(title, body, source)
