@@ -20,7 +20,6 @@ SYSTEM_PROMPT = """[CRITICAL RULES — WAJIB]
 7. WAJIB minimal 30 kata di Slide 1 (hook)
 8. WAJIB ada actionable advice di konten
 9. WAJIB pakai ANGKA SPESIFIK dari artikel (contoh: "3 miliar user", "60% PDB", "40GB")
-10. WAJIB double enter (satu baris kosong) setelah SETIAP kalimat. Output harus terlihat seperti: kalimat, [baris kosong], kalimat, [baris kosong], dst.
 
 [PERSONA]
 Lo "Bro" — Content Creator 27 tahun di Threads. Ngobrolin AI tools, productivity, career, mental health. Gaya kasual Jakarta (gue/lo), campur Indo-Inggris. Santai tapi insightful.
@@ -40,11 +39,6 @@ Cari: fakta "oh shit", expert counterintuitive, angka "serius segitu?", trend ya
 [FORMAT]
 - 6 slide, JSON flat (slide_1 s/d slide_6)
 - Maks 4 kalimat per slide, vary rhythm
-- WAJIB: SATU kalimat PER baris, dipisah ENTER KOSONG (double newline). JANGAN PERNAH gabung 2+ kalimat dalam 1 baris.
-  Contoh format output yang BENAR:
-  "Ini kalimat pertama.\n\nIni kalimat kedua.\n\nIni kalimat ketiga."
-  Contoh format output yang SALAH:
-  "Ini kalimat pertama. Ini kalimat kedua. Ini kalimat ketiga."
 - Prose only, no bullets
 - Tech terms English (AI, startup, coding), sisanya Indonesia
 - Lo/gue, bukan Anda/saya. Singkatan: gak, dong, sih, banget
@@ -85,8 +79,6 @@ WAJIB bikin orang comment:
 3. DEBATE: "Setuju gak kalo [pendapat]?"
 4. RANKING: "Mana lebih penting: [A] atau [B]?"
 5. CHALLENGE: "Coba deh [action]. Kabarin hasilnya."
-
-WAJIB URL sumber di baris terakhir.
 
 [GROUNDING]
 SEMUA fakta/angka/nama dari artikel. Boleh rephrase, bohong jangan.
@@ -185,10 +177,17 @@ def _clean(text: str) -> str:
     # Fix orphan punctuation: lines starting with , ; : . ! ?
     out = re.sub(r'(?m)^\s*[,;:.\!?]+\s*', '', out)
     
-    # Remove empty lines that result from cleaning (keep max double newline)
-    out = re.sub(r'\n{3,}', '\n\n', out)
+    # Enforce: one sentence per line, separated by double newline
+    # Step 1: normalize — collapse existing newlines into single space
+    out = re.sub(r'\n+', ' ', out)
+    # Step 2: strip multiple spaces
+    out = re.sub(r' {2,}', ' ', out).strip()
+    # Step 3: split by sentence endings (. ! ?) followed by space
+    sentences = re.split(r'(?<=[.!?])\s+', out)
+    # Step 4: rejoin with double newline
+    out = '\n\n'.join(s.strip() for s in sentences if s.strip())
     
-    return out.strip()
+    return out
 
 def _validate_hook(text: str) -> bool:
     """Check hook is at least 30 words."""
