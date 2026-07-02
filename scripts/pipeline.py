@@ -77,6 +77,7 @@ def _is_same_topic(title1: str, title2: str) -> bool:
 
 DAILY_POST_LIMIT = 20
 POSTING_HOURS = (7, 23)  # WIB — only post between 07:00-22:00
+ALLOWED_SOURCES = {"cnbc_indonesia", "detik", "liputan6_tekno", "kumparan_tekno"}
 
 def run(top_n: int = TOP_N, dry_run: bool = False):
     t0 = time.time()
@@ -126,6 +127,10 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
         # ── LAYER 2: Fast Dedup & Fast Drop ──────────────────────
         fresh = []
         for art in articles:
+            # Source whitelist — skip if somehow scraped from removed sources
+            if art.get("source", "") not in ALLOWED_SOURCES:
+                print(f"  [DROP] source not allowed: {art.get('source', '?')}: {art['title'][:50]}...")
+                continue
             # 2a. Content filter (exclude/penalty keywords)
             reject = fast_content_filter(art["title"], art["body"])
             if reject:
@@ -226,9 +231,10 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
             SELECT a.id, a.title, a.body, a.url, a.image, a.score, a.source
             FROM articles a
             WHERE a.id NOT IN (SELECT article_id FROM posts WHERE status != 'failed')
+              AND a.source IN ({})
             ORDER BY a.score DESC
             LIMIT ?
-        """, (top_n,)).fetchall()
+        """.format(','.join('?' * len(ALLOWED_SOURCES))), (*ALLOWED_SOURCES, top_n)).fetchall()
 
         if unposted:
             for art in unposted:
