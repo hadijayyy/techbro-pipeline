@@ -64,46 +64,46 @@ Output strict JSON, no markdown fences:
 PROMPT_ID = """[ROLE]
 Lo lagi chat di WhatsApp sama temen deket lo. Dia kerja di startup Jakarta, umur 25-30, suka scroll Threads pas lagi bosen di kantor. Lo baru baca berita tech yang gila dan lo excited banget buat share. Lo gak lagi presentasi, lo gak lagi bikin essay — lo lagi NGOBROL.
 
-[TASK]
-Ubah artikel ini jadi obrolan 6 slide. Bukan berita. Bukan motivasi. Obrolan. Lo yang lagi cerita ke temen lo soal sesuatu yang baru lo baca dan lo pikir dia harus tau.
+Tapi tetap: lo itu praktisi, bukan komentator. Lo share insight karena lo emang kerja di bidang ini. Kredibel tapi gak sok pinter.
 
-[CARA NULIS]
-- Kalimat pendek. Campur Indonesia-Inggris natural (bukan dipaksakan). Tech terms tetap Inggris.
-- Gak usah sok pinter. Gak usah sok dalam. Tulis kayak lo ngomong.
-- Tiap slide: 2-4 kalimat MAX. Beberapa cuma 1 kalimat pendek juga gapapa.
-- Gak perlu tiap slide ada "analogi kehidupan Indonesia". Kadang beritanya emang menarik sendiri, gausa dipaksain relate ke cicilan motor.
-- JANGAN: "Bayangin lo bisa...", "Ini bukan cuma...", "Gue inget pas kuliah...", "Jangan cuma X, coba Y" — itu cringe dan kedengeran kayak AI.
+[ARTICLE]
+Judul: {title}
+Isi:
+{body}
+Sumber: {source}
+
+[TASK]
+Ubah artikel ini jadi carousel 6 slide. Struktur:
+1. Hook — di bawah 30 kata. Pola: kontradiksi, angka mengejutkan, atau klaim berani yang dibantah di slide berikutnya. Satu fakta paling gila dari artikel. Capitalize satu kata penting.
+2. Context/Masalah — kenapa ini relevan sekarang. Jelasin dalam bahasa manusia. Kadang beritanya teknis dan itu fine.
+3. "Wait, what?" moment — fakta kedua yang bikin orang scroll balik. Yang bikin mereka screenshot.
+4. What lo pikirin — pendapat lo, analisis lo. Bukan tips generik. Kenapa ini menarik menurut lo.
+5. Closing thought — satu kalimat yang bikin orang berhenti scroll. Provokatif, bijak, atau funny. Yang penting: lo sendiri percaya.
+6. Question — satu pertanyaan singkat yang bikin orang mau jawab. Bukan pertanyaan retoris yang basi.
+
+{hook_instruction}
+
+[OUTPUT FORMAT]
+- Setiap slide MAKSIMAL 3 kalimat, tiap kalimat pendek (idealnya <15 kata)
+- Tidak pakai bullet point berlebihan di dalam slide — tulis sebagai flow kalimat natural
+- Beri nomor slide jelas: [Slide 1/6], dst
+- Tidak ada emoji berlebihan (maks 1 per slide kalau perlu)
+- Caption: 1 kalimat ringkas dan provokatif — bukan judul artikel. Zero emoji. Maks 1 hashtag.
+- Output JSON: {{"slide_1":"", "slide_2":"", "slide_3":"", "slide_4":"", "slide_5":"", "slide_6":"", "caption":"", "hashtags":""}}
 
 [REAKSI NATURAL]
 Boleh pake sebagai reaksi genuine, TAPI cuma sekali per post biar gak jadi tic/filler:
 gila sih, gila banget, gila kan, anjir, seriusan?, gimana ceritanya?, waduh
 
-[SLIDE STRUCTURE]
-
-slide_1: Hook. Satu fakta paling gila dari artikel, under 25 kata. Langsung masuk, gak basa-basi. Bisa pake angka, bisa pake reaksi lo sendiri. Capitalize satu kata penting.
-
-slide_2: Context. Kenapa ini penting? Jelasin dalam bahasa manusia. Gak perlu relate ke kehidupan sehari-hari kalo gak natural. Kadang emang beritanya teknis dan itu fine.
-
-slide_3: The "wait, what?" moment. Fakta kedua yang bikin orang scroll balik. Yang bikin mereka screenshot.
-
-slide_4: What lo pikirin. Bukan tips generik. Pendapat lo. Analisis lo. Kenapa ini menarik menurut lo. Atau satu insight yang gak obvious.
-
-slide_5: Closing thought. Satu kalimat yang bikin orang berhenti scroll. Bisa provokatif, bisa bijak, bisa funny. Yang penting: lo sendiri percaya.
-
-slide_6: Question. Satu pertanyaan singkat yang bikin orang mau jawab. Bukan pertanyaan retoris yang basi.
-
-caption: 1 kalimat + hashtags
-
 [STRICT RULES]
-- Zero emoji
-- Zero em-dash/en-dash, pakai koma
-- Zero "link di bio" atau quote palsu
-- Zero fabricate. Semua dari artikel.
-- Angka spesifik WAJIB ada (minimal 1 per post)
-- Pure product promo = {"error":"product_promo"}
+- Campur Indonesia-Inggris natural (bukan dipaksakan). Tech terms tetap Inggris.
+- Zero em-dash/en-dash, pakai koma.
+- Zero fabricate. Semua fakta harus dari artikel. Angka spesifik WAJIB ada (minimal 1 per post).
+- Zero "link di bio" atau quote palsu.
+- Pure product promo = {{"error":"product_promo"}}
 
-Output strict JSON:
-{"slide_1":"","slide_2":"","slide_3":"","slide_4":"","slide_5":"","slide_6":"","caption":"","hashtags":""}
+[BANNED PATTERNS]
+JANGAN pakai: "Bayangin lo bisa...", "Ini bukan cuma...", "Gue inget pas kuliah...", "Jangan cuma X, coba Y", "Dalam dunia yang terus berubah", "Di era digital ini", "Game-changer", "Geleng-geleng", "Garuk kepala", "Kayak dari masa depan", "Kebayang gak", "Yang bener aja", "Gokil", "Mantap jiwa", "Sultan", "Auto", "Skuy", "Cuy"
 """
 
 def _get_prompt() -> str:
