@@ -686,6 +686,11 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
             for sn in slide_nums:
                 sn_clean = sn.replace('.', '').replace(',', '').rstrip('%')
                 if sn_clean.isdigit() and sn_clean not in article_nums and int(sn_clean) > 5:
+                    # Strip whole currency expression: Rp[X] juta/miliar, $[X] million, etc
+                    data[key] = re.sub(r'(?:Rp|USD|\$)\s*' + re.escape(sn) + r'\s*(?:juta|miliar|triliun|million|billion|trillion)?', '', data[key], flags=re.I)
+                    # Also strip [number] [quantity word] without currency prefix
+                    data[key] = re.sub(re.escape(sn) + r'\s*(?:juta|miliar|triliun|million|billion|trillion)\b', '', data[key], flags=re.I)
+                    # Fallback: strip just the number
                     data[key] = data[key].replace(sn, '').strip()
                     data[key] = re.sub(r'\s{2,}', ' ', data[key])
             # Strip fabricated word-based quantities
