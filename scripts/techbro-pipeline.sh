@@ -15,35 +15,30 @@ source /home/ubuntu/techbro/.env
 set +a
 
 LOG="logs/pipeline-$(date +%Y%m%d-%H%M%S).log"
-exec > >(tee -a "$LOG") 2>&1
 
-echo "=== Pipeline run: $(TZ='Asia/Jakarta' date '+%H:%M WIB %d %b %Y') ==="
+# Pipeline runs silently — all output to log only
+echo "=== Pipeline run: $(TZ='Asia/Jakarta' date '+%H:%M WIB %d %b %Y') ===" >> "$LOG"
+python3 scripts/pipeline.py >> "$LOG" 2>&1
+echo "=== Done ===" >> "$LOG"
 
-# 1. Scrape + score + generate + post
-python3 scripts/pipeline.py 2>&1
-
-echo "=== Done ==="
-
-# 2. Generate summary for Telegram
+# Summary to stdout (delivered to Telegram)
 python3 -c "
-import sqlite3, os
+import sqlite3
 from datetime import datetime
 
 conn = sqlite3.connect('pipeline.db')
 conn.row_factory = sqlite3.Row
 
 today = datetime.now().strftime('%Y-%m-%d')
-posted = conn.execute(\"SELECT id, slide_hook, thread_post_id FROM posts WHERE status='posted' AND date(posted_at)=? ORDER BY id DESC\", (today,)).fetchall()
-staged = conn.execute(\"SELECT id, slide_hook FROM posts WHERE status='staged' ORDER BY id\",).fetchall()
-articles = conn.execute(\"SELECT COUNT(*) as c FROM articles WHERE date(created_at)=?\", (today,)).fetchone()
-total_today = conn.execute(\"SELECT COUNT(*) as c FROM posts WHERE status='posted' AND date(posted_at)=?\", (today,)).fetchone()
+posted = conn.execute('SELECT id, slide_hook, thread_post_id FROM posts WHERE status=\"posted\" AND date(posted_at)=? ORDER BY id DESC', (today,)).fetchall()
+staged = conn.execute('SELECT id, slide_hook FROM posts WHERE status=\"staged\" ORDER BY id').fetchall()
+articles = conn.execute('SELECT COUNT(*) as c FROM articles WHERE date(created_at)=?', (today,)).fetchone()
+total_today = conn.execute('SELECT COUNT(*) as c FROM posts WHERE status=\"posted\" AND date(posted_at)=?', (today,)).fetchone()
 conn.close()
 
-# Print clean summary (stdout = delivered to Telegram)
-print()
 print('📊 TechBro Pipeline Report')
 print(f'🕐 {datetime.now().strftime(\"%H:%M WIB\")}')
-print(f'📰 Articles scraped today: {articles[\"c\"]}')
+print(f'📰 Articles today: {articles[\"c\"]}')
 print(f'✅ Posts today: {total_today[\"c\"]}/12')
 print()
 
@@ -57,13 +52,13 @@ if posted:
     print()
 
 if staged:
-    print(f'⏳ Staged ({len(staged)}):')
+    print(f'Staged ({len(staged)}):')
     for s in staged:
         hook = (s['slide_hook'] or 'no hook')[:60]
         print(f'  #{s[\"id\"]}: {hook}')
 else:
-    print('⏳ Nothing staged')
+    print('Nothing staged')
 
 print()
-print('Next run: top of next hour')
+print('Next: top of next hour')
 "
