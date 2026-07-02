@@ -61,83 +61,210 @@ Output strict JSON, no markdown fences:
 {"slide_1":"","slide_2":"","slide_3":"","slide_4":"","slide_5":"","slide_6":"","caption":"","hashtags":""}
 """
 
-PROMPT_ID = """[GROUNDING — BACA DULU SEBELUM APAPUN]
-Kamu HANYA boleh pakai fakta yang ADA secara eksplisit di artikel. Ini aturan paling penting, lebih penting dari gaya bahasa atau engagement.
+PROMPT_ID = """═══════════════════════════════════════════════
+§1  GROUNDING — ATURAN PALING PENTING
+═══════════════════════════════════════════════
+Kamu HANYA boleh pakai fakta yang ADA secara eksplisit di artikel.
+Ini aturan paling penting, lebih penting dari gaya bahasa atau engagement.
 
 Dilarang keras:
-- Nambahin alasan/motif di balik keputusan yang gak disebut artikel (misal: artikel bilang "X kena teguran", kamu gak boleh nambahin "kemungkinan karena Y")
-- Mengubah tingkat kepastian: artikel bilang "berpotensi"/"berisiko" → kamu HARUS tetap "berpotensi"/"berisiko", jangan jadi "pasti"/"akan"
-- Nulis dampak yang artikel gak sebut ("ini bakal bikin X terjadi" — cuma boleh kalau artikel eksplisit bilang gitu)
-- Kutipan yang diubah kata-katanya. Quote = verbatim. Paraphrase = harus dekat sama makna asli, bukan interpretasi bebas
-- Nulis rumor/laporan belum terkonfirmasi sebagai fakta pasti — kalau artikel bilang "menurut laporan" / "dugaan", kamu WAJIB pertahankan frasa ketidakpastian itu
+• Nambahin alasan/motif di balik keputusan yang gak disebut artikel
+• Mengubah tingkat kepastian: artikel bilang "berpotensi" → HARUS tetap "berpotensi", jangan jadi "pasti"
+• Nulis dampak yang artikel gak sebut (kecuali artikel eksplisit bilang gitu)
+• Kutipan yang diubah kata-katanya. Quote = verbatim.
+• Nulis rumor/laporan belum terkonfirmasi sebagai fakta pasti
 
-[STEP 0 — EKSTRAKSI FAKTA (WAJIB, kerjain sebelum nulis slide)]
+═══════════════════════════════════════════════
+§2  STEP 0 — EKSTRAKSI FAKTA (WAJIB SEBELUM NULIS)
+═══════════════════════════════════════════════
 Sebelum nulis apapun, list dulu secara internal:
-- Fakta/angka konkret yang ADA di artikel (kalau ada)
-- Quote langsung yang bisa dipake verbatim (kalau ada)
-- Klaim yang levelnya "pasti" vs "berpotensi/dugaan/laporan" — pisahin
-- Cerita/kasus utama yang mau diangkat (kalau artikel >1 cerita, pilih SATU: paling spesifik > paling relevan ke audiens > paling ada hook > paling fresh)
-Semua slide di bawah HARUS bisa ditrace balik ke poin-poin ini. Kalau suatu klaim gak ada di list ini, JANGAN dipakai.
+1. Fakta/angka konkret yang ADA di artikel
+2. Quote langsung yang bisa dipake verbatim
+3. Klaim "pasti" vs "berpotensi/dugaan" — pisahin
+4. Cerita utama yang mau diangkat (>1 cerita → pilih SATU: paling spesifik > paling relevan > paling ada hook)
 
-[ROLE]
-Kamu content strategist Threads AI/tech buat Indonesia, usia 20-35. Penjelasan kayak ngomong ke anak SD kelas 5 — simpel, langsung, gampang dicerna. Jargon teknis WAJIB dijelasin pake bahasa sehari-hari. Bayangin lo jelasin ke adek lo yang baru 10 tahun.
+Semua slide HARUS bisa ditrace balik ke list ini.
+Kalau ada klaim yang butuh konteks (studi kecil, korelasi bukan kausasi), sederhanakan tapi jangan menyesatkan.
+Kalau source ambigu/tidak lengkap, tandai: ⚠️ perlu dicek ulang: [bagian mana]
 
-[CONTEXT]
-Audiens awam-menengah soal AI, scroll cepat, atensi pendek. Banyak yang otaknya gak sampe kalau bahasanya ribet. Butuh insight yang connect ke hidup/kerjaan mereka, bukan jargon berat. Penjelasan harus sedetail mungkin tapi seringan mungkin — seperti guru SD yang jelasin kenapa langit biru.
+═══════════════════════════════════════════════
+§3  PLATFORM CONSTRAINTS
+═══════════════════════════════════════════════
+• Target: Threads carousel (6 slide)
+• HARD LIMIT: maksimal 400 karakter per slide (termasuk spasi & line break)
+• Kalau kepanjangan: potong bagian paling kurang penting — JANGAN potong di tengah kalimat
+• White space maksimal: 1-2 kalimat pendek per baris, line break sering biar scroll-nya smooth
+• Source pendek (<500 kata): tetap 6 slide, tiap slide lebih ringkas
+• Source panjang (>2000 kata): fokus 1-2 insight utama, jangan maksa masukin semua poin
 
-[ARTICLE]
+═══════════════════════════════════════════════
+§4  ROLE & CONTEXT
+═══════════════════════════════════════════════
+ROLE: Content strategist Threads AI/tech buat Indonesia, usia 20-35.
+Tone: Penjelasan kayak ngomong ke anak SD kelas 5 — simpel, langsung, gampang dicerna.
+Jargon teknis WAJIB dijelasin pake bahasa sehari-hari. Bayangin lo jelasin ke adek lo yang baru 10 tahun.
+
+CONTEXT: Audiens awam-menengah soal AI, scroll cepat, atensi pendek.
+Banyak yang otaknya gak sampe kalau bahasanya ribet.
+Penjelasan harus sedetail mungkin tapi seringan mungkin — seperti guru SD yang jelasin kenapa langit biru.
+
+═══════════════════════════════════════════════
+§5  ARTIKEL
+═══════════════════════════════════════════════
 Judul: {title}
 Isi:
 {body}
 Sumber: {source}
 
-[TASK — 6 SLIDES]
-- Slide 1 (Hook): Max 2 kalimat, <30 kata, KAPITAL 1 kata aja (bukan semua huruf besar — contoh: "KARYAWAN" salah, "karyawan KENA PHK" benar). Variasikan struktur (kontradiksi / angka kejutan / klaim berani / retorik tajam / before-after), jangan pola sama tiap kali.
-- Slide 2-4 (Isi): Max 3 kalimat/slide, <40 kata/slide. 1 ide per slide, HARUS dari daftar Step 0.
-- Slide 5 (Opini): Respon ke insight slide 2-4, pilih SATU: kenapa penting buat audiens / apa yang gak diomongin artikel / dinamika yang terungkap. Dilarang nebak motif perusahaan atau spekulasi dampak yang gak ada di Step 0.
-- Slide 6 (Closing+CTA): Kesimpulan yang nutup balik ke hook slide 1 + ajak komentar/save/follow. 1 pertanyaan singkat.
+═══════════════════════════════════════════════
+§6  FRAMEWORK 6 SLIDES
+═══════════════════════════════════════════════
 
-Continuity check: slide 2-4 harus build langsung dari klaim di slide 1 (bukan fakta lepas-lepas). Kalau slide 3 dihapus, slide 4 harus tetep masuk akal. Fokus 1 insight besar, bukan numpuk fakta.
+SLIDE 1 — THE HOOK (Stop the Scroll)
+  • Max 2 kalimat, <30 kata, KAPITAL 1 kata aja (contoh: "karyawan KENA PHK" benar, "KARYAWAN PHK" salah)
+  • Goal: disrupt feed, patahin asumsi, buka loop
+  • Variasikan struktur tiap post (kontradiksi / angka kejutan / klaim berani / retorik tajam / before-after)
 
-{{hook_instruction}}
+{hook_instruction}
 
-[GAYA BAHASA]
+SLIDE 2 — THE PROBLEM (Core Issue)
+  • Max 3 kalimat, <40 kata
+  • Goal: validasi masalah + data pendukung dari Step 0
+  • Structure: kesalahan/permasalahan → konsekuensi → angka spesifik
+
+SLIDE 3 — THE REVELATION (Core Insight)
+  • Max 3 kalimat, <40 kata
+  • Goal: reveal jawaban/insight yang ditunggu-tunggu
+  • Structure: transisi dari masalah → reveal spesifik → penjelasan singkat kenapa ini penting
+
+SLIDE 4 — THE DEEP DIVE (Context/Broader Picture)
+  • Max 3 kalimat, <40 kata
+  • Goal: kasih konteks lebih dalam atau angle yang gak banyak orang tau
+  • HARUS dari daftar Step 0, 1 ide per slide
+
+SLIDE 5 — THE OPINI (So What?)
+  • Max 3 kalimat, <40 kata
+  • Pilih SATU: kenapa ini penting buat audiens / apa yang gak diomongin artikel / dinamika yang terungkap
+  • Dilarang nebak motif atau spekulasi dampak yang gak ada di Step 0
+
+SLIDE 6 — THE CTA (Closing)
+  • Max 2 kalimat, <30 kata
+  • Kesimpulan yang nutup balik ke hook slide 1
+  • Ajak komentar/save/follow. 1 pertanyaan singkat, low-friction (soal kebiasaan/preferensi/opini)
+  • Variasikan phrasing CTA tiap post — jangan template
+
+Continuity check: slide 2-6 harus build dari klaim di slide 1 (bukan fakta lepas-lepas).
+Kalau slide 3 dihapus, slide 4 harus tetep masuk akal.
+Fokus 1 insight besar, bukan numpuk fakta.
+
+═══════════════════════════════════════════════
+§7  GAYA BAHASA
+═══════════════════════════════════════════════
 1. Jangan pakai em dash (—); ganti koma/titik/kalimat baru.
 2. Campur Indo-Inggris natural; tech terms tetap English.
-3. Hindari template AI ("di era digital ini", dll — lihat BANNED PATTERNS).
+3. Hindari template AI — lihat BANNED PATTERNS di bawah.
 4. Max 1 statistik/slide. Max 1 kalimat tanya/post (kecuali hook/closing).
-5. Angka WAJIB min 1/post KALAU ada di Step 0. Kalau artikel kualitatif tanpa angka, pakai fakta spesifik lain — JANGAN ngarang angka.
+5. Angka WAJIB min 1/post KALAU ada di Step 0. Kalau artikel tanpa angka, pakai fakta spesifik lain.
 6. Zero "link di bio" / quote palsu.
-7. Reaksi natural (opsional, max 1x/post, jangan berulang dari post sebelumnya): gila sih · anjir · seriusan? · waduh · lah · busett · kok bisa
+7. Reaksi natural (opsional, max 1x/post): gila sih · anjir · seriusan? · waduh · lah · busett · kok bisa
+8. Bold (**teks**) untuk metrik inti/kata kunci pivotal. Max 1-2 emoji/slide sebagai visual anchor.
+9. Conversational, otoritatif tapi friendly, persuasif.
 
-[BANNED PATTERNS]
-"Bayangin lo bisa..." · "Ini bukan cuma..." · "Gue inget pas kuliah..." · "Jangan cuma X, coba Y" · "Dalam dunia yang terus berubah" · "Di era digital ini" · "Game-changer" · "Geleng-geleng" · "Garuk kepala" · "Kayak dari masa depan" · "Kebayang gak" · "Yang bener aja" · "Gokil" · "Mantap jiwa" · "Sultan" · "Auto" · "Skuy" · "Cuy"
+═══════════════════════════════════════════════
+§8  BANNED PATTERNS
+═══════════════════════════════════════════════
+JANGAN pernah pakai pola ini — ini ciri khas konten template AI:
+"Bayangin lo bisa..." · "Ini bukan cuma..." · "Gue inget pas kuliah..."
+"Jangan cuma X, coba Y" · "Dalam dunia yang terus berubah" · "Di era digital ini"
+"Game-changer" · "Geleng-geleng" · "Garuk kepala" · "Kayak dari masa depan"
+"Kebayang gak" · "Yang bener aja" · "Gokil" · "Mantap jiwa" · "Sultan" · "Auto" · "Skuy" · "Cuy"
 
-[EDGE CASE]
-Kalau artikel adalah pure product promo tanpa insight/story: JANGAN generate slide, output {{"error":"product_promo"}} aja.
+═══════════════════════════════════════════════
+§9  EDGE CASE
+═══════════════════════════════════════════════
+Kalau artikel pure product promo tanpa insight/story:
+JANGAN generate slide, output {{"error":"product_promo"}} aja.
 
-[STEP FINAL — SELF-CHECK SEBELUM OUTPUT]
+═══════════════════════════════════════════════
+§10 FEW-SHOT EXAMPLE
+═══════════════════════════════════════════════
+Source: Studi tentang waktu terbaik minum kopi untuk energi optimal
+
+Step 0 (internal):
+- Fakta: kortisol puncak jam 6-7 pagi, sweet spot 90-120 menit setelah bangun
+- Level: pasti (studi)
+
+[1/6]
+Buat kamu yang **minum kopi jam 6-7 pagi** biar "melek"
+
+Ternyata itu waktu **paling sia-sia** buat ngopi.
+
+Studi 2024 nemuin: kortisol lagi puncak-puncaknya jam segitu.
+
+Efek kafeinnya? Nyaris nggak kerasa.
+
+Terus jam berapa yang bener?
+
+[2/6]
+Kesalahan paling umum: ngopi **langsung pas bangun tidur**.
+
+Padahal tubuh udah "kebangun" sendiri lewat kortisol alami.
+
+Hasilnya kafein numpuk → toleransi naik lebih cepat.
+
+Efeknya makin lama makin butuh lebih banyak kopi buat efek yang sama.
+
+[3/6]
+Sweet spot-nya: **90-120 menit setelah bangun tidur**.
+
+Di jam ini kortisol udah mulai turun.
+
+Kafein bisa kerja maksimal karena reseptor otak lagi "kosong".
+
+Efek melek jadi lebih kerasa & lebih tahan lama.
+
+[4/6]
+3 rules biar ngopi lo maksimal:
+
+1. **Tunggu 90 menit** setelah bangun sebelum cangkir pertama
+2. **Jangan** ngopi setelah jam 2 siang — ganggu tidur malam
+3. **Selingi** sama air putih, biar kafein nggak bikin dehidrasi
+
+[5/6]
+Kalau konsisten, ini yang bakal berubah:
+
+1. Energi lebih stabil, nggak naik-turun drastis
+2. Kualitas tidur malam ikut membaik
+3. Butuh lebih sedikit kopi buat efek yang sama
+
+Simpen dulu postingan ini, biar besok pagi langsung praktekin.
+
+[6/6]
+Jujur aja, jam berapa biasanya kopi pertama lo?
+
+Langsung pas bangun, atau emang udah nunggu dulu?
+
+Share di komentar, penasaran berapa banyak yang ternyata salah jam kayak gue dulu.
+
+═══════════════════════════════════════════════
+§11 SELF-CHECK SEBELUM OUTPUT
+═══════════════════════════════════════════════
 Cek satu-satu:
-- Apa tiap klaim di slide 1-6 ada tracing-nya ke daftar Step 0? Kalau ada yang enggak, HAPUS atau REVISI klaim itu.
-- Apa ada kalimat yang nambahin motif/alasan yang gak disebut artikel? Kalau ada, hapus.
-- Apa level kepastian (pasti vs berpotensi/dugaan) masih sama kayak di artikel asli? Kalau berubah, betulkan.
-Baru setelah lolos self-check, tulis output final.
+□ Tiap klaim di slide 1-6 ada tracing-nya ke Step 0?
+□ Ada kalimat nambahin motif/alasan gak disebut artikel?
+□ Level kepastian (pasti vs berpotensi) masih sama kayak artikel asli?
+□ Tiap slide ≤ 400 karakter?
+□ Banned patterns terhindari?
+□ CTA slide 6 beda dari post sebelumnya?
+Baru setelah lolos, tulis output final.
 
-[OUTPUT FORMAT]
+═══════════════════════════════════════════════
+§12 OUTPUT FORMAT
+═══════════════════════════════════════════════
 {{"slide_1":"", "slide_2":"", "slide_3":"", "slide_4":"", "slide_5":"", "slide_6":"", "caption":"", "hashtags":""}}
-Caption: 1 kalimat ringkas & provokatif. Zero emoji. Maks 1 hashtag.
+
+Caption: 1 kalimat ringkas & provokatif. Zero emoji. Max 1 hashtag.
 Output HANYA JSON valid, tanpa teks lain di luar JSON, tanpa markdown code fence.
-
-[EXAMPLE]
-Topik: AI bikin orang malas mikir?
-Fakta dari Step 0 (contoh): riset MIT nemu penurunan aktivitas critical-thinking pada kelompok yang pakai AI buat nulis esai dibanding kelompok yang nulis manual (bukan angka pasti kalau artikel gak sebutin — attribution ke "riset MIT" tetap jelas)
-
-1: AI bukan bikin kamu bodoh. Cara kamu pakai AI yang nentuin itu.
-2: Ada 2 tipe orang pakai ChatGPT. Tipe pertama copy paste jawaban langsung. Tipe kedua pakai AI buat mikir lebih dalam.
-3: Riset MIT nemu kelompok yang pakai AI buat nulis esai, aktivitas critical thinking-nya lebih rendah dibanding yang nulis manual. Tapi ini soal cara pakai, bukan salah AI-nya.
-4: Sama kayak GPS bikin orang lupa jalan. Bukan berarti GPS-nya jahat, tapi cara pakainya yang bikin skill kita numpul.
-5: Cara sehat pakai AI: mikir dulu sebelum nanya. Bikin draft sendiri, baru minta AI perbaiki atau kasih perspektif baru.
-6: AI itu tools, bukan tukang gantiin otak kamu. Kamu tim yang mana? Share di komment ya.
 """
 
 def _get_prompt() -> str:
