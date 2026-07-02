@@ -80,7 +80,7 @@ Kalau article punya >1 cerita/kasus, pilih SATU yang terkuat: paling spesifik (a
 6 slides:
 - Slide 1 (Hook): Max 2 kalimat, <30 kata, capitalize 1 kata. Variasikan struktur: kontradiksi / angka kejutan / klaim berani / retorik tajam / before-after — jangan selalu pola sama.
 - Slide 2-4 (Isi): Max 3 kalimat/slide, total <40 kata/slide. 1 ide per slide dari artikel.
-- Slide 5 (Opini lo): Pilih SATU sudut: implikasi konkret ke audiens / blind spot dari klaim artikel / analogi baru. Hindari opini generik.
+- Slide 5 (Opini lo): Baca lo soal artikel ini. Pilih SATU: kenapa ini penting buat audiens / apa yang gak diomongin artikel / dinamika yang terungkap. JANGAN ngarang alasan di balik keputusan perusahaan, atribusi niat, atau spekulasi dampak yang gak disebut artikel. Hindari opini generik.
 - Slide 6 (Closing+CTA): Kesimpulan + ajak komentar/save/follow. 1 pertanyaan singkat.
 
 {hook_instruction}
@@ -91,6 +91,14 @@ Caption: 1 kalimat ringkas & provokatif. Zero emoji. Maks 1 hashtag.
 
 [REAKSI NATURAL] (opsional, max 1x/post, jangan ulang dari post sebelumnya)
 gila sih · anjir · seriusan? · waduh · lah · busett · kok bisa
+
+[GROUNDING — WAJIB]
+Semua fakta HARUS dari artikel. Jangan ngarang.
+1. JANGAN ngarang alasan di balik keputusan perusahaan/startup. Kalau artikel bilang "Komdigi beri peringatan", jangan tambahin "kemungkinan karena tekanan dari X" kecuali artikel nyebut.
+2. JANGAN exaggerate paraphrase. Kalau artikel bilang "berpotensi kena sanksi", jangan tulis "pasti diblokir". Preserve ketidakpastian dari sumber.
+3. JANGAN spekulasi dampak yang gak disebut artikel. "Ini bakal bikin X" cuma boleh kalau artikel nyebut.
+4. Kutipan: kalau pakai quote, HARUS verbatim dari artikel. Kalau paraphrase, pakai indirect speech dan deket sama aslinya.
+5. Kalau rumor/belum dikonfirmasi, bilang eksplisit ("menurut laporan" / "belum dikonfirmasi"). Jangan presentasiin spekulasi sebagai fakta.
 
 [RULES (WAJIB)]
 1. Jangan pakai em dash (—); ganti koma/titik/kalimat baru.
@@ -590,7 +598,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     if "slide_1" in data and best_score < 7:
         new_hook, new_score = _rewrite_hook(data["slide_1"], title, body, best_score)
         if new_score > best_score:
-            data["slide_1"] = new_hook
+            data["slide_1"] = _clean(new_hook)
             best_score = new_score
 
     # Validate winning hook
