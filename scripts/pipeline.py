@@ -148,8 +148,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
 
         # ── LAYER 3: Scoring Engine (keyword + decay) ────────────
         for art in fresh:
-            hn_score = art.pop("_hn_score", 0) if "_hn_score" in art else 0
-            art["score"] = score_article(art["title"], art["body"], art.get("date"), hn_score)
+            art["score"] = score_article(art["title"], art["body"], art.get("date"))
 
         # ── LAYER 4: Cross-Source Virality ───────────────────────
         import re as _re
