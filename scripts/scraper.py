@@ -316,6 +316,9 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
         title_tag = soup.find("h1")
         title = title_tag.get_text(strip=True) if title_tag else ""
         if not title:
+            og = soup.find("meta", property="og:title")
+            title = og.get("content", "").strip() if og else ""
+        if not title:
             return None
 
         dt = rss_date or parse_date_iso(
@@ -337,12 +340,13 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             body = extract_body(soup, _WIRED_SEL)
         elif source in ("hn", "anthropic"):
             body = extract_body(soup, _HN_SEL)
-        elif source in ("cnbc_id", "detik", "liputan6", "kumparan"):
+        elif source in ("cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika"):
             # Indonesian sources: try common selectors
             _ID_SEL = [
-                ("div", "detail-text"), ("div", "article-content"),
-                ("div", "content-text"), ("div", "read__content"),
-                ("div", "article_body"), ("article", None),
+                ("div", "post-content"), ("div", "detail-text"),
+                ("div", "article-content"), ("div", "content-text"),
+                ("div", "read__content"), ("div", "article_body"),
+                ("article", None),
             ]
             body = extract_body(soup, _ID_SEL)
         else:
@@ -465,6 +469,56 @@ async def get_links_kumparan_tekno(client: httpx.AsyncClient) -> list[tuple[str,
     return items[:20]
 
 
+async def get_links_antara_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Antara News Tekno — Indonesian tech/gadget news."""
+    items = []
+    try:
+        r = await client.get("https://www.antaranews.com/rss/tekno", timeout=12)
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip().split("?")[0]
+            dt = None
+            if date_m:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(date_m.group(1).strip())
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:20]
+
+
+async def get_links_republika_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Republika Tekno — Indonesian tech news."""
+    items = []
+    try:
+        r = await client.get("https://www.republika.co.id/rss/tekno", timeout=12)
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip().split("?")[0]
+            dt = None
+            if date_m:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(date_m.group(1).strip())
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:20]
+
+
 # ─── Main Scraper ────────────────────────────────────────────────
 
 async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
@@ -476,9 +530,11 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_detik_inet(client),
             get_links_liputan6_tekno(client),
             get_links_kumparan_tekno(client),
+            get_links_antara_tekno(client),
+            get_links_republika_tekno(client),
             return_exceptions=True,
         )
-        source_names = ["cnbc_id", "detik", "liputan6", "kumparan"]
+        source_names = ["cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika"]
 
         # 2. Build scrape tasks
         all_tasks = []
