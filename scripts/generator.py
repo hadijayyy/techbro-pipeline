@@ -79,7 +79,7 @@ Kalau article punya >1 cerita/kasus, pilih SATU yang terkuat: paling spesifik (a
 [TASK]
 6 slides:
 - Slide 1 (Hook): Max 2 kalimat, <30 kata, capitalize 1 kata. Variasikan struktur: kontradiksi / angka kejutan / klaim berani / retorik tajam / before-after — jangan selalu pola sama.
-- Slide 2-4 (Isi): Max 3 kalimat/slide, tiap kalimat <40 kata. 1 ide per slide dari artikel.
+- Slide 2-4 (Isi): Max 3 kalimat/slide, total <40 kata/slide. 1 ide per slide dari artikel.
 - Slide 5 (Opini lo): Pilih SATU sudut: implikasi konkret ke audiens / blind spot dari klaim artikel / analogi baru. Hindari opini generik.
 - Slide 6 (Closing+CTA): Kesimpulan + ajak komentar/save/follow. 1 pertanyaan singkat.
 
@@ -96,7 +96,7 @@ gila sih · anjir · seriusan? · waduh · lah · busett · kok bisa
 1. Jangan pakai em dash (—); ganti koma/titik/kalimat baru.
 2. Campur Indo-Inggris; tech terms tetap English.
 3. Hindari template AI ("di era digital ini", dll).
-4. Tiap slide berdiri sendiri tapi nyambung. Fokus 1 insight besar.
+4. Tiap slide berdiri sendiri tapi WAJIB nyambung linear: slide 2-4 harus langsung nge-build dari klaim/pertanyaan di hook slide 1 (bukan fakta lepas), slide 5 harus respon ke insight slide 2-4 (bukan opini baru yang gak nyambung), slide 6 nutup loop balik ke hook. Kalau slide 3 dihapus, slide 4 harus tetep masuk akal — itu tandanya udah nyambung, bukan cuma numpuk fakta. Fokus 1 insight besar.
 5. Fakta dari artikel. Angka WAJIB min 1/post KALAU ada di artikel; kalau artikel kualitatif, pakai fakta spesifik lain (jangan ngarang angka).
 6. Zero "link di bio" / quote palsu.
 7. Pure product promo → {{"error":"product_promo"}}
