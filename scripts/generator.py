@@ -504,6 +504,43 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
             data[key] = _clean(data[key])
     return data
 
+def _check_fabricated_numbers(slides: dict, article_body: str) -> list[str]:
+    """Check if numbers/quantities in slides exist in article. Returns list of violations."""
+    violations = []
+    # Extract all numbers from article
+    article_numbers = set(re.findall(r'\d[\d.,]*%?', article_body))
+    article_nums_flat = set()
+    for n in article_numbers:
+        clean = n.replace('.', '').replace(',', '').rstrip('%')
+        if clean.isdigit():
+            article_nums_flat.add(clean)
+
+    # Word-based quantities that imply large numbers
+    quantity_words = re.compile(r'\b(jutaan|ribuan|ratusan|puluhan|miliaran|triliunan|juta|ribu|ratus)\b', re.I)
+
+    for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
+        if key not in slides:
+            continue
+        text = slides[key]
+
+        # Check digit numbers
+        slide_numbers = re.findall(r'\d[\d.,]*%?', text)
+        for sn in slide_numbers:
+            sn_clean = sn.replace('.', '').replace(',', '').rstrip('%')
+            if sn_clean.isdigit() and sn_clean not in article_nums_flat:
+                if int(sn_clean) <= 5:
+                    continue
+                violations.append(f"{key}: number '{sn}' not in article")
+
+        # Check word-based quantities
+        for m in quantity_words.finditer(text):
+            word = m.group().lower()
+            if word not in article_body.lower():
+                violations.append(f"{key}: quantity '{word}' not in article")
+
+    return violations
+
+
 def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
     """Get hook patterns from last N posts to enforce variety."""
     try:
@@ -608,6 +645,35 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
             print(f"[HOOK] Issues: {', '.join(issues)}")
         else:
             print(f"[HOOK] Valid (score: {best_score}/10)")
+
+    # Grounding check: strip fabricated numbers/quantities
+    violations = _check_fabricated_numbers(data, body)
+    if violations:
+        for v in violations:
+            print(f"[GROUNDING] ⚠️ {v}")
+        quantity_words = re.compile(r'\b(jutaan|ribuan|ratusan|puluhan|miliaran|triliunan|juta|ribu|ratus)\b', re.I)
+        for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
+            if key not in data:
+                continue
+            # Strip fabricated digit numbers
+            slide_nums = re.findall(r'\d[\d.,]*%?', data[key])
+            article_nums = set()
+            for n in re.findall(r'\d[\d.,]*%?', body):
+                c = n.replace('.', '').replace(',', '').rstrip('%')
+                if c.isdigit():
+                    article_nums.add(c)
+            for sn in slide_nums:
+                sn_clean = sn.replace('.', '').replace(',', '').rstrip('%')
+                if sn_clean.isdigit() and sn_clean not in article_nums and int(sn_clean) > 5:
+                    data[key] = data[key].replace(sn, '').strip()
+                    data[key] = re.sub(r'\s{2,}', ' ', data[key])
+            # Strip fabricated word-based quantities
+            matches = list(quantity_words.finditer(data[key]))
+            for m in reversed(matches):
+                word = m.group().lower()
+                if word not in body.lower():
+                    data[key] = data[key][:m.start()] + data[key][m.end():]
+                    data[key] = re.sub(r'\s{2,}', ' ', data[key]).strip()
 
     data["_provider"] = data.get("_provider", primary)
     data["_lang"] = CONTENT_LANG
