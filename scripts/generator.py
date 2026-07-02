@@ -75,6 +75,10 @@ Ubah artikel ini jadi obrolan 6 slide. Bukan berita. Bukan motivasi. Obrolan. Lo
 - LO BOLEH bilang "anjir", "gila sih", "seriusan?", "gimana ceritanya?" — itu natural.
 - JANGAN: "Bayangin lo bisa...", "Ini bukan cuma...", "Gue inget pas kuliah...", "Jangan cuma X, coba Y" — itu cringe dan kedengeran kayak AI.
 
+[REAKSI NATURAL]
+Boleh pake sebagai reaksi genuine, TAPI cuma sekali per post biar gak jadi tic/filler:
+gila sih, gila banget, gila kan, anjir, seriusan?, gimana ceritanya?, waduh
+
 [SLIDE STRUCTURE]
 
 slide_1: Hook. Satu fakta paling gila dari artikel, under 25 kata. Langsung masuk, gak basa-basi. Bisa pake angka, bisa pake reaksi lo sendiri. Capitalize satu kata penting.
@@ -120,8 +124,7 @@ BANNED_EN = [
 
 BANNED_ID = [
     r'\bgeleng[- ]geleng\b', r'\bgaruk kepala\b', r'\bkayak dari masa depan\b',
-    r'\bgila sih\b', r'\bgila banget\b', r'\bgila kan\b',
-    r'\bkebayang gak\b', r'\byang bener aja\b', r'\bwaduh\b',
+    r'\bkebayang gak\b', r'\byang bener aja\b',
     r'\bgokil\b', r'\bmantap jiwa\b', r'\bsultan\b',
     r'\bauto\b', r'\bskuy\b', r'\bcuy\b',
     r'\bini gak nyangka\b', r'\bsurprise banget\b',
@@ -131,6 +134,13 @@ BANNED_ID = [
     r'\blink di bio\b',
     r'\bsetara \d+x\b',
     r'\bkatanya\b', r'\bkonon\b', r'\bdikabarkan\b',
+]
+
+# Reaksi natural — allowed but MAX 1x per post (tracked in _check_reaksi_count)
+REAKSI_NATURAL = [
+    r'\bgila sih\b', r'\bgila banget\b', r'\bgila kan\b',
+    r'\banjir\b', r'\bseriusan\b', r'\bgimana ceritanya\b',
+    r'\bwaduh\b',
 ]
 
 BANNED_COMMON = [
@@ -237,11 +247,30 @@ def _call_groq(title: str, body: str, source: str = "", hook_instruction: str = 
 # ─── Post-processing ─────────────────────────────────────────────
 
 def _clean(text: str) -> str:
-    """Remove banned phrases, fix grammar issues, enforce whitespace."""
+    """Remove banned phrases, fix grammar issues, enforce whitespace.
+    Also enforces reaksi natural MAX 1x per slide."""
     out = text
     banned = _get_banned()
     for pat in banned:
         out = re.sub(pat, '', out, flags=re.I)
+
+    # Reaksi natural: keep first occurrence per root word, remove rest
+    reaksi_roots = {
+        'gila': [r'\bgila sih\b', r'\bgila banget\b', r'\bgila kan\b'],
+        'anjir': [r'\banjir\b'],
+        'seriusan': [r'\bseriusan\b'],
+        'gimana': [r'\bgimana ceritanya\b'],
+        'waduh': [r'\bwaduh\b'],
+    }
+    for root, patterns in reaksi_roots.items():
+        all_matches = []
+        for pat in patterns:
+            for m in re.finditer(pat, out, flags=re.I):
+                all_matches.append(m)
+        # Sort by position, keep first, remove rest
+        all_matches.sort(key=lambda m: m.start())
+        for m in reversed(all_matches[1:]):
+            out = out[:m.start()] + out[m.end():]
 
     # Remove em-dashes, en-dashes
     out = out.replace('—', ', ').replace('–', ', ')
@@ -312,19 +341,19 @@ def _validate_hook(text: str) -> tuple[bool, list[str]]:
     return valid, issues
 
 def _score_hook(text: str) -> int:
-    """Score a hook 0-10. Higher = better engagement."""
+    """Score a hook 0-10. v2 weights: length=2, number=2, rest=1."""
     score = 0
     words = text.split()
     text_lower = text.lower()
     word_count = len(words)
 
-    # 1. Length sweet spot (10-25 words)
-    if 10 <= word_count <= 25:
-        score += 1
+    # 1. Length sweet spot (10-20 words) = 2 pts
+    if 10 <= word_count <= 20:
+        score += 2
 
-    # 2. Has specific number
+    # 2. Has specific number = 2 pts
     if re.search(r'\d+', text):
-        score += 1
+        score += 2
 
     # 3. Curiosity/emotional trigger
     curiosity = {'secret', 'shocking', 'surprising', 'unexpected', 'never',
@@ -347,24 +376,20 @@ def _score_hook(text: str) -> int:
     if re.search(r'[A-Z]{2,}', text):
         score += 1
 
-    # 7. Punchy (under 20 words)
-    if word_count <= 20:
-        score += 1
-
-    # 8. Contrast/tension words
+    # 7. Contrast/tension words
     tension = {'but', 'however', 'yet', 'actually', 'turns', 'except', 'wait',
                'tapi', 'ternyata', 'padahal', 'eh', 'taunya'}
     if any(w in text_lower.split() for w in tension):
         score += 1
 
-    # 9. Specificity (proper nouns or tech terms)
+    # 8. Specificity (proper nouns or tech terms)
     specificity = {'ai', 'openai', 'anthropic', 'claude', 'gpt', 'google', 'nvidia',
                    'microsoft', 'meta', 'apple', 'tesla', 'spacex', 'github', 'api',
                    'llm', 'startup', 'python', 'javascript', 'blockchain'}
     if any(w in text_lower.split() for w in specificity):
         score += 1
 
-    # 10. Strong opening (doesn't start with weak words)
+    # 9. Strong opening (doesn't start with weak words)
     weak_openers = {'the', 'a', 'an', 'in', 'it', 'this', 'that', 'there', 'ini', 'itu', 'ada'}
     first_word = words[0].lower().strip('.,!?') if words else ''
     if first_word and first_word not in weak_openers:
