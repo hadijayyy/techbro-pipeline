@@ -222,17 +222,52 @@ def extract_body(soup, selectors: list[tuple]) -> str:
 # ─── Noise filters per source ────────────────────────────────────
 
 _NOISE_PATTERNS = [
-    r"Posts from this topic will be added to your daily email digest",
-    r"Posts from this author will be added to your daily email digest",
-    r"Subscribe to.*newsletter",
-    r"Sign up for.*newsletter",
-    r"Read more about.*on.*TechCrunch",
-    r"Featured Video.*From.*Sponsor",
-    r"Advertisement\b",
-    r"^Related:.*$",
-    r"^See also:.*$",
-    r"© \d{4}.*All rights reserved",
-    r"Any references to my blogs must be accompanied",
+    # ── Email / subscribe ──
+    r"subscribe to.*newsletter",
+    r"sign up for.*newsletter",
+    r"subscribe to our",
+    r"sign up for",
+    r"\bsubscribe\b",
+    r"newsletter\s*[.!]",
+    r"daily email digest",
+    r"delivered to your inbox",
+    # ── Click / navigation ──
+    r"please click here",
+    r"click here\b",
+    r"scroll to continue with content",
+    r"read more about.*on.*TechCrunch",
+    # ── Comments ──
+    r"moderates?\s+comments?\s+to",
+    r"confirm your public display name",
+    r"must confirm.*before commenting",
+    r"join the conversation",
+    # ── Ads / sponsors ──
+    r"featured video.*from.*sponsor",
+    r"\badvertisement\b",
+    r"\bpromoted\b",
+    r"\bsponsored content",
+    # ── Copyright / legal ──
+    r"©\s*\d{4}.*all rights reserved",
+    r"any references to my blogs must be accompanied",
+    r"all rights reserved\.?",
+    # ── Related / more ──
+    r"^related:.*$",
+    r"^see also:.*$",
+    r"you may also like",
+    r"^more from\b",
+    r"read next",
+    r"trending now",
+    r"watch more",
+    r"breaking news",
+    # ── Short promo / CTA lines (single-line match) ──
+    r"^(?:get|follow|share|tweet|login|register)\b.{0,50}$",
+    r"^(?:breaking|exclusive|developing)\b.{0,30}$",
+    r"^(?:photo|image|credit|getty|shutterstock).{0,50}$",
+    r"^want serverless.{0,80}$",
+    r"^get .* delivered to your inbox",
+    # ── Posts from TechCrunch ──
+    r"posts from this topic will be added",
+    r"posts from this author will be added",
 ]
 
 _NOISE_RE = re.compile("|".join(_NOISE_PATTERNS), re.I | re.M)
