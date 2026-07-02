@@ -79,7 +79,7 @@ Kalau article punya >1 cerita/kasus, pilih SATU yang terkuat: paling spesifik (a
 [TASK]
 6 slides:
 - Slide 1 (Hook): Max 2 kalimat, <30 kata, capitalize 1 kata. Variasikan struktur: kontradiksi / angka kejutan / klaim berani / retorik tajam / before-after — jangan selalu pola sama.
-- Slide 2-4 (Isi): Max 3 kalimat/slide, tiap kalimat <20 kata. 1 ide per slide dari artikel.
+- Slide 2-4 (Isi): Max 3 kalimat/slide, tiap kalimat <40 kata. 1 ide per slide dari artikel.
 - Slide 5 (Opini lo): Pilih SATU sudut: implikasi konkret ke audiens / blind spot dari klaim artikel / analogi baru. Hindari opini generik.
 - Slide 6 (Closing+CTA): Kesimpulan + ajak komentar/save/follow. 1 pertanyaan singkat.
 
