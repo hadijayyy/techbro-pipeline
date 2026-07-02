@@ -92,7 +92,7 @@ Isi:
 Sumber: {source}
 
 [TASK — 6 SLIDES]
-- Slide 1 (Hook): Max 2 kalimat, <30 kata, capitalize 1 kata. Variasikan struktur (kontradiksi / angka kejutan / klaim berani / retorik tajam / before-after), jangan pola sama tiap kali.
+- Slide 1 (Hook): Max 2 kalimat, <30 kata, KAPITAL 1 kata aja (bukan semua huruf besar — contoh: "KARYAWAN" salah, "karyawan KENA PHK" benar). Variasikan struktur (kontradiksi / angka kejutan / klaim berani / retorik tajam / before-after), jangan pola sama tiap kali.
 - Slide 2-4 (Isi): Max 3 kalimat/slide, <40 kata/slide. 1 ide per slide, HARUS dari daftar Step 0.
 - Slide 5 (Opini): Respon ke insight slide 2-4, pilih SATU: kenapa penting buat audiens / apa yang gak diomongin artikel / dinamika yang terungkap. Dilarang nebak motif perusahaan atau spekulasi dampak yang gak ada di Step 0.
 - Slide 6 (Closing+CTA): Kesimpulan yang nutup balik ke hook slide 1 + ajak komentar/save/follow. 1 pertanyaan singkat.
@@ -330,6 +330,39 @@ def _clean(text: str) -> str:
 
     return out
 
+def _fix_hook_caps(text: str) -> str:
+    """Fix ALL CAPS abuse in hook. Keep only 1 emphasized word in CAPS.
+    'KARYAWAN MICROSOFT BERISIKO KENA PHK' → 'karyawan Microsoft BERISIKO kena PHK'
+    Keeps acronym-like caps (AI, API, PHK, etc.) and short exclamations."""
+    # Find ALL-CAPS words (3+ chars, not acronyms like AI/API/URL/CEO)
+    words = text.split()
+    caps_words = []
+    for i, w in enumerate(words):
+        clean = re.sub(r'[^A-Za-z]', '', w)
+        if len(clean) >= 3 and clean.isupper() and clean not in {'AI', 'API', 'URL', 'CEO', 'CTO', 'PHK', 'PSE', 'VPN', 'RSS', 'GPT', 'LLM', 'SEO', 'SMB', 'UKM', 'UMKM', 'KUR', 'PNS', 'OJK', 'BI', 'SEO', 'HTML', 'CSS', 'JS', 'SDK', 'AWS', 'SQL'}:
+            caps_words.append(i)
+    
+    # If 0-1 caps words, nothing to fix
+    if len(caps_words) <= 1:
+        return text
+    
+    # Keep the FIRST caps word (strongest emphasis), lowercase the rest
+    # Brand names → title case, everything else → lowercase
+    brands = {'MICROSOFT': 'Microsoft', 'GOOGLE': 'Google', 'META': 'Meta', 'APPLE': 'Apple',
+              'AMAZON': 'Amazon', 'REDDIT': 'Reddit', 'TWITTER': 'Twitter', 'TIKTOK': 'TikTok',
+              'OPENAI': 'OpenAI', 'SHOPEE': 'Shopee', 'TOKOPEDIA': 'Tokopedia', 'GOTO': 'GoTo',
+              'GRAB': 'Grab', 'GOTOPE': 'GOTOPE', 'BYTEDANCE': 'ByteDance', 'SAMSUNG': 'Samsung',
+              'XIAOMI': 'Xiaomi', 'HUAWEI': 'Huawei', 'ANTHROPIC': 'Anthropic', 'NVIDIA': 'NVIDIA',
+              'SPOTIFY': 'Spotify', 'NETFLIX': 'Netflix', 'STRAVA': 'Strava'}
+    keep_idx = caps_words[0]
+    for idx in caps_words[1:]:
+        if words[idx] in brands:
+            words[idx] = brands[words[idx]]
+        else:
+            words[idx] = words[idx].lower()
+    
+    return ' '.join(words)
+
 def _validate_hook(text: str) -> tuple[bool, list[str]]:
     """Check hook quality. Returns (valid, list of issues)."""
     issues = []
@@ -526,6 +559,9 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:
             data[key] = _clean(data[key])
+    # Fix ALL CAPS abuse in hook — keep only 1 emphasized word
+    if "slide_1" in data:
+        data["slide_1"] = _fix_hook_caps(data["slide_1"])
     return data
 
 def _check_fabricated_numbers(slides: dict, article_body: str) -> list[str]:
@@ -662,7 +698,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     if "slide_1" in data and best_score < 7:
         new_hook, new_score = _rewrite_hook(data["slide_1"], title, body, best_score)
         if new_score > best_score:
-            data["slide_1"] = _clean(new_hook)
+            data["slide_1"] = _fix_hook_caps(_clean(new_hook))
             best_score = new_score
 
     # Validate winning hook
