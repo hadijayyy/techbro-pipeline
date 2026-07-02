@@ -302,6 +302,12 @@ BANNED_ID = [
     r'\bgue inget pas kuliah\b', r'\bjangan cuma\b.+coba\b',
     r'\bdalam dunia yang terus berubah\b', r'\bdi era digital ini\b',
     r'\bgame[- ]changer\b',
+    # CTA banned phrases (from prompt §8)
+    r'\bkomen pendapat lo\b', r'\bshare pendapat lo\b',
+    r'\btulis di kolom komentar\b', r'\bceritain pengalaman lo\b',
+    r'\bturunin komentar\b', r'\bdrop pendapat lo\b',
+    r'\bbagi pendapat lo\b', r'\bsave postingan ini\b',
+    r'\bjangan lupa di-?save\b', r'\bsimpan dulu postingan ini\b',
 ]
 
 # Reaksi natural — allowed but MAX 1x per post (tracked in _check_reaksi_count)
@@ -686,6 +692,9 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:
             data[key] = _clean(data[key])
+    # Also clean caption (em dashes, banned phrases, etc.)
+    if "caption" in data:
+        data["caption"] = _clean(data["caption"])
     # Fix ALL CAPS abuse in hook — keep only 1 emphasized word
     if "slide_1" in data:
         data["slide_1"] = _fix_hook_caps(data["slide_1"])
@@ -712,11 +721,15 @@ def _check_fabricated_numbers(slides: dict, article_body: str) -> list[str]:
 
         # Check digit numbers
         slide_numbers = re.findall(r'\d[\d.,]*%?', text)
+        time_units = r'(?:tahun|bulan|hari|minggu|jam|dekade|abad|detik|menit|weeks?|months?|years?|days?|hours?|decades?|centur)'
         for sn in slide_numbers:
             sn_clean = sn.replace('.', '').replace(',', '').rstrip('%')
             if sn_clean.isdigit() and sn_clean not in article_nums_flat:
                 if int(sn_clean) <= 5:
-                    continue
+                    # Still flag if paired with time unit (e.g. "5 tahun ke depan")
+                    pattern = re.escape(sn) + r'\s*' + time_units
+                    if not re.search(pattern, text, re.I):
+                        continue
                 violations.append(f"{key}: number '{sn}' not in article")
 
         # Check word-based quantities (also check EN equivalent for cross-language articles)
@@ -854,7 +867,13 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                     article_nums.add(c)
             for sn in slide_nums:
                 sn_clean = sn.replace('.', '').replace(',', '').rstrip('%')
-                if sn_clean.isdigit() and sn_clean not in article_nums and int(sn_clean) > 5:
+                if sn_clean.isdigit() and sn_clean not in article_nums:
+                    is_small = int(sn_clean) <= 5
+                    # For small numbers, only strip if paired with time unit
+                    time_units = r'(?:tahun|bulan|hari|minggu|jam|dekade|abad|detik|menit|weeks?|months?|years?|days?|hours?|decades?)'
+                    if is_small:
+                        if not re.search(re.escape(sn) + r'\s*' + time_units, data[key], re.I):
+                            continue
                     # Strip whole currency expression: Rp[X] juta/miliar, $[X] million, etc
                     data[key] = re.sub(r'(?:Rp|USD|\$)\s*' + re.escape(sn) + r'\s*(?:juta|miliar|triliun|million|billion|trillion)?', '', data[key], flags=re.I)
                     # Also strip [number] [quantity word] without currency prefix
