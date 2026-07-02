@@ -6,7 +6,6 @@ mkdir -p logs
 
 # Random delay 30-180s biar gak predictable
 DELAY=$((RANDOM % 151 + 30))
-echo "Sleeping ${DELAY}s..."
 sleep "$DELAY"
 
 # Load API keys from threads-agent .env
@@ -18,9 +17,53 @@ set +a
 LOG="logs/pipeline-$(date +%Y%m%d-%H%M%S).log"
 exec > >(tee -a "$LOG") 2>&1
 
-echo "=== Pipeline run: $(date) ==="
+echo "=== Pipeline run: $(TZ='Asia/Jakarta' date '+%H:%M WIB %d %b %Y') ==="
 
-# 1. Scrape + score + generate + post (all in one)
+# 1. Scrape + score + generate + post
 python3 scripts/pipeline.py 2>&1
 
-echo "=== Done: $(date) ==="
+echo "=== Done ==="
+
+# 2. Generate summary for Telegram
+python3 -c "
+import sqlite3, os
+from datetime import datetime
+
+conn = sqlite3.connect('pipeline.db')
+conn.row_factory = sqlite3.Row
+
+today = datetime.now().strftime('%Y-%m-%d')
+posted = conn.execute(\"SELECT id, slide_hook, thread_post_id FROM posts WHERE status='posted' AND date(posted_at)=? ORDER BY id DESC\", (today,)).fetchall()
+staged = conn.execute(\"SELECT id, slide_hook FROM posts WHERE status='staged' ORDER BY id\",).fetchall()
+articles = conn.execute(\"SELECT COUNT(*) as c FROM articles WHERE date(created_at)=?\", (today,)).fetchone()
+total_today = conn.execute(\"SELECT COUNT(*) as c FROM posts WHERE status='posted' AND date(posted_at)=?\", (today,)).fetchone()
+conn.close()
+
+# Print clean summary (stdout = delivered to Telegram)
+print()
+print('📊 TechBro Pipeline Report')
+print(f'🕐 {datetime.now().strftime(\"%H:%M WIB\")}')
+print(f'📰 Articles scraped today: {articles[\"c\"]}')
+print(f'✅ Posts today: {total_today[\"c\"]}/12')
+print()
+
+if posted:
+    print('Recent posts:')
+    for p in posted[:3]:
+        hook = (p['slide_hook'] or 'no hook')[:60]
+        post_id = p['thread_post_id'] or 'pending'
+        print(f'  #{p[\"id\"]} → {post_id}')
+        print(f'    {hook}')
+    print()
+
+if staged:
+    print(f'⏳ Staged ({len(staged)}):')
+    for s in staged:
+        hook = (s['slide_hook'] or 'no hook')[:60]
+        print(f'  #{s[\"id\"]}: {hook}')
+else:
+    print('⏳ Nothing staged')
+
+print()
+print('Next run: top of next hour')
+"
