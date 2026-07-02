@@ -77,7 +77,7 @@ def _is_same_topic(title1: str, title2: str) -> bool:
 
 DAILY_POST_LIMIT = 20
 POSTING_HOURS = (7, 23)  # WIB — only post between 07:00-22:00
-ALLOWED_SOURCES = {"cnbc_indonesia", "detik", "liputan6_tekno", "kumparan_tekno"}
+ALLOWED_SOURCES = {"cnbc_id", "detik", "liputan6", "kumparan"}
 
 def run(top_n: int = TOP_N, dry_run: bool = False):
     t0 = time.time()
