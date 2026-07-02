@@ -32,7 +32,7 @@ conn.row_factory = sqlite3.Row
 today = datetime.now().strftime('%Y-%m-%d')
 posted = conn.execute('SELECT id, slide_hook, thread_post_id FROM posts WHERE status=\"posted\" AND date(posted_at)=? ORDER BY id DESC', (today,)).fetchall()
 staged = conn.execute('SELECT id, slide_hook FROM posts WHERE status=\"staged\" ORDER BY id').fetchall()
-articles = conn.execute('SELECT COUNT(*) as c FROM articles WHERE date(created_at)=?', (today,)).fetchone()
+articles = conn.execute('SELECT COUNT(*) as c FROM articles WHERE date(scraped_at)=?', (today,)).fetchone()
 total_today = conn.execute('SELECT COUNT(*) as c FROM posts WHERE status=\"posted\" AND date(posted_at)=?', (today,)).fetchone()
 conn.close()
 
@@ -52,12 +52,12 @@ if posted:
     print()
 
 if staged:
-    print(f'Staged ({len(staged)}):')
+    print(f'⏳ Staged ({len(staged)}):')
     for s in staged:
         hook = (s['slide_hook'] or 'no hook')[:60]
-        print(f'  #{s[\"id\"]}: {hook}')
+        print(f'  #{s["id"]}: {hook}')
 else:
-    print('Nothing staged')
+    print('⏳ Nothing staged')
 
 print()
 print('Next: top of next hour')
