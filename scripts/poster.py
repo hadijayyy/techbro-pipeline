@@ -5,6 +5,7 @@ Token: reads from /home/ubuntu/threads-agent/.env
 """
 import os
 import sys
+import re
 import time
 import httpx
 from pathlib import Path
@@ -27,6 +28,20 @@ TOKEN = os.environ.get("THREADS_ACCESS_TOKEN", "")
 USER_ID = os.environ.get("THREADS_USER_ID", "")
 
 
+def _fetch_og_image(url: str) -> str | None:
+    """Re-fetch og:image from article URL as fallback."""
+    try:
+        r = httpx.get(url, headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True, timeout=15)
+        if r.status_code != 200:
+            return None
+        m = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)', r.text)
+        if not m:
+            m = re.search(r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', r.text)
+        return m.group(1).strip() if m else None
+    except Exception:
+        return None
+
+
 def _post_container(text: str, reply_to: str | None = None, image_url: str | None = None) -> str | None:
     """Create a single thread container. Returns container_id."""
     data = {"access_token": TOKEN}
@@ -37,11 +52,11 @@ def _post_container(text: str, reply_to: str | None = None, image_url: str | Non
             h = httpx.head(image_url, headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True, timeout=10)
             ct = h.headers.get("content-type", "")
             if h.status_code != 200 or not ct.startswith("image/"):
-                print(f"  [WARN] Image invalid (status={h.status_code}, type={ct}), falling back to TEXT")
-                image_url = None
+                print(f"  [WARN] Image invalid (status={h.status_code}, type={ct})")
+                return None  # Fail — don't post slide 1 without image
         except Exception as e:
-            print(f"  [WARN] Image check failed: {e}, falling back to TEXT")
-            image_url = None
+            print(f"  [WARN] Image check failed: {e}")
+            return None  # Fail — don't post slide 1 without image
     
     if image_url:
         params = {
@@ -173,6 +188,20 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
             continue
         
         image_url = post.get('article_image')
+        
+        # If no image stored, try re-fetching og:image from article URL
+        if not image_url and post.get('article_url'):
+            image_url = _fetch_og_image(post['article_url'])
+            if image_url:
+                # Update DB so we don't re-fetch next time
+                conn.execute("UPDATE articles SET image=? WHERE id=(SELECT article_id FROM posts WHERE id=?)", (image_url, post['id']))
+                conn.commit()
+        
+        # Wajib image untuk slide 1 — skip kalau gak ada
+        if not image_url:
+            print(f"  [SKIP] No image for slide 1: {post.get('title', 'Untitled')[:50]}")
+            continue
+        
         print(f"  {len(slides)} slides, image: {image_url[:60] if image_url else 'none'}")
         
         if dry_run:
