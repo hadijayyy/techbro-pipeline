@@ -72,7 +72,6 @@ Ubah artikel ini jadi obrolan 6 slide. Bukan berita. Bukan motivasi. Obrolan. Lo
 - Gak usah sok pinter. Gak usah sok dalam. Tulis kayak lo ngomong.
 - Tiap slide: 2-4 kalimat MAX. Beberapa cuma 1 kalimat pendek juga gapapa.
 - Gak perlu tiap slide ada "analogi kehidupan Indonesia". Kadang beritanya emang menarik sendiri, gausa dipaksain relate ke cicilan motor.
-- LO BOLEH bilang "anjir", "gila sih", "seriusan?", "gimana ceritanya?" — itu natural.
 - JANGAN: "Bayangin lo bisa...", "Ini bukan cuma...", "Gue inget pas kuliah...", "Jangan cuma X, coba Y" — itu cringe dan kedengeran kayak AI.
 
 [REAKSI NATURAL]
