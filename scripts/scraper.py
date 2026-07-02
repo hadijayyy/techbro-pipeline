@@ -129,7 +129,7 @@ def fast_content_filter(title: str, body: str) -> str | None:
     return None
 
 
-def score_article(title: str, body: str, date=None, hn_score: int = 0) -> int:
+def score_article(title: str, body: str, date=None) -> int:
     """Score article. Assumes fast_content_filter() already passed."""
     title_l = title.lower()
     body_l = body[:1500].lower()
@@ -147,8 +147,6 @@ def score_article(title: str, body: str, date=None, hn_score: int = 0) -> int:
         s += 20
 
     # HN virality bonus: 500pts = +100, 1000pts = +100 (capped)
-    if hn_score > 0:
-        s += min(hn_score // 5, 100)
 
     # Recency: exponential decay. 0h = +30, 12h = +0
     if date:
@@ -309,7 +307,7 @@ _HN_SEL = [
 
 async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
                                 rss_date: datetime | None = None,
-                                hn_score: int = 0) -> dict | None:
+                                ) -> dict | None:
     try:
         r = await client.get(url, timeout=15)
         if r.status_code != 200:
@@ -358,139 +356,12 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
         return {
             "title": title, "date": dt, "image": image,
             "body": body, "url": url, "source": source,
-            "_hn_score": hn_score,
         }
     except Exception:
         return None
 
 
 # ─── RSS Parsers ─────────────────────────────────────────────────
-
-async def get_links_techcrunch(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    items = []
-    try:
-        r = await client.get("https://techcrunch.com/category/artificial-intelligence/feed/", timeout=12)
-        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
-            block = item_block.group(1)
-            link_m = re.search(r"<link>([^<]+)</link>", block)
-            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
-            if not link_m:
-                continue
-            url = link_m.group(1).strip().split("?")[0]
-            dt = None
-            if date_m:
-                try:
-                    from email.utils import parsedate_to_datetime
-                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
-                except Exception:
-                    pass
-            items.append((url, dt))
-    except Exception:
-        pass
-    return items[:30]
-
-
-async def get_links_theverge(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """The Verge Atom feed."""
-    items = []
-    try:
-        r = await client.get("https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", timeout=12)
-        for entry in re.finditer(r"<entry>(.*?)</entry>", r.text, re.DOTALL):
-            block = entry.group(1)
-            link_m = re.search(r'<link[^>]*href="([^"]+)"', block)
-            date_m = re.search(r"<published>(.*?)</published>", block)
-            if not link_m:
-                continue
-            url = link_m.group(1).strip()
-            dt = parse_date_iso(date_m.group(1).strip()) if date_m else None
-            items.append((url, dt))
-    except Exception:
-        pass
-    return items[:20]
-
-
-async def get_links_arstechnica(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    items = []
-    try:
-        r = await client.get("https://feeds.arstechnica.com/arstechnica/technology-lab", timeout=12)
-        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
-            block = item_block.group(1)
-            link_m = re.search(r"<link>([^<]+)</link>", block)
-            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
-            if not link_m:
-                continue
-            url = link_m.group(1).strip().split("?")[0]
-            dt = None
-            if date_m:
-                try:
-                    from email.utils import parsedate_to_datetime
-                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
-                except Exception:
-                    pass
-            items.append((url, dt))
-    except Exception:
-        pass
-    return items[:20]
-
-
-async def get_links_wired(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    items = []
-    try:
-        r = await client.get("https://www.wired.com/feed/tag/ai/latest/rss", timeout=12)
-        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
-            block = item_block.group(1)
-            link_m = re.search(r"<link>([^<]+)</link>", block)
-            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
-            if not link_m:
-                continue
-            url = link_m.group(1).strip().split("?")[0]
-            dt = None
-            if date_m:
-                try:
-                    from email.utils import parsedate_to_datetime
-                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
-                except Exception:
-                    pass
-            items.append((url, dt))
-    except Exception:
-        pass
-    return items[:20]
-
-
-async def get_links_hn(client: httpx.AsyncClient) -> list[tuple[str, datetime | None, int]]:
-    """Hacker News top stories via Firebase API. Returns (url, date, hn_score)."""
-    items = []
-    try:
-        r = await client.get("https://hacker-news.firebaseio.com/v0/topstories.json", timeout=10)
-        ids = json.loads(r.text)[:30]
-
-        async def fetch_hn(hn_id):
-            try:
-                r2 = await client.get(f"https://hacker-news.firebaseio.com/v0/item/{hn_id}.json", timeout=5)
-                return json.loads(r2.text)
-            except Exception:
-                return None
-
-        tasks = [fetch_hn(i) for i in ids]
-        results = await asyncio.gather(*tasks)
-
-        for item in results:
-            if not item or item.get("type") != "story":
-                continue
-            url = item.get("url", "")
-            if not url:
-                continue
-            # Skip HN self-posts and non-article links
-            if "news.ycombinator.com" in url:
-                continue
-            score = item.get("score", 0)
-            # Convert HN time to datetime
-            dt = datetime.fromtimestamp(item.get("time", 0), tz=UTC)
-            items.append((url, dt, score))
-    except Exception:
-        pass
-    return items[:20]
-
 
 # ─── Main Scraper ────────────────────────────────────────────────
 
@@ -605,11 +476,9 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_detik_inet(client),
             get_links_liputan6_tekno(client),
             get_links_kumparan_tekno(client),
-            get_links_hn(client),
-            get_links_techcrunch(client),
             return_exceptions=True,
         )
-        source_names = ["cnbc_id", "detik", "liputan6", "kumparan", "hn", "techcrunch"]
+        source_names = ["cnbc_id", "detik", "liputan6", "kumparan"]
 
         # 2. Build scrape tasks
         all_tasks = []
@@ -620,17 +489,16 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
                 continue
             for item in links:
                 if isinstance(item, tuple) and len(item) == 3:
-                    url, rss_date, hn_score = item
+                    url, rss_date = item
                 elif isinstance(item, tuple) and len(item) == 2:
                     url, rss_date = item
-                    hn_score = 0
                 else:
                     continue
                 if url in seen_urls:
                     continue
                 seen_urls.add(url)
                 all_tasks.append(
-                    scrape_article_async(url, client, src, rss_date=rss_date, hn_score=hn_score)
+                    scrape_article_async(url, client, src, rss_date=rss_date)
                 )
 
         # 3. Scrape all articles
@@ -645,8 +513,7 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
         if art["url"] in seen:
             continue
         seen.add(art["url"])
-        hn_score = art.pop("_hn_score", 0)
-        art["score"] = score_article(art["title"], art["body"], art["date"], hn_score)
+        art["score"] = score_article(art["title"], art["body"], art["date"])
         if art["score"] > 20:
             articles.append(art)
 
