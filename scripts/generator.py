@@ -155,6 +155,9 @@ BANNED_EN = [
     r'\bthat\'s wild\b', r'\bno way\b',
 ]
 
+# Cross-language quantity mapping: ID → EN (for grounding check against EN articles)
+QTY_EN_MAP = {'juta': 'million', 'miliar': 'billion', 'triliun': 'trillion', 'ribu': 'thousand', 'ratus': 'hundred', 'jutaan': 'millions', 'miliaran': 'billions', 'triliunan': 'trillions', 'ribuan': 'thousands', 'ratusan': 'hundreds', 'puluhan': 'tens'}
+
 BANNED_ID = [
     r'\bgeleng[- ]geleng\b', r'\bgaruk kepala\b', r'\bkayak dari masa depan\b',
     r'\bkebayang gak\b', r'\byang bener aja\b',
@@ -536,7 +539,7 @@ def _check_fabricated_numbers(slides: dict, article_body: str) -> list[str]:
         if clean.isdigit():
             article_nums_flat.add(clean)
 
-    # Word-based quantities that imply large numbers
+    # Word-based quantities that imply large numbers (ID + EN equivalents)
     quantity_words = re.compile(r'\b(jutaan|ribuan|ratusan|puluhan|miliaran|triliunan|juta|ribu|ratus)\b', re.I)
 
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
@@ -553,10 +556,13 @@ def _check_fabricated_numbers(slides: dict, article_body: str) -> list[str]:
                     continue
                 violations.append(f"{key}: number '{sn}' not in article")
 
-        # Check word-based quantities
+        # Check word-based quantities (also check EN equivalent for cross-language articles)
         for m in quantity_words.finditer(text):
             word = m.group().lower()
             if word not in article_body.lower():
+                en_word = QTY_EN_MAP.get(word, '')
+                if en_word and en_word in article_body.lower():
+                    continue  # EN equivalent found — not fabricated
                 violations.append(f"{key}: quantity '{word}' not in article")
 
     return violations
@@ -693,11 +699,14 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                     # Fallback: strip just the number
                     data[key] = data[key].replace(sn, '').strip()
                     data[key] = re.sub(r'\s{2,}', ' ', data[key])
-            # Strip fabricated word-based quantities
+            # Strip fabricated word-based quantities (with cross-language check)
             matches = list(quantity_words.finditer(data[key]))
             for m in reversed(matches):
                 word = m.group().lower()
                 if word not in body.lower():
+                    en_word = QTY_EN_MAP.get(word, '')
+                    if en_word and en_word in body.lower():
+                        continue  # EN equivalent found — not fabricated
                     data[key] = data[key][:m.start()] + data[key][m.end():]
                     data[key] = re.sub(r'\s{2,}', ' ', data[key]).strip()
 
