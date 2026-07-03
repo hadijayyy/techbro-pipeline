@@ -861,9 +861,13 @@ def _check_fabricated_numbers(slides: dict, article_body: str) -> list[str]:
         time_units = r'(?:tahun|bulan|hari|minggu|jam|dekade|abad|detik|menit|weeks?|months?|years?|days?|hours?|decades?|centur)'
         for sn in slide_numbers:
             sn_clean = sn.replace('.', '').replace(',', '').rstrip('%')
-            if sn_clean.isdigit() and sn_clean not in article_nums_flat:
+            if not sn_clean.isdigit():
+                continue
+            # Skip 4-digit numbers in year range 2000-2099 — treat as years, not quantities
+            if len(sn_clean) == 4 and 2000 <= int(sn_clean) <= 2099:
+                continue
+            if sn_clean not in article_nums_flat:
                 if int(sn_clean) <= 5:
-                    # Still flag if paired with time unit (e.g. "5 tahun ke depan")
                     pattern = re.escape(sn) + r'\s*' + time_units
                     if not re.search(pattern, text, re.I):
                         continue
@@ -1004,6 +1008,8 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                     article_nums.add(c)
             for sn in slide_nums:
                 sn_clean = sn.replace('.', '').replace(',', '').rstrip('%')
+                if len(sn_clean) == 4 and sn_clean.isdigit() and 2000 <= int(sn_clean) <= 2099:
+                    continue  # skip years — never strip
                 if sn_clean.isdigit() and sn_clean not in article_nums:
                     is_small = int(sn_clean) <= 5
                     # For small numbers, only strip if paired with time unit
@@ -1016,8 +1022,9 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                     # Also strip [number] [quantity word] without currency prefix
                     data[key] = re.sub(re.escape(sn) + r'\s*(?:juta|miliar|triliun|million|billion|trillion)\b', '', data[key], flags=re.I)
                     # Fallback: strip just the number
-                    data[key] = data[key].replace(sn, '').strip()
-                    data[key] = re.sub(r' +', ' ', data[key])
+                    data[key] = data[key].replace(sn, '')
+                    data[key] = re.sub(r' +', ' ', data[key]).strip()
+                    data[key] = re.sub(r'\s+([,.!?])', r'\1', data[key])  # "  ." → "."
             # Strip fabricated word-based quantities (with cross-language check)
             matches = list(quantity_words.finditer(data[key]))
             for m in reversed(matches):
@@ -1032,9 +1039,8 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     # Final cleanup: strip orphaned markdown artifacts after grounding stripped content
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:
-            data[key] = re.sub(r'\*{2,}', '', data[key])  # remove ****
-            data[key] = re.sub(r'\*([^*]+)\*', r'\1', data[key])  # remove remaining *text*
-            data[key] = re.sub(r' +', ' ', data[key])  # collapse spaces
+            data[key] = re.sub(r'\*+', '', data[key])  # nuke any leftover single/double/triple asterisks
+            data[key] = re.sub(r' +', ' ', data[key]).strip()
             data[key] = re.sub(r'(?m)^\s*$', '', data[key])  # remove empty lines
             data[key] = re.sub(r'\n{3,}', '\n\n', data[key])  # max 2 newlines
 
