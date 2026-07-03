@@ -18,7 +18,10 @@ def _load_env():
         for line in _ENV_PATH.read_text().splitlines():
             if "=" in line and not line.startswith("#"):
                 k, _, v = line.partition("=")
-                env[k.strip()] = v.strip().strip('"').strip("'")
+                # Fix #9: handle values containing = (e.g. tokens, URLs with query params)
+                k = k.strip()
+                v = v.strip().strip('"').strip("'")
+                env[k] = v
     os.environ.update(env)
 
 _load_env()
@@ -26,6 +29,14 @@ _load_env()
 GRAPH = "https://graph.threads.net/v1.0"
 TOKEN = os.environ.get("THREADS_ACCESS_TOKEN", "")
 USER_ID = os.environ.get("THREADS_USER_ID", "")
+
+
+def _check_auth(r: httpx.Response) -> bool:
+    """Check if response indicates token expiry. Returns False if auth failed."""
+    if r.status_code in (401, 403):
+        print(f"  [AUTH] Token expired or invalid ({r.status_code}). Refresh THREADS_ACCESS_TOKEN.")
+        return False
+    return True
 
 
 def _fetch_og_image(url: str) -> str | None:
@@ -69,13 +80,8 @@ def _post_container(text: str, reply_to: str | None = None, image_url: str | Non
             params["reply_to_id"] = reply_to
         r = httpx.post(f"{GRAPH}/{USER_ID}/threads", data=params, timeout=30)
         if r.status_code != 200:
-            print(f"  [WARN] Image post failed, falling back to TEXT")
-            r = httpx.post(f"{GRAPH}/{USER_ID}/threads", data={
-                "access_token": TOKEN,
-                "media_type": "TEXT",
-                "text": text,
-                **({"reply_to_id": reply_to} if reply_to else {}),
-            }, timeout=30)
+            print(f"  [ERR] Image post failed: {r.status_code} {r.text[:200]}")
+            return None  # Abort — don't silently degrade to TEXT
     else:
         params = {
             "access_token": TOKEN,
@@ -87,6 +93,7 @@ def _post_container(text: str, reply_to: str | None = None, image_url: str | Non
         r = httpx.post(f"{GRAPH}/{USER_ID}/threads", data=params, timeout=30)
     
     if r.status_code != 200:
+        _check_auth(r)
         print(f"  [ERR] Container create failed: {r.status_code} {r.text[:200]}")
         return None
     
@@ -95,8 +102,22 @@ def _post_container(text: str, reply_to: str | None = None, image_url: str | Non
         print(f"  [ERR] No container ID in response: {r.json()}")
         return None
     
-    # Wait for container to be ready (Threads needs processing time)
-    time.sleep(2)
+    # Poll container status until ready (Meta recommends this over fixed sleep)
+    for attempt in range(10):
+        status_r = httpx.get(f"{GRAPH}/{container_id}", params={
+            "fields": "status",
+            "access_token": TOKEN,
+        }, timeout=15)
+        if status_r.status_code == 200:
+            status = status_r.json().get("status", "")
+            if status == "FINISHED":
+                break
+            if status == "ERROR":
+                print(f"  [ERR] Container processing error")
+                return None
+        time.sleep(2)
+    else:
+        print(f"  [WARN] Container not ready after 20s, publishing anyway")
     
     # Publish the container
     r2 = httpx.post(f"{GRAPH}/{USER_ID}/threads_publish", data={
@@ -105,6 +126,7 @@ def _post_container(text: str, reply_to: str | None = None, image_url: str | Non
     }, timeout=30)
     
     if r2.status_code != 200:
+        _check_auth(r2)
         print(f"  [ERR] Publish failed: {r2.status_code} {r2.text[:200]}")
         return None
     
@@ -129,7 +151,7 @@ def _normalize_for_threads(text: str) -> str:
         from generator import _format_lists
         text = _format_lists(text)
     except ImportError:
-        pass
+        print("  [WARN] generator._format_lists not available, skipping list normalization")
 
     # Final cleanup
     text = re.sub(r'\n{3,}', '\n\n', text)
@@ -137,8 +159,7 @@ def _normalize_for_threads(text: str) -> str:
 
 
 def post_carousel(slides: list[str], image_url: str = None) -> list[str]:
-    """Post a carousel as a thread chain. Returns list of post IDs.
-    Injects permalink into last slide after posting first slide (needs root_id)."""
+    """Post a carousel as a thread chain. Returns list of post IDs."""
     if not TOKEN:
         print("ERROR: THREADS_ACCESS_TOKEN not set")
         return []
@@ -240,9 +261,11 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
             continue
         
         post_ids = post_carousel(slides, image_url=image_url)
-        if post_ids:
+        if post_ids and len(post_ids) == len(slides):
             mark_posted(conn, post['id'], post_ids[0])
             print(f"  ✓ Thread root: {post_ids[0]}")
+        elif post_ids:
+            print(f"  ⚠ Partial post: {len(post_ids)}/{len(slides)} slides — NOT marking as posted")
         else:
             print("  ✗ Failed")
     
@@ -264,6 +287,7 @@ def fetch_engagement(media_id: str) -> dict | None:
             timeout=15
         )
         if r.status_code != 200:
+            _check_auth(r)
             print(f"  [ERR] Engagement fetch failed: {r.status_code}")
             return None
         
@@ -273,14 +297,15 @@ def fetch_engagement(media_id: str) -> dict | None:
         metrics = {}
         for item in insights:
             name = item.get("name", "")
-            value = item.get("values", [{}])[0].get("value", 0)
-            metrics[name] = value
+            values = item.get("values", [])
+            value = values[0].get("value") if values else None
+            metrics[name] = value  # None if API didn't return it
         
         return {
-            "likes": metrics.get("likes", 0),
-            "replies": metrics.get("replies", 0),
-            "reposts": metrics.get("reposts", 0),
-            "views": metrics.get("views", 0),
+            "likes": metrics.get("likes") or 0,
+            "replies": metrics.get("replies") or 0,
+            "reposts": metrics.get("reposts") or 0,
+            "views": metrics.get("views"),  # None if not available — don't default to 0
         }
     except Exception as e:
         print(f"  [ERR] Engagement fetch error: {e}")
