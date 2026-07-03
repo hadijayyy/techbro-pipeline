@@ -173,6 +173,19 @@ Fokus 1 insight besar, bukan numpuk fakta.
 9. Conversational, otoritatif tapi friendly, persuasif.
 
 ═══════════════════════════════════════════════
+§7b  ANTI-PROMO — WAJIB
+═══════════════════════════════════════════════
+DILARANG keras bikin konten yang terasa seperti iklan/promosi produk:
+• Jangan sebut nama produk sebagai "solusi" atau "jalan keluar"
+• Jangan list fitur produk satu per satu (bukan brochure)
+• Jangan pakai bahasa slogan ("bikin AI jadi terjangkau", "solusi cerdas")
+• Jangan bandingkan produk satu vs satu lain (bukan review)
+• Kalau artikel peluncuran produk: frame sebagai TREN INDUSTRI, bukan promosi produk
+  → "OPPO Reno 16" bukan "ponsel terbaik buat lo" tapi "produsen ponsel mulai serius masuk AI"
+• Fokus ke kenapa ini penting buat KONSUMEN/PASAR, bukan kenapa bagus buat PRODUK
+• Hindari call-to-action yang mengarah ke pembelian ("coba sekarang", "worth it")
+
+═══════════════════════════════════════════════
 §8  BANNED PATTERNS
 ═══════════════════════════════════════════════
 JANGAN pernah pakai pola ini — ini ciri khas konten template AI:
@@ -310,6 +323,10 @@ BANNED_ID = [
     r'\bturunin komentar\b', r'\bdrop pendapat lo\b',
     r'\bbagi pendapat lo\b', r'\bsave postingan ini\b',
     r'\bjangan lupa di-?save\b', r'\bsimpan dulu postingan ini\b',
+    # Anti-promo banned patterns
+    r'\bbikin .+ jadi terjangkau\b', r'\bsolusi cerdas\b', r'\bsolusi terbaik\b',
+    r'\bworth it\b', r'\bcoba sekarang\b', r'\bterbaik buat lo\b',
+    r'\bspesial buat lo\b', r'\bharus punya\b', r'\bgak boleh ketinggalan\b',
 ]
 
 # Reaksi natural — allowed but MAX 1x per post (tracked in _check_reaksi_count)
