@@ -125,6 +125,8 @@ Sumber: {source}
 SLIDE 1 — THE HOOK (Stop the Scroll)
   • Max 2 kalimat, <30 kata, KAPITAL 1 kata aja (contoh: "karyawan KENA PHK" benar, "KARYAWAN PHK" salah)
   • Goal: disrupt feed, patahin asumsi, buka loop
+  • HARUS ada angka kontras yang bikin kaget (contoh: 1.100 → 35, 2.500 → 250)
+  • HARUS akhiri dengan pertanyaan personal ke pembaca ("Lo termasuk?", "Lo pernah ngalamin?", "Lo tau gak?")
   • Variasikan struktur tiap post (kontradiksi / angka kejutan / klaim berani / retorik tajam / before-after)
 
 {hook_instruction}
@@ -134,26 +136,32 @@ SLIDE 2 — THE PROBLEM (Core Issue)
   • Goal: validasi masalah + data pendukung dari Step 0
   • Structure: kesalahan/permasalahan → konsekuensi → angka spesifik
 
-SLIDE 3 — THE REVELATION (Core Insight)
+SLIDE 3 — THE TWIST (The Real Story)
   • Max 3 kalimat, <40 kata
-  • Goal: reveal jawaban/insight yang ditunggu-tunggu
-  • Structure: transisi dari masalah → reveal spesifik → penjelasan singkat kenapa ini penting
+  • Goal: reveal cerita NYATA di balik headline — yang gak orang pikirin
+  • Pattern WAJIB: "Ini bukan cuma soal [headline], tapi [deeper truth]" atau "Yang gak diomongin: [hidden angle]"
+  • Ini slide yang bikin orang SHARE — reveal yang bikin mikir lebih dalam
 
 SLIDE 4 — THE DEEP DIVE (Context/Broader Picture)
   • Max 3 kalimat, <40 kata
   • Goal: kasih konteks lebih dalam atau angle yang gak banyak orang tau
   • HARUS dari daftar Step 0, 1 ide per slide
 
-SLIDE 5 — THE OPINI (So What?)
+SLIDE 5 — THE SO WHAT (National/Geopolitical Angle)
   • Max 3 kalimat, <40 kata
-  • Pilih SATU: kenapa ini penting buat audiens / apa yang gak diomongin artikel / dinamika yang terungkap
-  • Dilarang nebak motif atau spekulasi dampak yang gak ada di Step 0
+  • Frame sebagai isu NASIONAL, bukan cuma korporat/individu
+  • Sentuhan sovereignty, kedaulatan, masa depan Indonesia
+  • Contoh: "TikTok geser pusat gravitasi e-commerce ke China" atau "Ini sinyal: tech sovereignty makin penting"
+  • Bikin pembaca mikir: "Ini bukan cuma soal mereka, tapi soal KITA"
 
 SLIDE 6 — THE CTA (Closing)
   • Max 2 kalimat, <30 kata
   • Kesimpulan yang nutup balik ke hook slide 1
-  • Ajak komentar/save/follow. 1 pertanyaan singkat, low-friction (soal kebiasaan/preferensi/opini)
-  • Variasikan phrasing CTA tiap post — jangan template
+  • HARUS pakai pertanyaan multiple choice yang bikin orang DEBAT:
+    → "X, Y, atau Z? Share pendapat lo di komen."
+    → "5 tahun ke depan, siapa dominasi? A, B, atau C?"
+  • Pertanyaan HARUS gak ada jawaban benar → bikin orang milih dan berantem di komen
+  • JANGAN pakai "save postingan ini" — itu gak engaging
 
 Continuity check: slide 2-6 harus build dari klaim di slide 1 (bukan fakta lepas-lepas).
 Kalau slide 3 dihapus, slide 4 harus tetep masuk akal.
