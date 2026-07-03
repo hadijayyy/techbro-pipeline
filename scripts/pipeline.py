@@ -24,7 +24,7 @@ from generator import generate_carousel
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed, cleanup_old
 from poster import post_from_db
 
-TOP_N = 5  # articles per run (pick best unposted)
+TOP_N = 10  # articles per run (pick best unposted)
 
 def _normalize_title(title: str) -> str:
     """Normalize title for dedup: lowercase, strip punctuation, collapse spaces."""
@@ -77,7 +77,7 @@ def _is_same_topic(title1: str, title2: str) -> bool:
 
 DAILY_POST_LIMIT = 20
 POSTING_HOURS = (7, 23)  # WIB — only post between 07:00-23:00
-ALLOWED_SOURCES = {"cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika"}
+ALLOWED_SOURCES = {"cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia"}
 
 def run(top_n: int = TOP_N, dry_run: bool = False):
     t0 = time.time()
@@ -125,9 +125,9 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
 
     articles = scrape_all(top_n)
 
-    # Track topics from ALL posts (posted + staged) for dedup
+    # Track topics from RECENT posts only (last 3 days) for dedup
     posted_titles = [row['title'] for row in conn.execute(
-        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id"
+        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.created_at > datetime('now', '-3 days')"
     ).fetchall()]
 
     # Track topics staged THIS run (prevents duplicates within same run)

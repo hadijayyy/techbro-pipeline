@@ -340,7 +340,7 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             body = extract_body(soup, _WIRED_SEL)
         elif source in ("hn", "anthropic"):
             body = extract_body(soup, _HN_SEL)
-        elif source in ("cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika"):
+        elif source in ("cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia"):
             # Indonesian sources: try common selectors
             _ID_SEL = [
                 ("div", "post-content"), ("div", "detail-text"),
@@ -519,6 +519,31 @@ async def get_links_republika_tekno(client: httpx.AsyncClient) -> list[tuple[str
     return items[:20]
 
 
+async def get_links_cnnindonesia_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """CNN Indonesia Tekno — fresh Indonesian tech news (100+ items)."""
+    items = []
+    try:
+        r = await client.get("https://www.cnnindonesia.com/teknologi/rss", timeout=12)
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip().split("?")[0]
+            dt = None
+            if date_m:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:20]
+
+
 # ─── Main Scraper ────────────────────────────────────────────────
 
 async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
@@ -532,9 +557,10 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_kumparan_tekno(client),
             get_links_antara_tekno(client),
             get_links_republika_tekno(client),
+            get_links_cnnindonesia_tekno(client),
             return_exceptions=True,
         )
-        source_names = ["cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika"]
+        source_names = ["cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia"]
 
         # 2. Build scrape tasks
         all_tasks = []
@@ -570,7 +596,7 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             continue
         seen.add(art["url"])
         art["score"] = score_article(art["title"], art["body"], art["date"])
-        if art["score"] > 20:
+        if art["score"] > 10:
             articles.append(art)
 
     # 5. Cross-source virality: if same topic in 2+ sources, boost
