@@ -1017,7 +1017,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                     data[key] = re.sub(re.escape(sn) + r'\s*(?:juta|miliar|triliun|million|billion|trillion)\b', '', data[key], flags=re.I)
                     # Fallback: strip just the number
                     data[key] = data[key].replace(sn, '').strip()
-                    data[key] = re.sub(r'\s{2,}', ' ', data[key])
+                    data[key] = re.sub(r' +', ' ', data[key])
             # Strip fabricated word-based quantities (with cross-language check)
             matches = list(quantity_words.finditer(data[key]))
             for m in reversed(matches):
@@ -1027,7 +1027,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                     if en_word and en_word in body.lower():
                         continue  # EN equivalent found — not fabricated
                     data[key] = data[key][:m.start()] + data[key][m.end():]
-                    data[key] = re.sub(r'\s{2,}', ' ', data[key]).strip()
+                    data[key] = re.sub(r' +', ' ', data[key]).strip()
 
     # Final cleanup: strip orphaned markdown artifacts after grounding stripped content
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
