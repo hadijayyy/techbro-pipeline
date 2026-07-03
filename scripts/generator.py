@@ -188,6 +188,9 @@ Dalam 1 slide, kalimat harus NYAMBUNG satu sama lain:
 7. Reaksi natural (opsional, max 1x/post): gila sih · anjir · seriusan? · waduh · lah · busett · kok bisa
 8. Bold (**teks**) untuk metrik inti/kata kunci pivotal. Max 1-2 emoji/slide sebagai visual anchor.
 9. Conversational, otoritatif tapi friendly, persuasif.
+10. Kalau artikel bahas tokoh/publik figur: JADIKAN angle utama. Tokoh terkenal bikin konten lebih shareable (contoh: "Bos Shopee bilang...", "Elon Musk baru aja...").
+11. Elemen komedi/satir (opsional, max 1x/post): observasi absurd, ironi situasi, perbandingan konyol. Bukan jokes receh, tapi "wait, ini beneran?" moment.
+12. Out of the box: slide 3 twist harus angle yang gak orang pikirin pertama kali. Kalau semua orang bakal bilang X, lo bilang Y.
 
 ═══════════════════════════════════════════════
 §7b  ANTI-PROMO — WAJIB
