@@ -113,72 +113,26 @@ def _post_container(text: str, reply_to: str | None = None, image_url: str | Non
 
 
 def _normalize_for_threads(text: str) -> str:
-    """Normalize text for Threads: strip markdown, fix spacing, clean formatting."""
+    """Normalize text for Threads: strip markdown, fix spacing, format lists."""
     # Strip markdown bold/italic
     text = re.sub(r'\*{1,3}(.+?)\*{1,3}', r'\1', text)
-    # Remove orphaned bold markers
-    text = re.sub(r'\*{2,}', '', text)
-    # Remove stray single asterisks (not part of words)
-    text = re.sub(r'\*', '', text)
-    # Fix space before punctuation: " ." -> ".", " ," -> ","
+    text = re.sub(r'\*+', '', text)
+
+    # Fix spacing
     text = re.sub(r' ([.,!?;:])', r'\1', text)
-    # Fix space inside parens: "( pake" -> "(pake", "dll )" -> "dll)"
     text = re.sub(r'\( +', '(', text)
     text = re.sub(r' +\)', ')', text)
-
-    # Convert inline bullets: "text: - item1 - item2 - item3" → "text:\n1. item1\n2. item2\n3. item3"
-    # Pattern: ": - item - item" (inline bullets after colon)
-    def _fix_inline_bullets(m):
-        prefix = m.group(1)
-        items_text = m.group(2)
-        # Split on " - " pattern
-        items = re.split(r'\s+-\s+', items_text.strip())
-        items = [i.strip().lstrip('- ').strip() for i in items if i.strip()]
-        if len(items) < 2:
-            return m.group(0)  # not a real list, leave as-is
-        numbered = '\n'.join(f'{i+1}. {item}' for i, item in enumerate(items))
-        return prefix + '\n' + numbered
-
-    text = re.sub(r'([^.:]+[:.])\s+((?:-\s+.+(?:\s+-\s+.+)+))', _fix_inline_bullets, text)
-
-    # Convert inline numbered: "prefix: 1. text 2. text 3. text" → "prefix:\n1. text\n2. text\n3. text"
-    def _fix_inline_numbered(m):
-        raw = m.group(0).strip()
-        # Split on " N. " pattern
-        parts = re.split(r'(?=\d+\.\s)', raw)
-        # First part is prefix text (e.g. "Samsung/Huawei: ")
-        prefix = parts[0].strip()
-        items = [p.strip() for p in parts[1:] if p.strip() and re.match(r'\d+\.', p.strip())]
-        if len(items) < 2:
-            return m.group(0)
-        result = '\n'.join(items)
-        if prefix:
-            result = prefix + '\n' + result
-        return result
-
-    # Match prefix (with colon/period) followed by inline numbered items
-    text = re.sub(r'[^\n]*?(?:[:.])\s*\d+\.\s+.+?(?:\s+\d+\.\s+.+?){1,}(?=\s*[.!?\n]|$)', _fix_inline_numbered, text)
-
-    # Also convert standalone bullets to numbered: "- item\n- item" → "1. item\n2. item"
-    def _convert_bullets(m):
-        block = m.group(0)
-        items = re.findall(r'(?:^|\n)\s*[-•]\s*(.+)', block)
-        if len(items) < 2:
-            return block
-        return '\n'.join(f'{i+1}. {item.strip()}' for i, item in enumerate(items))
-
-    text = re.sub(r'(?:^|\n)(?:\s*[-•]\s*.+\n?){2,}', _convert_bullets, text)
-
-    # Fix numbered lists: "1.\n\nText" -> "1. Text" (single newline)
-    text = re.sub(r'(\d+)\.\n\n', r'\1. ', text)
-    # Also fix: "- \n\nText" -> "- Text"
-    text = re.sub(r'[-•]\n\n', lambda m: m.group().replace('\n\n', ' '), text)
-    # Collapse triple+ newlines to double
-    text = re.sub(r'\n{3,}', '\n\n', text)
-    # Remove empty lines (just whitespace)
-    text = re.sub(r'(?m)^\s+$', '', text)
-    # Collapse multiple spaces
     text = re.sub(r' {2,}', ' ', text)
+
+    # Use shared list normalizer from generator
+    try:
+        from generator import _format_lists
+        text = _format_lists(text)
+    except ImportError:
+        pass
+
+    # Final cleanup
+    text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
 
 

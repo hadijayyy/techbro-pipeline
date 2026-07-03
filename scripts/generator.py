@@ -97,7 +97,7 @@ Kalau source ambigu/tidak lengkap, tandai: ⚠️ perlu dicek ulang: [bagian man
 • Source pendek (<500 kata): tetap 6 slide, tiap slide lebih ringkas
 • Source panjang (>2000 kata): fokus 1-2 insight utama, jangan maksa masukin semua poin
 • JANGAN pernah tulis URL/link di slide — URL artikel otomatis ditambahkan sistem
-• List WAJIB format numbered: "1. item\n2. item\n3. item" — JANGAN pernah inline "- item - item - item" dalam 1 baris
+• JANGAN pakai bullet points atau numbered lists. Tulis SEMUA dalam bentuk kalimat lengkap yang mengalir
 
 ═══════════════════════════════════════════════
 §4  ROLE & CONTEXT
@@ -461,7 +461,60 @@ def _clean(text: str) -> str:
     out = re.sub(r'[\(\[]?link\s+(in|di)\s+bio[\)\]]?', '', out, flags=re.I)
 
     # Fix orphan punctuation: lines starting with , ; : . ! ?
-    out = re.sub(r'(?m)^\s*[,;:.\!?]+\s*', '', out)
+    out = re.sub(r'(?m)^\s*[,;:.!?]+\s*', '', out)
+
+    # Protect list items from sentence splitter
+    # Pattern 1: lines starting with "N. " or "- " (already on newlines)
+    # Pattern 2: inline "N. " in running text (LLM output as single line)
+    # Both must be protected before sentence splitting breaks them
+    protected = []
+    def _save_list(m):
+        protected.append(m.group())
+        return f'\x00LIST{len(protected)-1}\x00'
+
+    # First: protect explicit list lines (already on own line)
+    out = re.sub(r'^\s*(?:\d+\.\s+|[-•]\s+).+$', _save_list, out, flags=re.MULTILINE)
+
+    # Second: protect inline "N. text" sequences that appear 2+ times
+    # Match: "prefix: N. text N. text" or just "N. text N. text"
+    def _protect_inline_lists(m):
+        full = m.group()
+        protected.append(full)
+        return f'\x00LIST{len(protected)-1}\x00'
+
+    # Find inline numbered: text that has 2+ "N. word..." patterns
+    out = re.sub(
+        r'(?:^|\s)\d+\.\s+\D+?(?:\s+\d+\.\s+\D+?){1,}(?=\s+[.!?]|$)',
+        _protect_inline_lists, out
+    )
+
+    # Third: protect inline bullets: "- text - text - text"
+    def _protect_inline_bullets(m):
+        full = m.group()
+        # Split into individual items
+        items = re.split(r'\s+-\s+', full.strip())
+        items = [i.strip().lstrip('- ').strip() for i in items if i.strip()]
+        if len(items) >= 2:
+            # Check if first chunk is prefix (question or short phrase before bullets)
+            first = items[0]
+            is_prefix = (first.endswith('?') or first.endswith(':') or first.endswith('.')
+                         or len(first.split()) <= 6)
+            if is_prefix and len(items) > 2:
+                prefix = first.rstrip(':').rstrip('.')
+                rest = items[1:]
+                numbered = prefix + ':\n' + '\n'.join(f'{i+1}. {item}' for i, item in enumerate(rest))
+            else:
+                numbered = '\n'.join(f'{i+1}. {item}' for i, item in enumerate(items))
+            protected.append(numbered)
+            return f'\x00LIST{len(protected)-1}\x00'
+        # Single item, protect as-is
+        protected.append(full)
+        return f'\x00LIST{len(protected)-1}\x00'
+
+    out = re.sub(
+        r'(?:^|\s)-\s+\D+?(?:\s+-\s+\D+?){1,}(?=\s+[.!?]|$)',
+        _protect_inline_bullets, out
+    )
 
     # Enforce: one sentence per line, separated by double newline
     out = re.sub(r'\n+', ' ', out)
@@ -469,7 +522,83 @@ def _clean(text: str) -> str:
     sentences = re.split(r'(?<=[.!?])\s+', out)
     out = '\n\n'.join(s.strip() for s in sentences if s.strip())
 
+    # Restore protected list items (reverse order to handle nesting)
+    for i, item in enumerate(protected):
+        out = out.replace(f'\x00LIST{i}\x00', item.strip())
+
+    # Fix: rejoin fragmented list items that got split by sentence splitter
+    # Pattern: "text N.\n\n" followed by more text — the N. was the start of a list item
+    # Step 1: rejoin "text)\n\nN.\n\ncontent" → "text) N. content"
+    # (When a parenthesized context ends, the N. that follows is likely a list item)
+    out = re.sub(r'(\))\n\n(\d+)\.\n\n(.+?)(?=\n\n\d+\.\n\n|\n\n[^0-9]|$)',
+                 lambda m: m.group(1) + ' ' + m.group(2) + '. ' + m.group(3),
+                 out)
+    # Step 2: rejoin "prefix?\n\nN.\n\ncontent" → "prefix?\n\nN. content"
+    out = re.sub(r'(\?)\n\n(\d+)\.\n\n(.+?)(?=\n\n\d+\.\n\n|\n\n[^0-9]|$)',
+                 lambda m: m.group(1) + '\n\n' + m.group(2) + '. ' + m.group(3),
+                 out)
+    # Step 3: rejoin consecutive "N.\n\ntext" into one list
+    # "1.\n\nBot...\n\n2.\n\nDeteksi...\n\n3.\n\nSpam..." → "1. Bot...\n2. Deteksi...\n3. Spam..."
+    def _rejoin_items(m):
+        block = m.group()
+        parts = re.split(r'(\d+)\.\n\n', block)
+        items = []
+        for j in range(1, len(parts), 2):
+            if j+1 < len(parts):
+                items.append(f'{parts[j]}. {parts[j+1].strip()}')
+        return '\n'.join(items) if items else block
+
+    out = re.sub(r'(?:\d+\.\n\n.+\n\n){2,}', _rejoin_items, out)
+
+    # Step 4: add newline before "N. " that directly follows text (no newline separator)
+    out = re.sub(r'(\S)(\d+\.\s)', lambda m: m.group(1) + '\n' + m.group(2), out)
+
     return out
+
+
+def _format_lists(text: str) -> str:
+    """Detect and normalize inline lists into proper numbered format.
+    Handles: 'prefix: 1. text 2. text 3. text' and 'prefix: - text - text'"""
+    lines = text.split('\n')
+    out_lines = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            out_lines.append('')
+            continue
+
+        # Pattern A: inline numbered — "N. text N. text N. text" in same line
+        # Find all "N. " patterns followed by non-numeric text
+        items = re.findall(r'(\d+)\.\s+(.+?)(?=\s+\d+\.\s+|$)', line)
+        if len(items) >= 2:
+            # Extract prefix (text before first number)
+            first_num = re.search(r'\d+\.\s+', line)
+            prefix = line[:first_num.start()].strip().rstrip(':').rstrip('.')
+            if prefix:
+                out_lines.append(prefix + ':')
+            for num, content in items:
+                out_lines.append(f'{num}. {content.strip()}')
+            continue
+
+        # Pattern B: inline bullets — "prefix: - text - text - text"
+        if ' - ' in line:
+            parts = re.split(r'\s+-\s+', line)
+            rest = parts[1:] if len(parts) > 1 else []
+            if rest:
+                first = parts[0].strip()
+                # Heuristic: if first chunk is short/has colon, it's a prefix
+                if first.endswith(':') or first.endswith('.') or len(first.split()) <= 8:
+                    prefix = first.rstrip(':').rstrip('.')
+                    out_lines.append(prefix + ':')
+                    for i, item in enumerate(rest, 1):
+                        out_lines.append(f'{i}. {item.strip()}')
+                    continue
+
+        out_lines.append(line)
+
+    return '\n'.join(out_lines)
+
 
 def _fix_hook_caps(text: str) -> str:
     """Fix ALL CAPS abuse in hook. Keep only 1 emphasized word in CAPS.
@@ -699,7 +828,7 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
         return None
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:
-            data[key] = _clean(data[key])
+            data[key] = _format_lists(_clean(data[key]))
     # Also clean caption (em dashes, banned phrases, etc.)
     if "caption" in data:
         data["caption"] = _clean(data["caption"])
