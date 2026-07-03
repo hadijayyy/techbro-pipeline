@@ -96,6 +96,7 @@ Kalau source ambigu/tidak lengkap, tandai: ⚠️ perlu dicek ulang: [bagian man
 • White space maksimal: 1-2 kalimat pendek per baris, line break sering biar scroll-nya smooth
 • Source pendek (<500 kata): tetap 6 slide, tiap slide lebih ringkas
 • Source panjang (>2000 kata): fokus 1-2 insight utama, jangan maksa masukin semua poin
+• JANGAN pernah tulis URL/link di slide — URL artikel otomatis ditambahkan sistem
 
 ═══════════════════════════════════════════════
 §4  ROLE & CONTEXT
