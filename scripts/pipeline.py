@@ -76,7 +76,7 @@ def _is_same_topic(title1: str, title2: str) -> bool:
     return action_overlap > 0.3
 
 DAILY_POST_LIMIT = 20
-POSTING_HOURS = (7, 23)  # WIB — only post between 07:00-22:00
+POSTING_HOURS = (7, 23)  # WIB — only post between 07:00-23:00
 ALLOWED_SOURCES = {"cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika"}
 
 def run(top_n: int = TOP_N, dry_run: bool = False):
@@ -90,6 +90,17 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
     current_hour = now_wib.hour
     if not (POSTING_HOURS[0] <= current_hour < POSTING_HOURS[1]) and not dry_run:
         print(f"Outside posting hours ({POSTING_HOURS[0]}:00-{POSTING_HOURS[1]}:00 WIB). Now: {current_hour}:00. Skipping.")
+        conn.close()
+        return
+
+    # 0b. Simple file lock to prevent overlapping runs
+    import fcntl
+    lock_path = Path(__file__).parent.parent / ".pipeline.lock"
+    lock_file = open(lock_path, "w")
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("Another pipeline run is already in progress. Skipping.")
         conn.close()
         return
     print(f"[HOURS] {current_hour}:00 WIB — within posting window")
@@ -188,13 +199,12 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
             vir_tag = f" +{art.get('virality', '')}" if art.get("virality") else ""
             print(f"\n  [{art['source']}] score={art['score']}{vir_tag} | {art['title'][:60]}...")
 
-            # 2. Upsert article to DB
+            # 2. Upsert article to DB (skip on dry-run)
+            if dry_run:
+                print(f"  [DRY RUN] Skipping DB save + generation")
+                continue
             article_id = upsert_article(conn, art)
             print(f"  Article #{article_id} saved to DB")
-
-            if dry_run:
-                print("  [DRY RUN] Skipping generation")
-                continue
 
             # 3. Generate carousel
             print(f"  [2/4] Generating carousel via LM...")
@@ -230,7 +240,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
         unposted = conn.execute("""
             SELECT a.id, a.title, a.body, a.url, a.image, a.score, a.source
             FROM articles a
-            WHERE a.id NOT IN (SELECT article_id FROM posts WHERE status != 'failed')
+            WHERE a.id NOT IN (SELECT article_id FROM posts)
               AND a.source IN ({})
             ORDER BY a.score DESC
             LIMIT ?
