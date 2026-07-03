@@ -122,6 +122,9 @@ def post_carousel(slides: list[str], image_url: str = None) -> list[str]:
         print("ERROR: THREADS_USER_ID not set")
         return []
     
+    # Strip markdown bold/italic (Threads doesn't support markdown)
+    slides = [re.sub(r'\*{1,2}(.+?)\*{1,2}', r'\1', s) for s in slides]
+    
     post_ids = []
     reply_to = None
     
