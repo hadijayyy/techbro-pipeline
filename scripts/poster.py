@@ -60,7 +60,8 @@ def _post_container(text: str, reply_to: str | None = None, image_url: str | Non
     # Validate image URL before posting
     if image_url:
         try:
-            h = httpx.head(image_url, headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True, timeout=10)
+            # Use GET instead of HEAD — many CDNs block HEAD but allow GET
+            h = httpx.get(image_url, headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True, timeout=10)
             ct = h.headers.get("content-type", "")
             if h.status_code != 200 or not ct.startswith("image/"):
                 print(f"  [WARN] Image invalid (status={h.status_code}, type={ct})")
@@ -265,7 +266,15 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
             mark_posted(conn, post['id'], post_ids[0])
             print(f"  ✓ Thread root: {post_ids[0]}")
         elif post_ids:
-            print(f"  ⚠ Partial post: {len(post_ids)}/{len(slides)} slides — NOT marking as posted")
+            # ROLLBACK: delete partial posts from Threads
+            print(f"  ⚠ Partial post: {len(post_ids)}/{len(slides)} slides — rolling back")
+            for pid in post_ids:
+                try:
+                    r = httpx.delete(f"{GRAPH}/{pid}", params={"access_token": TOKEN}, timeout=15)
+                    print(f"    Rollback {pid}: {r.status_code}")
+                except Exception as e:
+                    print(f"    [ERR] Rollback {pid} failed: {e}")
+            print(f"  ✗ Rolled back {len(post_ids)} partial slides")
         else:
             print("  ✗ Failed")
     

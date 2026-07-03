@@ -858,7 +858,9 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
             cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
             cleaned = re.sub(r'\s*```$', '', cleaned)
         data = json.loads(cleaned)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        print(f"  [ERR] JSON parse failed: {e}")
+        print(f"  [ERR] Raw response (first 500): {raw[:500]}")
         return None
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:

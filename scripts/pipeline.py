@@ -82,6 +82,13 @@ ALLOWED_SOURCES = {"cnbc_id", "detik", "liputan6", "kumparan", "antara", "republ
 def run(top_n: int = TOP_N, dry_run: bool = False):
     t0 = time.time()
     conn = get_db()
+    try:
+        _run_inner(conn, top_n, dry_run, t0)
+    finally:
+        conn.close()
+
+
+def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
     staged_this_run = False
 
     # 0. Posting hours check (WIB = UTC+7)
@@ -90,7 +97,6 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
     current_hour = now_wib.hour
     if not (POSTING_HOURS[0] <= current_hour < POSTING_HOURS[1]) and not dry_run:
         print(f"Outside posting hours ({POSTING_HOURS[0]}:00-{POSTING_HOURS[1]}:00 WIB). Now: {current_hour}:00. Skipping.")
-        conn.close()
         return
 
     # 0b. Simple file lock to prevent overlapping runs
@@ -101,7 +107,6 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         print("Another pipeline run is already in progress. Skipping.")
-        conn.close()
         return
     print(f"[HOURS] {current_hour}:00 WIB — within posting window")
 
@@ -111,7 +116,6 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
     ).fetchone()['c']
     if today_count >= DAILY_POST_LIMIT and not dry_run:
         print(f"Daily limit reached ({today_count}/{DAILY_POST_LIMIT}). Skipping.")
-        conn.close()
         return
     print(f"[LIMIT] {today_count}/{DAILY_POST_LIMIT} posted today")
 
@@ -306,7 +310,6 @@ def run(top_n: int = TOP_N, dry_run: bool = False):
     print(f"DB: {stats['articles']} articles | {stats['staged']} staged | {stats['posted']} posted")
     if not staged_this_run:
         print("No posts staged this run.")
-    conn.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
