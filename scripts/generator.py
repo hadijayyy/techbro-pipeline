@@ -168,6 +168,15 @@ Kalau slide 3 dihapus, slide 4 harus tetep masuk akal.
 Fokus 1 insight besar, bukan numpuk fakta.
 
 ═══════════════════════════════════════════════
+§6b  INTRA-SLIDE COHERENCE — WAJIB
+═══════════════════════════════════════════════
+Dalam 1 slide, kalimat harus NYAMBUNG satu sama lain:
+• Kalau ada 2+ angka/statistik: HARUS ada kata penghubung (tapi, namun, sedangkan, hasilnya, padahal)
+• Kalimat terakhir gak boleh ngulang ide kalimat pertama — harus nambah dimensi baru
+• Setiap kalimat harus punya hubungan logis ke kalimat sebelumnya (sebab-akibat, kontras, lanjutan)
+• Cek sendiri: baca slide dari awal ke akhir. Kalau ada lompatan yang bikin "kok tiba-tiba bahas ini?", tambah jembatan
+
+═══════════════════════════════════════════════
 §7  GAYA BAHASA
 ═══════════════════════════════════════════════
 1. Jangan pakai em dash (—); ganti koma/titik/kalimat baru.
@@ -910,6 +919,56 @@ def _check_fabricated_numbers(slides: dict, article_body: str) -> list[str]:
     return violations
 
 
+def _check_slide_coherence(slides: dict) -> list[str]:
+    """Check intra-slide coherence: do sentences within each slide connect logically?
+    Returns list of issues found."""
+    issues = []
+    
+    for key in [f"slide_{i}" for i in range(1, 7)]:
+        text = slides.get(key, "")
+        if not text:
+            continue
+        
+        # Split into sentences (rough split on . ! ? or newlines)
+        sentences = [s.strip() for s in re.split(r'[.!?]\s*|\n\n+', text) if len(s.strip()) > 10]
+        
+        if len(sentences) < 2:
+            continue
+        
+        # Check 1: First vs last sentence redundancy (same core idea repeated)
+        first_words = set(sentences[0].lower().split())
+        last_words = set(sentences[-1].lower().split())
+        # Remove stopwords
+        stopwords = {'yang', 'di', 'dan', 'ini', 'itu', 'dengan', 'untuk', 'pada', 'ke', 'dari',
+                     'adalah', 'itu', 'juga', 'sudah', 'masih', 'belum', 'akan', 'bisa', 'tidak',
+                     'gak', 'bukan', 'lebih', 'paling', 'sangat', 'atau', 'tapi', 'namun', 'justru',
+                     'the', 'is', 'are', 'was', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+                     'of', 'with', 'by', 'a', 'an', 'that', 'this', 'it', 'not', 'just', 'so'}
+        first_core = first_words - stopwords
+        last_core = last_words - stopwords
+        
+        if first_core and last_core:
+            overlap = first_core & last_core
+            # If >40% overlap in core words, likely redundant
+            overlap_ratio = len(overlap) / min(len(first_core), len(last_core))
+            if overlap_ratio > 0.4:
+                issues.append(f"{key}: first & last sentence may be redundant (overlap: {overlap})")
+        
+        # Check 2: Multiple stats without connecting words
+        stat_pattern = re.compile(r'\d+%|\d+[\.,]?\d*\s*(?:juta|miliar|ribu|triliun)')
+        stats_in_slide = stat_pattern.findall(text)
+        if len(stats_in_slide) >= 2:
+            # Check if there's a connecting word between stats
+            connectors = {'tapi', 'namun', 'sedangkan', 'sementara', 'padahal', 'dan', 'hasilnya',
+                          'kontras', 'paradoks', 'ironis', 'malah', 'justru'}
+            text_lower = text.lower()
+            has_connector = any(c in text_lower for c in connectors)
+            if not has_connector:
+                issues.append(f"{key}: {len(stats_in_slide)} stats without clear connector")
+    
+    return issues
+
+
 def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
     """Get hook patterns from last N posts to enforce variety."""
     try:
@@ -1060,6 +1119,12 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                         continue  # EN equivalent found — not fabricated
                     data[key] = data[key][:m.start()] + data[key][m.end():]
                     data[key] = re.sub(r' +', ' ', data[key]).strip()
+
+    # Coherence check: validate intra-slide sentence flow
+    coherence_issues = _check_slide_coherence(data)
+    if coherence_issues:
+        for issue in coherence_issues:
+            print(f"[COHERENCE] ⚠️ {issue}")
 
     # Final cleanup: strip orphaned markdown artifacts after grounding stripped content
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
