@@ -450,7 +450,13 @@ def _clean(text: str) -> str:
     # Remove em-dashes, en-dashes
     out = out.replace('—', ', ').replace('–', ', ')
 
-    # Remove "link in bio" / "link di bio" variants
+    # Strip markdown bold/italic (Threads doesn't support it)
+    out = re.sub(r'\*{1,3}(.+?)\*{1,3}', r'\1', out)
+
+    # Remove empty bold artifacts: ** ** or ****
+    out = re.sub(r'\*{2,}', '', out)
+
+    # Remove "link in bio" / "link di bio" variants"
     out = re.sub(r'[\(\[]?link\s+(in|di)\s+bio[\)\]]?', '', out, flags=re.I)
 
     # Fix orphan punctuation: lines starting with , ; : . ! ?
@@ -892,6 +898,15 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                         continue  # EN equivalent found — not fabricated
                     data[key] = data[key][:m.start()] + data[key][m.end():]
                     data[key] = re.sub(r'\s{2,}', ' ', data[key]).strip()
+
+    # Final cleanup: strip orphaned markdown artifacts after grounding stripped content
+    for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
+        if key in data:
+            data[key] = re.sub(r'\*{2,}', '', data[key])  # remove ****
+            data[key] = re.sub(r'\*([^*]+)\*', r'\1', data[key])  # remove remaining *text*
+            data[key] = re.sub(r' +', ' ', data[key])  # collapse spaces
+            data[key] = re.sub(r'(?m)^\s*$', '', data[key])  # remove empty lines
+            data[key] = re.sub(r'\n{3,}', '\n\n', data[key])  # max 2 newlines
 
     data["_provider"] = data.get("_provider", primary)
     data["_lang"] = CONTENT_LANG
