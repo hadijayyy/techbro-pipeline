@@ -57,15 +57,14 @@ def _post_container(text: str, reply_to: str | None = None, image_url: str | Non
     """Create a single thread container. Returns container_id."""
     data = {"access_token": TOKEN}
     
-    # Validate image URL before posting
+    # Validate image URL before posting (stream to avoid full download)
     if image_url:
         try:
-            # Use GET instead of HEAD — many CDNs block HEAD but allow GET
-            h = httpx.get(image_url, headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True, timeout=10)
-            ct = h.headers.get("content-type", "")
-            if h.status_code != 200 or not ct.startswith("image/"):
-                print(f"  [WARN] Image invalid (status={h.status_code}, type={ct})")
-                return None  # Fail — don't post slide 1 without image
+            with httpx.stream("GET", image_url, headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True, timeout=10) as h:
+                ct = h.headers.get("content-type", "")
+                if h.status_code != 200 or not ct.startswith("image/"):
+                    print(f"  [WARN] Image invalid (status={h.status_code}, type={ct})")
+                    return None  # Fail — don't post slide 1 without image
         except Exception as e:
             print(f"  [WARN] Image check failed: {e}")
             return None  # Fail — don't post slide 1 without image

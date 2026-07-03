@@ -19,7 +19,7 @@ if _env_path.exists():
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from scraper import scrape_all, score_article, fast_content_filter
+from scraper import scrape_all, score_article, fast_content_filter, SOURCE_NAMES
 from generator import generate_carousel
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed, cleanup_old
 from poster import post_from_db
@@ -69,7 +69,10 @@ def _is_same_topic(title1: str, title2: str) -> bool:
     if len(overlap) >= 2:
         return True
     # Single entity: check action similarity
-    stop = {"the", "a", "an", "is", "to", "for", "and", "of", "in", "its", "on", "at", "by"}
+    stop = {"the", "a", "an", "is", "to", "for", "and", "of", "in", "its", "on", "at", "by",
+            "yang", "di", "dan", "ini", "itu", "dengan", "untuk", "pada", "dari", "ke",
+            "adalah", "juga", "sudah", "masih", "belum", "akan", "bisa", "tidak",
+            "gak", "bukan", "lebih", "paling", "sangat", "atau", "tapi", "namun"}
     w1 = set(_normalize_title(title1).split()) - _ENTITIES - stop
     w2 = set(_normalize_title(title2).split()) - _ENTITIES - stop
     action_overlap = len(w1 & w2) / max(len(w1 | w2), 1)
@@ -77,7 +80,7 @@ def _is_same_topic(title1: str, title2: str) -> bool:
 
 DAILY_POST_LIMIT = 20
 POSTING_HOURS = (7, 23)  # WIB — only post between 07:00-23:00
-ALLOWED_SOURCES = {"cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia"}
+ALLOWED_SOURCES = set(SOURCE_NAMES)
 
 def run(top_n: int = TOP_N, dry_run: bool = False):
     t0 = time.time()

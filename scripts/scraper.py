@@ -16,6 +16,9 @@ MAX_AGE_HOURS = 12
 FALLBACK_HOURS = 24  # fallback if 12h yields nothing
 TOP_N = 1
 
+# Source names used by scrape_all_async — single source of truth
+SOURCE_NAMES = ["cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia"]
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
                   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -560,13 +563,12 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_cnnindonesia_tekno(client),
             return_exceptions=True,
         )
-        source_names = ["cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia"]
 
         # 2. Build scrape tasks
         all_tasks = []
         seen_urls = set()
 
-        for src, links in zip(source_names, link_tasks):
+        for src, links in zip(SOURCE_NAMES, link_tasks):
             if not isinstance(links, list) or not links:
                 continue
             for item in links:
