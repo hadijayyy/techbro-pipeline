@@ -112,6 +112,30 @@ def _post_container(text: str, reply_to: str | None = None, image_url: str | Non
     return post_id
 
 
+def _normalize_for_threads(text: str) -> str:
+    """Normalize text for Threads: strip markdown, fix spacing, clean formatting."""
+    # Strip markdown bold/italic
+    text = re.sub(r'\*{1,3}(.+?)\*{1,3}', r'\1', text)
+    # Remove orphaned bold markers
+    text = re.sub(r'\*{2,}', '', text)
+    # Fix space before punctuation: " ." -> ".", " ," -> ","
+    text = re.sub(r' ([.,!?;:])', r'\1', text)
+    # Fix space inside parens: "( pake" -> "(pake", "dll )" -> "dll)"
+    text = re.sub(r'\( +', '(', text)
+    text = re.sub(r' +\)', ')', text)
+    # Fix numbered lists: "1.\n\nText" -> "1. Text" (single newline)
+    text = re.sub(r'(\d+)\.\n\n', r'\1. ', text)
+    # Also fix: "- \n\nText" -> "- Text"
+    text = re.sub(r'[-•]\n\n', lambda m: m.group().replace('\n\n', ' '), text)
+    # Collapse triple+ newlines to double
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    # Remove empty lines (just whitespace)
+    text = re.sub(r'(?m)^\s+$', '', text)
+    # Collapse multiple spaces
+    text = re.sub(r' {2,}', ' ', text)
+    return text.strip()
+
+
 def post_carousel(slides: list[str], image_url: str = None) -> list[str]:
     """Post a carousel as a thread chain. Returns list of post IDs.
     Injects permalink into last slide after posting first slide (needs root_id)."""
@@ -122,8 +146,8 @@ def post_carousel(slides: list[str], image_url: str = None) -> list[str]:
         print("ERROR: THREADS_USER_ID not set")
         return []
     
-    # Strip markdown bold/italic (Threads doesn't support markdown)
-    slides = [re.sub(r'\*{1,2}(.+?)\*{1,2}', r'\1', s) for s in slides]
+    # Normalize all slides for Threads
+    slides = [_normalize_for_threads(s) for s in slides]
     
     post_ids = []
     reply_to = None
