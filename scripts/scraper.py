@@ -17,7 +17,7 @@ FALLBACK_HOURS = 24  # fallback if 12h yields nothing
 TOP_N = 1
 
 # Source names used by scrape_all_async — single source of truth
-SOURCE_NAMES = ["cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia", "merdeka", "kompas"]
+SOURCE_NAMES = ["cnbc_id", "detik", "republika", "cnnindonesia", "merdeka", "kompas"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -41,12 +41,28 @@ TIER1 = [
     "gojek", "tokopedia", "traveloka", "bukalapak", "blibli", "shopee",
     "tiktok shop", "grab", "sea group", "goto", "startup indonesia",
     "unicorn", "decacorn",
-    # Fintech & Money (emosional: duit)
+    # Fintech & Money (emosional: duit) — EXPANDED
     "pinjol", "fintech", "ovo", "gopay", "dana", "shopeepay",
     "kripto", "crypto", "investasi", "saham", "digital bank",
-    # Regulation & Drama
+    "qris", "transfer", "e-wallet", "dompet digital", "reksadana",
+    "deposito", "emas digital", "kartu kredit", "cicilan", "bnpl",
+    "tabungan", "pinjaman", "bunga", "inflasi", "rupiah",
+    # Regulation & Drama — EXPANDED
     "kominfo", "pse", "blokir", "sensor", "uu ite", "peraturan",
     "pelanggaran data", "data bocor", "privasi",
+    "pemerintah", "kemenkominfo", "ojk", "bi", "kppu",
+    "pajak digital", "regulasi", "kebijakan", "undang-undang",
+    # Digital Privacy — NEW
+    "surveillance", "pelacakan", "sidik jari", "face recognition",
+    "enkripsi", "vpn", "keamanan data", "hacker", "bobol",
+    # Startup & PHK — NEW
+    "pivot", "runway", "bootstrapping", "angel investor",
+    "venture capital", "series a", "pendanaan", "valuasi",
+    "tutup", "bangkrut", "gulung tikar",
+    # Karier & Side Hustle — NEW
+    "gig economy", "dropship", "reseller", "freelance",
+    "remote work", "wfh", "wfo", "hybrid", "side hustle",
+    "uang online", "penghasilan", "karier", "pekerjaan",
 ]
 
 # TIER2 = tech adjacent (masih relate)
@@ -54,7 +70,6 @@ TIER2 = [
     # Indonesian Economy & Tech
     "startup", "funding", "pendanaan", "valuasi", "ipo", "akuisisi",
     "umkm", "digital", "transformasi digital", "ecommerce", "e-commerce",
-    "remote work", "wfh", "wfo", "hybrid", "freelance", "side hustle",
     # Global Tech (tetap menarik kalo ada angle Indonesia)
     "semiconductor", "chip", "gpu", "nvidia", "apple", "google", "meta",
     "microsoft", "amazon", "tesla", "spacex",
@@ -64,6 +79,16 @@ TIER2 = [
     # Social & Content
     "tiktok", "instagram", "threads", "twitter", "x", "youtube",
     "influencer", "content creator", "monetisasi",
+    # Fintech & Finance — NEW
+    "bank", "payment", "pembayaran", "transaksi", "saldo",
+    "reward", "cashback", "promo", "voucher",
+    # Karier & Produktivitas — NEW
+    "productivity", "produktivitas", "skill", "upskilling",
+    "resign", "interview", "wawancara", "cv", "resume",
+    "gaji", "umr", "upah",
+    # Geopolitics & Tech — NEW
+    "china", "amerika", "serikat", "perang dagang", "sanksi",
+    "impor", "ekspor", "tarif",
 ]
 
 # TIER3 = generic (low weight)
@@ -601,9 +626,6 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
         link_tasks = await asyncio.gather(
             get_links_cnbc_indonesia(client),
             get_links_detik_inet(client),
-            get_links_liputan6_tekno(client),
-            get_links_kumparan_tekno(client),
-            get_links_antara_tekno(client),
             get_links_republika_tekno(client),
             get_links_cnnindonesia_tekno(client),
             get_links_merdeka_tekno(client),
