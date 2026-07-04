@@ -333,7 +333,7 @@ BANNED_ID = [
     r'\bsetara \d+x\b',
     r'\bkatanya\b', r'\bkonon\b', r'\bdikabarkan\b',
     # Prompt banned patterns (synced with [BANNED PATTERNS] in prompt)
-    r'\bbayangin lo\b', r'\bini bukan cuma\b',
+    r'\bbayangin lo\b', r'\bbayangin:\b', r'\bini bukan cuma\b',
     r'\bgue inget pas kuliah\b', r'\bjangan cuma\b.+coba\b',
     r'\bdalam dunia yang terus berubah\b', r'\bdi era digital ini\b',
     r'\bgame[- ]changer\b',
