@@ -319,6 +319,11 @@ BANNED_ID = [
     r'\bbikin .+ jadi terjangkau\b', r'\bsolusi cerdas\b', r'\bsolusi terbaik\b',
     r'\bworth it\b', r'\bcoba sekarang\b', r'\bterbaik buat lo\b',
     r'\bspesial buat lo\b', r'\bharus punya\b', r'\bgak boleh ketinggalan\b',
+    # Hook junk patterns
+    r'\bgue gila\b', r'\bgue kaget\b', r'\bgue shock\b', r'\bgue heran\b',
+    r'\bgue penasaran\b', r'\bgue bingung\b', r'\bgue kesel\b',
+    r'\btahukah kamu\b', r'\byuk simak\b', r'\bini dia rahasianya\b',
+    r'\bsemoga bermanfaat\b', r'\bsemangat ya\b',
 ]
 
 # Reaksi natural — allowed but MAX 1x per post (tracked in _check_reaksi_count)
@@ -438,6 +443,14 @@ def _clean(text: str) -> str:
     banned = _get_banned()
     for pat in banned:
         out = re.sub(pat, '', out, flags=re.I)
+
+    # Clean up after banned phrase removal: "gue !" → remove whole fragment
+    # If sentence starts with "gue" followed by orphan punctuation, remove it
+    out = re.sub(r'(?i)\bgue\b\s*[,;:.!?]+', '', out)
+    # Remove orphan punctuation at start of sentences
+    out = re.sub(r'(?m)^[\s,;:.!?]+\s*', '', out)
+    # Collapse double spaces
+    out = re.sub(r'  +', ' ', out).strip()
 
     # Reaksi natural: keep first occurrence per root word, remove rest
     reaksi_roots = {
@@ -847,6 +860,9 @@ Rules:
 - End with ? or ! if it's a question/exclamation
 - Mix Indonesian-English naturally
 - Sound like a real person texting, not an AI
+- NEVER start with "gue [emotion]" (gue gila, gue kaget, gue shock, gue penasaran, gue bingung, gue kesel) — it's meaningless filler
+- NEVER use: tahukah kamu, yuk simak, ini dia rahasianya, semoga bermanfaat, semangat ya
+- Start with a FACT, NUMBER, or CONTRADICTION — not with your feelings
 
 Return ONLY the rewritten hook text, nothing else."""
 
@@ -1166,6 +1182,10 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         # 1. Strip markdown artifacts
         text = re.sub(r'\*+', '', text)
         
+        # 1.5 Rejoin broken words (e.g., "DDR\n5" → "DDR5", "AI\n-powered" → "AI-powered")
+        text = re.sub(r'([A-Z]{2,})\n(\d)', r'\1\2', text)
+        text = re.sub(r'(\w)\n(-\w)', r'\1\2', text)
+        
         # 2. Fix broken sentences from grounding strip
         # Remove sentences starting with orphan punctuation
         text = re.sub(r'(?m)^[\s,;:.!?]+(?=\s*\w)', '', text)
@@ -1183,7 +1203,14 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                 if not s or len(s.split()) < 3:
                     continue
             # Skip if too short (< 3 words) and not a question
-            if len(s.split()) < 3 and '?' not in s:
+            word_count = len(re.findall(r'[a-zA-Z]{2,}', s))  # real words only, not punctuation
+            if word_count < 3 and '?' not in s:
+                continue
+            # Skip if ends with orphan punctuation after short text (e.g., "di komen, !")
+            if word_count < 4 and re.search(r'[,;:.!?]\s*[!?]*$', s) and '?' not in s:
+                continue
+            # Skip if sentence is mostly incomplete (< 4 real words and no verb-like pattern)
+            if word_count < 4 and not re.search(r'\b(adalah|bisa|bakal|akan|harus|mau|sudah|udah|belum|gak|tidak|bukan|juga|lagi|masih|pernah|baru|sudah)\b', s, re.I):
                 continue
             good.append(s)
         
