@@ -17,7 +17,7 @@ FALLBACK_HOURS = 24  # fallback if 12h yields nothing
 TOP_N = 1
 
 # Source names used by scrape_all_async — single source of truth
-SOURCE_NAMES = ["cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia"]
+SOURCE_NAMES = ["cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia", "merdeka", "kompas"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -343,12 +343,14 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             body = extract_body(soup, _WIRED_SEL)
         elif source in ("hn", "anthropic"):
             body = extract_body(soup, _HN_SEL)
-        elif source in ("cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia"):
+        elif source in ("cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia", "merdeka", "kompas"):
             # Indonesian sources: try common selectors
             _ID_SEL = [
                 ("div", "post-content"), ("div", "detail-text"),
                 ("div", "article-content"), ("div", "content-text"),
                 ("div", "read__content"), ("div", "article_body"),
+                ("div", "read-content"), ("div", "inner-content"),  # merdeka/kompas
+                ("div", "article"),  # merdeka (tailwind)
                 ("article", None),
             ]
             body = extract_body(soup, _ID_SEL)
@@ -547,6 +549,49 @@ async def get_links_cnnindonesia_tekno(client: httpx.AsyncClient) -> list[tuple[
     return items[:20]
 
 
+async def get_links_merdeka_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Merdeka Tekno — Indonesian tech/gadget/digital news via RSS."""
+    items = []
+    try:
+        r = await client.get("https://www.merdeka.com/rss/teknologi", timeout=12)
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip().split("?")[0]
+            dt = None
+            if date_m:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(date_m.group(1).strip())
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:20]
+
+
+async def get_links_kompas_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Kompas Tekno — biggest Indonesian news portal, direct scrape (no RSS)."""
+    items = []
+    try:
+        r = await client.get("https://tekno.kompas.com/", timeout=12)
+        soup = BeautifulSoup(r.text, "html.parser")
+        seen = set()
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            title = a.get_text().strip()
+            if "/read/" in href and title and len(title) > 20 and href not in seen:
+                seen.add(href)
+                items.append((href.split("?")[0], None))
+    except Exception:
+        pass
+    return items[:20]
+
+
 # ─── Main Scraper ────────────────────────────────────────────────
 
 async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
@@ -561,6 +606,8 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_antara_tekno(client),
             get_links_republika_tekno(client),
             get_links_cnnindonesia_tekno(client),
+            get_links_merdeka_tekno(client),
+            get_links_kompas_tekno(client),
             return_exceptions=True,
         )
 
