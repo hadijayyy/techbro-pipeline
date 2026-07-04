@@ -565,6 +565,54 @@ def _clean(text: str) -> str:
     return out
 
 
+def _lists_to_narrative(text: str) -> str:
+    """Convert numbered/bulleted lists to narrative form per §5.
+    '1. Daftar 2. Isi data 3. Submit' → 'Pertama, daftar. Abis itu, isi data. Terakhir, submit.'
+    """
+    # Numbered list items on separate lines
+    lines = text.split('\n')
+    result = []
+    buffer = []
+    
+    connectors = ['Pertama', 'Abis itu', 'Terakhir']
+    
+    for line in lines:
+        stripped = line.strip()
+        # Match "N. text" pattern
+        m = re.match(r'^(\d+)\.\s+(.+)', stripped)
+        if m:
+            buffer.append(m.group(2).strip())
+        else:
+            if buffer:
+                # Flush buffer as narrative
+                if len(buffer) <= 3:
+                    parts = []
+                    for i, item in enumerate(buffer):
+                        if i < len(connectors):
+                            parts.append(f"{connectors[i]}, {item[0].lower()}{item[1:]}")
+                        else:
+                            parts.append(item)
+                    result.append('. '.join(parts) + '.')
+                else:
+                    result.append('. '.join(buffer) + '.')
+                buffer = []
+            result.append(line)
+    
+    if buffer:
+        if len(buffer) <= 3:
+            parts = []
+            for i, item in enumerate(buffer):
+                if i < len(connectors):
+                    parts.append(f"{connectors[i]}, {item[0].lower()}{item[1:]}")
+                else:
+                    parts.append(item)
+            result.append('. '.join(parts) + '.')
+        else:
+            result.append('. '.join(buffer) + '.')
+    
+    return '\n'.join(result)
+
+
 def _format_lists(text: str) -> str:
     """Detect and normalize inline lists into proper numbered format.
     Handles: 'prefix: 1. text 2. text 3. text' and 'prefix: - text - text'"""
@@ -1111,11 +1159,42 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
 
     # Final cleanup: strip orphaned markdown artifacts after grounding stripped content
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
-        if key in data:
-            data[key] = re.sub(r'\*+', '', data[key])  # nuke any leftover single/double/triple asterisks
-            data[key] = re.sub(r' +', ' ', data[key]).strip()
-            data[key] = re.sub(r'(?m)^\s*$', '', data[key])  # remove empty lines
-            data[key] = re.sub(r'\n{3,}', '\n\n', data[key])  # max 2 newlines
+        if key not in data:
+            continue
+        text = data[key]
+        
+        # 1. Strip markdown artifacts
+        text = re.sub(r'\*+', '', text)
+        
+        # 2. Fix broken sentences from grounding strip
+        # Remove sentences starting with orphan punctuation
+        text = re.sub(r'(?m)^[\s,;:.!?]+(?=\s*\w)', '', text)
+        
+        # 3. Split into sentences, filter broken ones
+        sentences = [s.strip() for s in re.split(r'\n\n+', text) if s.strip()]
+        good = []
+        for s in sentences:
+            # Skip if sentence is just punctuation
+            if re.match(r'^[\s,;:.!?]+$', s):
+                continue
+            # Skip if sentence starts with lowercase + comma (broken fragment from grounding)
+            if re.match(r'^[,\s]+\w', s):
+                s = re.sub(r'^[,\s]+', '', s).strip()
+                if not s or len(s.split()) < 3:
+                    continue
+            # Skip if too short (< 3 words) and not a question
+            if len(s.split()) < 3 and '?' not in s:
+                continue
+            good.append(s)
+        
+        data[key] = '\n\n'.join(good)
+        
+        # 4.5 Convert numbered lists to narrative (§5 compliance)
+        data[key] = _lists_to_narrative(data[key])
+        
+        # 4. Final whitespace normalization
+        data[key] = re.sub(r' +', ' ', data[key]).strip()
+        data[key] = re.sub(r'\n{3,}', '\n\n', data[key])
 
     data["_provider"] = data.get("_provider", primary)
     data["_lang"] = CONTENT_LANG
