@@ -333,7 +333,7 @@ BANNED_ID = [
     r'\bsetara \d+x\b',
     r'\bkatanya\b', r'\bkonon\b', r'\bdikabarkan\b',
     # Prompt banned patterns (synced with [BANNED PATTERNS] in prompt)
-    r'\bbayangin lo bisa\b', r'\bini bukan cuma\b',
+    r'\bbayangin lo\b', r'\bini bukan cuma\b',
     r'\bgue inget pas kuliah\b', r'\bjangan cuma\b.+coba\b',
     r'\bdalam dunia yang terus berubah\b', r'\bdi era digital ini\b',
     r'\bgame[- ]changer\b',
@@ -691,7 +691,12 @@ def _validate_hook(text: str) -> tuple[bool, list[str]]:
         "secret", "hidden", "shocking", "surprising", "unexpected", "never",
         "actually", "real", "truth", "mistake", "wrong", "fail", "success",
         "breakthrough", "discovered", "revealed", "exposed", "leaked",
-        "just", "new", "first", "only", "biggest", "most", "worst", "best"
+        "just", "new", "first", "only", "biggest", "most", "worst", "best",
+        # Indonesian triggers
+        "baru", "pertama", "ternyata", "ternyata,", "ternyata.", "tiba-tiba",
+        "bocor", "bongkar", "terungkap", "ternyata", "ngehe", "parah",
+        "kaget", "seriusan", "geram", "miris", "ngeri", "gila",
+        "larang", "dilarang", "blokir", "diblokir", "salah", "gagal",
     }
     text_lower = text.lower()
     has_curiosity = any(w in text_lower for w in curiosity_words)
@@ -702,7 +707,8 @@ def _validate_hook(text: str) -> tuple[bool, list[str]]:
     has_hook_punctuation = text.rstrip().endswith(('?', '!'))
     
     # 5. Check for personal angle ("you", "your", "I", "we")
-    personal_words = {"you", "your", "i", "we", "our", "my"}
+    personal_words = {"you", "your", "i", "we", "our", "my",
+                      "lo", "gue", "kita", "lu", "kamu", "elo"}
     has_personal = any(w in text_lower.split() for w in personal_words)
     
     # Score the hook
