@@ -1182,9 +1182,15 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         # 1. Strip markdown artifacts
         text = re.sub(r'\*+', '', text)
         
+        # 1.3 Clean orphan slashes from grounding strip (e.g., "diawasi / baik" → "diawasi baik")
+        text = re.sub(r'\s*/\s*', ' ', text)
+        text = re.sub(r'\s*\\\s*', ' ', text)
+        
         # 1.5 Rejoin broken words (e.g., "DDR\n5" → "DDR5", "AI\n-powered" → "AI-powered")
         text = re.sub(r'([A-Z]{2,})\n(\d)', r'\1\2', text)
         text = re.sub(r'(\w)\n(-\w)', r'\1\2', text)
+        # Remove orphan trailing digits from grounding strip (e.g., "tahun 2\nDenda" → "tahun\nDenda")
+        text = re.sub(r'\s+\d{1,2}\n(?=[A-Z])', '\n', text)
         
         # 2. Fix broken sentences from grounding strip
         # Remove sentences starting with orphan punctuation
@@ -1206,6 +1212,9 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
             word_count = len(re.findall(r'[a-zA-Z]{2,}', s))  # real words only, not punctuation
             if word_count < 3 and '?' not in s:
                 continue
+            # Skip orphan questions (< 2 real words, e.g., "Alasannya?")
+            if word_count < 2 and '?' in s:
+                continue
             # Skip if ends with orphan punctuation after short text (e.g., "di komen, !")
             # Always skip if sentence ends with orphan punctuation regardless of word count
             if re.search(r'[,;:.!?]\s*[!?]*$', s) and '?' not in s:
@@ -1223,9 +1232,42 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         # 4.5 Convert numbered lists to narrative (§5 compliance)
         data[key] = _lists_to_narrative(data[key])
         
-        # 4. Final whitespace normalization
+        # 5. Final whitespace normalization
         data[key] = re.sub(r' +', ' ', data[key]).strip()
+        # Split sentences within single lines: "Sentence 1. Sentence 2." → "Sentence 1.\n\nSentence 2."
+        # Pattern: sentence-ending punct + space + uppercase (not after common abbreviations)
+        data[key] = re.sub(r'(?<=[.!?])\s+(?=[A-Z""\u201c](?![a-z]{1,2}\.))', '\n\n', data[key])
+        # Ensure single \n between sentences becomes \n\n (blank line)
+        data[key] = re.sub(r'(?<=[.!?])\n(?=\S)', '\n\n', data[key])
+        # Also handle: colon-separated lines "2018: X\n2021: Y" → "2018: X\n\n2021: Y"
+        data[key] = re.sub(r'(?<=:)\n(?=\d)', '\n\n', data[key])
+        # Collapse 3+ newlines to exactly 2
         data[key] = re.sub(r'\n{3,}', '\n\n', data[key])
+        
+        # 6. Final orphan cleanup after whitespace normalization
+        # Remove lines that are just punctuation or "word, ." patterns
+        lines = data[key].split('\n\n')
+        clean_lines = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            # Skip orphan punctuation: "di komen, ." or just "."
+            if re.match(r'^[\s,;:.!?]+$', line):
+                continue
+            # Skip lines ending with orphan punct (last token is pure punct)
+            tokens = line.split()
+            if tokens and not re.search(r'[a-zA-Z]{2,}', tokens[-1]) and '?' not in line:
+                continue
+            # Skip very short fragments (< 3 real words, no question)
+            wc = len(re.findall(r'[a-zA-Z]{2,}', line))
+            if wc < 3 and '?' not in line:
+                continue
+            # Skip orphan questions (< 2 real words, e.g., "Alasannya?", "Hasilnya?")
+            if wc < 2 and '?' in line:
+                continue
+            clean_lines.append(line)
+        data[key] = '\n\n'.join(clean_lines)
 
     data["_provider"] = data.get("_provider", primary)
     data["_lang"] = CONTENT_LANG
