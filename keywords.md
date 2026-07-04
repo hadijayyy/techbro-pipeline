@@ -1,96 +1,79 @@
-# Scoring Keywords — Techbro Pipeline
+# Scoring Keywords — Educator Pipeline (AI/Tech Life Hacks + Personal Finance)
 
-## TIER1 (3x weight on title, 1x on body) — 58 keywords
-
-### Entertainment & Celebrity
-- taylor swift, travis kelce, celebrity, wedding, marry, married
-- netflix, disney, spotify, grammy, oscar, beyonce, drake
-- concert, tour, album, movie, film, tv show, reality tv
-- backlash, controversy, viral, trending
-
-### AI & Tech
-- ai, artificial intelligence, chatgpt, openai, google, meta
-- apple, microsoft, nvidia, amazon, tesla, robot, deepfake
-- playstation, xbox, nintendo, gta, gaming, esports
-- cybersecurity, hack, data breach, privacy, surveillance
-
-### Climate & Environment
-- climate, heatwave, temperature, record-breaking, flood
-- wildfire, drought, renewable, solar, wind, carbon
-- extinction, endangered, pollution
-
-### Science & Space
-- nasa, spacex, mars, moon, space, telescope, satellite
-- quantum, discovery, breakthrough, research, study
-- brain, dna, vaccine, cancer, disease, health
-
-### Politics & Global
-- trump, starmer, election, parliament, government, pm
-- ukraine, russia, china, iran, war, conflict, sanctions
-- referendum, policy, law, ban, regulation
-
-### Crime & Safety
-- scam, fraud, smuggler, investigation, police, court
-- prison, victims, abuse, safety, warning
+Niche: life hacks, tips & tricks seputar AI/tech dan finance/keuangan.
+Filosofi: prioritas ke evergreen "how-to" & practical value, bukan viral news generik.
 
 ---
 
-## TIER2 (2x weight) — 35 keywords
+## TIER1 (3x weight on title, 1x on body) — Core Niche, High Value
 
-### Indonesian Economy & Tech
-- startup, funding, pendanaan, valuasi, ipo, akuisisi
-- umkm, digital, transformasi digital, ecommerce, e-commerce
+### AI & Tech Tools (Practical)
+- ai, chatgpt, gemini, claude, copilot, ai tools, prompt, prompt engineering
+- automation, otomatisasi, no-code, ai productivity, ai agent
+- ai untuk kerja, cara pakai ai, ai gratis
 
-### Global Tech
-- semiconductor, chip, gpu, nvidia, apple, google, meta
-- microsoft, amazon, tesla, spacex
+### Personal Finance Core
+- investasi, saham, reksadana, obligasi, deposito, emas
+- nabung, menabung, budgeting, anggaran, dana darurat, emergency fund
+- compound interest, bunga majemuk, passive income, cuan
+- financial freedom, bebas finansial, financial planning
 
-### Security
-- cybersecurity, hack, breach, malware, scam, penipuan, phishing
+### Cybersecurity & Digital Safety
+- scam, penipuan, phishing, data breach, privacy, keamanan data
+- password manager, 2fa, cyber hygiene
 
-### Social & Content
-- tiktok, instagram, threads, twitter, x, youtube
-- influencer, content creator, monetisasi
-
-### Fintech & Finance
-- bank, payment, pembayaran, transaksi, saldo
-- reward, cashback, promo, voucher
-
-### Karier & Produktivitas
-- productivity, produktivitas, skill, upskilling
-- resign, interview, wawancara, cv, resume
-- gaji, umr, upah
-
-### Geopolitics & Tech
-- china, amerika, serikat, perang dagang, sanksi
-- impor, ekspor, tarif
+### Productivity & Career
+- productivity, produktivitas, upskilling, skill, cv, resume
+- interview, wawancara kerja, gaji, negosiasi gaji, side hustle
+- freelance, remote work, digital nomad
 
 ---
 
-## TIER3 (1x weight) — 6 keywords
+## TIER2 (2x weight) — Supporting Context
 
-- technology, innovation, digital, platform, app
-- teknologi, inovasi, aplikasi
+### Indonesian Economy & Fintech
+- startup, pendanaan, umkm, digital, ecommerce, e-commerce
+- bank digital, e-wallet, payment, transaksi, cashback, promo, voucher
+
+### Global Tech (relevan ke tools/trend)
+- openai, google, microsoft, meta, apple, nvidia
+- semiconductor, chip, app, aplikasi, platform
+
+### Career & Workplace Trends
+- resign, quiet quitting, kerja remote, wfh, hybrid work
+- linkedin, personal branding, portofolio
+
+### Money Mindset & Behavior
+- fomo, literasi keuangan, utang, cicilan, kartu kredit, paylater
 
 ---
 
-## PENALTY (-5 per match) — 12 keywords
+## TIER3 (1x weight) — General Support
 
-- unboxing, hands-on, review:, buying guide
-- best of 2026, gift guide, coupon, discount
-- earbuds, earphone, headphone, smartphone review
+- technology, innovation, digital, teknologi, inovasi
+- tips, trik, cara, panduan, tutorial, step by step
+- rahasia, ternyata, kesalahan umum, mistake
+
+---
+
+## PENALTY (-5 per match) — Off-brand / Low Value for Niche
+
+- unboxing, hands-on, review:, buying guide, gift guide
+- coupon, discount, earbuds, earphone, headphone, smartphone review
 - battery life test, benchmark score
+- zodiak, horoscope, gossip, celebrity
 
 ---
 
-## EXCLUDE (auto-reject) — 18 keywords
+## EXCLUDE (auto-reject) — Not Niche At All
 
-- zodiak, horoscope, astrology, gossip, celebrity
 - sports score, match schedule, recipe, cooking
 - fashion week, beauty tips, weight loss
 - pokemon, genshin, wuthering waves, volleyball legends
 - mobile legends, free fire, pubg, valorant, fortnite
 - roblox, minecraft, gacha, gameplay, let's play
+- taylor swift, travis kelce, wedding, married, concert, tour, album
+- election, parliament, war, sanctions (kecuali angle "dampak ke ekonomi/pasar")
 
 ---
 
@@ -98,14 +81,44 @@
 
 ```
 score = 0
-score += TIER1_matches_in_title × 15
-score += TIER1_matches_in_body × 5
-score += TIER2_matches_in_title × 10
-score += TIER2_matches_in_body × 3
-score += TIER3_matches_in_title × 3
-score += TIER3_matches_in_body × 1
+score += TIER1_matches_in_title × 30
+score += TIER1_matches_in_body × 10
+score += TIER2_matches_in_title × 15
+score += TIER2_matches_in_body × 5
+score += TIER3_matches_in_title × 5
+score += TIER3_matches_in_body × 2
 score -= PENALTY_matches × 5
 score -= title_too_long_penalty    # >100 chars = -10
 ```
 
+Density bonus: if title has 2+ TIER1 keywords → +20 score
 Cross-source bonus: if same topic found in 2+ sources → +20 score
+Recency bonus: 0h = +30, 12h = +0 (exponential decay)
+Hard cap: 150 points max
+
+---
+
+## Sources (10 active)
+
+| Source | Niche | RSS |
+|--------|-------|-----|
+| Lifehacker | Tech life hacks | https://lifehacker.com/rss |
+| TechCrunch | AI/tech news | https://techcrunch.com/feed/ |
+| NerdWallet | Personal finance | https://www.nerdwallet.com/blog/feed/ |
+| Wired | Tech culture | https://www.wired.com/feed/rss |
+| Android Authority | Mobile tech | https://www.androidauthority.com/feed/ |
+| Ars Technica | Deep tech | https://feeds.arstechnica.com/arstechnica/index |
+| BBC | Global news | https://feeds.bbci.co.uk/news/.../rss.xml |
+| Bloomberg Technoz | ID business | https://www.bloombergtechnoz.com/rss |
+| CNBC Indonesia | ID tech | https://www.cnbcindonesia.com/tech/rss |
+| Detik Inet | ID tech | https://inet.detik.com/rss |
+
+---
+
+## Catatan Strategis
+
+1. **Fokus 3 pilar**: AI/tech tools, personal finance, produktivitas/karier.
+2. **Prioritaskan "how-to" framing** — konten yang jawab pertanyaan konkret lebih evergreen.
+3. **Hindari drift ke niche gosip/politik/gaming** — EXCLUDE sudah dipasang.
+4. **Cybersecurity masuk TIER1** karena overlap kuat sama "tech life hacks".
+5. **Money mindset & behavior** (utang, paylater) di TIER2 — pain point besar milenial/gen Z.
