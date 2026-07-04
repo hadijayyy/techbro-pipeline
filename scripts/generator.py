@@ -165,9 +165,12 @@ Sumber: {source}
 
 SLIDE 1 — THE HOOK (Stop the Scroll)
   • TEPAT 2 kalimat, <30 kata
-  • Kalimat 1 = hook yang NENDANG (fakta/angka/janji manfaat dari artikel)
-  • KAPITAL 1 kata aja
-  • Kalimat 2 = pertanyaan personal yang bikin "ini gue banget"
+  • WAJIB mulai dari FAKTA/ANGKA yang ADA di artikel, BUKAN dari emosi
+  • Format: [ANGKA/FAKTA DARI ARTIKEL] + [KONSEKUENSI ATAU PERTANYAAN]
+  • KAPITAL 1 kata aja (yang paling shocking)
+  • DILARANG mulai dengan: "Gue [emotion]", "Lo tau gak", "Bayangin", "Tahukah kamu"
+  • Contoh benar: "Harga DDR5 naik 40%, tapi Meta malah pake DDR4 lawas."
+  • Contoh salah: "Gue GILA, ternyata Meta pake RAM lama!"
 
 {hook_instruction}
 
@@ -186,10 +189,13 @@ SLIDE 4 — THE METHOD PART 2 (Lanjutin Cara)
   • Lanjutan langkah dari slide 3, atau langkah kunci berikutnya
   • Kalau relevan, kasih tips kecil biar hasilnya lebih maksimal (masih dari artikel, bukan karangan)
 
-SLIDE 5 — THE RESULT (Hasil/Manfaat Nyata)
+SLIDE 5 — THE TAKE (Insight / Opini Grounded)
   • MAX 3 kalimat, <40 kata
-  • Gambarkan hasil konkret kalau langkah tadi diikutin (angka/waktu/manfaat spesifik dari artikel kalau ada)
-  • Ini jawaban dari "terus gue dapet apa"
+  • Kasih PERSPEKTIF/INSIGHT yang grounded di fakta artikel, bukan opini kosong
+  • Format: observasi tajam yang bikin orang mikir "oh iya ya"
+  • Harus ada 2 sisi (pro & con) biar orang COMMENT: setuju atau enggak
+  • Contoh: "Meta buktiin: kadang solusi paling murah itu yang udah ada di depan mata."
+  • JANGAN: "Hasilnya, lo bakal hemat waktu" (terlalu deskriptif, gak bikin diskusi)
 
 SLIDE 6 — THE CTA (Closing)
   • MAX 2 kalimat, <30 kata
@@ -204,6 +210,23 @@ Dalam 1 slide, kalimat harus NYAMBUNG:
 • 2+ angka/statistik → HARUS ada kata penghubung (tapi, namun, sedangkan, hasilnya, padahal)
 • Kalimat terakhir gak boleh ngulang ide kalimat pertama
 • Setiap kalimat punya hubungan logis ke kalimat sebelumnya
+
+═══════════════════════════════════════════════
+§7c  VIRAL CRITERIA (WAJIB PER SLIDE)
+═══════════════════════════════════════════════
+Tiap slide HARUS hit minimal 1 kriteria viral di bawah ini:
+
+1. PRO & CON — kasih 2 sisi: "Ini bagus karena... tapi risikonya..."
+2. RELATABLE — "Lo yang jualan di Shopee pasti ngalamin..."
+3. FAMOUS FIGURE — sebut brand/personaliti besar: ChatGPT, Elon Musk, Apple, Meta
+4. SURPRISING FACT — fakta yang bikin orang "anjir, seriusan?"
+
+Slide 1: WAJIB surprising fact ATAU famous figure
+Slide 5: WAJIB pro & con (2 sisi, bikin orang diskusi)
+Slide 6: Boleh relatable atau surprising
+
+Kalau gak bisa hit kriteria di slide tertentu → rewrite slide, jangan skip.
+Kriteria ini yang bikin orang SHARE, bukan cuma baca.
 
 ═══════════════════════════════════════════════
 §8  GAYA BAHASA
@@ -262,6 +285,9 @@ Cek satu-satu:
 □ Banned patterns terhindari?
 □ Bahasa cukup sederhana buat anak SMA ngerti?
 □ Ada actionable tips di konten ini?
+□ Slide 1 mulai dari FAKTA/ANGKA, bukan emosi?
+□ Slide 5 ada 2 sisi (pro & con)?
+□ Tiap slide hit ≥1 viral criteria (§7c)?
 Baru setelah lolos, tulis output final.
 
 ═══════════════════════════════════════════════
@@ -269,7 +295,12 @@ Baru setelah lolos, tulis output final.
 ═══════════════════════════════════════════════
 {"slide_1":"", "slide_2":"", "slide_3":"", "slide_4":"", "slide_5":"", "slide_6":"", "caption":"", "hashtags":""}
 
-Caption: 1 kalimat ringkas & provokatif. Zero emoji.
+Caption: 2-3 baris MAX.
+  Line 1 = ANGKA/FAKTA paling SHOCKING dari artikel (satu kalimat pendek).
+  Line 2 = KONSEKUENSI atau dampaknya.
+  Line 3 = (opsional) pertanyaan provokatif.
+  Zero emoji. Zero hashtags.
+  Contoh: "DDR5 harganya 2x lipat DDR4. Tapi Meta malah pake yang lama di server AI. Lo masih pikir baru = lebih baik?"
 Field "hashtags": isi maksimal 1 hashtag saja (bukan list).
 Output HANYA JSON valid, tanpa teks lain di luar JSON, tanpa markdown code fence.
 """
@@ -852,17 +883,18 @@ def _rewrite_hook(hook: str, article_title: str, body: str, score: int) -> tuple
 
 Original hook: {hook}
 Article title: {article_title}
+Article excerpt: {body[:500]}
 
 Rules:
 - Under 25 words, MAX 2 sentences
-- Must include at least one specific number
+- MUST start with a FACT or NUMBER from the article excerpt above — copy exact numbers, do NOT invent
 - Capitalize ONE key word
 - End with ? or ! if it's a question/exclamation
 - Mix Indonesian-English naturally
 - Sound like a real person texting, not an AI
-- NEVER start with "gue [emotion]" (gue gila, gue kaget, gue shock, gue penasaran, gue bingung, gue kesel) — it's meaningless filler
-- NEVER use: tahukah kamu, yuk simak, ini dia rahasianya, semoga bermanfaat, semangat ya
-- Start with a FACT, NUMBER, or CONTRADICTION — not with your feelings
+- NEVER start with "gue [emotion]" (gue gila, gue kaget, etc.) — meaningless filler
+- Format: [ANGKA/FAKTA] + [KONSEKUENSI ATAU PERTANYAAN]
+- If no numbers in excerpt, start with the most surprising fact instead
 
 Return ONLY the rewritten hook text, nothing else."""
 
@@ -1029,18 +1061,19 @@ def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
         patterns = []
         for r in rows:
             h = (r['slide_hook'] or '').strip().lower()
-            if h.startswith("gau baru sadar") or h.startswith("i just realized"):
-                patterns.append("REALIZATION")
-            elif h.startswith("jujur") or h.startswith("honestly"):
-                patterns.append("OPINION")
-            elif h.startswith("lo tau") or h.startswith("did you know"):
-                patterns.append("QUESTION")
-            elif h.startswith("hot take"):
-                patterns.append("DEBATE")
-            elif h.startswith("bayangin") or h.startswith("imagine"):
-                patterns.append("SCENARIO")
-            elif h.startswith("data:") or h.startswith("[angka]"):
+            # Fact-first pattern detection
+            if re.search(r'\d+%|\d+\.\d+|\d+ juta|\d+ miliar', h):
                 patterns.append("DATA_DROP")
+            elif re.search(r'tapi|kenyataannya|ternyata|padahal', h):
+                patterns.append("CONTRAST")
+            elif h.endswith('?') and re.search(r'lo masih|lo yang|lo tau', h):
+                patterns.append("QUESTION")
+            elif re.search(r'\b(meta|google|apple|openai|chatgpt|shopee|tokopedia)\b', h):
+                patterns.append("IMPACT")
+            elif re.search(r'\b(ternyata|fakta|heran|gak nyangka)\b', h):
+                patterns.append("SURPRISING")
+            elif re.search(r'\b(harga|rp|juta|bayar|gratis|murah)\b', h):
+                patterns.append("MONEY")
             else:
                 patterns.append("OTHER")
         return patterns
@@ -1048,15 +1081,15 @@ def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
         return []
 
 def _pick_hook_instruction(recent_patterns: list[str]) -> str:
-    """Pick a hook instruction that avoids recent patterns."""
+    """Pick a hook instruction that avoids recent patterns. All fact-first."""
     import random
     all_hooks = [
-        ("REALIZATION", "Start with: 'Gue baru sadar...' — shock them with a fact."),
-        ("OPINION", "Start with: 'Jujur, gue [emosi] soal...' — honest reaction."),
-        ("QUESTION", "Start with: 'Lo tau gak...?' — hit them with a question."),
-        ("SCENARIO", "Start with: 'Bayangin lo lagi...' — paint a relatable scene."),
-        ("DATA_DROP", "Start with a NUMBER and context — 'X orang [konteks]. Lo termasuk?'"),
-        ("CONTRAST", "Start with expectation vs reality — 'Katanya [X]... Tapi kenyataannya?'"),
+        ("DATA_DROP", "Start with a NUMBER from the article + consequence — 'X% [fakta], [dampaknya]. Lo termasuk?'"),
+        ("CONTRAST", "Start with contradiction from article — '[Ekspektasi]... Tapi [kenyataan dari artikel]?'"),
+        ("QUESTION", "Start with a provocation based on article fact — '[Fakta dari artikel]... Lo masih [A]?'"),
+        ("IMPACT", "Start with direct impact — '[Brand/teknologi] baru [action]. Lo yang [target] kena dampaknya.'"),
+        ("SURPRISING", "Start with the most surprising fact — 'Ternyata [fakta dari artikel]. [Konsekuensi]?'"),
+        ("MONEY", "Start with money/numbers — 'Harga [X] [angka]. Tapi [contradiction dari artikel]. Lo tau?'"),
     ]
     # Filter out recently used patterns
     available = [(name, instr) for name, instr in all_hooks if name not in recent_patterns[-3:]]
