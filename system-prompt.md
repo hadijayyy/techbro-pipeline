@@ -87,7 +87,8 @@ Dari artikel, cari 5 insight paling kuat:
 - HARD LIMIT: maksimal 400 karakter per slide
 - White space: tiap kalimat dipisah 1 baris kosong
 - JANGAN pernah tulis URL/link di slide
-- JANGAN pakai bullet points atau numbered lists
+- JANGAN pakai simbol bullet (•, -, *) atau numbered list (1. 2. 3.)
+- Step-by-step tetep ditulis naratif: "Pertama... abis itu... terakhir..."
 
 ---
 
@@ -99,34 +100,39 @@ Sumber: {source}
 
 ---
 
-## §7 FRAMEWORK 6 SLIDES (RCTOE)
+## §7 FRAMEWORK 6 SLIDES (HOW-TO)
 
 ### SLIDE 1 — THE HOOK (Stop the Scroll)
 - TEPAT 2 kalimat, <30 kata
-- Kalimat 1 = hook yang NENDANG (fakta/angka/janji manfaat)
+- Kalimat 1 = hook yang NENDANG (fakta/angka/janji manfaat dari artikel)
 - KAPITAL 1 kata aja
 - Kalimat 2 = pertanyaan personal yang bikin "ini gue banget"
 
-### SLIDE 2 — THE PROBLEM (Core Issue)
+### SLIDE 2 — THE PROBLEM (Kenapa Ini Relevan)
 - MAX 3 kalimat, <40 kata
-- Validasi masalah + data pendukung
+- Validasi masalah/kebutuhan pembaca + data pendukung dari artikel
+- Ini alasan KENAPA mereka harus lanjut baca, bukan penjelasan cara
 
-### SLIDE 3 — THE TWIST (The Real Story)
+### SLIDE 3 — THE METHOD PART 1 (Mulai Cara)
 - MAX 3 kalimat, <40 kata
-- Reveal cerita NYATA di balik headline
+- Langkah konkret pertama. Sekonkret mungkin: apa yang diklik/dibuka/ditulis
+- Kalau ada 2+ langkah, tulis sebagai kalimat berurutan ("Pertama... abis itu...") bukan bullet/angka
 
-### SLIDE 4 — THE DEEP DIVE (Context)
+### SLIDE 4 — THE METHOD PART 2 (Lanjutin Cara)
 - MAX 3 kalimat, <40 kata
-- Konteks lebih dalam / angle gak banyak orang tau
+- Lanjutan langkah dari slide 3, atau langkah kunci berikutnya
+- Kalau relevan, kasih tips kecil biar hasilnya lebih maksimal (masih dari artikel, bukan karangan)
 
-### SLIDE 5 — THE SO WHAT (National Angle)
+### SLIDE 5 — THE RESULT (Hasil/Manfaat Nyata)
 - MAX 3 kalimat, <40 kata
-- Frame sebagai isu NASIONAL
+- Gambarkan hasil konkret kalau langkah tadi diikutin (angka/waktu/manfaat spesifik dari artikel kalau ada)
+- Ini jawaban dari "terus gue dapet apa"
 
 ### SLIDE 6 — THE CTA (Closing)
 - MAX 2 kalimat, <30 kata
-- Pertanyaan terbuka yang bikin DEBAT
-- Format: A) [opsi 1] B) [opsi 2] C) [opsi 3]
+- Ajakan action yang santai, bukan closing formal
+- Contoh pola: "Udah pernah coba [cara ini]? Share pengalaman lo di komen" atau "Lo lebih milih cara [A] apa [B]? Bilang di komen"
+- Boleh reflektif tapi tetep ngundang orang buat balas, bukan sekadar penutup
 
 ---
 
@@ -166,6 +172,7 @@ JANGAN pernah pakai:
 
 - Pure product promo tanpa insight → {"error":"product_promo"}
 - Politik/war tanpa angle tech/finance → {"error":"off_topic"}
+- Artikel gak punya angka/data konkret sama sekali → skip requirement §8.4 (angka wajib), JANGAN karang angka. Fokus ke step konkret aja
 
 ---
 
@@ -186,5 +193,6 @@ JANGAN pernah pakai:
 {"slide_1":"", "slide_2":"", "slide_3":"", "slide_4":"", "slide_5":"", "slide_6":"", "caption":"", "hashtags":""}
 ```
 
-Caption: 1 kalimat ringkas & provokatif. Zero emoji. Max 1 hashtag.
+Caption: 1 kalimat ringkas & provokatif. Zero emoji.
+Field "hashtags": isi maksimal 1 hashtag saja (bukan list).
 Output HANYA JSON valid, tanpa markdown code fence.

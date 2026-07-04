@@ -148,7 +148,8 @@ Sisanya susun logis (bukan random) jadi 6 slide.
 • Source pendek (<500 kata): tetap 6 slide, tiap slide lebih ringkas
 • Source panjang (>2000 kata): fokus 1-2 insight utama, jangan masukin semua
 • JANGAN pernah tulis URL/link di slide — URL otomatis ditambahkan sistem
-• JANGAN pakai bullet points atau numbered lists — kalimat lengkap yang mengalir
+• JANGAN pakai simbol bullet (•, -, *) atau numbered list (1. 2. 3.)
+• Step-by-step tetep ditulis naratif: "Pertama... abis itu... terakhir..."
 
 ═══════════════════════════════════════════════
 §6  ARTIKEL
@@ -159,53 +160,42 @@ Isi:
 Sumber: {source}
 
 ═══════════════════════════════════════════════
-§7  FRAMEWORK 6 SLIDES (RCTOE)
+§7  FRAMEWORK 6 SLIDES (HOW-TO)
 ═══════════════════════════════════════════════
 
 SLIDE 1 — THE HOOK (Stop the Scroll)
-  • TEPAT 2 kalimat, <30 kata. Gak lebih, gak kurang.
-  • Kalimat 1 = hook yang NENDANG: kasih fakta yang bikin "hah?!" atau kasih janji manfaat yang bikin orang pengen tau
-  • KAPITAL 1 kata aja (contoh: "karyawan KENA PHK" benar, "KARYAWAN PHK" salah)
-  • Kalau ada angka spesifik dari Step 0, WAJIB taruh di kalimat 1 — angka bikin otak berhenti scroll
-  • Kalimat 2 = pertanyaan personal yang bikin pembaca ngerasa "ini gue banget"
-  • Tes: kalau hook lo gak bikin orang penasaran dalam 2 detik pertama, REWRITE
-  • Variasikan struktur tiap post (kontradiksi / angka kejutan / klaim berani / retorik tajam / before-after)
+  • TEPAT 2 kalimat, <30 kata
+  • Kalimat 1 = hook yang NENDANG (fakta/angka/janji manfaat dari artikel)
+  • KAPITAL 1 kata aja
+  • Kalimat 2 = pertanyaan personal yang bikin "ini gue banget"
 
 {hook_instruction}
 
-SLIDE 2 — THE PROBLEM (Core Issue)
+SLIDE 2 — THE PROBLEM (Kenapa Ini Relevan)
   • MAX 3 kalimat, <40 kata
-  • Validasi masalah + data pendukung dari Step 0
-  • 1 insight baru, no basa-basi
+  • Validasi masalah/kebutuhan pembaca + data pendukung dari artikel
+  • Ini alasan KENAPA mereka harus lanjut baca, bukan penjelasan cara
 
-SLIDE 3 — THE TWIST (The Real Story)
+SLIDE 3 — THE METHOD PART 1 (Mulai Cara)
   • MAX 3 kalimat, <40 kata
-  • Reveal cerita NYATA di balik headline yang gak orang pikirin
-  • Pattern: "Ini bukan cuma soal [headline], tapi [deeper truth]" atau "Yang gak diomongin: [hidden angle]"
-  • Ini slide yang bikin orang SHARE
+  • Langkah konkret pertama. Sekonkret mungkin: apa yang diklik/dibuka/ditulis
+  • Kalau ada 2+ langkah, tulis sebagai kalimat berurutan ("Pertama... abis itu...") bukan bullet/angka
 
-SLIDE 4 — THE DEEP DIVE (Context)
+SLIDE 4 — THE METHOD PART 2 (Lanjutin Cara)
   • MAX 3 kalimat, <40 kata
-  • Konteks lebih dalam atau angle yang gak banyak orang tau
-  • HARUS dari Step 0, 1 ide per slide
+  • Lanjutan langkah dari slide 3, atau langkah kunci berikutnya
+  • Kalau relevan, kasih tips kecil biar hasilnya lebih maksimal (masih dari artikel, bukan karangan)
 
-SLIDE 5 — THE SO WHAT (National Angle)
+SLIDE 5 — THE RESULT (Hasil/Manfaat Nyata)
   • MAX 3 kalimat, <40 kata
-  • Frame sebagai isu NASIONAL, bukan cuma korporat/individu
-  • Bikin mikir: "Ini bukan cuma soal mereka, tapi soal KITA"
+  • Gambarkan hasil konkret kalau langkah tadi diikutin (angka/waktu/manfaat spesifik dari artikel kalau ada)
+  • Ini jawaban dari "terus gue dapet apa"
 
 SLIDE 6 — THE CTA (Closing)
   • MAX 2 kalimat, <30 kata
-  • Pertanyaan terbuka yang natural — bukan CTA jualan
-  • HARUS bikin orang DEBAT: multiple choice yang gak ada jawaban benar
-  • Format pilihan: tiap opsi di baris terpisah, contoh:
-    A) [opsi 1]
-    B) [opsi 2]
-    C) [opsi 3]
-  • Nutup balik ke hook slide 1
-  • JANGAN pakai "save postingan ini"
-
-Continuity: slide 2-6 build dari klaim slide 1. Fokus 1 insight besar.
+  • Ajakan action yang santai, bukan closing formal
+  • Contoh pola: "Udah pernah coba [cara ini]? Share pengalaman lo di komen" atau "Lo lebih milih cara [A] apa [B]? Bilang di komen"
+  • Boleh reflektif tapi tetep ngundang orang buat balas, bukan sekadar penutup
 
 ═══════════════════════════════════════════════
 §7b  INTRA-SLIDE COHERENCE
@@ -260,16 +250,16 @@ JANGAN generate slide, output {"error":"product_promo"} aja.
 Kalau artikel bahas politik/war tanpa angle tech/finance/practical:
 JANGAN generate slide, output {"error":"off_topic"} aja.
 
+Artikel gak punya angka/data konkret sama sekali → skip requirement §8.4 (angka wajib), JANGAN karang angka. Fokus ke step konkret aja
+
 ═══════════════════════════════════════════════
 §12  SELF-CHECK SEBELUM OUTPUT
 ═══════════════════════════════════════════════
 Cek satu-satu:
-□ Tiap klaim di slide 1-6 ada tracing-nya ke Step 0?
-□ Ada kalimat nambahin motif/alasan gak disebut artikel?
-□ Level kepastian (pasti vs berpotensi) masih sama kayak artikel asli?
+□ Tiap klaim ada tracing ke Step 0?
+□ Level kepastian sama kayak artikel asli?
 □ Tiap slide ≤ 400 karakter?
 □ Banned patterns terhindari?
-□ CTA slide 6 beda dari post sebelumnya?
 □ Bahasa cukup sederhana buat anak SMA ngerti?
 □ Ada actionable tips di konten ini?
 Baru setelah lolos, tulis output final.
@@ -279,7 +269,8 @@ Baru setelah lolos, tulis output final.
 ═══════════════════════════════════════════════
 {"slide_1":"", "slide_2":"", "slide_3":"", "slide_4":"", "slide_5":"", "slide_6":"", "caption":"", "hashtags":""}
 
-Caption: 1 kalimat ringkas & provokatif. Zero emoji. Max 1 hashtag.
+Caption: 1 kalimat ringkas & provokatif. Zero emoji.
+Field "hashtags": isi maksimal 1 hashtag saja (bukan list).
 Output HANYA JSON valid, tanpa teks lain di luar JSON, tanpa markdown code fence.
 """
 
