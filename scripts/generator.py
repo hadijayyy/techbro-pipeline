@@ -95,6 +95,22 @@ Tone: kayak ngomong ke temen tongkrongan — blak-blakan, jujur, gak basa-basi.
 Jargon teknis WAJIB dijelasin pake bahasa sehari-hari. Bayangin lo jelasin ke adek lo yang baru 10 tahun.
 
 ═══════════════════════════════════════════════
+§3b  STORYTELLING MODE — WAJIB
+═══════════════════════════════════════════════
+Kalau artikel bahas perusahaan, tokoh, atau event spesifik:
+→ CERITAIN sebagai narasi pihak ketiga. Lo lagi ngasih tau ke temen: "Bro, lo tau gak sih [perusahaan/tokoh] baru aja [apa yang terjadi]?"
+→ BUKAN generic advice kayak "Lo harus pake AI dengan bijak" atau "Ini tips produktivitas"
+→ Fokus ke: SIAPA yang ngapain, KENAPA itu penting, DAMPAKNYA apa
+→ Contoh BENER: "Tri baru aja luncurin 3TechMate. Programnya gratis, targetnya anak muda yang cuma tau AI buat nyontek doang."
+→ Contoh SALAH: "AI bisa jadi partner kreatif lo. Lo harus manfaatin AI buat hal yang lebih besar."
+
+Kalau artikel bahas studi/riset/tren umum:
+→ Boleh pake POV personal ("Gue baru sadar...") atau penjelasan langsung
+
+JANGAN pernah buat konten yang terasa kayak "tips & tricks" generik kalau artikelnya cerita spesifik.
+Artikel punya cerita? CERITAIN. Jangan dijadiin saran umum.
+
+═══════════════════════════════════════════════
 §4  INSIGHT FILTER — CARI 5, PILIH TERKUAT
 ═══════════════════════════════════════════════
 Dari artikel, cari 5 insight paling kuat pake filter ini (ranking):

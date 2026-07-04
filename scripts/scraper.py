@@ -17,7 +17,7 @@ FALLBACK_HOURS = 24  # fallback if 12h yields nothing
 TOP_N = 1
 
 # Source names used by scrape_all_async — single source of truth
-SOURCE_NAMES = ["cnbc_id", "detik", "republika", "cnnindonesia", "merdeka", "kompas", "hipwee"]
+SOURCE_NAMES = ["cnbc_id", "detik", "republika", "cnnindonesia", "merdeka", "kompas"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -63,15 +63,6 @@ TIER1 = [
     "gig economy", "dropship", "reseller", "freelance",
     "remote work", "wfh", "wfo", "hybrid", "side hustle",
     "uang online", "penghasilan", "karier", "pekerjaan",
-    # Tips & Tricks / Life Hacks — NEW
-    "tips", "trik", "tricks", "life hack", "lifehack",
-    "cara", "rahasia", "tersembunyi", "fitur tersembunyi",
-    "hack", "shortcut", "jalan pintas", "solusi",
-    # Buku & Insight — NEW
-    "buku", "book", "insight", "pelajaran", "wisdom",
-    "motivasi", "inspirasi", "mindset", "habits", "kebiasaan",
-    "sukses", "self-improvement", "pengembangan diri",
-    "ringkasan buku", "book summary", "review buku",
 ]
 
 # TIER2 = tech adjacent (masih relate)
@@ -738,8 +729,6 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_cnnindonesia_tekno(client),
             get_links_merdeka_tekno(client),
             get_links_kompas_tekno(client),
-            get_links_hipwee(client),
-            return_exceptions=True,
         )
 
         # 2. Build scrape tasks
