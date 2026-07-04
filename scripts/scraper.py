@@ -17,7 +17,7 @@ FALLBACK_HOURS = 24  # fallback if 12h yields nothing
 TOP_N = 1
 
 # Source names used by scrape_all_async — single source of truth
-SOURCE_NAMES = ["cnbc_id", "detik", "republika", "cnnindonesia", "merdeka", "kompas", "hipwee", "youtube"]
+SOURCE_NAMES = ["cnbc_id", "detik", "republika", "cnnindonesia", "merdeka", "kompas", "hipwee"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -739,7 +739,6 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_merdeka_tekno(client),
             get_links_kompas_tekno(client),
             get_links_hipwee(client),
-            get_links_youtube_trending(client),
             return_exceptions=True,
         )
 
