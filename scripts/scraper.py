@@ -17,9 +17,7 @@ FALLBACK_HOURS = 24  # fallback if 12h yields nothing
 TOP_N = 1
 
 # Source names used by scrape_all_async — single source of truth
-SOURCE_NAMES = [
-    "psyblog", "nesslabs", "farnam_street", "mark_manson", "marginalian", "mindful",
-]
+SOURCE_NAMES = ["bbc"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -31,36 +29,33 @@ HEADERS = {
 
 # ─── Scoring Keywords ────────────────────────────────────────────
 
-# TIER1 = hot topics yang bikin orang Indonesia PEDULI (title 3x weight)
+# TIER1 = hot topics — scored 3x on title match
 TIER1 = [
-    # Myth-busting & Contrarian (core insight style)
-    "mitos", "myth", "debunked", "salah", "omong kosong", "ternyata",
-    "bukan", "gak perlu", "gak butuh", "stop doing", "berhenti",
-    "contrarian", "unpopular opinion", "hard truth", "reality check",
-    # Neuroscience & Psychology
-    "neuroplasticity", "dopamine", "serotonin", "otak", "brain",
-    "kognitif", "cognitive", "bias", "heuristic", "mental model",
-    "kebiasaan", "habit", "routine", "mindset", "mindfulness",
-    "anxiety", "depresi", "burnout", "stres", "mental health",
-    "neuroscience", "psikologi", "psychology", "behavioral",
-    # Productivity & Self-improvement
-    "produktivitas", "productivity", "procrastination", "prokrastinasi",
-    "fokus", "focus", "deep work", "flow state", "motivasi",
-    "deliberate practice", "10.000 jam", "10000 hours", "mastery",
-    "self-improvement", "pengembangan diri", "growth mindset",
-    # Learning & Creativity
-    "belajar", "learning", "kreativitas", "creativity", "inovasi",
-    "problem solving", "critical thinking", "berpikir kritis",
-    # AI & Tech (still relevant for insight audience)
-    "ai", "artificial intelligence", "chatgpt", "openai", "claude",
-    "automasi", "automation", "ai replace", "ai gantikan",
-    # Business & Money (contrarian angle)
-    "startup", "bisnis", "business", "entrepreneur", "passive income",
-    "financial freedom", "kebebasan finansial", "investasi",
-    "side hustle", "freelance", "karier", "career",
-    # Relationships & Social
-    "hubungan", "relationship", "komunikasi", "communication",
-    "empati", "empathy", "leadership", "kepemimpinan",
+    # Entertainment & Celebrity (Taylor Swift, Netflix, music, film)
+    "taylor swift", "travis kelce", "celebrity", "wedding", "marry", "married",
+    "netflix", "disney", "spotify", "grammy", "oscar", "beyonce", "drake",
+    "concert", "tour", "album", "movie", "film", "tv show", "reality tv",
+    "backlash", "controversy", "viral", "trending",
+    # AI & Tech
+    "ai", "artificial intelligence", "chatgpt", "openai", "google", "meta",
+    "apple", "microsoft", "nvidia", "amazon", "tesla", "robot", "deepfake",
+    "playstation", "xbox", "nintendo", "gta", "gaming", "esports",
+    "cybersecurity", "hack", "data breach", "privacy", "surveillance",
+    # Climate & Environment
+    "climate", "heatwave", "temperature", "record-breaking", "flood",
+    "wildfire", "drought", "renewable", "solar", "wind", "carbon",
+    "extinction", "endangered", "pollution",
+    # Science & Space
+    "nasa", "spacex", "mars", "moon", "space", "telescope", "satellite",
+    "quantum", "discovery", "breakthrough", "research", "study",
+    "brain", "dna", "vaccine", "cancer", "disease", "health",
+    # Politics & Global (UK + US + world)
+    "trump", "starmer", "election", "parliament", "government", "pm",
+    "ukraine", "russia", "china", "iran", "war", "conflict", "sanctions",
+    "referendum", "policy", "law", "ban", "regulation",
+    # Crime & Safety
+    "scam", "fraud", "smuggler", "investigation", "police", "court",
+    "prison", "victims", "abuse", "safety", "warning",
 ]
 
 # TIER2 = tech adjacent (masih relate)
@@ -365,10 +360,25 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
         dt = rss_date or parse_date_iso(
             (soup.find("meta", property="article:published_time") or {}).get("content", "")
         )
+        # BBC: parse datePublished from JSON-LD
+        if not dt and source == "bbc":
+            import json
+            for script in soup.find_all("script", type="application/ld+json"):
+                try:
+                    data = json.loads(script.string)
+                    if isinstance(data, list):
+                        data = data[0]
+                    if "datePublished" in data:
+                        dt = parse_date_iso(data["datePublished"])
+                        break
+                except Exception:
+                    pass
 
         if not is_fresh(dt, hours=FALLBACK_HOURS):
-            # Insight sources are evergreen — skip freshness check
-            if source not in ("psyblog", "nesslabs", "farnam_street", "mark_manson", "marginalian", "mindful"):
+            # BBC feeds contain old articles — allow wider window
+            if source == "bbc" and not is_fresh(dt, hours=168):  # 7 days
+                return None
+            elif source != "bbc":
                 return None
 
         image = get_og_image(soup)
@@ -404,6 +414,8 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             body = extract_body(soup, [("div", "entry_content"), ("div", "post_content"), ("article", None)])
         elif source == "mindful":
             body = extract_body(soup, [("div", "article__body"), ("div", "article__intro p-summary"), ("article", None)])
+        elif source == "bbc":
+            body = extract_body(soup, [("article", None), ("div", "ssrcss-11r1m41-RichTextComponentWrapper")])
         else:
             return None
 
@@ -448,36 +460,45 @@ async def _rss_links(client: httpx.AsyncClient, url: str, limit: int = 20) -> li
     return items[:limit]
 
 
-# ─── Insight Sources ────────────────────────────────────────────
+# ─── BBC News ───────────────────────────────────────────────────
 
-async def get_links_psyblog(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """PsyBlog (spring.org.uk) — psychology research, myth-busting, neuroscience."""
-    return await _rss_links(client, "https://www.spring.org.uk/feed")
-
-
-async def get_links_nesslabs(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Ness Labs — productivity, learning, creativity, neuroscience."""
-    return await _rss_links(client, "https://nesslabs.com/feed")
-
-
-async def get_links_farnam_street(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Farnam Street — mental models, decision-making, contrarian thinking."""
-    return await _rss_links(client, "https://fs.blog/feed/")
-
-
-async def get_links_mark_manson(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Mark Manson — contrarian self-improvement, psychology, life advice."""
-    return await _rss_links(client, "https://markmanson.net/feed")
-
-
-async def get_links_marginalian(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """The Marginalian — philosophy, science, literature, wisdom."""
-    return await _rss_links(client, "https://www.themarginalian.org/feed/")
-
-
-async def get_links_mindful(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Mindful.org — mindfulness, mental health, psychology."""
-    return await _rss_links(client, "https://www.mindful.org/feed/")
+async def get_links_bbc(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """BBC News — top stories, tech, science."""
+    items = []
+    feeds = [
+        "https://feeds.bbci.co.uk/news/rss.xml",
+        "https://feeds.bbci.co.uk/news/technology/rss.xml",
+        "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+    ]
+    from email.utils import parsedate_to_datetime
+    for feed_url in feeds:
+        try:
+            r = await client.get(feed_url, timeout=12)
+            # BBC uses CDATA: <title><![CDATA[text]]></title>
+            for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+                block = item_block.group(1)
+                link_m = re.search(r"<link>([^<]+)</link>", block)
+                date_m = re.search(r"<pubDate>([^<]+)</pubDate>", block)
+                if not link_m:
+                    continue
+                url = link_m.group(1).strip().split("?")[0]
+                dt = None
+                if date_m:
+                    try:
+                        dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                    except Exception:
+                        pass
+                items.append((url, dt))
+        except Exception:
+            pass
+    # Dedupe
+    seen = set()
+    deduped = []
+    for url, dt in items:
+        if url not in seen:
+            seen.add(url)
+            deduped.append((url, dt))
+    return deduped[:30]
 
 
 # ─── News Sources (kept for mix) ───────────────────────────────
@@ -776,12 +797,7 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
         # 1. Gather links from RSS feeds + HN
         # Priority: Indonesian sources first, global for breaking news
         link_tasks = await asyncio.gather(
-            get_links_psyblog(client),
-            get_links_nesslabs(client),
-            get_links_farnam_street(client),
-            get_links_mark_manson(client),
-            get_links_marginalian(client),
-            get_links_mindful(client),
+            get_links_bbc(client),
         )
 
         # 2. Build scrape tasks
