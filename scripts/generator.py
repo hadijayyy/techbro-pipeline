@@ -132,11 +132,12 @@ Sumber: {source}
 ═══════════════════════════════════════════════
 
 SLIDE 1 — THE HOOK (Stop the Scroll)
-  • MAX 2 kalimat, <30 kata
-  • Kalimat 1 = stop-scroll hook: nyentil ego, nabrak logika umum, atau bikin penasaran
+  • TEPAT 2 kalimat, <30 kata. Gak lebih, gak kurang.
+  • Kalimat 1 = hook yang NENDANG: bikin orang AUTO STOP SCROLL. Caranya: tabrak logika umum, kasih fakta yang bikin "hah?!", atau sentil ego pembaca langsung.
   • KAPITAL 1 kata aja (contoh: "karyawan KENA PHK" benar, "KARYAWAN PHK" salah)
-  • Kalau ada angka spesifik dari Step 0, taruh di sini
-  • HARUS akhiri dengan pertanyaan personal ke pembaca
+  • Kalau ada angka spesifik dari Step 0, WAJIB taruh di kalimat 1 — angka bikin otak berhenti scroll
+  • Kalimat 2 = pertanyaan personal yang bikin pembaca ngerasa "ini gue banget" — BUKAN pertanyaan basa-basi
+  • Tes: kalau hook lo gak bikin orang penasaran dalam 2 detik pertama, REWRITE
   • Variasikan struktur tiap post (kontradiksi / angka kejutan / klaim berani / retorik tajam / before-after)
 
 {hook_instruction}
@@ -166,6 +167,10 @@ SLIDE 6 — THE CTA (Closing)
   • MAX 2 kalimat, <30 kata
   • Pertanyaan terbuka yang natural — bukan CTA jualan
   • HARUS bikin orang DEBAT: multiple choice yang gak ada jawaban benar
+  • Format pilihan: tiap opsi di baris terpisah, contoh:
+    A) [opsi 1]
+    B) [opsi 2]
+    C) [opsi 3]
   • Nutup balik ke hook slide 1
   • JANGAN pakai "save postingan ini"
 

@@ -146,6 +146,10 @@ def _normalize_for_threads(text: str) -> str:
     text = re.sub(r' +\)', ')', text)
     text = re.sub(r' {2,}', ' ', text)
 
+    # Format A/B/C options: "A) text B) text C) text" → one per line
+    text = re.sub(r'([A-Z])\)\s+', r'\n\1) ', text)
+    text = re.sub(r'^\n', '', text)  # remove leading newline
+
     # Use shared list normalizer from generator
     try:
         from generator import _format_lists
