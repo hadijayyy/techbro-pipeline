@@ -17,7 +17,9 @@ FALLBACK_HOURS = 24  # fallback if 12h yields nothing
 TOP_N = 1
 
 # Source names used by scrape_all_async — single source of truth
-SOURCE_NAMES = ["cnbc_id", "detik", "republika", "cnnindonesia", "merdeka", "kompas"]
+SOURCE_NAMES = [
+    "psyblog", "nesslabs", "farnam_street", "mark_manson", "marginalian", "mindful",
+]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -31,38 +33,34 @@ HEADERS = {
 
 # TIER1 = hot topics yang bikin orang Indonesia PEDULI (title 3x weight)
 TIER1 = [
-    # AI Impact (emosional: takut kehilangan kerja)
-    "phk", "layoff", "dirumahkan", "ai replace", "ai gantikan", "automasi",
-    "kehilangan pekerjaan", "ai jobs", "ai agent", "vibe coding",
-    # AI Models & Companies (masih menarik)
-    "openai", "anthropic", "claude", "gpt", "gemini", "deepseek", "llama",
-    "mistral", "chatgpt", "copilot", "cursor", "ai model", "llm", "agi",
-    # Startup Indonesia (relatable: Gojek, Tokopedia, etc.)
-    "gojek", "tokopedia", "traveloka", "bukalapak", "blibli", "shopee",
-    "tiktok shop", "grab", "sea group", "goto", "startup indonesia",
-    "unicorn", "decacorn",
-    # Fintech & Money (emosional: duit) — EXPANDED
-    "pinjol", "fintech", "ovo", "gopay", "dana", "shopeepay",
-    "kripto", "crypto", "investasi", "saham", "digital bank",
-    "qris", "transfer", "e-wallet", "dompet digital", "reksadana",
-    "deposito", "emas digital", "kartu kredit", "cicilan", "bnpl",
-    "tabungan", "pinjaman", "bunga", "inflasi", "rupiah",
-    # Regulation & Drama — EXPANDED
-    "kominfo", "pse", "blokir", "sensor", "uu ite", "peraturan",
-    "pelanggaran data", "data bocor", "privasi",
-    "pemerintah", "kemenkominfo", "ojk", "bi", "kppu",
-    "pajak digital", "regulasi", "kebijakan", "undang-undang",
-    # Digital Privacy — NEW
-    "surveillance", "pelacakan", "sidik jari", "face recognition",
-    "enkripsi", "vpn", "keamanan data", "hacker", "bobol",
-    # Startup & PHK — NEW
-    "pivot", "runway", "bootstrapping", "angel investor",
-    "venture capital", "series a", "pendanaan", "valuasi",
-    "tutup", "bangkrut", "gulung tikar",
-    # Karier & Side Hustle — NEW
-    "gig economy", "dropship", "reseller", "freelance",
-    "remote work", "wfh", "wfo", "hybrid", "side hustle",
-    "uang online", "penghasilan", "karier", "pekerjaan",
+    # Myth-busting & Contrarian (core insight style)
+    "mitos", "myth", "debunked", "salah", "omong kosong", "ternyata",
+    "bukan", "gak perlu", "gak butuh", "stop doing", "berhenti",
+    "contrarian", "unpopular opinion", "hard truth", "reality check",
+    # Neuroscience & Psychology
+    "neuroplasticity", "dopamine", "serotonin", "otak", "brain",
+    "kognitif", "cognitive", "bias", "heuristic", "mental model",
+    "kebiasaan", "habit", "routine", "mindset", "mindfulness",
+    "anxiety", "depresi", "burnout", "stres", "mental health",
+    "neuroscience", "psikologi", "psychology", "behavioral",
+    # Productivity & Self-improvement
+    "produktivitas", "productivity", "procrastination", "prokrastinasi",
+    "fokus", "focus", "deep work", "flow state", "motivasi",
+    "deliberate practice", "10.000 jam", "10000 hours", "mastery",
+    "self-improvement", "pengembangan diri", "growth mindset",
+    # Learning & Creativity
+    "belajar", "learning", "kreativitas", "creativity", "inovasi",
+    "problem solving", "critical thinking", "berpikir kritis",
+    # AI & Tech (still relevant for insight audience)
+    "ai", "artificial intelligence", "chatgpt", "openai", "claude",
+    "automasi", "automation", "ai replace", "ai gantikan",
+    # Business & Money (contrarian angle)
+    "startup", "bisnis", "business", "entrepreneur", "passive income",
+    "financial freedom", "kebebasan finansial", "investasi",
+    "side hustle", "freelance", "karier", "career",
+    # Relationships & Social
+    "hubungan", "relationship", "komunikasi", "communication",
+    "empati", "empathy", "leadership", "kepemimpinan",
 ]
 
 # TIER2 = tech adjacent (masih relate)
@@ -353,6 +351,11 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
         soup = BeautifulSoup(r.text, "html.parser")
         title_tag = soup.find("h1")
         title = title_tag.get_text(strip=True) if title_tag else ""
+        # Marginalian: first h1 is "Archives", real title is h1.entry-title
+        if source == "marginalian":
+            real_h1 = soup.find("h1", class_="entry-title")
+            if real_h1:
+                title = real_h1.get_text(strip=True)
         if not title:
             og = soup.find("meta", property="og:title")
             title = og.get("content", "").strip() if og else ""
@@ -364,7 +367,9 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
         )
 
         if not is_fresh(dt, hours=FALLBACK_HOURS):
-            return None
+            # Insight sources are evergreen — skip freshness check
+            if source not in ("psyblog", "nesslabs", "farnam_street", "mark_manson", "marginalian", "mindful"):
+                return None
 
         image = get_og_image(soup)
 
@@ -389,6 +394,16 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
                 ("article", None),
             ]
             body = extract_body(soup, _ID_SEL)
+        elif source in ("psyblog", "nesslabs"):
+            body = extract_body(soup, [("div", "entry-content"), ("article", None)])
+        elif source == "farnam_street":
+            body = extract_body(soup, [("div", "entry-content entry-content-single"), ("div", "entry-content"), ("article", None)])
+        elif source == "mark_manson":
+            body = extract_body(soup, [("div", "article-content"), ("div", "article-content-container"), ("article", None)])
+        elif source == "marginalian":
+            body = extract_body(soup, [("div", "entry_content"), ("div", "post_content"), ("article", None)])
+        elif source == "mindful":
+            body = extract_body(soup, [("div", "article__body"), ("div", "article__intro p-summary"), ("article", None)])
         else:
             return None
 
@@ -407,20 +422,19 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
 
 # ─── RSS Parsers ─────────────────────────────────────────────────
 
-# ─── Main Scraper ────────────────────────────────────────────────
 
-async def get_links_cnbc_indonesia(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """CNBC Indonesia Tech — startup, fintech, crypto, regulasi."""
+async def _rss_links(client: httpx.AsyncClient, url: str, limit: int = 20) -> list[tuple[str, datetime | None]]:
+    """Generic RSS 2.0 link extractor. Returns [(url, pub_date|None), ...]."""
     items = []
     try:
-        r = await client.get("https://www.cnbcindonesia.com/tech/rss", timeout=12)
+        r = await client.get(url, timeout=12, follow_redirects=True)
         for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
             block = item_block.group(1)
             link_m = re.search(r"<link>([^<]+)</link>", block)
             date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
             if not link_m:
                 continue
-            url = link_m.group(1).strip().split("?")[0]
+            item_url = link_m.group(1).strip().split("?")[0]
             dt = None
             if date_m:
                 try:
@@ -428,10 +442,49 @@ async def get_links_cnbc_indonesia(client: httpx.AsyncClient) -> list[tuple[str,
                     dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
                 except Exception:
                     pass
-            items.append((url, dt))
+            items.append((item_url, dt))
     except Exception:
         pass
-    return items[:20]
+    return items[:limit]
+
+
+# ─── Insight Sources ────────────────────────────────────────────
+
+async def get_links_psyblog(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """PsyBlog (spring.org.uk) — psychology research, myth-busting, neuroscience."""
+    return await _rss_links(client, "https://www.spring.org.uk/feed")
+
+
+async def get_links_nesslabs(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Ness Labs — productivity, learning, creativity, neuroscience."""
+    return await _rss_links(client, "https://nesslabs.com/feed")
+
+
+async def get_links_farnam_street(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Farnam Street — mental models, decision-making, contrarian thinking."""
+    return await _rss_links(client, "https://fs.blog/feed/")
+
+
+async def get_links_mark_manson(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Mark Manson — contrarian self-improvement, psychology, life advice."""
+    return await _rss_links(client, "https://markmanson.net/feed")
+
+
+async def get_links_marginalian(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """The Marginalian — philosophy, science, literature, wisdom."""
+    return await _rss_links(client, "https://www.themarginalian.org/feed/")
+
+
+async def get_links_mindful(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Mindful.org — mindfulness, mental health, psychology."""
+    return await _rss_links(client, "https://www.mindful.org/feed/")
+
+
+# ─── News Sources (kept for mix) ───────────────────────────────
+
+async def get_links_cnbc_indonesia(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """CNBC Indonesia Tech — startup, fintech, crypto, regulasi."""
+    return await _rss_links(client, "https://www.cnbcindonesia.com/tech/rss")
 
 
 async def get_links_detik_inet(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
@@ -723,12 +776,12 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
         # 1. Gather links from RSS feeds + HN
         # Priority: Indonesian sources first, global for breaking news
         link_tasks = await asyncio.gather(
-            get_links_cnbc_indonesia(client),
-            get_links_detik_inet(client),
-            get_links_republika_tekno(client),
-            get_links_cnnindonesia_tekno(client),
-            get_links_merdeka_tekno(client),
-            get_links_kompas_tekno(client),
+            get_links_psyblog(client),
+            get_links_nesslabs(client),
+            get_links_farnam_street(client),
+            get_links_mark_manson(client),
+            get_links_marginalian(client),
+            get_links_mindful(client),
         )
 
         # 2. Build scrape tasks
