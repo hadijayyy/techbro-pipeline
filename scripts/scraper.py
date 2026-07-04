@@ -17,7 +17,7 @@ FALLBACK_HOURS = 24  # fallback if 12h yields nothing
 TOP_N = 1
 
 # Source names used by scrape_all_async — single source of truth
-SOURCE_NAMES = ["bbc"]
+SOURCE_NAMES = ["bbc", "bloomberg_technoz"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -351,9 +351,14 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             real_h1 = soup.find("h1", class_="entry-title")
             if real_h1:
                 title = real_h1.get_text(strip=True)
+        # Bloomberg Technoz: first h1 is empty logo, real title is h1.title
+        if not title and source == "bloomberg_technoz":
+            real_h1 = soup.find("h1", class_="title")
+            if real_h1:
+                title = real_h1.get_text(strip=True)
         if not title:
             og = soup.find("meta", property="og:title")
-            title = og.get("content", "").strip() if og else ""
+            title = og.get("content", "").split(" - ")[0].strip() if og else ""
         if not title:
             return None
 
@@ -416,6 +421,8 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             body = extract_body(soup, [("div", "article__body"), ("div", "article__intro p-summary"), ("article", None)])
         elif source == "bbc":
             body = extract_body(soup, [("article", None), ("div", "ssrcss-11r1m41-RichTextComponentWrapper")])
+        elif source == "bloomberg_technoz":
+            body = extract_body(soup, [("article", None)])
         else:
             return None
 
@@ -499,6 +506,33 @@ async def get_links_bbc(client: httpx.AsyncClient) -> list[tuple[str, datetime |
             seen.add(url)
             deduped.append((url, dt))
     return deduped[:30]
+
+
+# ─── Bloomberg Technoz ──────────────────────────────────────────
+
+async def get_links_bloomberg_technoz(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Bloomberg Technoz — Indonesian business, tech, economy news."""
+    items = []
+    try:
+        r = await client.get("https://www.bloombergtechnoz.com/rss", timeout=12)
+        from email.utils import parsedate_to_datetime
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>([^<]+)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip()
+            dt = None
+            if date_m:
+                try:
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:20]
 
 
 # ─── News Sources (kept for mix) ───────────────────────────────
@@ -798,6 +832,7 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
         # Priority: Indonesian sources first, global for breaking news
         link_tasks = await asyncio.gather(
             get_links_bbc(client),
+            get_links_bloomberg_technoz(client),
         )
 
         # 2. Build scrape tasks
