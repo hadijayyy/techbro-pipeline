@@ -1207,8 +1207,12 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
             if word_count < 3 and '?' not in s:
                 continue
             # Skip if ends with orphan punctuation after short text (e.g., "di komen, !")
-            if word_count < 4 and re.search(r'[,;:.!?]\s*[!?]*$', s) and '?' not in s:
-                continue
+            # Always skip if sentence ends with orphan punctuation regardless of word count
+            if re.search(r'[,;:.!?]\s*[!?]*$', s) and '?' not in s:
+                # Only skip if the last word is punctuation (not a real sentence ending)
+                last_token = s.strip().split()[-1] if s.strip() else ""
+                if not re.search(r'[a-zA-Z]{2,}', last_token):
+                    continue
             # Skip if sentence is mostly incomplete (< 4 real words and no verb-like pattern)
             if word_count < 4 and not re.search(r'\b(adalah|bisa|bakal|akan|harus|mau|sudah|udah|belum|gak|tidak|bukan|juga|lagi|masih|pernah|baru|sudah)\b', s, re.I):
                 continue
