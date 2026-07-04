@@ -17,7 +17,7 @@ FALLBACK_HOURS = 24  # fallback if 12h yields nothing
 TOP_N = 1
 
 # Source names used by scrape_all_async — single source of truth
-SOURCE_NAMES = ["cnbc_id", "detik", "republika", "cnnindonesia", "merdeka", "kompas"]
+SOURCE_NAMES = ["cnbc_id", "detik", "republika", "cnnindonesia", "merdeka", "kompas", "hipwee", "youtube"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -63,6 +63,15 @@ TIER1 = [
     "gig economy", "dropship", "reseller", "freelance",
     "remote work", "wfh", "wfo", "hybrid", "side hustle",
     "uang online", "penghasilan", "karier", "pekerjaan",
+    # Tips & Tricks / Life Hacks — NEW
+    "tips", "trik", "tricks", "life hack", "lifehack",
+    "cara", "rahasia", "tersembunyi", "fitur tersembunyi",
+    "hack", "shortcut", "jalan pintas", "solusi",
+    # Buku & Insight — NEW
+    "buku", "book", "insight", "pelajaran", "wisdom",
+    "motivasi", "inspirasi", "mindset", "habits", "kebiasaan",
+    "sukses", "self-improvement", "pengembangan diri",
+    "ringkasan buku", "book summary", "review buku",
 ]
 
 # TIER2 = tech adjacent (masih relate)
@@ -110,6 +119,12 @@ EXCLUDE = [
     "zodiak", "horoscope", "astrology", "gossip", "celebrity",
     "sports score", "match schedule", "recipe", "cooking",
     "fashion week", "beauty tips", "weight loss",
+    # Gaming (off-topic for our niche)
+    "pokemon", "genshin", "wuthering waves", "volleyball legends",
+    "mobile legends", "free fire", "pubg", "valorant", "fortnite",
+    "roblox", "minecraft", "gacha", "gameplay", "let's play",
+    "clash of clans", "clash royale", "coc tips", "fifa", "efootball",
+    "dota", "league of legends", "wild rift", "among us", "stumble guys",
 ]
 
 _TIER1_SET = {k.lower() for k in TIER1}
@@ -337,6 +352,10 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
                                 rss_date: datetime | None = None,
                                 ) -> dict | None:
     try:
+        # YouTube: use oEmbed API (no auth needed)
+        if source == "youtube":
+            return await scrape_youtube_oembed(url, client)
+
         r = await client.get(url, timeout=15)
         if r.status_code != 200:
             return None
@@ -368,7 +387,7 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             body = extract_body(soup, _WIRED_SEL)
         elif source in ("hn", "anthropic"):
             body = extract_body(soup, _HN_SEL)
-        elif source in ("cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia", "merdeka", "kompas"):
+        elif source in ("cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia", "merdeka", "kompas", "hipwee"):
             # Indonesian sources: try common selectors
             _ID_SEL = [
                 ("div", "post-content"), ("div", "detail-text"),
@@ -617,6 +636,95 @@ async def get_links_kompas_tekno(client: httpx.AsyncClient) -> list[tuple[str, d
     return items[:20]
 
 
+async def get_links_hipwee(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Hipwee — tips, life hacks, productivity, lifestyle for Gen Z/Millennials."""
+    items = []
+    try:
+        r = await client.get("https://www.hipwee.com/feed/", timeout=12)
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip().split("?")[0]
+            dt = None
+            if date_m:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    return items[:20]
+
+
+async def get_links_youtube_trending(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """YouTube trending — search for Indonesian tips/lifehack/book insight videos.
+    Uses yt-dlp to search YouTube and returns video URLs as 'articles'.
+    Title is used as body content for scoring; URL links to the video.
+    """
+    import subprocess
+    items = []
+    queries = [
+        "ytsearch5:tips and tricks Indonesia",
+        "ytsearch5:life hack Indonesia",
+        "ytsearch5:insight buku Indonesia",
+        "ytsearch5:tips produktivitas Indonesia",
+        "ytsearch5:ringkasan buku populer Indonesia",
+    ]
+    try:
+        for query in queries:
+            result = subprocess.run(
+                ["yt-dlp", "--flat-playlist", "--print", "%(title)s|||%(id)s|||%(upload_date)s", query],
+                capture_output=True, text=True, timeout=30
+            )
+            for line in result.stdout.strip().split("\n"):
+                if "|||" not in line:
+                    continue
+                parts = line.split("|||")
+                if len(parts) < 2:
+                    continue
+                title, vid_id = parts[0].strip(), parts[1].strip()
+                if not vid_id or len(title) < 10:
+                    continue
+                url = f"https://www.youtube.com/watch?v={vid_id}"
+                items.append((url, None))
+    except Exception:
+        pass
+    # Dedupe by URL
+    seen = set()
+    deduped = []
+    for url, dt in items:
+        if url not in seen:
+            seen.add(url)
+            deduped.append((url, dt))
+    return deduped[:15]
+
+
+async def scrape_youtube_oembed(url: str, client: httpx.AsyncClient) -> dict | None:
+    """Scrape YouTube video info via oEmbed API (no auth needed)."""
+    try:
+        oembed_url = f"https://www.youtube.com/oembed?url={url}&format=json"
+        r = await client.get(oembed_url, timeout=10)
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        title = data.get("title", "")
+        if not title:
+            return None
+        # Use title as body for scoring (YouTube descriptions need auth)
+        body = title
+        return {
+            "title": title, "date": None, "image": data.get("thumbnail_url", ""),
+            "body": body, "url": url, "source": "youtube",
+        }
+    except Exception:
+        return None
+
+
 # ─── Main Scraper ────────────────────────────────────────────────
 
 async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
@@ -630,6 +738,8 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_cnnindonesia_tekno(client),
             get_links_merdeka_tekno(client),
             get_links_kompas_tekno(client),
+            get_links_hipwee(client),
+            get_links_youtube_trending(client),
             return_exceptions=True,
         )
 
