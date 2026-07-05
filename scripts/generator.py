@@ -1192,6 +1192,16 @@ def _check_topic_relevance(slides: dict, article_title: str, article_body: str) 
     body_lower = article_body.lower()
     article_has_tutorial = sum(1 for p in tutorial_phrases if re.search(p, body_lower)) >= 2
     
+    # ── Is article about a product/tool? (tutorial slides expected) ──
+    product_signals = [
+        r'\b(fitur|fitur-fitur|feature)\b', r'\brilis\b', r'\bresmi\b',
+        r'\blaunch\b', r'\bupdate\b', r'\bversi\s+(baru|terbaru)\b',
+        r'\bmenghadirkan\b', r'\bmeluncurkan\b', r'\bmerilis\b',
+        r'\b(cara|langkah)\s+(pakai|guna|gunakan|menggunakan)\b',
+        r'\btool\b', r'\baplikasi\b', r'\bplatform\b',
+    ]
+    article_is_product = sum(1 for p in product_signals if re.search(p, body_lower)) >= 2
+    
     # ── Check 2: Do slides contain tutorial content? ──
     slide_tutorial_phrases = [
         r'\bpertama\b', r'\bkedua\b', r'\bketiga\b',
@@ -1221,8 +1231,9 @@ def _check_topic_relevance(slides: dict, article_title: str, article_body: str) 
             continue
         
         # ── Tutorial check: slide has tutorial but article doesn't ──
+        # Skip tutorial check if article itself is about a product/tool (tutorials expected)
         slide_has_tutorial = sum(1 for p in slide_tutorial_phrases if re.search(p, text)) >= 2
-        if slide_has_tutorial and not article_has_tutorial:
+        if slide_has_tutorial and not article_has_tutorial and not article_is_product:
             violations.append(f"{key}: tutorial content in non-tutorial article")
             continue  # Skip word overlap check — this is already a violation
         
@@ -1237,13 +1248,17 @@ def _check_topic_relevance(slides: dict, article_title: str, article_body: str) 
             title_ratio = len(title_overlap) / len(title_words)
             
             if title_ratio < 0.25 and len(title_words) >= 3:
-                # Check body keywords as fallback
-                body_excerpt = article_body[:1000].lower()
-                body_kw = set(w for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', body_excerpt) if w not in stopwords)
-                body_overlap = body_kw & slide_words
-                
-                if len(body_overlap) < 3:
-                    violations.append(f"{key}: off-topic (title overlap {title_ratio:.0%}, body kw: {len(body_overlap)})")
+                # Product articles get lower threshold (10%) — slides use different product terms
+                threshold = 0.10 if article_is_product else 0.25
+                if title_ratio < threshold:
+                    # Check body keywords as fallback
+                    body_excerpt = article_body[:1000].lower()
+                    body_kw = set(w for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', body_excerpt) if w not in stopwords)
+                    body_overlap = body_kw & slide_words
+                    
+                    min_kw = 2 if article_is_product else 3
+                    if len(body_overlap) < min_kw:
+                        violations.append(f"{key}: off-topic (title overlap {title_ratio:.0%}, body kw: {len(body_overlap)})")
     
     return violations
 

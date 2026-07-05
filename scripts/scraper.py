@@ -80,6 +80,15 @@ PENALTY = [
     "coupon", "discount", "earbuds", "earphone", "headphone", "smartphone review",
     "battery life test", "benchmark score",
     "zodiak", "horoscope", "gossip", "celebrity",
+    # Low-relatability for Indonesian audience
+    "wall street", "silicon valley", "us election", "senate", "congress",
+    "eu regulation", "gdpr", "dma", "ftc",
+    "developer conference", "hackathon", "tech meetup",
+    "patent", "ip lawsuit", "copyright strike",
+    "data center", "cloud infrastructure", "server rack",
+    "quantum computing", "edge computing", "web3", "metaverse",
+    "nft", "blockchain", "crypto mining", "dao", "defi",
+    "robotics", "lidar", "autonomous vehicle", "self-driving",
 ]
 
 # EXCLUDE = auto-reject
@@ -91,6 +100,20 @@ EXCLUDE = [
     "roblox", "minecraft", "gacha", "gameplay", "let's play",
     "taylor swift", "travis kelce", "wedding", "married", "concert", "tour", "album",
     "election", "parliament", "war", "sanctions",
+    # Niche dev/infra — gak relate orang Indonesia biasa
+    "linux distro", "phosh", "fedora", "arch linux", "ubuntu release", "debian",
+    "kernel update", "wayland", "x11", "gnome release", "kde plasma",
+    "open source release", "github stars", "npm package", "pypi",
+    "rust crate", "golang module", "docker image", "kubernetes",
+    "ci/cd", "devops", "terraform", "ansible",
+    "programming language", "compiler", "runtime", "sdk release",
+    "api documentation", "deprecation notice",
+    "series a", "series b", "series c", "funding round", "raises million",
+    "raises billion", "seed round", "pre-seed", "valuation",
+    "benchmark test", "spec sheet", "processor specs", "chip architecture",
+    "technical paper", "whitepaper", "rfc", "specification",
+    "changelog", "release notes", "patch notes",
+    "fork", "pull request", "merge request",
 ]
 
 _TIER1_SET = {k.lower() for k in TIER1}

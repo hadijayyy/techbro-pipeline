@@ -84,6 +84,48 @@ DAILY_POST_LIMIT = 20
 POSTING_HOURS = (7, 23)  # WIB — only post between 07:00-23:00
 ALLOWED_SOURCES = set(SOURCE_NAMES)
 
+def _check_relatability(title: str, body_excerpt: str) -> int:
+    """Rate how relatable article is for Indonesian audience (1-5).
+    Uses cheap Mistral call. Returns score 1-5."""
+    import os, httpx
+    key = os.environ.get("MISTRAL_API_KEY", "")
+    if not key:
+        print("  [RELATE] No MISTRAL_API_KEY, skipping")
+        return 3  # pass through if no key
+
+    prompt = """Rate how relatable this tech/AI news is for young Indonesian professionals (age 22-35).
+Score 1-5:
+1 = Super niche (Linux kernel, dev tools, startup funding) — 99% don't care
+2 = Somewhat niche (cloud infra, specific API, enterprise B2B) — 90% don't care
+3 = Moderately relatable (new tech product, industry trend) — 50% might care
+4 = Very relatable (scam alert, AI affecting jobs, money saving, productivity) — 70%+ care
+5 = Extremely relatable (government policy affecting everyone, viral tech drama, free tools) — 90%+ care
+
+Consider: Does this directly affect daily life, money, job, or safety of someone in Indonesia?
+
+Respond with ONLY a single digit (1-5), nothing else."""
+
+    try:
+        r = httpx.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"model": "mistral-small-latest",
+                  "messages": [
+                      {"role": "system", "content": prompt},
+                      {"role": "user", "content": f"Title: {title}\nExcerpt: {body_excerpt}"}
+                  ],
+                  "temperature": 0.1, "max_tokens": 5},
+            timeout=15)
+        if r.status_code == 200:
+            raw = r.json()["choices"][0]["message"]["content"].strip()
+            # Extract digit from response
+            digit = re.search(r'[1-5]', raw)
+            if digit:
+                return int(digit.group())
+    except Exception as e:
+        print(f"  [RELATE] Error: {e}")
+    return 3  # default pass on error
+
 def run(top_n: int = TOP_N, dry_run: bool = False):
     t0 = time.time()
     conn = get_db()
@@ -174,6 +216,23 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
         # ── LAYER 3: Scoring Engine (keyword + decay) ────────────
         for art in fresh:
             art["score"] = score_article(art["title"], art["body"], art.get("date"))
+
+        # ── LAYER 3b: Relatability Check (LLM) ──────────────────
+        # Filter articles by how relatable they are to Indonesian audience.
+        # Uses cheap/fast Mistral call. Score 1-5, reject < 3.
+        relatable_fresh = []
+        for art in fresh:
+            rel = _check_relatability(art["title"], art["body"][:500])
+            if rel >= 3:
+                art["relatability"] = rel
+                relatable_fresh.append(art)
+                print(f"  [RELATE] {rel}/5 ✅ {art['title'][:60]}")
+            else:
+                print(f"  [RELATE] {rel}/5 ❌ {art['title'][:60]}")
+        fresh = relatable_fresh
+
+        if not fresh:
+            print("  [RELATE] All articles rejected by relatability filter")
 
         # ── LAYER 4: Cross-Source Virality ───────────────────────
         import re as _re
