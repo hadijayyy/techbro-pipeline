@@ -85,6 +85,8 @@ Dilarang keras:
 • Bilang "untuk semua/umum" kalau artikel bilang "terbatas/undangan/beta"
 CONTOH SALAH: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Lo tulis "bisa dicoba GRATIS"
 CONTOH BENAR: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Lo tulis "masih terbatas buat pelanggan Ultra"
+• Bilang "X tahun ke depan" kalau artikel gak nyebut timeframe spesifik
+• Bilang "risiko buat X" kalau X gak disebut di artikel
 
 ═══════════════════════════════════════════════
 §2  STEP 0 — EKSTRAKSI FAKTA (WAJIB SEBELUM NULIS)
@@ -1093,6 +1095,31 @@ def _check_fabricated_claims(slides: dict, article_body: str, title: str = "") -
             if re.search(r'\b(untuk semua|umum|publik|semua orang|tersedia bebas)\b', text):
                 violations.append(f"{key}: says available to all but article says limited/beta")
 
+    # ─── Unsubstantiated future predictions with specific timeframe ───
+    prediction_pattern = r'\b(\d+)\s*(?:tahun|bulan|minggu|dekade)\s*(?:ke depan|mendatang|lagi|depan)\b'
+    for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
+        text = slides.get(key, "").lower()
+        if not text:
+            continue
+        for m in re.finditer(prediction_pattern, text):
+            timeframe = m.group(0)
+            if not re.search(r'\b\d+\s*(?:tahun|bulan|minggu|dekade)\b', article_lower):
+                violations.append(f"{key}: prediction '{timeframe}' not in article")
+
+    # ─── Entity risk attribution ───
+    # Slide says "risiko buat X" but article doesn't mention X at risk
+    for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
+        text = slides.get(key, "").lower()
+        if not text:
+            continue
+        for m in re.finditer(r'risiko\s+(?:buat|untuk|bagi)\s+(.+?)(?:\.|$)', text):
+            risk_clause = m.group(1)
+            # Extract all entities (capitalized words or known brands)
+            entities = re.findall(r'\b(tsmc|nvidia|samsung|apple|google|intel|amazon|anthropic|openai|meta|microsoft)\b', risk_clause, re.I)
+            for entity in entities:
+                if entity.lower() not in article_lower and entity.upper() not in article_body:
+                    violations.append(f"{key}: risk for '{entity}' but article doesn't mention {entity}")
+
     return violations
 
 
@@ -1306,6 +1333,11 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
 
     # ─── Factual claim grounding — REJECT if contradicts article ───
     claim_violations = _check_fabricated_claims(data, body, title)
+    # Also check caption separately (it's not a slide)
+    if "caption" in data and data["caption"]:
+        caption_slides = {"slide_1": data["caption"]}
+        caption_violations = _check_fabricated_claims(caption_slides, body, title)
+        claim_violations.extend(caption_violations)
     if claim_violations:
         for v in claim_violations:
             print(f"[GROUNDING] 🔴 {v}")
