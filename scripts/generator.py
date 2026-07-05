@@ -473,7 +473,7 @@ def _build_user_msg(title: str, body: str, source: str = "", hook_instruction: s
     article_type = _classify_article(title, body)
     angle = _get_angle(article_type)
     hook_part = f"\nHOOK STYLE: {hook_instruction}" if hook_instruction else ""
-    return f"ANGLE: {angle}{hook_part}\n\nARTICLE: {body[:4000]}\nSOURCE: {title}"
+    return f"ANGLE: {angle}{hook_part}\n\nTITLE: {title}\nARTICLE: {body[:4000]}\nSOURCE: {source}"
 
 def _call_mistral(title: str, body: str, source: str = "", hook_instruction: str = "") -> Optional[str]:
     prompt = _get_prompt()
