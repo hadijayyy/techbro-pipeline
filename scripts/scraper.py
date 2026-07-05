@@ -12,15 +12,14 @@ from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse, urlunparse
 
 UTC = timezone.utc
-MAX_AGE_HOURS = 24
-FALLBACK_HOURS = 48  # 48h for less-frequent sources
+MAX_AGE_HOURS = 720  # 30 days max
+FALLBACK_HOURS = 720  # same for fallback
 TOP_N = 1
 
 # Source names used by scrape_all_async — single source of truth
 SOURCE_NAMES = [
-    "lifehacker", "techcrunch", "nerdwallet", "wired", "android_authority",
-    "ars_technica", "bbc", "bloomberg_technoz", "cnbc_id", "detik_inet",
-    "liputan6_tekno", "liputan6_bisnis", "the_verge", "hn", "google_news_id",
+    "techcrunch", "wired", "bbc", "bloomberg_technoz", "cnbc_id",
+    "detik_inet", "liputan6_tekno", "liputan6_bisnis", "the_verge", "hn",
 ]
 
 HEADERS = {
@@ -158,10 +157,10 @@ def score_article(title: str, body: str, date=None) -> int:
 
     # HN virality bonus: 500pts = +100, 1000pts = +100 (capped)
 
-    # Recency: exponential decay. 0h = +30, 12h = +0
+    # Recency: exponential decay. 0h = +50, 30d = +0
     if date:
         hours_old = (datetime.now(UTC) - date).total_seconds() / 3600
-        recency_bonus = max(0, 30 - int(hours_old * 30 / MAX_AGE_HOURS))
+        recency_bonus = max(0, 50 - int(hours_old * 50 / MAX_AGE_HOURS))
         s += recency_bonus
 
     return max(0, min(s, 150))
@@ -402,18 +401,10 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             body = extract_body(soup, [("article", None), ("div", "ssrcss-11r1m41-RichTextComponentWrapper")])
         elif source == "bloomberg_technoz":
             body = extract_body(soup, [("article", None)])
-        elif source == "lifehacker":
-            body = extract_body(soup, [("article", None), ("div", "entry-content")])
         elif source == "techcrunch":
             body = extract_body(soup, [("div", "article-content"), ("div", "entry-content"), ("article", None)])
-        elif source == "nerdwallet":
-            body = extract_body(soup, [("div", "article-body"), ("div", "entry-content"), ("article", None)])
         elif source == "wired":
             body = extract_body(soup, [("div", "body__inner-container"), ("article", None)])
-        elif source == "android_authority":
-            body = extract_body(soup, [("div", "entry-content"), ("article", None)])
-        elif source == "ars_technica":
-            body = extract_body(soup, [("div", "article-content"), ("article", None)])
         elif source == "cnbc_id":
             body = extract_body(soup, [("div", "detail-text"), ("article", None)])
         elif source == "detik_inet":
@@ -424,9 +415,6 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             body = extract_body(soup, [("div", "article-body"), ("div", "caas-body"), ("article", None)])
         elif source == "hn":
             body = extract_body(soup, [("div", "fatitem"), ("article", None), ("td", None)])
-        elif source == "google_news_id":
-            # Google News redirects — can't scrape directly
-            return None
         else:
             # Generic fallback
             body = extract_body(soup, [("article", None), ("div", "content"), ("div", "post-content")])
@@ -543,29 +531,13 @@ async def get_links_bbc(client: httpx.AsyncClient) -> list[tuple[str, datetime |
 
 # ─── Educator Niche Sources ─────────────────────────────────────
 
-async def get_links_lifehacker(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Lifehacker — tech life hacks, productivity tips, how-to guides."""
-    return await _rss_links(client, "https://lifehacker.com/rss")
-
 async def get_links_techcrunch(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
     """TechCrunch — AI/tech news, startup stories."""
     return await _rss_links(client, "https://techcrunch.com/feed/")
 
-async def get_links_nerdwallet(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """NerdWallet — personal finance, investing, budgeting."""
-    return await _rss_links(client, "https://www.nerdwallet.com/blog/feed/")
-
 async def get_links_wired(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
     """Wired — tech culture, gadgets, AI, cybersecurity."""
     return await _rss_links(client, "https://www.wired.com/feed/rss")
-
-async def get_links_android_authority(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Android Authority — mobile tech tips, app reviews."""
-    return await _rss_links(client, "https://www.androidauthority.com/feed/")
-
-async def get_links_ars_technica(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Ars Technica — deep tech analysis, science, cybersecurity."""
-    return await _rss_links(client, "https://feeds.arstechnica.com/arstechnica/index")
 
 async def get_links_cnbc_id(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
     """CNBC Indonesia — Indonesian tech/business news."""
@@ -590,10 +562,6 @@ async def get_links_the_verge(client: httpx.AsyncClient) -> list[tuple[str, date
 async def get_links_hn(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
     """Hacker News — top stories."""
     return await _rss_links(client, "https://news.ycombinator.com/rss")
-
-async def get_links_google_news_id(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Google News Indonesia — general trending tech."""
-    return await _rss_links(client, "https://news.google.com/rss?hl=id&gl=ID&ceid=ID:id")
 
 # ─── Bloomberg Technoz ──────────────────────────────────────────
 
@@ -628,12 +596,8 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
         # 1. Gather links from all sources
         link_tasks = await asyncio.gather(
-            get_links_lifehacker(client),
             get_links_techcrunch(client),
-            get_links_nerdwallet(client),
             get_links_wired(client),
-            get_links_android_authority(client),
-            get_links_ars_technica(client),
             get_links_bbc(client),
             get_links_bloomberg_technoz(client),
             get_links_cnbc_id(client),
@@ -642,7 +606,6 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_liputan6_bisnis(client),
             get_links_the_verge(client),
             get_links_hn(client),
-            get_links_google_news_id(client),
         )
 
         # 2. Build scrape tasks
