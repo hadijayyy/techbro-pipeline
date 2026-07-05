@@ -151,6 +151,23 @@ def _unique_matches(text: str, keywords: set) -> int:
     return count
 
 
+def check_article_quality(body: str) -> str | None:
+    """3-layer content quality filter (from pressbox). Returns rejection reason or None."""
+    text = body.strip()
+    # Layer 1: character count
+    if len(text) < 1000:
+        return f"too short ({len(text)} chars < 1000)"
+    # Layer 2: word count
+    words = len(text.split())
+    if words < 150:
+        return f"too few words ({words} < 150)"
+    # Layer 3: sentence count (min 20 chars each to count)
+    sentences = [s.strip() for s in re.split(r'[.!?]+', text) if len(s.strip()) >= 20]
+    if len(sentences) < 8:
+        return f"too few sentences ({len(sentences)} < 8)"
+    return None
+
+
 def fast_content_filter(title: str, body: str) -> str | None:
     """Layer 2 fast drop. Returns rejection reason or None if OK."""
     text = (title + " " + body[:500]).lower()
@@ -186,7 +203,10 @@ def score_article(title: str, body: str, date=None) -> int:
         recency_bonus = max(0, 50 - int(hours_old * 50 / MAX_AGE_HOURS))
         s += recency_bonus
 
-    return max(0, min(s, 150))
+    # Soft cap: diminishing returns above 100 (from pressbox pattern)
+    if s > 100:
+        s = int(100 + (s - 100) * 0.3)
+    return max(0, s)
 
 
 def fix_image_url(url: str) -> str:

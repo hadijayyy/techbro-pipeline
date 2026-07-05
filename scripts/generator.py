@@ -1313,6 +1313,58 @@ def _pick_hook_instruction(recent_patterns: list[str]) -> str:
     chosen = random.choice(available)
     return chosen[1]
 
+def _evaluate_slides(slides: dict, title: str, body: str) -> str:
+    """Independent skeptical review via cheaper model (pressbox pattern).
+    Returns: 'APPROVE', 'REVISE', or 'REJECT'.
+    Fail-open: errors → APPROVE (don't block pipeline on evaluator failure).
+    """
+    if not MISTRAL_KEY:
+        return "APPROVE"
+
+    slide_text = "\n\n".join(
+        f"Slide {i}: {slides.get(f'slide_{i}', '')}"
+        for i in range(1, 7) if slides.get(f"slide_{i}")
+    )
+    caption = slides.get("caption", "")
+
+    prompt = """You are a skeptical content reviewer for an Indonesian tech/finance educator account.
+Review these slides against the source article. Check for:
+
+1. FABRICATED FACTS — numbers, names, or events NOT in the article
+2. HALLUCINATED PRICES/VALUATIONS — invented monetary amounts
+3. SPECULATIVE CLAIMS — "akan terjadi", "risiko buat X" without article basis
+4. EXAGGERATED PARAPHRASE — article says "mungkin" → slide says "pasti"
+5. TOPIC DRIFT — slides discuss topic NOT covered in article
+6. FABRICATED QUOTES — dialogue not in article
+
+For each slide, answer: does every claim trace back to the article?
+Respond with ONLY one word: APPROVE (all grounded), REVISE (minor issues, post anyway), or REJECT (major hallucination, block)."""
+
+    user_msg = f"TITLE: {title}\n\nARTICLE:\n{body[:4000]}\n\nSLIDES:\n{slide_text}\n\nCAPTION: {caption}"
+
+    try:
+        r = httpx.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
+            json={"model": "mistral-small-latest",
+                  "messages": [
+                      {"role": "system", "content": prompt},
+                      {"role": "user", "content": user_msg}
+                  ],
+                  "temperature": 0.1, "max_tokens": 10},
+            timeout=30)
+        if r.status_code == 200:
+            verdict = r.json()["choices"][0]["message"]["content"].strip().upper()
+            if "REJECT" in verdict:
+                return "REJECT"
+            if "REVISE" in verdict:
+                return "REVISE"
+            return "APPROVE"
+    except Exception as e:
+        print(f"  [EVAL] Error: {e}")
+    return "APPROVE"  # fail-open
+
+
 def generate_carousel(title: str, body: str, image: str = "", url: str = "", source: str = "") -> Optional[dict]:
     """Generate 6-slide carousel with A/B testing (2 variants, pick best hook)."""
     print(f"[LANG] {CONTENT_LANG}")
@@ -1563,6 +1615,25 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                 continue
             clean_lines.append(line)
         data[key] = '\n\n'.join(clean_lines)
+
+    # ─── Evaluator: independent skeptical review (pressbox pattern) ───
+    verdict = _evaluate_slides(data, title, body)
+    print(f"  [EVAL] Verdict: {verdict}")
+    if verdict == "REJECT":
+        # Retry once with stronger grounding
+        stronger = hook_instr + " ATURAN MUTLAK: HANYA pakai fakta yang ADA di artikel. JANGAN tambah apapun."
+        v = _generate_variant(title, body, source, primary, hook_instruction=stronger)
+        if v and "slide_1" in v:
+            retry_verdict = _evaluate_slides(v, title, body)
+            print(f"  [EVAL] Retry verdict: {retry_verdict}")
+            if retry_verdict != "REJECT":
+                data = v
+            else:
+                print(f"  [EVAL] ❌ Blocked — evaluator REJECT after retry")
+                return None
+        else:
+            print(f"  [EVAL] ❌ Blocked — retry generation failed")
+            return None
 
     data["_provider"] = data.get("_provider", primary)
     data["_lang"] = CONTENT_LANG

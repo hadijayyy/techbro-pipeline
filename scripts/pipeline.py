@@ -4,6 +4,7 @@ pipeline.py — Orchestrator: scrape → score → generate → stage in SQLite.
 Run: python3 scripts/pipeline.py [--top N] [--dry-run]
 """
 import sys
+import re
 import time
 import argparse
 from pathlib import Path
@@ -19,7 +20,7 @@ if _env_path.exists():
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from scraper import scrape_all, score_article, fast_content_filter, SOURCE_NAMES
+from scraper import scrape_all, score_article, fast_content_filter, check_article_quality, SOURCE_NAMES
 from generator import generate_carousel
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed, cleanup_old
 from poster import post_from_db
@@ -126,6 +127,90 @@ Respond with ONLY a single digit (1-5), nothing else."""
         print(f"  [RELATE] Error: {e}")
     return 3  # default pass on error
 
+
+def _pull_analytics_feedback(conn) -> dict:
+    """Pull engagement metrics for recent posts and compute boosts/penalties.
+    Returns: {'hook_boosts': {keyword: +pts}, 'topic_penalties': {keyword: -pts}, 'median_views': int}
+    Pressbox pattern: live analytics → scoring adjustments.
+    """
+    from poster import fetch_engagement, track_engagement
+    result = {"hook_boosts": {}, "topic_penalties": {}, "median_views": 0}
+
+    # Auto-track engagement for posted posts missing metrics (>12h old)
+    try:
+        tracked = track_engagement(limit=20)
+        if tracked.get("updated", 0) > 0:
+            print(f"  [ANALYTICS] Updated {tracked['updated']} posts with engagement data")
+    except Exception as e:
+        print(f"  [ANALYTICS] Track error (non-blocking): {e}")
+
+    # Get posts with performance data
+    rows = conn.execute("""
+        SELECT p.slide_hook, p.slide_cta, a.title, a.source,
+               perf.views, perf.likes, perf.replies, perf.reposts
+        FROM posts p
+        JOIN articles a ON p.article_id = a.id
+        JOIN performance perf ON perf.post_id = p.id
+        WHERE p.status = 'posted'
+        ORDER BY p.posted_at DESC
+        LIMIT 30
+    """).fetchall()
+
+    if len(rows) < 5:
+        print(f"  [ANALYTICS] Only {len(rows)} posts with metrics — need 5+ for feedback")
+        return result
+
+    # Compute median views
+    views_list = sorted([r["views"] for r in rows if r["views"] and r["views"] > 0])
+    if views_list:
+        mid = len(views_list) // 2
+        median_views = views_list[mid] if len(views_list) % 2 else (views_list[mid-1] + views_list[mid]) // 2
+        result["median_views"] = median_views
+        print(f"  [ANALYTICS] Median views: {median_views} (from {len(views_list)} posts)")
+
+        # Classify high/low performers
+        high = [r for r in rows if r["views"] and r["views"] >= median_views * 1.3]
+        low = [r for r in rows if r["views"] and r["views"] < median_views * 0.7 and r["views"] > 0]
+
+        # Extract hook keywords from high performers → boost
+        import re as _re
+        hook_words = set()
+        for r in high:
+            words = set(_re.findall(r'\b[a-z]{4,}\b', (r["slide_hook"] or "").lower()))
+            hook_words.update(words)
+
+        # Extract title keywords from low performers → penalty
+        topic_words = set()
+        for r in low:
+            words = set(_re.findall(r'\b[a-z]{4,}\b', (r["title"] or "").lower()))
+            topic_words.update(words)
+
+        # Only boost/penalize words that appear 2+ times (not one-offs)
+        from collections import Counter
+        high_hook_counts = Counter()
+        for r in high:
+            for w in set(_re.findall(r'\b[a-z]{4,}\b', (r["slide_hook"] or "").lower())):
+                high_hook_counts[w] += 1
+        for word, count in high_hook_counts.items():
+            if count >= 2:
+                result["hook_boosts"][word] = 15
+
+        low_topic_counts = Counter()
+        for r in low:
+            for w in set(_re.findall(r'\b[a-z]{4,}\b', (r["title"] or "").lower())):
+                low_topic_counts[w] += 1
+        for word, count in low_topic_counts.items():
+            if count >= 2:
+                result["topic_penalties"][word] = -20
+
+        if result["hook_boosts"]:
+            print(f"  [ANALYTICS] Hook boosts: {list(result['hook_boosts'].keys())[:5]}")
+        if result["topic_penalties"]:
+            print(f"  [ANALYTICS] Topic penalties: {list(result['topic_penalties'].keys())[:5]}")
+
+    return result
+
+
 def run(top_n: int = TOP_N, dry_run: bool = False):
     t0 = time.time()
     conn = get_db()
@@ -171,6 +256,9 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
     if cleaned["deleted_articles"] > 0:
         print(f"[0/4] Cleaned {cleaned['deleted_articles']} old articles")
 
+    # 1b. Analytics feedback — pull engagement, compute boosts (pressbox pattern)
+    analytics = _pull_analytics_feedback(conn)
+
     # 1. Scrape + score
     print(f"[1/4] Scraping top {top_n} articles...")
 
@@ -198,6 +286,11 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
             if reject:
                 print(f"  [DROP] {reject}: {art['title'][:50]}...")
                 continue
+            # 2a2. Article quality filter (3-layer: char/words/sentences)
+            qreject = check_article_quality(art["body"])
+            if qreject:
+                print(f"  [DROP] quality: {qreject}: {art['title'][:50]}...")
+                continue
             # 2b. DB dedup (title similarity + entity topic)
             skip = False
             for pt in posted_titles + staged_titles_this_run:
@@ -216,6 +309,23 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
         # ── LAYER 3: Scoring Engine (keyword + decay) ────────────
         for art in fresh:
             art["score"] = score_article(art["title"], art["body"], art.get("date"))
+
+        # ── LAYER 3a: Analytics Feedback Boosts ──────────────────
+        if analytics.get("hook_boosts") or analytics.get("topic_penalties"):
+            for art in fresh:
+                title_words = set(re.findall(r'\b[a-z]{4,}\b', art["title"].lower()))
+                body_words = set(re.findall(r'\b[a-z]{4,}\b', art["body"][:500].lower()))
+                all_words = title_words | body_words
+                # Hook boost: if title/body matches high-performing hook keywords
+                for kw, pts in analytics.get("hook_boosts", {}).items():
+                    if kw in all_words:
+                        art["score"] = min(art["score"] + pts, 150)
+                        art.setdefault("analytics_tag", []).append(f"hook+{pts}")
+                # Topic penalty: if title matches low-performing topic keywords
+                for kw, pts in analytics.get("topic_penalties", {}).items():
+                    if kw in title_words:
+                        art["score"] = max(art["score"] + pts, 0)
+                        art.setdefault("analytics_tag", []).append(f"topic{pts}")
 
         # ── LAYER 3b: Relatability Check (LLM) ──────────────────
         # Filter articles by how relatable they are to Indonesian audience.
@@ -340,6 +450,10 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
                 reject = fast_content_filter(art['title'], art['body'])
                 if reject:
                     print(f"  [DROP] {reject}: {art['title'][:50]}...")
+                    continue
+                qreject = check_article_quality(art['body'])
+                if qreject:
+                    print(f"  [DROP] quality: {qreject}: {art['title'][:50]}...")
                     continue
 
                 skip = False
