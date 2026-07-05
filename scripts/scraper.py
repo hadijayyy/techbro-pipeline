@@ -12,8 +12,8 @@ from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse, urlunparse
 
 UTC = timezone.utc
-MAX_AGE_HOURS = 12
-FALLBACK_HOURS = 24  # fallback if 12h yields nothing
+MAX_AGE_HOURS = 24
+FALLBACK_HOURS = 48  # 48h for less-frequent sources
 TOP_N = 1
 
 # Source names used by scrape_all_async — single source of truth
@@ -320,7 +320,7 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
                                 ) -> dict | None:
     try:
         r = await client.get(url, timeout=15)
-        if r.status_code != 200:
+        if r.status_code not in (200, 202):  # 202 = accepted (Ars Technica)
             return None
         soup = BeautifulSoup(r.text, "html.parser")
         title_tag = soup.find("h1")
