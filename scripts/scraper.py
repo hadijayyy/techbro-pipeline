@@ -418,8 +418,18 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             body = extract_body(soup, [("div", "detail-text"), ("article", None)])
         elif source == "detik_inet":
             body = extract_body(soup, [("div", "detail__body-text"), ("div", "detail-text"), ("article", None)])
-        else:
+        elif source in ("liputan6_tekno", "liputan6_bisnis"):
+            body = extract_body(soup, [("div", "article-content"), ("div", "read__content"), ("article", None)])
+        elif source == "the_verge":
+            body = extract_body(soup, [("div", "article-body"), ("div", "caas-body"), ("article", None)])
+        elif source == "hn":
+            body = extract_body(soup, [("div", "fatitem"), ("article", None), ("td", None)])
+        elif source == "google_news_id":
+            # Google News redirects — can't scrape directly
             return None
+        else:
+            # Generic fallback
+            body = extract_body(soup, [("article", None), ("div", "content"), ("div", "post-content")])
 
         if not body or len(body) < 300:
             return None
