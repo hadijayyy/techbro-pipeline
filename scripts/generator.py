@@ -413,16 +413,34 @@ ANGLES = {
         "Write as ETHICAL DEBATE — both sides of the argument.",
         "Write as PATTERN RECOGNITION — what history tells us about this.",
     ],
+    "drama": [
+        "Write as DRAMA EXTRACTOR — take the viral/hot story, extract 3 actionable tips that readers can learn from it. The drama is the hook, tips are the value.",
+        "Write as LESSON LEARNER — what can orang biasa learn from this drama? 3 practical takeaways, grounded in facts.",
+        "Write as DRAMA ANALYST — break down WHY this drama happened, then give 3 tips to avoid similar situation.",
+    ],
 }
 
 def _classify_article(title: str, body: str) -> str:
-    """Classify article type for prompt rotation."""
+    """Classify article type for prompt rotation. Drama takes priority."""
     text = (title + " " + body[:500]).lower()
-    
+
+    # Drama detection (highest priority — viral/hot stories)
+    drama_signals = [
+        "viral", "heboh", "kontroversial", "korban", "banting setir",
+        "nganggur", "dipecat", "resign", "phk", "gugat", "skandal",
+        "bongkar", "terungkap", "ternyata", "marah", "protes", "boikot",
+        "gagal", "kolaps", "anjlok", "didenda", "dituntut", "ditangkap",
+        "layoff", "scandal", "controversy", "exposed", "shutdown",
+        "fired", "bankrupt", "crisis",
+    ]
+    drama_count = sum(1 for w in drama_signals if w in text)
+    if drama_count >= 2:  # at least 2 drama signals = drama mode
+        return "drama"
+
     product_words = {"launch", "release", "introduces", "unveils", "new feature", "update", "beta", "app", "tool", "product"}
     impact_words = {"layoff", "jobs", "career", "replace", "automation", "workforce", "salary", "hiring", "funding", "valuation", "ipo"}
-    controversy_words = {"banned", "lawsuit", "regulation", "controversy", "ethical", "bias", "safety", "risk", "danger", "control", "censorship"}
-    
+    controversy_words = {"banned", "lawsuit", "regulation", "ethical", "bias", "safety", "risk", "danger", "control", "censorship"}
+
     if any(w in text for w in controversy_words):
         return "controversy"
     if any(w in text for w in product_words):

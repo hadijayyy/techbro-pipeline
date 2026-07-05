@@ -23,8 +23,10 @@ from scraper import scrape_all, score_article, fast_content_filter, SOURCE_NAMES
 from generator import generate_carousel
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed, cleanup_old
 from poster import post_from_db
+from trending import score_article_drama, detect_dramas
 
 TOP_N = 10  # articles per run (pick best unposted)
+DRAMA_BOOST = 30  # bonus points for drama articles
 
 def _normalize_title(title: str) -> str:
     """Normalize title for dedup: lowercase, strip punctuation, collapse spaces."""
@@ -198,6 +200,15 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
                     for a in group:
                         a["score"] = min(a["score"] + 30, 150)
                         a["virality"] = f"cross-source ({len(sources)} sources)"
+
+        # ── LAYER 5: Drama Boost ───────────────────────────────
+        # Articles with drama signals get priority (viral/controversial content)
+        for art in fresh:
+            drama_score, drama_reason = score_article_drama(art["title"], art["body"])
+            if drama_score >= 40:  # strong drama signal
+                art["score"] = min(art["score"] + DRAMA_BOOST, 180)
+                art["drama"] = drama_reason
+                print(f"  [DRAMA +{DRAMA_BOOST}] {art['title'][:50]}... ({drama_reason})")
 
         # Sort by score desc
         fresh.sort(key=lambda x: x.get("score", 0), reverse=True)
