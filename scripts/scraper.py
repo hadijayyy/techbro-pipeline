@@ -20,8 +20,7 @@ TOP_N = 1
 SOURCE_NAMES = [
     "lifehacker", "techcrunch", "nerdwallet", "wired", "android_authority",
     "ars_technica", "bbc", "bloomberg_technoz", "cnbc_id", "detik_inet",
-    "kompas_tekno", "liputan6_tekno", "tempo_tekno", "the_verge", "hn",
-    "google_news_id",
+    "liputan6_tekno", "liputan6_bisnis", "the_verge", "hn", "google_news_id",
 ]
 
 HEADERS = {
@@ -538,17 +537,13 @@ async def get_links_detik_inet(client: httpx.AsyncClient) -> list[tuple[str, dat
     """Detik Inet — Indonesian tech news."""
     return await _rss_links(client, "https://inet.detik.com/rss")
 
-async def get_links_kompas_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Kompas Tekno — Indonesian tech news."""
-    return await _rss_links(client, "https://www.kompas.com/tekno/rss")
-
 async def get_links_liputan6_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
     """Liputan6 Tekno — Indonesian tech news."""
-    return await _rss_links(client, "https://www.liputan6.com/tekno/rss")
+    return await _rss_links(client, "https://feed.liputan6.com/rss/tekno")
 
-async def get_links_tempo_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Tempo Tekno — Indonesian tech/science news."""
-    return await _rss_links(client, "https://rss.tempo.co/tekno")
+async def get_links_liputan6_bisnis(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Liputan6 Bisnis — Indonesian business/finance news."""
+    return await _rss_links(client, "https://feed.liputan6.com/rss/bisnis")
 
 async def get_links_the_verge(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
     """The Verge — international tech news."""
@@ -605,9 +600,8 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_bloomberg_technoz(client),
             get_links_cnbc_id(client),
             get_links_detik_inet(client),
-            get_links_kompas_tekno(client),
             get_links_liputan6_tekno(client),
-            get_links_tempo_tekno(client),
+            get_links_liputan6_bisnis(client),
             get_links_the_verge(client),
             get_links_hn(client),
             get_links_google_news_id(client),
