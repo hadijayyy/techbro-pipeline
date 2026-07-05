@@ -202,13 +202,23 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
                         a["virality"] = f"cross-source ({len(sources)} sources)"
 
         # ── LAYER 5: Drama Boost ───────────────────────────────
-        # Articles with drama signals get priority (viral/controversial content)
+        # Articles with drama signals in TITLE + niche relevance get priority
+        DRAMA_TITLE_SIGNALS = [
+            "viral", "heboh", "korban", "banting setir", "dipecat",
+            "resign", "phk", "skandal", "terungkap", "ternyata",
+            "didenda", "dituntut", "ditangkap", "gugat",
+            "layoff", "scandal", "fired", "bankrupt", "crisis",
+        ]
         for art in fresh:
-            drama_score, drama_reason = score_article_drama(art["title"], art["body"])
-            if drama_score >= 40:  # strong drama signal
-                art["score"] = min(art["score"] + DRAMA_BOOST, 180)
-                art["drama"] = drama_reason
-                print(f"  [DRAMA +{DRAMA_BOOST}] {art['title'][:50]}... ({drama_reason})")
+            title_lower = art["title"].lower()
+            has_drama_in_title = any(s in title_lower for s in DRAMA_TITLE_SIGNALS)
+            if has_drama_in_title:
+                _, dr = score_article_drama(art["title"], art["body"])
+                has_niche = "niche:" in dr
+                if has_niche:
+                    art["score"] = min(art["score"] + DRAMA_BOOST, 180)
+                    art["drama"] = dr
+                    print(f"  [DRAMA +{DRAMA_BOOST}] {art['title'][:50]}... ({dr})")
 
         # Sort by score desc
         fresh.sort(key=lambda x: x.get("score", 0), reverse=True)

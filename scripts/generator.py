@@ -433,7 +433,7 @@ def _classify_article(title: str, body: str) -> str:
         "layoff", "scandal", "controversy", "exposed", "shutdown",
         "fired", "bankrupt", "crisis",
     ]
-    drama_count = sum(1 for w in drama_signals if w in text)
+    drama_count = sum(1 for w in drama_signals if re.search(r'\b' + re.escape(w) + r'\b', text))
     if drama_count >= 2:  # at least 2 drama signals = drama mode
         return "drama"
 

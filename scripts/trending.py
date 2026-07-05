@@ -39,9 +39,9 @@ NICHE_PATTERNS = [
 ]
 
 
-def _find_drama(text: str) -> list[str]:
-    t = text.lower()
-    return [kw for kw in DRAMA_SIGNALS if kw.lower() in t]
+def _has_drama(text: str) -> list[str]:
+    """Find drama signal matches (word boundary)."""
+    return [kw for kw in DRAMA_SIGNALS if re.search(r'\b' + re.escape(kw.lower()) + r'\b', text.lower())]
 
 
 def _find_niche(text: str) -> list[str]:
@@ -55,9 +55,9 @@ def score_topic(title: str, body: str = "") -> tuple[int, str]:
     High score = strong drama + strong niche.
     """
     text = f"{title} {body}"
-    drama = _find_drama(text)
+    drama = _has_drama(text)
     niche = _find_niche(text)
-    
+
     score = len(drama) * 10 + len(niche) * 15
     if drama and niche:
         score += 30  # COMBO bonus
@@ -214,8 +214,8 @@ def score_article_drama(title: str, body: str) -> tuple[int, str]:
     Score an article for drama potential.
     Higher weight on body content (more substance).
     """
-    drama_title = _find_drama(title)
-    drama_body = _find_drama(body)
+    drama_title = _has_drama(title)
+    drama_body = _has_drama(body)
     niche_title = _find_niche(title)
     niche_body = _find_niche(body)
     
@@ -233,9 +233,9 @@ def score_article_drama(title: str, body: str) -> tuple[int, str]:
     
     parts = []
     if all_drama:
-        parts.append(f"drama:{','.join(set(all_drama))[:3]}")
+        parts.append(f"drama:{','.join(list(set(all_drama))[:3])}")
     if all_niche:
-        parts.append(f"niche:{','.join(set(all_niche))[:3]}")
+        parts.append(f"niche:{','.join(list(set(all_niche))[:3])}")
     
     return score, " | ".join(parts) if parts else "none"
 
