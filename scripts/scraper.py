@@ -341,9 +341,9 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
         if not title:
             return None
 
-        dt = rss_date or parse_date_iso(
+        dt = parse_date_iso(
             (soup.find("meta", property="article:published_time") or {}).get("content", "")
-        )
+        ) or rss_date  # prefer meta date (more accurate) over RSS date
         # BBC: parse datePublished from JSON-LD
         if not dt and source == "bbc":
             import json
