@@ -20,6 +20,8 @@ TOP_N = 1
 SOURCE_NAMES = [
     "lifehacker", "techcrunch", "nerdwallet", "wired", "android_authority",
     "ars_technica", "bbc", "bloomberg_technoz", "cnbc_id", "detik_inet",
+    "kompas_tekno", "liputan6_tekno", "tempo_tekno", "the_verge", "hn",
+    "google_news_id",
 ]
 
 HEADERS = {
@@ -536,6 +538,30 @@ async def get_links_detik_inet(client: httpx.AsyncClient) -> list[tuple[str, dat
     """Detik Inet — Indonesian tech news."""
     return await _rss_links(client, "https://inet.detik.com/rss")
 
+async def get_links_kompas_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Kompas Tekno — Indonesian tech news."""
+    return await _rss_links(client, "https://www.kompas.com/tekno/rss")
+
+async def get_links_liputan6_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Liputan6 Tekno — Indonesian tech news."""
+    return await _rss_links(client, "https://www.liputan6.com/tekno/rss")
+
+async def get_links_tempo_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Tempo Tekno — Indonesian tech/science news."""
+    return await _rss_links(client, "https://rss.tempo.co/tekno")
+
+async def get_links_the_verge(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """The Verge — international tech news."""
+    return await _rss_links(client, "https://www.theverge.com/rss/index.xml")
+
+async def get_links_hn(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Hacker News — top stories."""
+    return await _rss_links(client, "https://news.ycombinator.com/rss")
+
+async def get_links_google_news_id(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Google News Indonesia — general trending tech."""
+    return await _rss_links(client, "https://news.google.com/rss?hl=id&gl=ID&ceid=ID:id")
+
 # ─── Bloomberg Technoz ──────────────────────────────────────────
 
 async def get_links_bloomberg_technoz(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
@@ -579,6 +605,12 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_bloomberg_technoz(client),
             get_links_cnbc_id(client),
             get_links_detik_inet(client),
+            get_links_kompas_tekno(client),
+            get_links_liputan6_tekno(client),
+            get_links_tempo_tekno(client),
+            get_links_the_verge(client),
+            get_links_hn(client),
+            get_links_google_news_id(client),
         )
 
         # 2. Build scrape tasks
@@ -650,7 +682,7 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     # Source diversity: max 2 per source
     diversified = []
     source_count: dict[str, int] = {}
-    MAX_PER_SOURCE = 2
+    MAX_PER_SOURCE = 3  # 3 per source, 16 sources = up to 48 articles
     for art in articles:
         src = art["source"]
         if source_count.get(src, 0) < MAX_PER_SOURCE:
