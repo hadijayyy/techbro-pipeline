@@ -191,23 +191,22 @@ SLIDE 2 — THE PROBLEM (Kenapa Ini Relevan)
   • Validasi masalah/kebutuhan pembaca + data pendukung dari artikel
   • Ini alasan KENAPA mereka harus lanjut baca, bukan penjelasan cara
 
-SLIDE 3 — THE METHOD PART 1 (Mulai Cara)
+SLIDE 3 — TIP 1 (Tips/Trick Pertama)
   • MAX 3 kalimat, <40 kata
-  • Langkah konkret pertama. Sekonkret mungkin: apa yang diklik/dibuka/ditulis
-  • Kalau ada 2+ langkah, tulis sebagai kalimat berurutan ("Pertama... abis itu...") bukan bullet/angka
+  • Tips pertama yang PALING actionable — bisa langsung dipraktekkan
+  • Spesifik: apa yang diklik/dibuka/ditulis/diinstall
+  • Grounded di fakta artikel, bukan karangan
 
-SLIDE 4 — THE METHOD PART 2 (Lanjutin Cara)
+SLIDE 4 — TIP 2 (Tips/Trick Kedua)
   • MAX 3 kalimat, <40 kata
-  • Lanjutan langkah dari slide 3, atau langkah kunci berikutnya
-  • Kalau relevan, kasih tips kecil biar hasilnya lebih maksimal (masih dari artikel, bukan karangan)
+  • Tips kedua — angle berbeda dari Tip 1
+  • Kalau ada data/angka pendukung dari artikel, tambahin
 
-SLIDE 5 — THE TAKE (Insight / Opini Grounded)
+SLIDE 5 — TIP 3 (Tips/Trick Ketiga)
   • MAX 3 kalimat, <40 kata
-  • Kasih PERSPEKTIF/INSIGHT yang grounded di fakta artikel, bukan opini kosong
-  • Format: observasi tajam yang bikin orang mikir "oh iya ya"
-  • Harus ada 2 sisi (pro & con) biar orang COMMENT: setuju atau enggak
-  • Contoh: "Meta buktiin: kadang solusi paling murah itu yang udah ada di depan mata."
-  • JANGAN: "Hasilnya, lo bakal hemat waktu" (terlalu deskriptif, gak bikin diskusi)
+  • Tips ketiga — yang paling surprising atau out of the box
+  • Boleh kasih 2 sisi (pro & con) biar orang COMMENT: setuju atau enggak
+  • Contoh: "Meta buktiin: kadang solusi paling murah itu yang udah ada di depan mata. Tapi risikonya, lo ketinggalan rally AI kalau tren balik."
 
 SLIDE 6 — THE CTA (Closing)
   • MAX 2 kalimat, <30 kata
@@ -234,6 +233,7 @@ Tiap slide HARUS hit minimal 1 kriteria viral di bawah ini:
 4. SURPRISING FACT — fakta yang bikin orang "anjir, seriusan?"
 
 Slide 1: WAJIB surprising fact ATAU famous figure
+Slide 3-5 (Tips): masing-masing WAJIB hit ≥1 kriteria
 Slide 5: WAJIB pro & con (2 sisi, bikin orang diskusi)
 Slide 6: Boleh relatable atau surprising
 

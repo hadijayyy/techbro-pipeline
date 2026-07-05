@@ -71,6 +71,7 @@ def stage_post(conn, article_id: int, slides: dict, caption: str, hashtags: str)
     # Generator uses slide_1..slide_6, DB uses hook/setup/twist/deep/sowhat/cta
     key_map = {"slide_1": "hook", "slide_2": "setup", "slide_3": "twist",
                "slide_4": "deep", "slide_5": "sowhat", "slide_6": "cta"}
+    # Note: slide_3-5 are now Tips 1/2/3 (not method/take)
     mapped = {}
     for slide_key, db_key in key_map.items():
         mapped[db_key] = slides.get(slide_key, "")
