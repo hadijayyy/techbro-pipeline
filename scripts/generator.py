@@ -54,8 +54,14 @@ caption: 1-2 sentence summary + hashtags
 - MUST NOT use em-dashes (—) or en-dashes (–); use commas instead.
 - MUST NOT use "link in bio" or fabricated quotes ("my friend/family/coworker said" unless in article).
 - MUST NOT fabricate stories, events, names, or statistics.
+- MUST NOT say "free" if article says paid/subscriber/limited.
+- MUST NOT say "available" if article says not yet/limited/beta.
+- MUST NOT invent prices not in the article.
 - MUST include specific numbers sourced directly from the article.
 - MUST reject product promotions. If product launch/specs/pricing, output: {"error":"product_promo"}
+
+WRONG: Article says "limited to AI Ultra subscribers" → You write "try it for free"
+RIGHT: Article says "limited to AI Ultra subscribers" → You write "still limited to Ultra subscribers"
 
 Output strict JSON, no markdown fences:
 {"slide_1":"","slide_2":"","slide_3":"","slide_4":"","slide_5":"","slide_6":"","caption":"","hashtags":""}
@@ -73,6 +79,12 @@ Dilarang keras:
 • Nulis dampak yang artikel gak sebut (kecuali artikel eksplisit bilang gitu)
 • Kutipan yang diubah kata-katanya. Quote = verbatim.
 • Nulis rumor/laporan belum terkonfirmasi sebagai fakta pasti
+• Bilang "gratis" kalau artikel bilang "bayar/berbayar/langganan/terbatas/pelanggan"
+• Bilang "tersedia" kalau artikel bilang "belum tersedia/belum rilis/terbatas/beta"
+• Bilang harga tertentu kalau harga itu gak ada di artikel
+• Bilang "untuk semua/umum" kalau artikel bilang "terbatas/undangan/beta"
+CONTOH SALAH: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Lo tulis "bisa dicoba GRATIS"
+CONTOH BENAR: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Lo tulis "masih terbatas buat pelanggan Ultra"
 
 ═══════════════════════════════════════════════
 §2  STEP 0 — EKSTRAKSI FAKTA (WAJIB SEBELUM NULIS)
@@ -986,47 +998,100 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
 def _check_fabricated_numbers(slides: dict, article_body: str) -> list[str]:
     """Check if numbers/quantities in slides exist in article. Returns list of violations."""
     violations = []
-    # Extract all numbers from article
     article_numbers = set(re.findall(r'\d[\d.,]*%?', article_body))
     article_nums_flat = set()
     for n in article_numbers:
         clean = n.replace('.', '').replace(',', '').rstrip('%')
         if clean.isdigit():
             article_nums_flat.add(clean)
-
-    # Word-based quantities that imply large numbers (ID + EN equivalents)
     quantity_words = re.compile(r'\b(jutaan|ribuan|ratusan|puluhan|miliaran|triliunan|juta|ribu|ratus)\b', re.I)
-
+    time_units = r'(?:tahun|bulan|hari|minggu|jam|dekade|abad|detik|menit|weeks?|months?|years?|days?|hours?|decades?|centur)'
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key not in slides:
             continue
         text = slides[key]
-
-        # Check digit numbers
         slide_numbers = re.findall(r'\d[\d.,]*%?', text)
-        time_units = r'(?:tahun|bulan|hari|minggu|jam|dekade|abad|detik|menit|weeks?|months?|years?|days?|hours?|decades?|centur)'
         for sn in slide_numbers:
             sn_clean = sn.replace('.', '').replace(',', '').rstrip('%')
             if not sn_clean.isdigit():
                 continue
-            # Skip 4-digit numbers in year range 2000-2099 — treat as years, not quantities
             if len(sn_clean) == 4 and 2000 <= int(sn_clean) <= 2099:
                 continue
             if sn_clean not in article_nums_flat:
                 if int(sn_clean) <= 5:
-                    pattern = re.escape(sn) + r'\s*' + time_units
-                    if not re.search(pattern, text, re.I):
+                    if not re.search(re.escape(sn) + r'\s*' + time_units, text, re.I):
                         continue
                 violations.append(f"{key}: number '{sn}' not in article")
-
-        # Check word-based quantities (also check EN equivalent for cross-language articles)
         for m in quantity_words.finditer(text):
             word = m.group().lower()
             if word not in article_body.lower():
                 en_word = QTY_EN_MAP.get(word, '')
                 if en_word and en_word in article_body.lower():
-                    continue  # EN equivalent found — not fabricated
+                    continue
                 violations.append(f"{key}: quantity '{word}' not in article")
+    return violations
+
+
+# ─── Factual claim grounding ───────────────────────────────────
+# Pattern pairs: (claim_in_slide, must_match_in_article)
+# If claim appears in slide but NO match in article → fabricated
+_CLAIM_PATTERNS = [
+    # Pricing/availability claims
+    (r'\bgratis\b', r'\b(gratis|free|tanpa biaya|tanpa bayar|tanpa membayar|bebas biaya)\b'),
+    (r'\b(gratis|free)\b', r'\b(gratis|free|tanpa biaya|tanpa bayar|tanpa membayar|bebas biaya)\b'),
+    (r'\b(bayar|berbayar|bayaran|subscription|langganan|berlangganan|berlangganan)\b', r'\b(bayar|berbayar|bayaran|subscription|langganan|berlangganan)\b'),
+    # Status claims
+    (r'\b(sudah tersedia|sudah rilis|sudah launch|udah rilis|udah launch)\b', r'\b(sudah|telah|baru saja|resmi)\b'),
+    (r'\b(belum tersedia|belum rilis|belum launch|belum ada)\b', r'\b(belum|belum tersedia|belum rilis)\b'),
+    # Geographic availability
+    (r'\b(di Indonesia|di tanah air|di dalam negeri)\b', r'\b(Indonesia|tanah air|dalam negeri)\b'),
+    (r'\b(di Amerika|di AS|di US)\b', r'\b(Amerika|AS|Amerika Serikat|United States)\b'),
+]
+
+
+def _check_fabricated_claims(slides: dict, article_body: str, title: str = "") -> list[str]:
+    """Check if factual claims in slides contradict the article. Returns list of severe violations."""
+    violations = []
+    article_lower = (article_body + " " + title).lower()
+
+    # Build all slide text
+    all_slide_text = " ".join(slides.get(k, "") for k in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"])
+    slide_lower = all_slide_text.lower()
+
+    # Check specific contradiction patterns
+    # Pattern: slide says "GRATIS" but article says "bayar/berbayar/terbatas/pelanggan"
+    if re.search(r'\b(gratis|free)\b', slide_lower):
+        if re.search(r'\b(bayar|berbayar|langganan|berlangganan|pelanggan|subscription|terbatas|limited|terbatas untuk)\b', article_lower):
+            violations.append("slides say FREE but article says PAID/subscriber-only")
+        if not re.search(r'\b(gratis|free|tanpa biaya|tanpa bayar)\b', article_lower):
+            violations.append("slides say FREE but article never mentions free")
+
+    # Pattern: slide says availability that article doesn't support
+    if re.search(r'\b(udah bisa|sudah bisa|bisa dicoba|udah coba|sudah coba)\b', slide_lower):
+        if re.search(r'\b(belum|belum tersedia|belum rilis|masih terbatas|belum hadir)\b', article_lower):
+            if not re.search(r'\b(sudah|telah|resmi|bisa)\b', article_lower):
+                violations.append("slides say available but article says not yet")
+
+    # Pattern: slide says specific price but article doesn't have it
+    price_pattern = r'(?:rp|usd|\$)\s*[\d.,]+'
+    slide_prices = re.findall(price_pattern, slide_lower)
+    for price in slide_prices:
+        # Normalize
+        price_norm = re.sub(r'[^\d]', '', price)
+        if price_norm and price_norm not in re.sub(r'[^\d]', '', article_lower):
+            violations.append(f"price '{price}' not in article")
+
+    # Per-slide claim check
+    for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
+        text = slides.get(key, "").lower()
+        if not text:
+            continue
+
+        # Check if slide claims something article contradicts
+        # Article says "terbatas/beta" → slide shouldn't say available everywhere
+        if re.search(r'\b(terbatas|beta|uji coba)\b', article_lower):
+            if re.search(r'\b(untuk semua|umum|publik|semua orang|tersedia bebas)\b', text):
+                violations.append(f"{key}: says available to all but article says limited/beta")
 
     return violations
 
@@ -1238,6 +1303,27 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     if coherence_issues:
         for issue in coherence_issues:
             print(f"[COHERENCE] ⚠️ {issue}")
+
+    # ─── Factual claim grounding — REJECT if contradicts article ───
+    claim_violations = _check_fabricated_claims(data, body, title)
+    if claim_violations:
+        for v in claim_violations:
+            print(f"[GROUNDING] 🔴 {v}")
+        print(f"[GROUNDING] Rejecting variant — factual claims contradict article")
+        # Try one more time with stronger grounding instruction
+        stronger_hook = hook_instr + " KUNCI: Semua fakta HARUS dari artikel. Jangan bilang 'gratis' kalau artikel bilang bayar. Jangan bilang 'tersedia' kalau artikel bilang belum."
+        v = _generate_variant(title, body, source, primary, hook_instruction=stronger_hook)
+        if v and "slide_1" in v:
+            claim_check2 = _check_fabricated_claims(v, body, title)
+            if claim_check2:
+                for c in claim_check2:
+                    print(f"[GROUNDING] 🔴 Retry also failed: {c}")
+                return None  # Give up
+            # Retry passed grounding — use it
+            data = v
+            print(f"[GROUNDING] ✅ Retry passed factual grounding")
+        else:
+            return None
 
     # Final cleanup: strip orphaned markdown artifacts after grounding stripped content
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
