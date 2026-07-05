@@ -151,6 +151,10 @@ Kalau artikel bahas cybersecurity/scam:
 JANGAN pernah generate konten yang cuma "berita doang" tanpa actionable tips.
 Kalau artikel gak ada tips/practical angle → pilih angle yang paling bisa dijadiin tips.
 
+PENTING: Tips HARUS dari fakta yang ADA di artikel, bukan dari pengetahuan umum lo.
+Kalau artikel bahas IKLAN/PRODUK yang kontroversial → frame sebagai tren industri/lesson learned, BUKAN tutorial cara pakai produk.
+Contoh: Artikel bahas iklan Google yang kontroversial → bahas "kenapa orang marah" + "pelajaran buat lo", BUKAN "cara pakai Google Docs".
+
 ═══════════════════════════════════════════════
 §4  INSIGHT FILTER — CARI 5, PILIH TERKUAT
 ═══════════════════════════════════════════════
@@ -1159,6 +1163,91 @@ def _check_slide_coherence(slides: dict) -> list[str]:
     return issues
 
 
+def _check_topic_relevance(slides: dict, article_title: str, article_body: str) -> list[str]:
+    """Check if slides discuss the same topic AND same type of content as the article.
+    
+    Two checks:
+    1. Word overlap: slides must share keywords with article title/body
+    2. Content type: if article is NOT a tutorial, slides shouldn't contain tutorials
+       (catches LLM inventing 'how to use X' when article is about controversy/news)
+    """
+    violations = []
+    
+    stopwords = {'yang', 'di', 'dan', 'ini', 'itu', 'dengan', 'untuk', 'pada', 'ke', 'dari',
+                 'adalah', 'juga', 'sudah', 'masih', 'belum', 'akan', 'bisa', 'tidak',
+                 'gak', 'bukan', 'lebih', 'paling', 'sangat', 'atau', 'tapi', 'namun',
+                 'the', 'is', 'are', 'was', 'and', 'or', 'but', 'in', 'on', 'at', 'to',
+                 'for', 'of', 'with', 'by', 'a', 'an', 'that', 'this', 'it', 'not',
+                 'just', 'so', 'how', 'what', 'why', 'when', 'new', 'ini', 'itu',
+                 'yang', 'lo', 'gue', 'dan', 'atau', 'tapi', 'juga', 'sudah', 'baru'}
+    
+    # ── Check 1: Does article contain tutorial/how-to content? ──
+    tutorial_phrases = [
+        r'\bcara\s+\w+', r'\blangkah\s+\w+', r'\btips?\s+\w+',
+        r'\bpertama\b.*\bkedua\b', r'\bstep\s+\d',
+        r'\bbuka\s+\w+', r'\binstall\s+\w+', r'\bdownload\s+\w+',
+        r'\bikutin\s+langkah\b', r'\byang\s+bisa\s+lo\s+lakuin\b',
+        r'\bberikut\s+caranya\b', r'\bini\s+dia\s+langkah\b',
+    ]
+    body_lower = article_body.lower()
+    article_has_tutorial = sum(1 for p in tutorial_phrases if re.search(p, body_lower)) >= 2
+    
+    # ── Check 2: Do slides contain tutorial content? ──
+    slide_tutorial_phrases = [
+        r'\bpertama\b', r'\bkedua\b', r'\bketiga\b',
+        r'\blo\s+bisa\s+pake\b', r'\bcukup\s+\w+\s+\w+\s+dan\b',
+        r'\bstep\s+\d', r'\blangkah\s+\w+',
+        r'\bcaranya\b', r'\bgimana\s+cara\b',
+        r'\bbuka\s+aplikasi\b', r'\binstall\s+\w+',
+        r'\bupload\s+\w+', r'\bklik\s+\w+',
+    ]
+    
+    # ── Check 3: Word overlap with title ──
+    title_words = set()
+    for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', article_title.lower()):
+        if w not in stopwords:
+            title_words.add(w)
+    
+    for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
+        text = slides.get(key, "").lower()
+        if not text:
+            continue
+        
+        # CTA slide can be generic
+        if key == "slide_6":
+            continue
+        # Short articles (<80 words) get more leeway
+        if len(article_body.split()) < 80:
+            continue
+        
+        # ── Tutorial check: slide has tutorial but article doesn't ──
+        slide_has_tutorial = sum(1 for p in slide_tutorial_phrases if re.search(p, text)) >= 2
+        if slide_has_tutorial and not article_has_tutorial:
+            violations.append(f"{key}: tutorial content in non-tutorial article")
+            continue  # Skip word overlap check — this is already a violation
+        
+        # ── Word overlap check ──
+        slide_words = set()
+        for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', text):
+            if w not in stopwords:
+                slide_words.add(w)
+        
+        if title_words:
+            title_overlap = title_words & slide_words
+            title_ratio = len(title_overlap) / len(title_words)
+            
+            if title_ratio < 0.25 and len(title_words) >= 3:
+                # Check body keywords as fallback
+                body_excerpt = article_body[:1000].lower()
+                body_kw = set(w for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', body_excerpt) if w not in stopwords)
+                body_overlap = body_kw & slide_words
+                
+                if len(body_overlap) < 3:
+                    violations.append(f"{key}: off-topic (title overlap {title_ratio:.0%}, body kw: {len(body_overlap)})")
+    
+    return violations
+
+
 def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
     """Get hook patterns from last N posts to enforce variety."""
     try:
@@ -1316,6 +1405,27 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     if coherence_issues:
         for issue in coherence_issues:
             print(f"[COHERENCE] ⚠️ {issue}")
+
+    # ─── Topic relevance — REJECT if slides discuss wrong topic ───
+    topic_violations = _check_topic_relevance(data, title, body)
+    if topic_violations:
+        for v in topic_violations:
+            print(f"[TOPIC] 🔴 {v}")
+        print(f"[TOPIC] Rejecting — slides discuss topic not in article")
+        # Retry with explicit topic instruction
+        topic_hook = hook_instr + f" KUNCI: Konten HARUS bahas topik yang sama dengan artikel: '{title}'. Jangan bahas fitur/cara pakai produk kalau artikel bahas kontroversi/iklan/drama."
+        v = _generate_variant(title, body, source, primary, hook_instruction=topic_hook)
+        if v and "slide_1" in v:
+            topic_check2 = _check_topic_relevance(v, title, body)
+            if topic_check2:
+                for c in topic_check2:
+                    print(f"[TOPIC] 🔴 Retry also off-topic: {c}")
+                return None
+            data = v
+            print(f"[TOPIC] ✅ Retry passed topic relevance")
+        else:
+            return None
+
 
     # ─── Factual claim grounding — REJECT if contradicts article ───
     claim_violations = _check_fabricated_claims(data, body, title)
