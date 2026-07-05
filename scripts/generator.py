@@ -1035,20 +1035,6 @@ def _check_fabricated_numbers(slides: dict, article_body: str) -> list[str]:
 
 
 # ─── Factual claim grounding ───────────────────────────────────
-# Pattern pairs: (claim_in_slide, must_match_in_article)
-# If claim appears in slide but NO match in article → fabricated
-_CLAIM_PATTERNS = [
-    # Pricing/availability claims
-    (r'\bgratis\b', r'\b(gratis|free|tanpa biaya|tanpa bayar|tanpa membayar|bebas biaya)\b'),
-    (r'\b(gratis|free)\b', r'\b(gratis|free|tanpa biaya|tanpa bayar|tanpa membayar|bebas biaya)\b'),
-    (r'\b(bayar|berbayar|bayaran|subscription|langganan|berlangganan|berlangganan)\b', r'\b(bayar|berbayar|bayaran|subscription|langganan|berlangganan)\b'),
-    # Status claims
-    (r'\b(sudah tersedia|sudah rilis|sudah launch|udah rilis|udah launch)\b', r'\b(sudah|telah|baru saja|resmi)\b'),
-    (r'\b(belum tersedia|belum rilis|belum launch|belum ada)\b', r'\b(belum|belum tersedia|belum rilis)\b'),
-    # Geographic availability
-    (r'\b(di Indonesia|di tanah air|di dalam negeri)\b', r'\b(Indonesia|tanah air|dalam negeri)\b'),
-    (r'\b(di Amerika|di AS|di US)\b', r'\b(Amerika|AS|Amerika Serikat|United States)\b'),
-]
 
 
 def _check_fabricated_claims(slides: dict, article_body: str, title: str = "") -> list[str]:
