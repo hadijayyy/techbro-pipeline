@@ -438,18 +438,26 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
 
 
 async def _rss_links(client: httpx.AsyncClient, url: str, limit: int = 20) -> list[tuple[str, datetime | None]]:
-    """Generic RSS 2.0 link extractor. Returns [(url, pub_date|None), ...]."""
+    """Generic RSS 2.0 + Atom link extractor. Returns [(url, pub_date|None), ...]."""
     items = []
     try:
         r = await client.get(url, timeout=12, follow_redirects=True)
-        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+        text = r.text
+
+        # RSS 2.0: <item> blocks
+        for item_block in re.finditer(r"<item>(.*?)</item>", text, re.DOTALL):
             block = item_block.group(1)
+            # Try <link> first, then <guid isPermaLink="true">, then any <guid>http...
             link_m = re.search(r"<link>([^<]+)</link>", block)
-            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
+            if not link_m:
+                link_m = re.search(r'<guid[^>]*isPermaLink="true"[^>]*>([^<]+)</guid>', block)
+            if not link_m:
+                link_m = re.search(r"<guid>(https?://[^<]+)</guid>", block)
             if not link_m:
                 continue
             item_url = link_m.group(1).strip().split("?")[0]
             dt = None
+            date_m = re.search(r"<pubDate>(.*?)</pubDate>", block)
             if date_m:
                 try:
                     from email.utils import parsedate_to_datetime
@@ -457,6 +465,26 @@ async def _rss_links(client: httpx.AsyncClient, url: str, limit: int = 20) -> li
                 except Exception:
                     pass
             items.append((item_url, dt))
+
+        # Atom: <entry> blocks
+        if not items:
+            for entry_block in re.finditer(r"<entry(.*?)</entry>", text, re.DOTALL):
+                block = entry_block.group(1)
+                link_m = re.search(r'<link[^>]+href=["\']([^"\']+)["\']', block)
+                if not link_m:
+                    continue
+                item_url = link_m.group(1).strip().split("?")[0]
+                dt = None
+                for tag in ("updated", "published"):
+                    date_m = re.search(rf"<{tag}>([^<]+)</{tag}>", block)
+                    if date_m:
+                        try:
+                            dt = datetime.fromisoformat(date_m.group(1).strip().replace("Z", "+00:00")).astimezone(UTC)
+                        except Exception:
+                            pass
+                        break
+                items.append((item_url, dt))
+
     except Exception:
         pass
     return items[:limit]
