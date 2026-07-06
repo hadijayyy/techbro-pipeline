@@ -79,7 +79,7 @@ def _is_same_topic(title1: str, title2: str) -> bool:
     w1 = set(_normalize_title(title1).split()) - _ENTITIES - stop
     w2 = set(_normalize_title(title2).split()) - _ENTITIES - stop
     action_overlap = len(w1 & w2) / max(len(w1 | w2), 1)
-    return action_overlap > 0.3
+    return action_overlap > 0.5  # raised from 0.3 — too many false positives
 
 DAILY_POST_LIMIT = 20
 POSTING_HOURS = (7, 23)  # WIB — only post between 07:00-23:00
@@ -265,9 +265,9 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
 
     articles = scrape_all(top_n)
 
-    # Track topics from RECENT posts only (last 2 days) for dedup — exclude failed
+    # Track topics from RECENT posts only (last 1 day) for dedup — exclude failed
     posted_titles = [row['title'] for row in conn.execute(
-        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='posted' AND p.created_at > datetime('now', '-2 days')"
+        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='posted' AND p.created_at > datetime('now', '-1 days')"
     ).fetchall()]
 
     # Track topics staged THIS run (prevents duplicates within same run)
