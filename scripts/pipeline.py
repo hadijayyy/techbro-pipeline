@@ -144,6 +144,8 @@ _TOPIC_CATEGORIES = {
     # Low-engagement categories (from analytics)
     "foreign_news": ["nhs", "amerika serikat", "us government", "uk government", "eu ", "eropa", "jepang", "korea selatan", "inggris"],
     "niche_ngo": ["umkm", "ngo", "kol", "influencer", "creator"],
+    "apple_mac": ["macbook", "mac ", "macos", "safari", "apple silicon"],
+    "niche_devtools": ["github", "copilot", "claude code", "vs code", "cursor"],
     "infra_telco": ["telkom", "telkomsel", "5g", "bts", "fiber", "infrastruktur"],
     "crypto_web3": ["crypto", "bitcoin", "blockchain", "web3", "token", "nft"],
 }
