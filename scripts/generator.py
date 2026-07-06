@@ -1422,7 +1422,8 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
             print(f"[HOOK] Valid (score: {best_score}/10)")
 
     # Grounding check: strip fabricated numbers/quantities
-    violations = _check_fabricated_numbers(data, body)
+    # Include title in reference text — prices often appear in title, not body
+    violations = _check_fabricated_numbers(data, title + " " + body)
     if violations:
         for v in violations:
             print(f"[GROUNDING] ⚠️ {v}")
@@ -1433,7 +1434,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
             # Strip fabricated digit numbers
             slide_nums = re.findall(r'\d[\d.,]*%?', data[key])
             article_nums = set()
-            for n in re.findall(r'\d[\d.,]*%?', body):
+            for n in re.findall(r'\d[\d.,]*%?', title + " " + body):
                 c = n.replace('.', '').replace(',', '').rstrip('%')
                 if c.isdigit():
                     article_nums.add(c)
@@ -1458,11 +1459,12 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                     data[key] = re.sub(r'\s+([,.!?])', r'\1', data[key])  # "  ." → "."
             # Strip fabricated word-based quantities (with cross-language check)
             matches = list(quantity_words.finditer(data[key]))
+            ref_text = (title + " " + body).lower()
             for m in reversed(matches):
                 word = m.group().lower()
-                if word not in body.lower():
+                if word not in ref_text:
                     en_word = QTY_EN_MAP.get(word, '')
-                    if en_word and en_word in body.lower():
+                    if en_word and en_word in ref_text:
                         continue  # EN equivalent found — not fabricated
                     data[key] = data[key][:m.start()] + data[key][m.end():]
                     data[key] = re.sub(r' +', ' ', data[key]).strip()
