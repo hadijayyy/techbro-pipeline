@@ -1450,13 +1450,17 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                         if not re.search(re.escape(sn) + r'\s*' + time_units, data[key], re.I):
                             continue
                     # Strip whole currency expression: Rp[X] juta/miliar, $[X] million, etc
-                    data[key] = re.sub(r'(?:Rp|USD|\$)\s*' + re.escape(sn) + r'\s*(?:juta|miliar|triliun|million|billion|trillion)?', '', data[key], flags=re.I)
+                    # Instead of leaving a hole ("bisa turun ke per gram"), replace with vague ref
+                    original = data[key]
+                    # Handle US$ prefix
+                    data[key] = re.sub(r'(?:Rp|US?\s*\$|USD|\$)\s*' + re.escape(sn) + r'\s*(?:juta|miliar|triliun|million|billion|trillion)?', 'harga tertentu', data[key], flags=re.I)
                     # Also strip [number] [quantity word] without currency prefix
-                    data[key] = re.sub(re.escape(sn) + r'\s*(?:juta|miliar|triliun|million|billion|trillion)\b', '', data[key], flags=re.I)
+                    data[key] = re.sub(re.escape(sn) + r'\s*(?:juta|miliar|triliun|million|billion|trillion)\b', 'harga tertentu', data[key], flags=re.I)
                     # Fallback: strip just the number
-                    data[key] = data[key].replace(sn, '')
+                    if original == data[key]:
+                        data[key] = data[key].replace(sn, '')
                     data[key] = re.sub(r' +', ' ', data[key]).strip()
-                    data[key] = re.sub(r'\s+([,.!?])', r'\1', data[key])  # "  ." → "."
+                    data[key] = re.sub(r'\s+([,.!?])', r'\1', data[key])  # " ." → "."
             # Strip fabricated word-based quantities (with cross-language check)
             matches = list(quantity_words.finditer(data[key]))
             ref_text = (title + " " + body).lower()
@@ -1466,8 +1470,27 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                     en_word = QTY_EN_MAP.get(word, '')
                     if en_word and en_word in ref_text:
                         continue  # EN equivalent found — not fabricated
-                    data[key] = data[key][:m.start()] + data[key][m.end():]
+                    # Replace with vague reference instead of leaving hole
+                    data[key] = data[key][:m.start()] + "sejumlah" + data[key][m.end():]
                     data[key] = re.sub(r' +', ' ', data[key]).strip()
+
+    # Post-strip cleanup: fix ugly patterns from grounding replacements
+    for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
+        if key not in data:
+            continue
+        t = data[key]
+        # Fix "harga tertentu harga tertentu" → single
+        t = re.sub(r'(harga tertentu)\s+\1', r'\1', t, flags=re.I)
+        # Fix "sejumlah sejumlah" → single
+        t = re.sub(r'(sejumlah)\s+\1', r'\1', t, flags=re.I)
+        # Fix orphaned prepositions: "ke  per" → "per", "di  di" → "di"
+        t = re.sub(r'\b(ke|di|dari|untuk|dengan)\s+(harga tertentu|sejumlah)\b', r'\2', t, flags=re.I)
+        # Fix "US harga tertentu" → "harga tertentu"
+        t = re.sub(r'\bUS\s+harga tertentu\b', 'harga tertentu', t, flags=re.I)
+        # Fix double spaces
+        t = re.sub(r' +', ' ', t).strip()
+        t = re.sub(r'\s+([,.!?])', r'\1', t)
+        data[key] = t
 
     # Coherence check: validate intra-slide sentence flow
     coherence_issues = _check_slide_coherence(data)
