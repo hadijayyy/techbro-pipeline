@@ -1249,14 +1249,14 @@ def _check_topic_relevance(slides: dict, article_title: str, article_body: str) 
             
             if title_ratio < 0.25 and len(title_words) >= 3:
                 # Product articles get lower threshold (10%) — slides use different product terms
-                threshold = 0.10 if article_is_product else 0.25
+                threshold = 0.10 if article_is_product else 0.15
                 if title_ratio < threshold:
                     # Check body keywords as fallback
                     body_excerpt = article_body[:1000].lower()
-                    body_kw = set(w for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', body_excerpt) if w not in stopwords)
+                    body_kw = set(w for w in re.findall(r'[a-zA-Z\\u00C0-\\u024F]{3,}', body_excerpt) if w not in stopwords)
                     body_overlap = body_kw & slide_words
-                    
-                    min_kw = 2 if article_is_product else 3
+
+                    min_kw = 2  # lowered from 3 — too aggressive
                     if len(body_overlap) < min_kw:
                         violations.append(f"{key}: off-topic (title overlap {title_ratio:.0%}, body kw: {len(body_overlap)})")
     
