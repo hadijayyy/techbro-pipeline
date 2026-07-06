@@ -155,16 +155,16 @@ def check_article_quality(body: str) -> str | None:
     """3-layer content quality filter (from pressbox). Returns rejection reason or None."""
     text = body.strip()
     # Layer 1: character count
-    if len(text) < 1000:
-        return f"too short ({len(text)} chars < 1000)"
+    if len(text) < 800:
+        return f"too short ({len(text)} chars < 800)"
     # Layer 2: word count
     words = len(text.split())
-    if words < 150:
-        return f"too few words ({words} < 150)"
+    if words < 120:
+        return f"too few words ({words} < 120)"
     # Layer 3: sentence count (min 20 chars each to count)
     sentences = [s.strip() for s in re.split(r'[.!?]+', text) if len(s.strip()) >= 20]
-    if len(sentences) < 8:
-        return f"too few sentences ({len(sentences)} < 8)"
+    if len(sentences) < 6:
+        return f"too few sentences ({len(sentences)} < 6)"
     return None
 
 
@@ -720,7 +720,7 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     # Source diversity: max 2 per source
     diversified = []
     source_count: dict[str, int] = {}
-    MAX_PER_SOURCE = 3  # 3 per source, 16 sources = up to 48 articles
+    MAX_PER_SOURCE = 10  # 10 per source, 10 sources = up to 100 articles
     for art in articles:
         src = art["source"]
         if source_count.get(src, 0) < MAX_PER_SOURCE:
