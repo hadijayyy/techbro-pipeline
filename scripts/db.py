@@ -43,7 +43,7 @@ def get_db() -> sqlite3.Connection:
         );
         CREATE TABLE IF NOT EXISTS performance (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            post_id INTEGER NOT NULL,
+            post_id INTEGER NOT NULL UNIQUE,
             likes INTEGER DEFAULT 0,
             replies INTEGER DEFAULT 0,
             reposts INTEGER DEFAULT 0,

@@ -144,7 +144,7 @@ def _pull_analytics_feedback(conn) -> dict:
     except Exception as e:
         print(f"  [ANALYTICS] Track error (non-blocking): {e}")
 
-    # Get posts with performance data
+    # Get posts with performance data — only posts >24h old (new ones have low views)
     rows = conn.execute("""
         SELECT p.slide_hook, p.slide_cta, a.title, a.source,
                perf.views, perf.likes, perf.replies, perf.reposts
@@ -152,6 +152,7 @@ def _pull_analytics_feedback(conn) -> dict:
         JOIN articles a ON p.article_id = a.id
         JOIN performance perf ON perf.post_id = p.id
         WHERE p.status = 'posted'
+          AND p.posted_at < datetime('now', '-24 hours')
         ORDER BY p.posted_at DESC
         LIMIT 30
     """).fetchall()

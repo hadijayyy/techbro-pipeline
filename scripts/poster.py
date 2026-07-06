@@ -351,11 +351,17 @@ def track_engagement(limit: int = 10) -> dict:
         if not metrics:
             continue
         
-        # Store in performance table
+        # Store in performance table (upsert — don't duplicate)
         conn.execute('''
             INSERT INTO performance (post_id, likes, replies, reposts, views)
             VALUES (?, ?, ?, ?, ?)
-        ''', (post_id, metrics['likes'], metrics['replies'], 
+            ON CONFLICT(post_id) DO UPDATE SET
+                likes = excluded.likes,
+                replies = excluded.replies,
+                reposts = excluded.reposts,
+                views = excluded.views,
+                fetched_at = datetime('now')
+        ''', (post_id, metrics['likes'], metrics['replies'],
               metrics['reposts'], metrics['views']))
         
         tracked += 1
