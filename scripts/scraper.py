@@ -39,11 +39,13 @@ TIER1 = [
     "ai", "chatgpt", "gemini", "claude", "copilot", "ai tools", "prompt", "prompt engineering",
     "automation", "otomatisasi", "no-code", "ai productivity", "ai agent",
     "ai untuk kerja", "cara pakai ai", "ai gratis",
+    "belajar ai", "tutorial ai", "ai untuk pemula", "ai buat",
     # Personal Finance Core
     "investasi", "saham", "reksadana", "obligasi", "deposito", "emas",
     "nabung", "menabung", "budgeting", "anggaran", "dana darurat", "emergency fund",
     "compound interest", "bunga majemuk", "passive income", "cuan",
     "financial freedom", "bebas finansial", "financial planning",
+    "belajar investasi", "cara investasi", "tips keuangan", "money management",
     # Cybersecurity & Digital Safety
     "scam", "penipuan", "phishing", "data breach", "privacy", "keamanan data",
     "password manager", "2fa", "cyber hygiene",
@@ -51,9 +53,11 @@ TIER1 = [
     "productivity", "produktivitas", "upskilling", "skill", "cv", "resume",
     "interview", "wawancara kerja", "gaji", "negosiasi gaji", "side hustle",
     "freelance", "remote work", "digital nomad",
+    # Education & Learning (personal branding focus)
+    "edukasi", "belajar", "tips", "tutorial", "panduan", "langkah", "cara",
+    "strategi", "rahasia", "ternyata", "kesalahan umum", "mistake",
+    "peluang", "kesempatan", "tren", "perubahan", "dampak",
 ]
-
-# TIER2 = supporting context — scored 2x
 TIER2 = [
     # Indonesian Economy & Fintech
     "startup", "pendanaan", "umkm", "digital", "ecommerce", "e-commerce",
@@ -112,6 +116,14 @@ EXCLUDE = [
     "series a", "series b", "series c", "funding round", "raises million",
     "raises billion", "seed round", "pre-seed", "valuation",
     "benchmark test", "spec sheet", "processor specs", "chip architecture",
+    # Niche product-only — no educational value for most
+    "macbook", "macos", "mac only", "iphone 17", "samsung galaxy s27", "samsung galaxy s26",
+    "ipad", "apple watch", "airpods", "mac mini", "mac pro", "mac studio",
+    "review spesifikasi", "perbandingan spesifikasi", "unboxing",
+    # App launches without educational value
+    "app launch", "app release", "new app", "app baru",
+    "fitur baru", "feature update", "update terbaru", "versi baru",
+    "software update", "firmware update", "pembaruan",
     "technical paper", "whitepaper", "rfc", "specification",
     "changelog", "release notes", "patch notes",
     "fork", "pull request", "merge request",

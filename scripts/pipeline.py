@@ -150,6 +150,15 @@ _TOPIC_CATEGORIES = {
     "crypto_web3": ["crypto", "bitcoin", "blockchain", "web3", "token", "nft"],
 }
 
+_EDUCATION_KEYWORDS = [
+    "tips", "cara", "panduan", "tutorial", "langkah", "belajar", "edukasi",
+    "investasi", "saham", "emas", "nabung", "dana darurat",
+    "scam", "penipuan", "keamanan", "privacy", "password",
+    "produktivitas", "skill", "cv", "resume", "gaji", "negosiasi", "side hustle",
+    "ai", "chatgpt", "prompt", "otomatisasi", "digital",
+    "strategi", "rahasia", "kesalahan", "mistake", "peluang",
+]
+
 _STOPWORDS = {"yang", "dan", "ini", "itu", "dengan", "untuk", "dari", "pada", "adalah",
               "akan", "oleh", "juga", "telah", "sudah", "ada", "tidak", "bisa", "lebih",
               "baru", "lagi", "bukan", "dalam", "tersebut", "karena", "namun", "gak",
@@ -362,6 +371,17 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
         # ── LAYER 3: Scoring Engine (keyword + decay) ────────────
         for art in fresh:
             art["score"] = score_article(art["title"], art["body"], art.get("date"))
+            # Personal branding: boost educational content
+            title_l = art["title"].lower()
+            body_l = art["body"][:800].lower()
+            edu_matches = sum(1 for kw in _EDUCATION_KEYWORDS if kw in title_l)
+            if edu_matches >= 2:
+                art["score"] = min(art["score"] + 15, 150)
+            elif edu_matches >= 1:
+                art["score"] = min(art["score"] + 8, 150)
+            # Penalize pure product news (low educational value)
+            if any(kw in title_l for kw in ["review:", "hands-on", "launch", "peluncuran", "diluncurkan"]):
+                art["score"] = max(art["score"] - 10, 0)
 
         # ── LAYER 3a: Analytics Feedback Boosts ──────────────────
         if analytics.get("hook_boosts") or analytics.get("topic_penalties") or analytics.get("cat_boosts") or analytics.get("cat_penalties"):
