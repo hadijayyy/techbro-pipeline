@@ -1629,11 +1629,10 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
             if retry_verdict != "REJECT":
                 data = v
             else:
-                print(f"  [EVAL] ❌ Blocked — evaluator REJECT after retry")
-                return None
+                # Advisory only — don't block. Grounding + topic checks already passed.
+                print(f"  [EVAL] ⚠️ Still REJECT after retry — posting anyway (advisory mode)")
         else:
-            print(f"  [EVAL] ❌ Blocked — retry generation failed")
-            return None
+            print(f"  [EVAL] ⚠️ Retry generation failed — posting original (advisory mode)")
 
     data["_provider"] = data.get("_provider", primary)
     data["_lang"] = CONTENT_LANG

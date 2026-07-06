@@ -264,9 +264,9 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
 
     articles = scrape_all(top_n)
 
-    # Track topics from RECENT posts only (last 3 days) for dedup
+    # Track topics from RECENT posts only (last 2 days) for dedup — exclude failed
     posted_titles = [row['title'] for row in conn.execute(
-        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.created_at > datetime('now', '-3 days')"
+        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='posted' AND p.created_at > datetime('now', '-2 days')"
     ).fetchall()]
 
     # Track topics staged THIS run (prevents duplicates within same run)
