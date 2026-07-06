@@ -20,6 +20,7 @@ TOP_N = 1
 SOURCE_NAMES = [
     "techcrunch", "wired", "bbc", "bloomberg_technoz", "cnbc_id",
     "detik_inet", "liputan6_tekno", "liputan6_bisnis", "the_verge", "hn",
+    "ars_technica", "engadget", "mashable", "reuters_tech",
 ]
 
 HEADERS = {
@@ -606,6 +607,22 @@ async def get_links_hn(client: httpx.AsyncClient) -> list[tuple[str, datetime | 
     """Hacker News — top stories."""
     return await _rss_links(client, "https://news.ycombinator.com/rss")
 
+async def get_links_ars_technica(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Ars Technica — tech/science deep dives."""
+    return await _rss_links(client, "https://feeds.arstechnica.com/arstechnica/index")
+
+async def get_links_engadget(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Engadget — consumer tech, gadgets."""
+    return await _rss_links(client, "https://www.engadget.com/rss.xml")
+
+async def get_links_mashable(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Mashable — tech, culture, science."""
+    return await _rss_links(client, "https://mashable.com/feeds/rss/all")
+
+async def get_links_reuters_tech(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Reuters Technology — global tech news."""
+    return await _rss_links(client, "https://www.reuters.com/technology/rss")
+
 # ─── Bloomberg Technoz ──────────────────────────────────────────
 
 async def get_links_bloomberg_technoz(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
@@ -649,6 +666,10 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             get_links_liputan6_bisnis(client),
             get_links_the_verge(client),
             get_links_hn(client),
+            get_links_ars_technica(client),
+            get_links_engadget(client),
+            get_links_mashable(client),
+            get_links_reuters_tech(client),
         )
 
         # 2. Build scrape tasks
@@ -720,7 +741,7 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     # Source diversity: max 2 per source
     diversified = []
     source_count: dict[str, int] = {}
-    MAX_PER_SOURCE = 10  # 10 per source, 10 sources = up to 100 articles
+    MAX_PER_SOURCE = 20  # 20 per source, 14 sources = up to 280 articles
     for art in articles:
         src = art["source"]
         if source_count.get(src, 0) < MAX_PER_SOURCE:

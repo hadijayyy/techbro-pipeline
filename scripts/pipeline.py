@@ -26,7 +26,7 @@ from db import get_db, upsert_article, stage_post, get_stats, mark_failed, clean
 from poster import post_from_db
 from trending import score_article_drama, detect_dramas
 
-TOP_N = 30  # articles per run (pick best unposted from larger pool)
+TOP_N = 50  # articles per run (pick best unposted from larger pool)
 DRAMA_BOOST = 30  # bonus points for drama articles
 
 def _normalize_title(title: str) -> str:
