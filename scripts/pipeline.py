@@ -7,6 +7,7 @@ import sys
 import re
 import time
 import argparse
+from collections import Counter
 from pathlib import Path
 
 # Load .env from project root
@@ -128,13 +129,51 @@ Respond with ONLY a single digit (1-5), nothing else."""
     return 3  # default pass on error
 
 
+_TOPIC_CATEGORIES = {
+    # High-engagement categories (from analytics)
+    "phk_layoff": ["phk", "karyawan", "layoff", "pecat", "dirumahkan", "pemutusan"],
+    "ojol_ridehail": ["gojek", "grab", "ojol", "driver", "mitra", "ridehail"],
+    "ecommerce_reg": ["e-commerce", "tiktok shop", "tokopedia", "shopee", "marketplace", "pajak", "regulasi"],
+    "emas_gold": ["emas", "gold", "batangan", "pegadaian", "antam"],
+    "apple": ["apple", "iphone", "ipad", "macbook", "ios"],
+    "bigtech_meta": ["meta", "facebook", "whatsapp", "instagram", "threads"],
+    "bigtech_google": ["google", "android", "chrome", "youtube", "gemini"],
+    "bigtech_microsoft": ["microsoft", "windows", "copilot", "bing"],
+    "ai_tech": ["openai", "chatgpt", "ai ", "artificial", "machine learning", "deepfake"],
+    "indo_gov": ["kominfo", "pemerintah", "kemenkominfo", "ri ", "indonesia", "presiden"],
+    # Low-engagement categories (from analytics)
+    "foreign_news": ["nhs", "amerika serikat", "us government", "uk government", "eu ", "eropa", "jepang", "korea selatan", "inggris"],
+    "niche_ngo": ["umkm", "ngo", "kol", "influencer", "creator"],
+    "infra_telco": ["telkom", "telkomsel", "5g", "bts", "fiber", "infrastruktur"],
+    "crypto_web3": ["crypto", "bitcoin", "blockchain", "web3", "token", "nft"],
+}
+
+_STOPWORDS = {"yang", "dan", "ini", "itu", "dengan", "untuk", "dari", "pada", "adalah",
+              "akan", "oleh", "juga", "telah", "sudah", "ada", "tidak", "bisa", "lebih",
+              "baru", "lagi", "bukan", "dalam", "tersebut", "karena", "namun", "gak",
+              "gue", "lo", "lu", "dong", "sih", "nih", "aja", "deh", "kok", "banget",
+              "kayak", "kalau", "pas", "kan", "terus", "trus", "biar", "atau", "mau",
+              "the", "and", "for", "that", "this", "with", "from", "have", "been", "just"}
+
+def _classify_topic(title: str, body: str) -> list[str]:
+    """Classify article into topic categories."""
+    text = (title + " " + body[:500]).lower()
+    cats = []
+    for cat, keywords in _TOPIC_CATEGORIES.items():
+        if any(kw in text for kw in keywords):
+            cats.append(cat)
+    return cats if cats else ["other"]
+
+
 def _pull_analytics_feedback(conn) -> dict:
-    """Pull engagement metrics for recent posts and compute boosts/penalties.
-    Returns: {'hook_boosts': {keyword: +pts}, 'topic_penalties': {keyword: -pts}, 'median_views': int}
-    Pressbox pattern: live analytics → scoring adjustments.
+    """Pull engagement metrics and compute category-level boosts/penalties.
+    Returns: {'hook_boosts': {keyword: +pts}, 'topic_penalties': {keyword: -pts},
+              'cat_boosts': {category: +pts}, 'cat_penalties': {category: -pts},
+              'median_views': int}
+    Uses topic CATEGORIES instead of individual words to avoid noise.
     """
     from poster import fetch_engagement, track_engagement
-    result = {"hook_boosts": {}, "topic_penalties": {}, "median_views": 0}
+    result = {"hook_boosts": {}, "topic_penalties": {}, "cat_boosts": {}, "cat_penalties": {}, "median_views": 0}
 
     # Auto-track engagement for posted posts missing metrics (>12h old)
     try:
@@ -146,7 +185,7 @@ def _pull_analytics_feedback(conn) -> dict:
 
     # Get posts with performance data — only posts >24h old (new ones have low views)
     rows = conn.execute("""
-        SELECT p.slide_hook, p.slide_cta, a.title, a.source,
+        SELECT p.slide_hook, p.slide_cta, a.title, a.source, a.body,
                perf.views, perf.likes, perf.replies, perf.reposts
         FROM posts p
         JOIN articles a ON p.article_id = a.id
@@ -163,51 +202,62 @@ def _pull_analytics_feedback(conn) -> dict:
 
     # Compute median views
     views_list = sorted([r["views"] for r in rows if r["views"] and r["views"] > 0])
-    if views_list:
-        mid = len(views_list) // 2
-        median_views = views_list[mid] if len(views_list) % 2 else (views_list[mid-1] + views_list[mid]) // 2
-        result["median_views"] = median_views
-        print(f"  [ANALYTICS] Median views: {median_views} (from {len(views_list)} posts)")
+    if not views_list:
+        return result
 
-        # Classify high/low performers
-        high = [r for r in rows if r["views"] and r["views"] >= median_views * 1.3]
-        low = [r for r in rows if r["views"] and r["views"] < median_views * 0.7 and r["views"] > 0]
+    mid = len(views_list) // 2
+    median_views = views_list[mid] if len(views_list) % 2 else (views_list[mid-1] + views_list[mid]) // 2
+    result["median_views"] = median_views
+    print(f"  [ANALYTICS] Median views: {median_views} (from {len(views_list)} posts)")
 
-        # Extract hook keywords from high performers → boost
-        import re as _re
-        hook_words = set()
-        for r in high:
-            words = set(_re.findall(r'\b[a-z]{4,}\b', (r["slide_hook"] or "").lower()))
-            hook_words.update(words)
+    # Classify high/low performers
+    high = [r for r in rows if r["views"] and r["views"] >= median_views * 1.3]
+    low = [r for r in rows if r["views"] and r["views"] < median_views * 0.7 and r["views"] > 0]
 
-        # Extract title keywords from low performers → penalty
-        topic_words = set()
-        for r in low:
-            words = set(_re.findall(r'\b[a-z]{4,}\b', (r["title"] or "").lower()))
-            topic_words.update(words)
+    # Category-level analytics (main signal)
+    cat_high_counts = Counter()
+    cat_low_counts = Counter()
+    cat_high_views = {}
+    cat_low_views = {}
 
-        # Only boost/penalize words that appear 2+ times (not one-offs)
-        from collections import Counter
-        high_hook_counts = Counter()
-        for r in high:
-            for w in set(_re.findall(r'\b[a-z]{4,}\b', (r["slide_hook"] or "").lower())):
-                high_hook_counts[w] += 1
-        for word, count in high_hook_counts.items():
-            if count >= 2:
-                result["hook_boosts"][word] = 15
+    for r in high:
+        cats = _classify_topic(r["title"] or "", r["body"] or "")
+        for c in cats:
+            cat_high_counts[c] += 1
+            cat_high_views.setdefault(c, []).append(r["views"])
 
-        low_topic_counts = Counter()
-        for r in low:
-            for w in set(_re.findall(r'\b[a-z]{4,}\b', (r["title"] or "").lower())):
-                low_topic_counts[w] += 1
-        for word, count in low_topic_counts.items():
-            if count >= 2:
-                result["topic_penalties"][word] = -20
+    for r in low:
+        cats = _classify_topic(r["title"] or "", r["body"] or "")
+        for c in cats:
+            cat_low_counts[c] += 1
+            cat_low_views.setdefault(c, []).append(r["views"])
 
-        if result["hook_boosts"]:
-            print(f"  [ANALYTICS] Hook boosts: {list(result['hook_boosts'].keys())[:5]}")
-        if result["topic_penalties"]:
-            print(f"  [ANALYTICS] Topic penalties: {list(result['topic_penalties'].keys())[:5]}")
+    # Categories that appear 2+ times in high performers → boost
+    for cat, count in cat_high_counts.items():
+        if count >= 2:
+            avg_views = sum(cat_high_views[cat]) // len(cat_high_views[cat])
+            result["cat_boosts"][cat] = min(20, max(5, avg_views // (median_views or 1) * 5))
+            print(f"  [ANALYTICS] cat boost: +{result['cat_boosts'][cat]} ({cat}) — {count} posts, avg {avg_views} views")
+
+    # Categories that appear 2+ times in low performers → penalty
+    for cat, count in cat_low_counts.items():
+        if count >= 2 and cat not in result["cat_boosts"]:
+            result["cat_penalties"][cat] = -15
+            print(f"  [ANALYTICS] cat penalty: -15 ({cat}) — {count} posts")
+
+    # Word-level hook keywords from high performers (supplementary, only meaningful words)
+    high_hook_counts = Counter()
+    for r in high:
+        words = set(re.findall(r'\b[a-z]{5,}\b', (r["slide_hook"] or "").lower()))
+        meaningful = words - _STOPWORDS
+        for w in meaningful:
+            high_hook_counts[w] += 1
+    for word, count in high_hook_counts.items():
+        if count >= 2:
+            result["hook_boosts"][word] = 10
+
+    if result["hook_boosts"]:
+        print(f"  [ANALYTICS] Hook boosts: {list(result['hook_boosts'].keys())[:8]}")
 
     return result
 
@@ -312,7 +362,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
             art["score"] = score_article(art["title"], art["body"], art.get("date"))
 
         # ── LAYER 3a: Analytics Feedback Boosts ──────────────────
-        if analytics.get("hook_boosts") or analytics.get("topic_penalties"):
+        if analytics.get("hook_boosts") or analytics.get("topic_penalties") or analytics.get("cat_boosts") or analytics.get("cat_penalties"):
             for art in fresh:
                 title_words = set(re.findall(r'\b[a-z]{4,}\b', art["title"].lower()))
                 body_words = set(re.findall(r'\b[a-z]{4,}\b', art["body"][:500].lower()))
@@ -327,6 +377,17 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
                     if kw in title_words:
                         art["score"] = max(art["score"] + pts, 0)
                         art.setdefault("analytics_tag", []).append(f"topic{pts}")
+                # Category-level boosts/penalties (main signal from analytics)
+                cats = _classify_topic(art["title"], art["body"])
+                for cat in cats:
+                    if cat in analytics.get("cat_boosts", {}):
+                        pts = analytics["cat_boosts"][cat]
+                        art["score"] = min(art["score"] + pts, 150)
+                        art.setdefault("analytics_tag", []).append(f"cat+{pts}({cat})")
+                    if cat in analytics.get("cat_penalties", {}):
+                        pts = analytics["cat_penalties"][cat]
+                        art["score"] = max(art["score"] + pts, 0)
+                        art.setdefault("analytics_tag", []).append(f"cat{pts}({cat})")
 
         # ── LAYER 3b: Relatability Check (LLM) ──────────────────
         # Filter articles by how relatable they are to Indonesian audience.
