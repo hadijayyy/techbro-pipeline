@@ -317,7 +317,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
 
     # Track topics from RECENT posts only (last 1 day) for dedup — exclude failed
     posted_titles = [row['title'] for row in conn.execute(
-        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='posted' AND p.created_at > datetime('now', '-1 days')"
+        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='posted' AND p.created_at > datetime('now', '-6 hours')"
     ).fetchall()]
 
     # Track topics staged THIS run (prevents duplicates within same run)
