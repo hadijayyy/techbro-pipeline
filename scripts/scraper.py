@@ -120,6 +120,12 @@ EXCLUDE = [
     "macbook", "macos", "mac only", "iphone 17", "samsung galaxy s27", "samsung galaxy s26",
     "ipad", "apple watch", "airpods", "mac mini", "mac pro", "mac studio",
     "review spesifikasi", "perbandingan spesifikasi", "unboxing",
+    # Product rumors & launches — pure consumer news
+    "iphone baru", "iphone lipat", "iphone fold", "model iphone", "galaxy z fold",
+    "5 model iphone", "iphone 18", "iphone se", "google pixel",
+    "hp baru", "smartphone baru", "ponsel baru", "diluncurkan", "luncurkan",
+    "meluncurkan", "perkenalkan", "resmi rilis", "resmi dijual",
+    "pre-order", "bisa pre order", "bocoran spesifikasi", "spesifikasi bocor",
     # App launches without educational value
     "app launch", "app release", "new app", "app baru",
     "fitur baru", "feature update", "update terbaru", "versi baru",

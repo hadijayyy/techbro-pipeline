@@ -380,8 +380,9 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
             elif edu_matches >= 1:
                 art["score"] = min(art["score"] + 8, 150)
             # Penalize pure product news (low educational value)
-            if any(kw in title_l for kw in ["review:", "hands-on", "launch", "peluncuran", "diluncurkan"]):
-                art["score"] = max(art["score"] - 10, 0)
+            if any(kw in title_l for kw in ["review:", "hands-on", "launch", "peluncuran", "diluncurkan",
+                                              "iphone", "galaxy", "smartphone", "ponsel", "hp baru", "fold"]):
+                art["score"] = max(art["score"] - 20, 0)  # stronger penalty -20
 
         # ── LAYER 3a: Analytics Feedback Boosts ──────────────────
         if analytics.get("hook_boosts") or analytics.get("topic_penalties") or analytics.get("cat_boosts") or analytics.get("cat_penalties"):
