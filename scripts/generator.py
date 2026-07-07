@@ -415,29 +415,27 @@ def _get_banned() -> list:
 
 ANGLES = {
     "news": [
-        "Write as BREAKING NEWS — first paragraph is the most shocking fact.",
-        "Write as EXCLUSIVE INSIDER — what most people missed about this story.",
-        "Write as INDUSTRY ANALYSIS — why this matters for the next 5 years.",
+        "Write as PRACTICAL INSIGHT — what's the 1 actionable takeaway from this news for orang Indonesia? Everything else is just context.",
+        "Write as REAL-WORLD IMPACT — skip the news summary. Focus on: 'Gimana ini ngaruh ke dompet/hidup/kerja lo?'",
+        "Write as LESSON EXTRACTOR — from this news article, extract 3 things pembaca bisa LAKUKAN sekarang.",
     ],
     "product": [
-        "Write as FIRST IMPRESSIONS — what it feels like to use this.",
-        "Write as COMPARISON — how this stacks up against the competition.",
-        "Write as EARLY ADOPTER — why you should care before everyone else does.",
+        "Write as BUYER ADVISORY — before lo beli, ini yang perlu lo tau. Skip specs, focus on 'worth it gak untuk orang Indonesia?'",
+        "Write as VALUE ANALYST — 'Apakah ini worth your money/time?' Bandingin sama alternatif gratis/murah.",
     ],
     "impact": [
-        "Write as CAREER ADVISORY — how this affects your job/skills.",
-        "Write as INVESTOR THESIS — what this means for money/markets.",
-        "Write as FUTURE PREDICTION — where this leads in 2-3 years.",
+        "Write as CAREER ADVISORY — how this affects your job/skills. 3 steps lo bisa ambil.",
+        "Write as MONEY INSIGHT — what this means for your finances. Angka konkret, tips praktis.",
+        "Write as PREPARATION GUIDE — what to do NOW to prepare for this change. 3 action steps.",
     ],
     "controversy": [
-        "Write as DEVIL'S ADVOCATE — the contrarian take nobody's saying.",
-        "Write as ETHICAL DEBATE — both sides of the argument.",
-        "Write as PATTERN RECOGNITION — what history tells us about this.",
+        "Write as DEBRIEF + TIPS — why this controversial, then 3 things lo bisa lakuin soal ini.",
+        "Write as PATTERN RECOGNITION — what history tells us, plus what to watch out for.",
     ],
-    "drama": [
-        "Write as DRAMA EXTRACTOR — take the viral/hot story, extract 3 actionable tips that readers can learn from it. The drama is the hook, tips are the value.",
-        "Write as LESSON LEARNER — what can orang biasa learn from this drama? 3 practical takeaways, grounded in facts.",
-        "Write as DRAMA ANALYST — break down WHY this drama happened, then give 3 tips to avoid similar situation.",
+    "scandal": [
+        "Write as DRAMA EXTRACTOR — take the viral story, extract 3 actionable tips pembaca bisa learn dari skandal ini. Drama is the hook, tips are the value.",
+        "Write as LESSON LEARNER — what can orang biasa learn from this scandal? 3 practical takeaways grounded in facts.",
+        "Write as SCAM ALERT — break down the scam/how it worked, then 3 steps to avoid jadi korban.",
     ],
 }
 
@@ -447,15 +445,26 @@ def _classify_article(title: str, body: str) -> str:
 
     # Drama detection (highest priority — viral/hot stories)
     drama_signals = [
-        "viral", "heboh", "kontroversial", "korban", "banting setir",
-        "nganggur", "dipecat", "resign", "phk", "gugat", "skandal",
+        "viral", "heboh", "kontroversial",
+        "nganggur", "dipecat", "resign",
         "bongkar", "terungkap", "ternyata", "marah", "protes", "boikot",
-        "gagal", "kolaps", "anjlok", "didenda", "dituntut", "ditangkap",
+        "kolaps", "anjlok",
         "layoff", "scandal", "controversy", "exposed", "shutdown",
         "fired", "bankrupt", "crisis",
     ]
+    # Scandal detection — penipuan, manipulasi, fraud
+    scandal_signals = [
+        "investasi bodong", "penipuan", "skandal", "korupsi", "gratifikasi",
+        "money laundering", "pencucian uang", "didenda", "dituntut", "ditangkap",
+        "ditahan", "tersangka", "terdakwa", "vonis", "dipenjara",
+        "bui", "ditahan", "dituntut", "gugat", "kasus",
+        "bank", "investasi", "modus", "tipu", "scam",
+    ]
     drama_count = sum(1 for w in drama_signals if re.search(r'\b' + re.escape(w) + r'\b', text))
-    if drama_count >= 2:  # at least 2 drama signals = drama mode
+    scandal_count = sum(1 for w in scandal_signals if re.search(r'\b' + re.escape(w) + r'\b', text))
+    if scandal_count >= 2:
+        return "scandal"
+    if drama_count >= 2:
         return "drama"
 
     product_words = {"launch", "release", "introduces", "unveils", "new feature", "update", "beta", "app", "tool", "product"}
@@ -532,6 +541,8 @@ def _clean(text: str) -> str:
     # Clean up after banned phrase removal: "gue !" → remove whole fragment
     # If sentence starts with "gue" followed by orphan punctuation, remove it
     out = re.sub(r'(?i)\bgue\b\s*[,;:.!?]+', '', out)
+    # Fix: year split by newline e.g. "2\n026" → "2026"
+    out = re.sub(r'(?<=\d)\n(?=\d)', '', out)
     # Remove orphan punctuation at start of sentences
     out = re.sub(r'(?m)^[\s,;:.!?]+\s*', '', out)
     # Collapse double spaces
@@ -1253,6 +1264,9 @@ def _check_topic_relevance(slides: dict, article_title: str, article_body: str) 
             if title_ratio < 0.25 and len(title_words) >= 3:
                 # Product articles get lower threshold (10%) — slides use different product terms
                 threshold = 0.10 if article_is_product else 0.15
+                # Short articles (<2000 chars) get lower threshold — body may not have enough keywords
+                if len(article_body) < 2000:
+                    threshold = 0.08
                 if title_ratio < threshold:
                     # Check body keywords as fallback
                     body_excerpt = article_body[:1000].lower()
