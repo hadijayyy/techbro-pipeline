@@ -29,6 +29,7 @@ from trending import score_article_drama, detect_dramas
 
 TOP_N = 50  # articles per run (pick best unposted from larger pool)
 DRAMA_BOOST = 30  # bonus points for drama articles
+ENTITY_REPOST_WINDOW = 12  # hours — block same entity combination
 
 def _normalize_title(title: str) -> str:
     """Normalize title for dedup: lowercase, strip punctuation, collapse spaces."""
@@ -59,6 +60,39 @@ def _extract_topic(title: str) -> set[str]:
     """Extract entity/topic keywords from title."""
     words = set(_normalize_title(title).split())
     return words & _ENTITIES
+
+def _extract_numbers(title: str) -> str:
+    """Extract key numbers from title to detect same-story re-writes."""
+    import re
+    nums = re.findall(r'\d+[.,]?\d*', title.replace(',', ''))
+    # Filter: only meaningful numbers (>= 10)
+    meaningful = [n.replace('.', '').replace(',', '') for n in nums]
+    meaningful = [n for n in meaningful if n.isdigit() and int(n) >= 10]
+    meaningful.sort()
+    return " ".join(meaningful)
+
+def _is_same_story(title1: str, title2: str) -> bool:
+    """Check if two titles are about the same SPECIFIC story (entity + number match)."""
+    topic1 = _extract_topic(title1)
+    topic2 = _extract_topic(title2)
+    if not topic1 or not topic2:
+        return False
+    overlap = topic1 & topic2
+    if not overlap:
+        return False
+    # Numbers match = same story (e.g., "4.800" in both Microsoft PHK articles)
+    nums1 = _extract_numbers(title1)
+    nums2 = _extract_numbers(title2)
+    if nums1 and nums2:
+        n1 = [int(x) for x in nums1.split()]
+        n2 = [int(x) for x in nums2.split()]
+        if len(n1) == len(n2):
+            # Exact match OR within 20% (e.g., "4800" ≈ "5000" both mean same story)
+            ratio = max(n1[0], n2[0]) / min(n1[0], n2[0]) if min(n1[0], n2[0]) > 0 else 99
+            if n1 == n2 or (len(n1) == 1 and 1.0 < ratio <= 1.25):
+                return True
+    # If single entity with strong action overlap
+    return _title_overlap(title1, title2) > 0.35
 
 def _is_same_topic(title1: str, title2: str) -> bool:
     """Check if two titles are about the same topic (entity + action)."""
@@ -333,13 +367,19 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
 
     articles = scrape_all(top_n)
 
-    # Track topics from RECENT posts only (last 1 day) for dedup — exclude failed
+    # Track topics from RECENT posts only (last 12 hours) for dedup — exclude failed
     posted_titles = [row['title'] for row in conn.execute(
-        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='posted' AND p.created_at > datetime('now', '-6 hours')"
+        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='posted' AND p.created_at > datetime('now', '-12 hours')"
     ).fetchall()]
 
     # Track topics staged THIS run (prevents duplicates within same run)
     staged_titles_this_run = []
+    # Track entity combos posted within window (e.g., {"microsoft"} = already posted microsoft story)
+    entity_combo_set = set()
+    for pt in posted_titles:
+        e = tuple(sorted(_extract_topic(pt)))
+        if e:
+            entity_combo_set.add(e)
 
     if articles:
 
@@ -360,6 +400,11 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
             if qreject:
                 print(f"  [DROP] quality: {qreject}: {art['title'][:50]}...")
                 continue
+            # 2a3. Entity repost guard — block same entity+action combo within 12h
+            art_entity = tuple(sorted(_extract_topic(art["title"])))
+            if art_entity and art_entity in entity_combo_set:
+                print(f"  [DEDUP] Entity combo {art_entity} already posted <{ENTITY_REPOST_WINDOW}h: {art['title'][:50]}...")
+                continue
             # 2b. DB dedup (title similarity + entity topic)
             skip = False
             for pt in posted_titles + staged_titles_this_run:
@@ -367,8 +412,8 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
                     print(f"  [DEDUP] Similar title: {pt[:60]}...")
                     skip = True
                     break
-                if _is_same_topic(art["title"], pt):
-                    print(f"  [DEDUP] Same topic as: {pt[:60]}...")
+                if _is_same_story(art["title"], pt):
+                    print(f"  [DEDUP] Same story: {pt[:60]}...")
                     skip = True
                     break
             if skip:
@@ -517,6 +562,10 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
             post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", ""))
             posted_titles.append(art['title'])
             staged_titles_this_run.append(art['title'])
+            # Track entity combo to prevent same story re-post
+            art_entity = tuple(sorted(_extract_topic(art["title"])))
+            if art_entity:
+                entity_combo_set.add(art_entity)
             staged_this_run = True
             print(f"  [3/4] Post #{post_id} staged in DB")
             print(f"  Hook: {slides.get('slide_1', slides.get('hook', '?'))[:80]}")
@@ -586,6 +635,10 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
 
                 post_id = stage_post(conn, art["id"], slides, slides.get("caption", ""), slides.get("hashtags", ""))
                 staged_titles_this_run.append(art["title"])
+                # Track entity combo
+                art_entity = tuple(sorted(_extract_topic(art["title"])))
+                if art_entity:
+                    entity_combo_set.add(art_entity)
                 staged_this_run = True
                 print(f"  [3/4] Post #{post_id} staged in DB")
                 print(f"  Hook: {slides.get('slide_1', slides.get('hook', '?'))[:80]}")
