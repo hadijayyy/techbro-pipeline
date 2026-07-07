@@ -141,6 +141,7 @@ _TOPIC_CATEGORIES = {
     "bigtech_microsoft": ["microsoft", "windows", "copilot", "bing"],
     "ai_tech": ["openai", "chatgpt", "ai ", "artificial", "machine learning", "deepfake"],
     "indo_gov": ["kominfo", "pemerintah", "kemenkominfo", "ri ", "indonesia", "presiden"],
+    "indo_local": ["asn", "pns", "pegawai", "bpjs", "pajak", "npwp", "ktp", "nik", "ojk", "komdigi"],
     # Low-engagement categories (from analytics)
     "foreign_news": ["nhs", "amerika serikat", "us government", "uk government", "eu ", "eropa", "jepang", "korea selatan", "inggris"],
     "niche_ngo": ["umkm", "ngo", "kol", "influencer", "creator"],
@@ -379,6 +380,13 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
                 art["score"] = min(art["score"] + 15, 150)
             elif edu_matches >= 1:
                 art["score"] = min(art["score"] + 8, 150)
+            # Boost Indonesian-local stories (high relatability)
+            indo_local_kw = ["asn", "pns", "pegawai", "bpjs", "pajak", "npwp",
+                              "ojk", "kominfo", "menteri", "presiden", "thr",
+                              "gaji", "ktp", "nik", "komdigi"]
+            if any(kw in title_l for kw in indo_local_kw):
+                art["score"] = min(art["score"] + 20, 150)
+                art.setdefault("analytics_tag", []).append("indo-local+20")
             # Penalize pure product news (low educational value)
             if any(kw in title_l for kw in ["review:", "hands-on", "launch", "peluncuran", "diluncurkan",
                                               "iphone", "galaxy", "smartphone", "ponsel", "hp baru", "fold"]):

@@ -57,6 +57,11 @@ TIER1 = [
     "edukasi", "belajar", "tips", "tutorial", "panduan", "langkah", "cara",
     "strategi", "rahasia", "ternyata", "kesalahan umum", "mistake",
     "peluang", "kesempatan", "tren", "perubahan", "dampak",
+    # Indonesian-local relatable (high engagement)
+    "asn", "pns", "pegawai", "karyawan", "pekerja", "buruh",
+    "gaji", "thr", "bpjs", "pajak", "npwp", "ktp", "nik",
+    "ojk", "kominfo", "pemerintah", "menteri", "presiden",
+    "komdigi", "kemenkominfo", "ppn", "pbb", "pajak penghasilan",
 ]
 TIER2 = [
     # Indonesian Economy & Fintech
