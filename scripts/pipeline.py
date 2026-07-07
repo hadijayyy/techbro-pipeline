@@ -74,13 +74,19 @@ def _is_same_topic(title1: str, title2: str) -> bool:
         return True
     # Single entity: check action similarity
     stop = {"the", "a", "an", "is", "to", "for", "and", "of", "in", "its", "on", "at", "by",
-            "yang", "di", "dan", "ini", "itu", "dengan", "untuk", "pada", "dari", "ke",
+            "yang", "di", "dan", "ini", "itu", "dengan", "untuk", "dari", "ke",
             "adalah", "juga", "sudah", "masih", "belum", "akan", "bisa", "tidak",
-            "gak", "bukan", "lebih", "paling", "sangat", "atau", "tapi", "namun"}
+            "gak", "bukan", "lebih", "paling", "sangat", "atau", "tapi", "namun",
+            # Number variations — "4.800" vs "4800" vs "4,800"
+            "4.800", "4800", "4,800", "450", "153,72", "153.72", "1.500", "1500", "674",
+            "5,37", "5.37", "20", "10", "95", "41", "0", "12", "200.000", "40",
+            "25.815", "720.000", "78", "196.602", "6", "4", "3", "7", "8"}
     w1 = set(_normalize_title(title1).split()) - _ENTITIES - stop
     w2 = set(_normalize_title(title2).split()) - _ENTITIES - stop
     action_overlap = len(w1 & w2) / max(len(w1 | w2), 1)
-    return action_overlap > 0.5  # raised from 0.3 — too many false positives
+    # Stricter for same-entity topics: 0.25 (was 0.35 — still too lenient for "phk karyawan" vs "phk orang")
+    threshold = 0.25 if overlap else 0.5
+    return action_overlap > threshold
 
 DAILY_POST_LIMIT = 20
 POSTING_HOURS = (7, 23)  # WIB — only post between 07:00-23:00

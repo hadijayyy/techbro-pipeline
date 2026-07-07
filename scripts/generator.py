@@ -1280,18 +1280,22 @@ def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
         for r in rows:
             h = (r['slide_hook'] or '').strip().lower()
             # Fact-first pattern detection
-            if re.search(r'\d+%|\d+\.\d+|\d+ juta|\d+ miliar', h):
+            if re.search(r'\d+%|\d+\.\d+|\d+ juta|\d+ miliar|\d+ triliun|\d+ ribu', h):
                 patterns.append("DATA_DROP")
-            elif re.search(r'tapi|kenyataannya|ternyata|padahal', h):
+            elif re.search(r'tapi|kenyataannya|padahal|tapi faktanya', h) and not re.search(r'^\s*ternyata', h):
                 patterns.append("CONTRAST")
             elif h.endswith('?') and re.search(r'lo masih|lo yang|lo tau', h):
                 patterns.append("QUESTION")
             elif re.search(r'\b(meta|google|apple|openai|chatgpt|shopee|tokopedia)\b', h):
                 patterns.append("IMPACT")
             elif re.search(r'\b(ternyata|fakta|heran|gak nyangka)\b', h):
-                patterns.append("SURPRISING")
-            elif re.search(r'\b(harga|rp|juta|bayar|gratis|murah)\b', h):
+                patterns.append("REVELATION")  # renamed from SURPRISING — no 'Ternyata'
+            elif re.search(r'\b(harga|rp|juta|bayar|gratis|murah|uang|duit)\b', h):
                 patterns.append("MONEY")
+            elif re.search(r'\btren|mulai|\bmulai\b|ke depan|kedepan|makin\b', h):
+                patterns.append("TREND")
+            elif re.search(r'\bbayangin|coba bayangin|misalnya|\bimagine\b', h):
+                patterns.append("SCENARIO")
             else:
                 patterns.append("OTHER")
         return patterns
@@ -1302,17 +1306,19 @@ def _pick_hook_instruction(recent_patterns: list[str]) -> str:
     """Pick a hook instruction that avoids recent patterns. All fact-first."""
     import random
     all_hooks = [
-        ("DATA_DROP", "Start with a NUMBER from the article + consequence — 'X% [fakta], [dampaknya]. Lo termasuk?'"),
-        ("CONTRAST", "Start with contradiction from article — '[Ekspektasi]... Tapi [kenyataan dari artikel]?'"),
-        ("QUESTION", "Start with a provocation based on article fact — '[Fakta dari artikel]... Lo masih [A]?'"),
-        ("IMPACT", "Start with direct impact — '[Brand/teknologi] baru [action]. Lo yang [target] kena dampaknya.'"),
-        ("SURPRISING", "Start with the most surprising fact — 'Ternyata [fakta dari artikel]. [Konsekuensi]?'"),
-        ("MONEY", "Start with money/numbers — 'Harga [X] [angka]. Tapi [contradiction dari artikel]. Lo tau?'"),
+        ("DATA_DROP", "Start with a NUMBER from the article + its consequence — 'X% [fakta], [dampaknya].'"),
+        ("CONTRAST", "Start with contradiction — '[Expectation dari artikel]... Tapi [reality dari artikel]?'"),
+        ("QUESTION", "Start with question based on fact — '[Fakta dari artikel]. Lo masih [A]?'"),
+        ("IMPACT", "Start with impact on reader — '[Brand/tech] [action]. Lo yang [target audience] kena.'"),
+        ("SCENARIO", "Start with IMAGINE scenario — 'Bayangin [situasi dari artikel]. [Konsekuensi]'"),
+        ("REVELATION", "Start with fact anchor — '[Angka/fakta dari artikel]. [Implikasi]' — NO 'Ternyata'"),
+        ("MONEY", "Start with money angle — '[Nilai/nominal dari artikel]. Tapi [contradiction]'"),
+        ("TREND", "Start with trend observation — 'Tren [X]: [fakta dari artikel]. [Dampak ke lo]'"),
     ]
-    # Filter out recently used patterns
-    available = [(name, instr) for name, instr in all_hooks if name not in recent_patterns[-3:]]
+    # Avoid last 4 used patterns (was 3 — tighter rotation)
+    available = [(name, instr) for name, instr in all_hooks if name not in recent_patterns[-4:]]
     if not available:
-        available = all_hooks  # fallback if all used
+        available = all_hooks
     chosen = random.choice(available)
     return chosen[1]
 
