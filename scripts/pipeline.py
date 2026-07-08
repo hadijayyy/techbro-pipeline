@@ -57,6 +57,10 @@ _ENTITIES = {
     # Product names
     "godot", "github", "apple", "iphone", "ipad", "macbook", "vision",
     "spacex", "starlink", "openai", "claude", "science", "agent",
+    # Indonesian topic entities — block same-topic spam
+    "phk", "jht", "bpjs", "karyawan", "ihsg", "saham",
+    "pajak", "demo", "unjuk", "rasa", "mitigasi",
+    "talenta", "digital", "dekarbonisasi", "batu", "bara",
 }
 
 def _extract_topic(title: str) -> set[str]:
@@ -542,6 +546,20 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
         if e:
             entity_combo_set.add(e)
 
+    # Topic keyword dedup — block INDIVIDUAL topic words posted within 4h
+    # e.g., if "phk" was posted 2h ago, skip any article with "phk" in title
+    _TOPIC_KEYWORDS = {"phk", "jht", "bpjs", "karyawan", "ihsg", "saham",
+                       "pajak", "demo", "unjuk", "rasa", "talenta", "digital"}
+    posted_topic_words = set()
+    topic_recent = [row['title'] for row in conn.execute(
+        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='posted' AND p.created_at > datetime('now', '-4 hours')"
+    ).fetchall()]
+    for pt in topic_recent:
+        words = set(_normalize_title(pt).split())
+        posted_topic_words |= words & _TOPIC_KEYWORDS
+    if posted_topic_words:
+        print(f"  [TOPIC BLOCK] Words posted in last 4h: {posted_topic_words}")
+
     if articles:
 
         # ── LAYER 2: Fast Dedup & Fast Drop ──────────────────────
@@ -565,6 +583,12 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             art_entity = tuple(sorted(_extract_topic(art["title"])))
             if art_entity and art_entity in entity_combo_set:
                 print(f"  [DEDUP] Entity combo {art_entity} already posted <{ENTITY_REPOST_WINDOW}h: {art['title'][:50]}...")
+                continue
+            # 2a4. Topic keyword block — if "phk"/"jht"/etc posted in last 4h, skip
+            art_words = set(_normalize_title(art["title"]).split())
+            topic_hit = art_words & posted_topic_words
+            if topic_hit:
+                print(f"  [TOPIC SKIP] Topic word(s) {topic_hit} posted <4h ago: {art['title'][:50]}...")
                 continue
             # 2b. DB dedup (title similarity + entity topic)
             skip = False
