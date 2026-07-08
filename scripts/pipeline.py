@@ -783,7 +783,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
               AND a.source IN ({})
             ORDER BY a.score DESC
             LIMIT ?
-        """.format(','.join('?' * len(ALLOWED_SOURCES))), (*ALLOWED_SOURCES, top_n)).fetchall()
+        """.format(','.join('?' * len(ALLOWED_SOURCES))), (*ALLOWED_SOURCES, max(top_n, 10))).fetchall()
 
         if unposted:
             for art in unposted:

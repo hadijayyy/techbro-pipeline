@@ -1445,7 +1445,7 @@ def _check_topic_relevance(slides: dict, article_title: str, article_body: str) 
                     body_kw = set(w for w in re.findall(r'[a-zA-Z\\u00C0-\\u024F]{3,}', body_excerpt) if w not in stopwords)
                     body_overlap = body_kw & slide_words
 
-                    min_kw = 2  # lowered from 3 — too aggressive
+                    min_kw = 1  # lowered from 2 — any body keyword overlap = probably related
                     if len(body_overlap) < min_kw:
                         violations.append(f"{key}: off-topic (title overlap {title_ratio:.0%}, body kw: {len(body_overlap)})")
     
@@ -1814,6 +1814,10 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                     print(f"[TOPIC] 🔴 Retry also off-topic: {c}")
                 return None
             data = v
+            # Preserve tracking data from original variant
+            data["_hook_pattern"] = hook_instr[:100]
+            data["_hook_score"] = best_score
+            data["_cta_pattern"] = cta_instr[:100]
             print(f"[TOPIC] ✅ Retry passed topic relevance")
         else:
             return None
@@ -1841,6 +1845,9 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                 return None  # Give up
             # Retry passed grounding — use it
             data = v
+            data["_hook_pattern"] = hook_instr[:100]
+            data["_hook_score"] = best_score
+            data["_cta_pattern"] = cta_instr[:100]
             print(f"[GROUNDING] ✅ Retry passed factual grounding")
         else:
             return None
@@ -1859,6 +1866,9 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                 flow_check2 = _check_inter_slide_flow(v)
                 if len(flow_check2) < len(flow_issues):
                     data = v
+                    data["_hook_pattern"] = hook_instr[:100]
+                    data["_hook_score"] = best_score
+                    data["_cta_pattern"] = cta_instr[:100]
                     print(f"[FLOW] ✅ Regenerated with better flow ({len(flow_check2)} issues vs {len(flow_issues)})")
                 else:
                     print(f"[FLOW] ⚠️ Regeneration didn't improve flow, keeping original")
@@ -1876,6 +1886,9 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                 jargon_check2 = _check_jargon(v)
                 if len(jargon_check2) < len(jargon_issues):
                     data = v
+                    data["_hook_pattern"] = hook_instr[:100]
+                    data["_hook_score"] = best_score
+                    data["_cta_pattern"] = cta_instr[:100]
                     print(f"[JARGON] ✅ Regenerated with less jargon ({len(jargon_check2)} issues vs {len(jargon_issues)})")
 
     # Final cleanup: strip orphaned markdown artifacts after grounding stripped content
@@ -2011,6 +2024,10 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                     print(f"  [EVAL] Retry {attempt}/3 generation failed")
             if retry_data:
                 data = retry_data
+                # Preserve tracking data from original variant
+                data["_hook_pattern"] = hook_instr[:100]
+                data["_hook_score"] = best_score
+                data["_cta_pattern"] = cta_instr[:100]
             else:
                 print(f"  [EVAL] 🔴 All retries REJECT — returning None (skip article)")
                 return None
@@ -2020,6 +2037,10 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
 
     data["_provider"] = data.get("_provider", primary)
     data["_lang"] = CONTENT_LANG
+    # A/B tracking — set once at end to survive all retry/regenerate paths
+    data["_hook_pattern"] = hook_instr[:100]
+    data["_hook_score"] = best_score
+    data["_cta_pattern"] = cta_instr[:100]
     return data
 
 # ─── CLI ──────────────────────────────────────────────────────────
