@@ -530,6 +530,25 @@ def _call_groq(title: str, body: str, source: str = "", hook_instruction: str = 
 
 # ─── Post-processing ─────────────────────────────────────────────
 
+def _fix_slides(data: dict) -> dict:
+    """Fix empty slides and collapse gaps in carousel data.
+    If a slide is empty/whitespace, merge it with next slide or remove the key.
+    """
+    keys = ['slide_hook', 'slide_setup', 'slide_twist', 'slide_deep', 'slide_sowhat', 'slide_cta']
+    for i, key in enumerate(keys):
+        val = (data.get(key) or '').strip()
+        if not val:
+            # Empty slide — try to pull content from next non-empty slide
+            for next_key in keys[i+1:]:
+                next_val = (data.get(next_key) or '').strip()
+                if next_val:
+                    data[key] = next_val
+                    data[next_key] = ''
+                    break
+            if not data.get(key, '').strip():
+                data[key] = ' '  # placeholder (will be skipped, but maintains slide count)
+    return data
+
 def _clean(text: str) -> str:
     """Remove banned phrases, fix grammar issues, enforce whitespace.
     Also enforces reaksi natural MAX 1x per slide."""
@@ -1687,6 +1706,9 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                 print(f"  [EVAL] ⚠️ Still REJECT after retry — posting anyway (advisory mode)")
         else:
             print(f"  [EVAL] ⚠️ Retry generation failed — posting original (advisory mode)")
+
+    # ─── Fix empty slides (collapse gaps) ───
+    _fix_slides(data)
 
     data["_provider"] = data.get("_provider", primary)
     data["_lang"] = CONTENT_LANG

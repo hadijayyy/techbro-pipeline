@@ -226,9 +226,11 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
         # Build slides from DB columns
         slides = []
         for key in ['slide_hook', 'slide_setup', 'slide_twist', 'slide_deep', 'slide_sowhat', 'slide_cta']:
-            val = post.get(key, '')
-            if val:
+            val = post.get(key, '').strip()
+            if val and val != ' ':
                 slides.append(val)
+            else:
+                slides.append('…')  # placeholder — keeps 6-slide count
         
         # Auto-append article URL to last slide (CTA) — always from DB, never hardcoded
         article_url = (post.get('article_url') or '').strip()
