@@ -34,11 +34,11 @@ Format strictly as a flat JSON with keys "slide_1" to "slide_6", "caption", "has
 
 - slide_2 (Setup, 40-60 words, MAX 3 sentences): Bridge to the real problem using everyday analogies (9-5 grind, broke college student, hustle culture). Reader should think: "Yeah, I deal with this too"
 
-- slide_3 (Contoh Nyata, 40-60 words, MAX 3 sentences): Real-world example: brand, company, person, or concrete situation. Make reader think "oh, so that's how it works". Grounded in article facts.
+- slide_3 (Reframe, 40-60 words, MAX 3 sentences): Change the reader's perspective. "What's really happening is..." Counter-intuitive, challenges common assumptions. This is the CORE of the content. Grounded in article facts.
 
-- slide_4 (Tips, 40-60 words, MAX 3 sentences): Provide actionable advice derived directly from the article.
+- slide_4 (Explain Why, 40-60 words, MAX 3 sentences): Make reader think "oh... that makes sense." Use analogy, case study, comparison, or short story. Simplify so anyone understands.
 
-- slide_5 (Framework/Checklist, 30-50 words, MAX 3 sentences): 2-3 concrete steps reader can apply immediately. Narrative format: "First... then... finally..."
+- slide_5 (Framework/Save Trigger, 30-50 words, MAX 3 sentences): This is the slide that makes people SAVE. Give checklist, framework, SOP, template, or steps. "The more practical, the higher the save rate."
 
 - slide_6 (Ringkasan + CTA, 30-40 words, MAX 3 sentences): Sentence 1: summarize key point from slides 1-5. Sentence 2: end with one of these to force comments:
   1. PROVOCATIVE: "Is [X]? Or [Y]?"
@@ -216,18 +216,21 @@ SLIDE 2 — THE PROBLEM (Kenapa Ini Relevan)
   • Ini alasan KENAPA mereka harus lanjut baca, bukan penjelasan cara
   • Jika hook bahas e-commerce → slide 2 juga bahas e-commerce, JANGAN lompat ke industri lain
 
-SLIDE 3 — CONTOH NYATA (Studi Kasus / Real-Life Example)
+SLIDE 3 — REFRAME (Ubah Cara Pikir)
   • MAX 3 kalimat, <40 kata
-  • HARUS kasih contoh nyata: brand, perusahaan, orang, atau situasi konkret
-  • Bisa dari artikel atau analogi yang relevan sama kehidupan orang Indonesia
-  • Tujuan: bikin pembaca mikir "oh jadi kayak gini ternyata"
-  • Grounded di fakta artikel, bukan karangan
+  • Ubah perspektif pembaca: "Yang sebenarnya terjadi adalah..."
+  • Ini INTI konten — kontra-intuitif, nabrak asumsi umum
+  • Format: [Asumsi umum yang salah] → [Kebenaran berdasarkan artikel]
+  • Contoh: "AI bukan gantiin lo kerja. AI gantiin cara kerja lo yang udah kuno."
+  • Grounded di fakta artikel, bukan opini tanpa dasar
 
-SLIDE 4 — SOLUSI / TIPS (Actionable Advice)
+SLIDE 4 — EXPLAIN WHY (Penjelasan Sederhana)
   • MAX 3 kalimat, <40 kata
-  • Tips PRAKTIS yang bisa langsung dipraktekkan
-  • Spesifik: apa yang diklik/dibuka/ditulis/diinstall
-  • Kalau ada data/angka pendukung dari artikel, tambahin
+  • Buat pembaca mikir: "Oh... masuk akal."
+  • Gunakan: analogi, studi kasus, perbandingan, cerita singkat
+  • Bisa dari artikel atau analogi yang relevan sama kehidupan orang Indonesia
+  • Sederhanakan — anak kecil harus ngerti
+  • Grounded di fakta artikel, bukan karangan
 
 SLIDE 5 — FRAMEWORK / CHECKLIST (Langkah Praktis)
   • MAX 3 kalimat, <40 kata
@@ -250,16 +253,31 @@ Dalam 1 slide, kalimat harus NYAMBUNG:
 • Kalimat terakhir gak boleh ngulang ide kalimat pertama
 • Setiap kalimat punya hubungan logis ke kalimat sebelumnya
 
+GOLDEN RULES (WAJIB!):
+• 1 IDE = 1 SLIDE — jangan campur beberapa ide dalam satu slide
+• KALIMAT PENDEK — target 5-12 kata per kalimat
+• Setiap slide HARUS menghasilkan pertanyaan berikutnya (curiosity chain)
+• Semakin praktis → semakin tinggi peluang DISAVE
+
 ═══════════════════════════════════════════════
 §7d  INTER-SLIDE FLOW (WAJIB!)
 ═══════════════════════════════════════════════
 Setiap slide HARUS connect ke slide sebelumnya. Pembaca gak boleh bingung "ini nyambung dari mana?"
 
 ATURAN WAJIB:
-• Slide 2 HARUS expand dari Slide 1 (hook) — topik sama, angle lebih dalam
-• Slide 3 (Contoh nyata) HARUS lanjut dari Slide 2 — kasih contoh konkret
-• Slide 4-5 HARUS masuk di konteks slide sebelumnya (solusi + checklist)
+• Slide 2 HARUS expand dari Slide 1 (hook) — kasih fakta/data/konteks
+• Slide 3 (Reframe) HARUS ubah perspektif dari Slide 2 — "yang sebenarnya terjadi..."
+• Slide 4 (Explain Why) HARUS jelasin kenapa Slide 3 benar — analogi/studi kasus
+• Slide 5 (Framework) HARUS kasih langkah praktis berdasarkan Slide 3-4
 • Slide 6 (Ringkasan + CTA) HARUS relate ke tema utama (slide 1-5)
+
+CURIOSITY CHAIN (WAJIB!):
+  Slide 1 → Pembaca mikir: "Apa maksudnya?"
+  Slide 2 → Pembaca mikir: "Oh ternyata..."
+  Slide 3 → Pembaca mikir: "Serius?"
+  Slide 4 → Pembaca mikir: "Pantes..."
+  Slide 5 → Pembaca mikir: "Gue harus save."
+  Slide 6 → Pembaca mikir: "Gue share ke teman."
 
 CARA CEK: Baca slide 1→2→3→4→5→6. Kalau ada lompatan topik yang bikin bingung → rewrite.
 
@@ -294,9 +312,9 @@ Tiap slide HARUS hit minimal 1 kriteria viral di bawah ini:
 4. SURPRISING FACT — fakta yang bikin orang "anjir, seriusan?"
 
 Slide 1: WAJIB surprising fact ATAU famous figure
-Slide 3 (Contoh nyata): WAJIB relatable atau famous figure
-Slide 4-5 (Tips/Checklist): masing-masing WAJIB hit ≥1 kriteria
-Slide 5: WAJIB pro & con (2 sisi, bikin orang diskusi)
+Slide 3 (Reframe): WAJIB kontra-intuitif atau pro & con
+Slide 4 (Explain Why): WAJIB relatable atau famous figure
+Slide 5 (Framework): WAJIB practical value (save trigger)
 Slide 6: Boleh relatable atau surprising
 
 Kalau gak bisa hit kriteria di slide tertentu → rewrite slide, jangan skip.

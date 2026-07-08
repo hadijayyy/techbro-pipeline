@@ -26,23 +26,29 @@ Indonesian tech/AI carousel generator for Threads (@ryanhadiii). Scrapes, scores
 
 ## Slide Structure
 
-Mengikuti **Formula HISSC** (Hook → Insight → Support → Solution → CTA) + viral equation `Attention × Emotion × Novelty × Practical Value`:
+Mengikuti **Viral AI Threads Framework** — `Attention → Curiosity → Evidence → Reframe → Practical Value → Save → Share`:
 
-| Slide | Role | Words |
-|-------|------|-------|
-| 1 | **Hook** — fakta paling mengejutkan dari artikel, data-driven pattern | <25 |
-| 2 | **Problem/Insight** — expand dari hook, JANGAN lompat topik baru | <40 |
-| 3 | **Contoh Nyata** — studi kasus / real-life example (brand, perusahaan, situasi konkret) | <40 |
-| 4 | **Solusi/Tips** — advice praktis dari artikel | <40 |
-| 5 | **Framework/Checklist** — 2-3 langkah konkret yang bisa langsung diterapkan | <40 |
-| 6 | **Ringkasan + CTA** — poin utama + rotating closing pattern | <30 |
+| Slide | Role | Target Reaction | Words |
+|-------|------|----------------|-------|
+| 1 | **Pattern Interrupt (Hook)** — emosi + curiosity, stop scroll | "Apa maksudnya?" | <25 |
+| 2 | **Context** — fakta/data/riset, bangun kredibilitas | "Oh ternyata..." | <40 |
+| 3 | **Reframe** — ubah cara pikir, kontra-intuitif | "Serius?" | <40 |
+| 4 | **Explain Why** — analogi/studi kasus, bikin "masuk akal" | "Pantes..." | <40 |
+| 5 | **Actionable Framework** — checklist/SOP/template, trigger SAVE | "Gue harus save." | <40 |
+| 6 | **Conclusion + CTA** — ringkasan 1 kalimat + ajakan | "Gue share ke teman." | <30 |
+
+**Golden Rules:**
+- 1 ide = 1 slide (jangan campur)
+- Kalimat pendek: 5-12 kata per kalimat
+- Setiap slide menghasilkan pertanyaan berikutnya (curiosity chain)
 
 ## Content Rules
 
 - **Hook langsung ke fakta** — tanpa "bayangin lo lagi..." atau analogi random
 - **Pattern C (Default)** — `[Specific number] + [Human consequence] + [Reply bait]` — proven 500K+ views
-- **Contoh nyata wajib** — slide 3 HARUS kasih studi kasus/brand/situasi konkret, bukan teori
-- **Framework/Checklist** — slide 5 kasih langkah praktis yang bisa langsung diterapkan
+- **Reframe wajib** — slide 3 HARUS ubah perspektif, kontra-intuitif (inti konten)
+- **Explain Why** — slide 4 kasih analogi/studi kasus yang bikin "masuk akal"
+- **Framework = Save trigger** — slide 5 kasih checklist/SOP/template yang langsung bisa dipraktekkan
 - **Ringkasan** — slide 6 mulai dengan poin utama sebelum CTA
 - **Inter-slide flow** — slide 2 HARUS expand dari slide 1, JANGAN lompat topik
 - **Jargon validator** — istilah asing WAJIB diterangkan dalam bahasa Indonesia
