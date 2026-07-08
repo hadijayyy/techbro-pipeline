@@ -127,6 +127,8 @@ Bahasa: SESEDERHANA mungkin. Anak kecil harus ngerti.
 Jangan pernah pake kata-kata yang bikin orang mikir keras.
 Kalau ada istilah teknis → jelasin pake bahasa sehari-hari.
 
+HOOK WAJIB PROVOKE REPLIES: akhiri hook dengan pertanyaan atau ajakan opini. Pembaca harus ngerasa "gue harus komentar ini".
+
 Contoh tone:
 ✅ "ChatGPT bisa bikin CV lo dalam 5 menit. Gak perlu jago desain."
 ❌ "Leverage AI-powered tools to optimize your professional documentation workflow."
@@ -209,8 +211,10 @@ SLIDE 1 — THE HOOK (Stop the Scroll)
 
 SLIDE 2 — THE PROBLEM (Kenapa Ini Relevan)
   • MAX 3 kalimat, <40 kata
+  • HARUS expand dari Slide 1 (hook) — JANGAN lompat topik baru
   • Validasi masalah/kebutuhan pembaca + data pendukung dari artikel
   • Ini alasan KENAPA mereka harus lanjut baca, bukan penjelasan cara
+  • Jika hook bahas e-commerce → slide 2 juga bahas e-commerce, JANGAN lompat ke industri lain
 
 SLIDE 3 — TIP 1 (Tips/Trick Pertama)
   • MAX 3 kalimat, <40 kata
@@ -232,8 +236,8 @@ SLIDE 5 — TIP 3 (Tips/Trick Ketiga)
 SLIDE 6 — THE CTA (Closing)
   • MAX 2 kalimat, <30 kata
   • Ajakan action yang santai, bukan closing formal
-  • Contoh pola: "Udah pernah coba [cara ini]? Share pengalaman lo di komen" atau "Lo lebih milih cara [A] apa [B]? Bilang di komen"
   • Boleh reflektif tapi tetep ngundang orang buat balas, bukan sekadar penutup
+  {cta_instruction}
 
 ═══════════════════════════════════════════════
 §7b  INTRA-SLIDE COHERENCE
@@ -242,6 +246,39 @@ Dalam 1 slide, kalimat harus NYAMBUNG:
 • 2+ angka/statistik → HARUS ada kata penghubung (tapi, namun, sedangkan, hasilnya, padahal)
 • Kalimat terakhir gak boleh ngulang ide kalimat pertama
 • Setiap kalimat punya hubungan logis ke kalimat sebelumnya
+
+═══════════════════════════════════════════════
+§7d  INTER-SLIDE FLOW (WAJIB!)
+═══════════════════════════════════════════════
+Setiap slide HARUS connect ke slide sebelumnya. Pembaca gak boleh bingung "ini nyambung dari mana?"
+
+ATURAN WAJIB:
+• Slide 2 HARUS expand dari Slide 1 (hook) — topik sama, angle lebih dalam
+• Slide 3 HARUS lanjut dari Slide 2 — gak boleh lompat ke topik baru
+• Slide 4-5 HARUS masuk di konteks slide sebelumnya
+• Slide 6 (CTA) HARUS relate ke tema utama (slide 1-5)
+
+CARA CEK: Baca slide 1→2→3→4→5→6. Kalau ada lompatan topik yang bikin bingung → rewrite.
+
+CONTOH SALAH:
+  Slide 1: "Tokopedia gak PHK massal."
+  Slide 2: "Satgas PHK sekarang tangani kelangkaan bahan baku." ← LOMPAT TOPIK
+
+CONTOH BENAR:
+  Slide 1: "Tokopedia gak PHK massal."
+  Slide 2: "Yang terjadi: karyawan dipindah divisi, bukan dipecat. Tapi lo tetap harus siap." ← EXPAND
+
+═══════════════════════════════════════════════
+§7e  JARGON → BAHASA INDONESIA
+═══════════════════════════════════════════════
+Istilah asing WAJIB dijelaskan dalam bahasa Indonesia di pertama kali muncul.
+
+CONTOH:
+❌ "Lo kena talent mobility." ← pembaca bingung
+✅ "Lo dipindah divisi (istilahnya: talent mobility), bukan dipecat." ← jelas
+
+Tech terms umum (AI, HP, laptop, cloud) → boleh English tanpa penjelasan.
+Istilah asing yang jarang (talent mobility, quiet quitting, golden handshake) → WAJIB diterangkan.
 
 ═══════════════════════════════════════════════
 §7c  VIRAL CRITERIA (WAJIB PER SLIDE)
@@ -485,13 +522,14 @@ def _get_angle(article_type: str) -> str:
     angles = ANGLES.get(article_type, ANGLES["news"])
     return random.choice(angles)
 
-def _build_user_msg(title: str, body: str, source: str = "", hook_instruction: str = "") -> str:
+def _build_user_msg(title: str, body: str, source: str = "", hook_instruction: str = "", cta_instruction: str = "") -> str:
     article_type = _classify_article(title, body)
     angle = _get_angle(article_type)
     hook_part = f"\nHOOK STYLE: {hook_instruction}" if hook_instruction else ""
-    return f"ANGLE: {angle}{hook_part}\n\nTITLE: {title}\nARTICLE: {body[:4000]}\nSOURCE: {source}"
+    cta_part = f"\nCTA STYLE: {cta_instruction}" if cta_instruction else ""
+    return f"ANGLE: {angle}{hook_part}{cta_part}\n\nTITLE: {title}\nARTICLE: {body[:4000]}\nSOURCE: {source}"
 
-def _call_mistral(title: str, body: str, source: str = "", hook_instruction: str = "") -> Optional[str]:
+def _call_mistral(title: str, body: str, source: str = "", hook_instruction: str = "", cta_instruction: str = "") -> Optional[str]:
     prompt = _get_prompt()
     try:
         r = httpx.post(
@@ -499,7 +537,7 @@ def _call_mistral(title: str, body: str, source: str = "", hook_instruction: str
             headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
             json={"model": "mistral-large-latest",
                   "messages": [{"role": "system", "content": prompt},
-                               {"role": "user", "content": _build_user_msg(title, body, source, hook_instruction)}],
+                               {"role": "user", "content": _build_user_msg(title, body, source, hook_instruction, cta_instruction)}],
                   "temperature": 0.3, "max_tokens": 2000},
             timeout=120)
         if r.status_code == 200:
@@ -508,7 +546,7 @@ def _call_mistral(title: str, body: str, source: str = "", hook_instruction: str
         print(f"Mistral error: {e}")
     return None
 
-def _call_groq(title: str, body: str, source: str = "", hook_instruction: str = "") -> Optional[str]:
+def _call_groq(title: str, body: str, source: str = "", hook_instruction: str = "", cta_instruction: str = "") -> Optional[str]:
     if not GROQ_KEY:
         print("Groq skipped (no GROQ_API_KEY)")
         return None
@@ -519,7 +557,7 @@ def _call_groq(title: str, body: str, source: str = "", hook_instruction: str = 
             headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
             json={"model": "llama-3.3-70b-versatile",
                   "messages": [{"role": "system", "content": prompt},
-                               {"role": "user", "content": _build_user_msg(title, body, source, hook_instruction)}],
+                               {"role": "user", "content": _build_user_msg(title, body, source, hook_instruction, cta_instruction)}],
                   "temperature": 0.3, "max_tokens": 2000},
             timeout=120)
         if r.status_code == 200:
@@ -880,7 +918,7 @@ def _validate_hook(text: str) -> tuple[bool, list[str]]:
     return valid, issues
 
 def _score_hook(text: str) -> int:
-    """Score a hook 0-10. v2 weights: length=2, number=2, rest=1."""
+    """Score a hook 0-10. v3 weights: detail+emotion=pressbox pattern."""
     score = 0
     words = text.split()
     text_lower = text.lower()
@@ -934,7 +972,15 @@ def _score_hook(text: str) -> int:
     if first_word and first_word not in weak_openers:
         score += 1
 
-    return score
+    # 10. Emotional weight / human consequence (pressbox Pattern C)
+    emotion_words = {'korban', 'rugi', 'dampak', 'ancaman', 'bahaya', 'resiko',
+                     'kesempatan', 'peluang', 'harapan', 'kecewa', 'kecewa.',
+                     'mother', 'tears', 'broken', 'denied', 'banned', 'fired',
+                     'karyawan', 'buruh', 'pengguna', 'konsumen', 'masyarakat'}
+    if any(w in text_lower for w in emotion_words):
+        score += 1
+
+    return min(score, 10)
 
 
 def _rewrite_hook(hook: str, article_title: str, body: str, score: int) -> tuple[str, int]:
@@ -976,14 +1022,16 @@ Article excerpt: {body[:500]}
 Rules:
 - Under 25 words, MAX 2 sentences
 - MUST start with a FACT or NUMBER from the article excerpt above — copy exact numbers, do NOT invent
+- PREFERRED FORMAT (pressbox Pattern C): [Specific amount/number] + [Human consequence] — e.g. 'Rp46,9 triliun. Yang rugi lo juga.'
 - Capitalize ONE key word
 - End with ? or ! if it's a question/exclamation
 - Mix Indonesian-English naturally
 - Sound like a real person texting, not an AI
 - NEVER start with "gue [emotion]" (gue gila, gue kaget, etc.) — meaningless filler
-|- Format: [ANGKA/FAKTA] + [KONSEKUENSI ATAU PERTANYAAN]
-|- If no numbers in excerpt, start with the most surprising fact instead
-|- Do NOT use em-dashes (—) or special dashes. Use commas or hyphens only.
+- MUST provoke REPLIES — end with question or call to opinion
+- Format: [ANGKA/FAKTA] + [KONSEKUENSI KE PEMBACA]
+- If no numbers in excerpt, start with the most surprising fact instead
+- Do NOT use em-dashes (—) or special dashes. Use commas or hyphens only.
 
 Return ONLY the rewritten hook text, nothing else."""
 
@@ -1010,12 +1058,12 @@ Return ONLY the rewritten hook text, nothing else."""
 
     return hook, score
 
-def _generate_variant(title: str, body: str, source: str, provider: str, hook_instruction: str = "") -> Optional[dict]:
+def _generate_variant(title: str, body: str, source: str, provider: str, hook_instruction: str = "", cta_instruction: str = "") -> Optional[dict]:
     """Generate one carousel variant. Returns parsed dict or None."""
     if provider == "mistral":
-        raw = _call_mistral(title, body, source, hook_instruction)
+        raw = _call_mistral(title, body, source, hook_instruction, cta_instruction)
     else:
-        raw = _call_groq(title, body, source, hook_instruction)
+        raw = _call_groq(title, body, source, hook_instruction, cta_instruction)
     if raw is None:
         return None
     try:
@@ -1201,6 +1249,106 @@ def _check_slide_coherence(slides: dict) -> list[str]:
     return issues
 
 
+def _check_inter_slide_flow(slides: dict) -> list[str]:
+    """Check if slides connect logically (no topic jumps between consecutive slides).
+    Returns list of flow issues found."""
+    issues = []
+    stopwords = {'yang', 'di', 'dan', 'ini', 'itu', 'dengan', 'untuk', 'pada', 'ke', 'dari',
+                 'adalah', 'juga', 'sudah', 'masih', 'belum', 'akan', 'bisa', 'tidak',
+                 'gak', 'bukan', 'lebih', 'paling', 'sangat', 'atau', 'tapi', 'namun',
+                 'the', 'is', 'are', 'was', 'and', 'or', 'but', 'in', 'on', 'at', 'to',
+                 'for', 'of', 'with', 'by', 'a', 'an', 'that', 'this', 'it', 'not',
+                 'just', 'so', 'lo', 'gue', 'lu', 'kita', 'mereka'}
+    
+    slide_keys = [f"slide_{i}" for i in range(1, 7)]
+    prev_core = set()
+    
+    for key in slide_keys:
+        text = slides.get(key, "")
+        if not text:
+            continue
+        words = set(re.findall(r'[a-z]{4,}', text.lower())) - stopwords
+        
+        if prev_core and words:
+            overlap = prev_core & words
+            overlap_ratio = len(overlap) / max(min(len(prev_core), len(words)), 1)
+            if overlap_ratio < 0.1 and len(words) > 5:
+                issues.append(f"{key}: low connection to previous slide (overlap: {overlap_ratio:.0%}, shared: {overlap or 'none'})")
+        
+        prev_core = words
+    
+    return issues
+
+
+def _check_jargon(slides: dict) -> list[str]:
+    """Check for unexplained foreign jargon in slides.
+    Returns list of jargon violations (foreign terms not explained in Indonesian)."""
+    issues = []
+    
+    # Tech terms OK in English (common knowledge)
+    tech_ok = {
+        'ai', 'chatgpt', 'gemini', 'copilot', 'openai', 'google', 'microsoft',
+        'apple', 'meta', 'samsung', 'nvidia', 'iphone', 'android', 'windows',
+        'laptop', 'cloud', 'download', 'upload', 'wifi', 'bluetooth', 'usb',
+        'app', 'browser', 'email', 'online', 'offline', 'password', 'login',
+        'server', 'data', 'chip', 'gpu', 'cpu', 'ram', 'ssd', 'hdd',
+        'tiktok', 'instagram', 'whatsapp', 'threads', 'telegram',
+        'startup', 'blockchain', 'crypto', 'bitcoin', 'ethereum',
+        'digital', 'smartphone', 'chatbot', 'prompt', 'robot',
+        'phishing', 'malware', 'ransomware', 'hacker', 'firewall',
+        'e-commerce', 'fintech', 'edtech', 'healthtech',
+    }
+    
+    # Foreign business/finance jargon that MUST be explained
+    jargon_warn = {
+        'talent mobility': 'dipindah divisi, bukan dipecat',
+        'quiet quitting': 'kerja seadanya tanpa resign',
+        'golden handshake': 'uang pesangon gede',
+        'end user': 'pengguna akhir',
+        'purchase order': 'surat pesanan',
+        'supply chain': 'rantai pasok',
+        'cash flow': 'aliran uang',
+        'return on investment': 'keuntungan dari investasi',
+        'due diligence': 'pengecekan detail sebelum transaksi',
+        'escrow': 'rekening bersama',
+        'bailout': 'diselamatkan pemerintah',
+        'hedge fund': 'dana lindung nilai',
+        'venture capital': 'modal ventura',
+        'equity': 'saham/kepemilikan',
+        'leverage': 'pinjaman untuk investasi',
+        'benchmark': 'patokan/pembanding',
+        'compliance': 'kepatuhan aturan',
+        'stakeholder': 'pihak terkait',
+        'deadline': 'batas waktu',
+        'brainstorming': 'diskusi ide bareng',
+        'follow up': 'tindak lanjut',
+        'meeting': 'rapat',
+        'report': 'laporan',
+        'schedule': 'jadwal',
+        'budget': 'anggaran',
+        'approval': 'persetujuan',
+        'referral': 'rekomendasi',
+        'onboarding': 'masuk/pelatihan awal',
+        'offboarding': 'keluar/proses resign',
+        'headcount': 'jumlah karyawan',
+        'upsell': 'jual produk lebih mahal',
+        'churn': 'pelanggan kabur',
+        'retention': 'pertahanan pelanggan',
+    }
+    
+    slide_keys = [f"slide_{i}" for i in range(1, 7)]
+    all_text = " ".join(slides.get(k, "").lower() for k in slide_keys)
+    
+    for jargon, replacement in jargon_warn.items():
+        if jargon.lower() in all_text:
+            # Check if it's explained nearby (replacement words present)
+            explain_words = replacement.lower().split(",")[0].split()
+            if not any(w in all_text for w in explain_words if len(w) > 3):
+                issues.append(f"jargon '{jargon}' used without explanation → suggest: '{replacement}'")
+    
+    return issues
+
+
 def _check_topic_relevance(slides: dict, article_title: str, article_body: str) -> list[str]:
     """Check if slides discuss the same topic AND same type of content as the article.
     
@@ -1341,75 +1489,159 @@ def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
         return []
 
 def _pick_hook_instruction(recent_patterns: list[str]) -> str:
-    """Pick a hook instruction that avoids recent patterns. All fact-first."""
+    """Pick a hook instruction that avoids recent patterns. Data-driven (pressbox pattern).
+    
+    Pattern C (DEFAULT, 80%): Specific Detail + Emotional Weight — proven 500K+ avg
+    Pattern A (20%): Curiosity Gap — "Nobody's talking about" + hidden angle
+    """
     import random
     all_hooks = [
+        ("PATTERN_C", "Start with SPECIFIC NUMBER/AMOUNT from article + HUMAN CONSEQUENCE — 'Rp[X] triliun. [Siapa] kena dampaknya.' or '[Angka]%, dan yang rugi [target audience].' Numbers create curiosity, human cost drives replies."),
+        ("CURIOSITY_GAP", "Start with hidden angle — 'Yang gak dibahas: [fakta tersembunyi dari artikel]. [Implikasi]' or '[Fakta dari artikel] — tapi yang sebenarnya [angle tersembunyi].' Only use if article has genuinely hidden angle."),
         ("DATA_DROP", "Start with a NUMBER from the article + its consequence — 'X% [fakta], [dampaknya].'"),
         ("CONTRAST", "Start with contradiction — '[Expectation dari artikel]... Tapi [reality dari artikel]?'"),
         ("QUESTION", "Start with question based on fact — '[Fakta dari artikel]. Lo masih [A]?'"),
         ("IMPACT", "Start with impact on reader — '[Brand/tech] [action]. Lo yang [target audience] kena.'"),
-        ("SCENARIO", "Start with IMAGINE scenario — 'Bayangin [situasi dari artikel]. [Konsekuensi]'"),
-        ("REVELATION", "Start with fact anchor — '[Angka/fakta dari artikel]. [Implikasi]' — NO 'Ternyata'"),
-        ("MONEY", "Start with money angle — '[Nilai/nominal dari artikel]. Tapi [contradiction]'"),
-        ("TREND", "Start with trend observation — 'Tren [X]: [fakta dari artikel]. [Dampak ke lo]'"),
     ]
-    # Avoid last 4 used patterns (was 3 — tighter rotation)
-    available = [(name, instr) for name, instr in all_hooks if name not in recent_patterns[-4:]]
-    if not available:
-        available = all_hooks
-    chosen = random.choice(available)
+    # Pattern C is DEFAULT (pressbox proven 500K+). Weight it 5x.
+    weighted = []
+    for name, instr in all_hooks:
+        if name == "PATTERN_C":
+            weighted.extend([(name, instr)] * 5)
+        elif name not in recent_patterns[-4:]:
+            weighted.append((name, instr))
+    if not weighted:
+        weighted = [(n, i) for n, i in all_hooks]
+    chosen = random.choice(weighted)
     return chosen[1]
 
-def _evaluate_slides(slides: dict, title: str, body: str) -> str:
-    """Independent skeptical review via cheaper model (pressbox pattern).
-    Returns: 'APPROVE', 'REVISE', or 'REJECT'.
-    Fail-open: errors → APPROVE (don't block pipeline on evaluator failure).
+import httpx
+import logging
+
+logger = logging.getLogger(__name__)
+
+def _evaluate_slides(slides: list[str]) -> tuple[bool, str]:
     """
-    if not MISTRAL_KEY:
-        return "APPROVE"
+    Evaluator loop: max 3 retries, mistral-small.
+    Returns: (approved: bool, reason: str)
+    """
+    prompt = f"""
+    [ROLE]
+    TechBro Content Evaluator (Indonesian tech educator).
+    Evaluate 6-slide carousel for quality + coherence.
 
-    slide_text = "\n\n".join(
-        f"Slide {i}: {slides.get(f'slide_{i}', '')}"
-        for i in range(1, 7) if slides.get(f"slide_{i}")
-    )
-    caption = slides.get("caption", "")
+    [INPUT]
+    Slides: {slides}
 
-    prompt = """You are a skeptical content reviewer for an Indonesian tech/finance educator account.
-Review these slides against the source article. Check for:
+    [CHECKLIST — ALL must pass]
+    1. GROUNDING: No facts/claims not in article. No hallucinated stats.
+    2. INTER-SLIDE FLOW: Slide 1→2→3→4→5→6 must connect logically. No topic jumps.
+       - Slide 2 MUST expand from Slide 1 (same topic, deeper angle)
+       - No slide should introduce a topic not mentioned in previous slides
+    3. JARGON: Foreign terms (talent mobility, quiet quitting, etc.) MUST be explained in Indonesian
+    4. NO "Gratis"/"Free" unless article explicitly says so
+    5. Hook quality: Slide 1 must have number + consequence + reply bait
+    6. Each slide max 400 chars, 2-3 sentences
+    7. Full Indonesian (tech terms OK in English)
 
-1. FABRICATED FACTS — numbers, names, or events NOT in the article
-2. HALLUCINATED PRICES/VALUATIONS — invented monetary amounts
-3. SPECULATIVE CLAIMS — "akan terjadi", "risiko buat X" without article basis
-4. EXAGGERATED PARAPHRASE — article says "mungkin" → slide says "pasti"
-5. TOPIC DRIFT — slides discuss topic NOT covered in article
-6. FABRICATED QUOTES — dialogue not in article
+    [OUTPUT FORMAT]
+    APPROVE
+    or
+    REVISE
+    <ALL 6 revised slides as JSON: {{"slide_1":"...","slide_2":"...",...}}>
+    or
+    REJECT
+    <reason>
+    """
+    for attempt in range(3):
+        try:
+            r = httpx.post(
+                "https://api.mistral.ai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
+                json={
+                    "model": "mistral-small-latest",
+                    "messages": [
+                        {"role": "system", "content": prompt},
+                        {"role": "user", "content": f"Slides:\n{slides}"}
+                    ],
+                    "temperature": 0.0,
+                    "max_tokens": 1000
+                },
+                timeout=30
+            )
+            if r.status_code == 200:
+                response = r.json()["choices"][0]["message"]["content"].strip()
+                if response.startswith("APPROVE"):
+                    return True, "APPROVED"
+                elif response.startswith("REVISE"):
+                    revised_raw = response.split("REVISE\n", 1)[1].strip()
+                    # Try to parse JSON with all 6 slides
+                    try:
+                        import json as _json
+                        revised_slides = _json.loads(revised_raw)
+                        slide_keys = [f"slide_{i}" for i in range(1, 7)]
+                        if all(k in revised_slides for k in slide_keys):
+                            slides = [revised_slides[k] for k in slide_keys]
+                            return True, "APPROVED"
+                    except Exception:
+                        pass
+                    # Fallback: replace first slide only
+                    slides = [revised_raw] + slides[1:]
+                    return True, "APPROVED"
+                else:  # REJECT
+                    return False, response.split("REJECT\n", 1)[1].strip()
+        except Exception as e:
+            logger.warning(f"Evaluator failed: {e}")
+    return False, "MAX_RETRIES"
 
-For each slide, answer: does every claim trace back to the article?
-Respond with ONLY one word: APPROVE (all grounded), REVISE (minor issues, post anyway), or REJECT (major hallucination, block)."""
 
-    user_msg = f"TITLE: {title}\n\nARTICLE:\n{body[:4000]}\n\nSLIDES:\n{slide_text}\n\nCAPTION: {caption}"
-
+def _pick_cta_instruction() -> str:
+    """Pick a rotating CTA pattern to avoid repetition."""
+    import random
+    import sqlite3
+    from db import get_db
+    
+    cta_patterns = [
+        "Pola 1 (Pengalaman): \"Lo pernah [situasi dari artikel]? Share di komen.\"",
+        "Pola 2 (Pilihan A/B): \"Lo lebih milih [A] atau [B]? Bilang di komen.\"",
+        "Pola 3 (Provokatif): \"Menurut lo ini [bagus/berbahaya]? Gue penasaran pendapat lo.\"",
+        "Pola 4 (Prediksi): \"Lo prediksi [tren dari artikel] bakal gimana 5 tahun lagi?\"",
+        "Pola 5 (Challenge): \"Coba tebak [fakta dari artikel]. Jawab di komen sebelum scroll.\"",
+        "Pola 6 (Reflektif): \"Kalau lo di posisi [situasi dari artikel], lo bakal gimana?\"",
+        "Pola 7 (Hot take): \"Unpopular opinion: [kontroversial take dari artikel]. Setuju atau enggak?\"",
+        "Pola 8 (Story): \"Pernah ngalamin [situasi]? Cerita dong di bawah.\"",
+    ]
+    
+    # Get recent CTA patterns from DB to avoid repetition
     try:
-        r = httpx.post(
-            "https://api.mistral.ai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
-            json={"model": "mistral-small-latest",
-                  "messages": [
-                      {"role": "system", "content": prompt},
-                      {"role": "user", "content": user_msg}
-                  ],
-                  "temperature": 0.1, "max_tokens": 10},
-            timeout=30)
-        if r.status_code == 200:
-            verdict = r.json()["choices"][0]["message"]["content"].strip().upper()
-            if "REJECT" in verdict:
-                return "REJECT"
-            if "REVISE" in verdict:
-                return "REVISE"
-            return "APPROVE"
-    except Exception as e:
-        print(f"  [EVAL] Error: {e}")
-    return "APPROVE"  # fail-open
+        conn = get_db()
+        recent = conn.execute("""
+            SELECT caption FROM posts WHERE status='posted' 
+            ORDER BY posted_at DESC LIMIT 5
+        """).fetchall()
+        conn.close()
+        
+        recent_caps = [r[0].lower() for r in recent if r[0]]
+        
+        # Avoid patterns that match recent captions
+        weighted = []
+        for pattern in cta_patterns:
+            pattern_lower = pattern.lower()
+            # Check if this pattern's keywords appear in recent captions
+            if "share di komen" in pattern_lower:
+                if sum(1 for c in recent_caps if "share" in c and "komen" in c) >= 3:
+                    continue
+            if "lebih milih" in pattern_lower:
+                if sum(1 for c in recent_caps if "lebih milih" in c or "pilih" in c) >= 2:
+                    continue
+            weighted.append(pattern)
+        
+        if not weighted:
+            weighted = cta_patterns
+    except Exception:
+        weighted = cta_patterns
+    
+    return random.choice(weighted)
 
 
 def generate_carousel(title: str, body: str, image: str = "", url: str = "", source: str = "") -> Optional[dict]:
@@ -1420,13 +1652,17 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     recent = _get_recent_hook_patterns(5)
     hook_instr = _pick_hook_instruction(recent)
     # Foreign country in title → hook must not start with country name
-    _FOREIGN_NAMES = {"argentina", "amerika", "china", "jepang", "korea", "india", 
+    _FOREIGN_NAMES = {"argentina", "amerika", "america", "china", "jepang", "korea", "india", 
                        "singapura", "malaysia", "vietnam", "france", "germany",
                        "brasil", "mexico", "australia", "russia", "ukraina"}
     if any(n in title.lower() for n in _FOREIGN_NAMES):
         hook_instr += " KUNCI: jangan mulai hook dengan nama negara. Bikin hook yang relate ke orang Indonesia."
     print(f"[HOOK] Recent patterns: {recent}")
     print(f"[HOOK] Chosen instruction: {hook_instr[:60]}...")
+
+    # CTA variety: rotate closing patterns
+    cta_instr = _pick_cta_instruction()
+    print(f"[CTA] Pattern: {cta_instr[:50]}...")
 
     # Determine primary provider
     primary = "mistral"
@@ -1435,7 +1671,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     # A/B: generate 2 variants
     variants = []
     for i, prov in enumerate([primary, primary], 1):  # both from same provider
-        v = _generate_variant(title, body, source, prov, hook_instruction=hook_instr)
+        v = _generate_variant(title, body, source, prov, hook_instruction=hook_instr, cta_instruction=cta_instr)
         if v and "slide_1" in v:
             v["_provider"] = prov
             hook_score = _score_hook(v["slide_1"])
@@ -1444,7 +1680,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
 
     # If primary fails both times, try fallback
     if len(variants) < 2:
-        v = _generate_variant(title, body, source, fallback, hook_instruction=hook_instr)
+        v = _generate_variant(title, body, source, fallback, hook_instruction=hook_instr, cta_instruction=cta_instr)
         if v and "slide_1" in v:
             v["_provider"] = fallback
             hook_score = _score_hook(v["slide_1"])
@@ -1458,6 +1694,11 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     variants.sort(key=lambda x: x[1], reverse=True)
     data, best_score = variants[0]
     print(f"  [A/B] Winner: hook score {best_score}/10 ({len(variants)} variants)")
+
+    # Store A/B tracking data
+    data["_hook_pattern"] = hook_instr[:100]  # truncate for DB
+    data["_hook_score"] = best_score
+    data["_cta_pattern"] = cta_instr[:100]
 
     # Auto-rewrite hook if score < 7
     if "slide_1" in data and best_score < 7:
@@ -1604,6 +1845,39 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         else:
             return None
 
+    # ─── Inter-slide flow check — warn but don't block ───
+    flow_issues = _check_inter_slide_flow(data)
+    if flow_issues:
+        for fi in flow_issues:
+            print(f"[FLOW] ⚠️ {fi}")
+        # If 2+ flow issues, regenerate with stronger flow instruction
+        if len(flow_issues) >= 2:
+            print(f"[FLOW] Too many flow issues ({len(flow_issues)}), regenerating...")
+            stronger_hook = hook_instr + " KUNCI: Slide 2 HARUS expand dari Slide 1. Jangan lompat topik antar slide."
+            v = _generate_variant(title, body, source, primary, hook_instruction=stronger_hook)
+            if v and "slide_1" in v:
+                flow_check2 = _check_inter_slide_flow(v)
+                if len(flow_check2) < len(flow_issues):
+                    data = v
+                    print(f"[FLOW] ✅ Regenerated with better flow ({len(flow_check2)} issues vs {len(flow_issues)})")
+                else:
+                    print(f"[FLOW] ⚠️ Regeneration didn't improve flow, keeping original")
+
+    # ─── Jargon check — warn, regenerate if multiple ───
+    jargon_issues = _check_jargon(data)
+    if jargon_issues:
+        for ji in jargon_issues:
+            print(f"[JARGON] ⚠️ {ji}")
+        if len(jargon_issues) >= 2:
+            print(f"[JARGON] Too many jargon issues ({len(jargon_issues)}), regenerating...")
+            stronger_hook = hook_instr + " KUNCI: Semua istilah asing WAJIB dijelasin dalam bahasa Indonesia. 'end user' → 'pengguna akhir', 'purchase order' → 'surat pesanan'."
+            v = _generate_variant(title, body, source, primary, hook_instruction=stronger_hook)
+            if v and "slide_1" in v:
+                jargon_check2 = _check_jargon(v)
+                if len(jargon_check2) < len(jargon_issues):
+                    data = v
+                    print(f"[JARGON] ✅ Regenerated with less jargon ({len(jargon_check2)} issues vs {len(jargon_issues)})")
+
     # Final cleanup: strip orphaned markdown artifacts after grounding stripped content
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key not in data:
@@ -1612,6 +1886,12 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         
         # 1. Strip markdown artifacts
         text = re.sub(r'\*+', '', text)
+
+        # 1.1 Clean fanum/currency symbols that LLM sometimes inserts
+        text = re.sub(r'[£€¥₩₫¢§©®™]', '', text)
+        
+        # 1.2 Clean orphan "/" after numbers (e.g., "2/" → "2")
+        text = re.sub(r'(?<=\d)\s*/\s*(?=\s|$)', '', text)
         
         # 1.3 Clean orphan slashes from grounding strip (e.g., "diawasi / baik" → "diawasi baik")
         text = re.sub(r'\s*/\s*', ' ', text)
@@ -1705,18 +1985,26 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     if best_score >= 80:
         print(f"  [EVAL] Skipped (score {best_score} ≥ 80)")
     else:
-        verdict = _evaluate_slides(data, title, body)
-        print(f"  [EVAL] Verdict: {verdict}")
-        if verdict == "REJECT":
+        slides = [data.get(f"slide_{i}", "") for i in range(1, 7)]
+        approved, reason = _evaluate_slides(slides)
+        if not approved:
+            logger.warning(f"Rejected: {reason}")
+            return None
+        else:
+            data["slide_1"] = slides[0]
             # Retry up to 3 times with stronger grounding each attempt
             retry_data = None
             for attempt in range(1, 4):
                 stronger = hook_instr + f" ATURAN MUTLAK (attempt {attempt+1}): HANYA pakai fakta yang ADA di artikel. JANGAN tambah apapun. Periksa tiap klaim: apakah ini beneran ada di artikel?"
                 v = _generate_variant(title, body, source, primary, hook_instruction=stronger)
                 if v and "slide_1" in v:
-                    rv = _evaluate_slides(v, title, body)
-                    print(f"  [EVAL] Retry {attempt}/3 verdict: {rv}")
-                    if rv != "REJECT":
+                    # evaluate revised variant
+                    slides_v = [v.get(f"slide_{i}", "") for i in range(1, 7)]
+                    approved_v, reason_v = _evaluate_slides(slides_v)
+                    print(f"  [EVAL] Retry {attempt}/3 verdict: {'APPROVED' if approved_v else 'REJECT'}")
+                    if approved_v:
+                        # apply possible REVISE changes (slide_1 already updated inside evaluator)
+                        v["slide_1"] = slides_v[0]
                         retry_data = v
                         break
                 else:
@@ -1726,8 +2014,6 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
             else:
                 print(f"  [EVAL] 🔴 All retries REJECT — returning None (skip article)")
                 return None
-        elif verdict == "REVISE":
-            print(f"  [EVAL] ⚠️ Few issues — posting anyway (advisory)")
 
     # ─── Fix empty slides (collapse gaps) ───
     _fix_slides(data)

@@ -7,6 +7,9 @@ import sys
 import re
 import time
 import argparse
+import logging
+
+logger = logging.getLogger(__name__)
 from collections import Counter
 from pathlib import Path
 
@@ -21,7 +24,7 @@ if _env_path.exists():
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from scraper import scrape_all, score_article, fast_content_filter, check_article_quality, SOURCE_NAMES
+from scraper import scrape_all, score_article, fast_content_filter, check_article_quality, SOURCE_NAMES, scrape_bloomberg_technoz
 from generator import generate_carousel
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed, cleanup_old
 from poster import post_from_db
@@ -29,7 +32,7 @@ from trending import score_article_drama, detect_dramas
 
 TOP_N = 50  # articles per run (pick best unposted from larger pool)
 DRAMA_BOOST = 30  # bonus points for drama articles
-ENTITY_REPOST_WINDOW = 24  # hours — block same entity combination within 24h
+ENTITY_REPOST_WINDOW = 12  # hours — block same entity combination within 12h
 
 def _normalize_title(title: str) -> str:
     """Normalize title for dedup: lowercase, strip punctuation, collapse spaces."""
@@ -461,14 +464,43 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
         return False
     print(f"[HOURS] {current_hour}:00 WIB — within posting window")
 
-    # 1. Daily post limit check
+    # 1. Daily post limit check — dynamic based on performance (pressbox pattern)
     today_count = conn.execute(
         "SELECT COUNT(*) as c FROM posts WHERE date(posted_at)=date('now') AND status='posted'"
     ).fetchone()['c']
-    if today_count >= DAILY_POST_LIMIT and not dry_run:
-        print(f"Daily limit reached ({today_count}/{DAILY_POST_LIMIT}). Skipping.")
+    
+    # Compute dynamic limit based on recent median views
+    try:
+        recent_views = conn.execute("""
+            SELECT p.views FROM performance p
+            WHERE p.views > 0 AND p.fetched_at > datetime('now', '-7 days')
+            ORDER BY p.fetched_at DESC LIMIT 20
+        """).fetchall()
+        views_list = sorted([r[0] for r in recent_views if r[0]])
+        if views_list:
+            mid = len(views_list) // 2
+            median_views = views_list[mid] if len(views_list) % 2 else (views_list[mid-1] + views_list[mid]) // 2
+            # Dynamic limit: base 15 + boost if performing well
+            if median_views >= 5000:
+                dynamic_limit = 25  # High engagement → post more
+            elif median_views >= 2000:
+                dynamic_limit = 20  # Good engagement
+            elif median_views >= 1000:
+                dynamic_limit = 18  # Decent
+            elif median_views >= 500:
+                dynamic_limit = 15  # Average
+            else:
+                dynamic_limit = 12  # Low engagement → post less
+            print(f"  [DYNAMIC LIMIT] Median views: {median_views} → limit: {dynamic_limit}/day")
+        else:
+            dynamic_limit = DAILY_POST_LIMIT
+    except Exception:
+        dynamic_limit = DAILY_POST_LIMIT
+    
+    if today_count >= dynamic_limit and not dry_run:
+        print(f"Daily limit reached ({today_count}/{dynamic_limit}). Skipping.")
         return False
-    print(f"[LIMIT] {today_count}/{DAILY_POST_LIMIT} posted today")
+    print(f"[LIMIT] {today_count}/{dynamic_limit} posted today")
 
     # 1. Auto-clean old articles (>7 days)
     cleaned = cleanup_old(conn, days=7)
@@ -606,14 +638,35 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
                         art["score"] = max(art["score"] + pts, 0)
                         art.setdefault("analytics_tag", []).append(f"cat{pts}({cat})")
 
-        # ── LAYER 3b: Relatability Check (LLM) ──────────────────
-        # Filter articles by how relatable they are to Indonesian audience.
-        # Uses cheap/fast Mistral call. Score 1-5, reject < 3.
+        # ── LAYER 3b: Relatability Check (keyword-based, pressbox pattern) ──
+        # Score relatability via keyword matching instead of LLM.
+        # Saves ~10s per article + no false rejections.
+        _RELATE_HIGH = [
+            "ai", "chatgpt", "gemini", "copilot", "phk", "layoff", "karyawan",
+            "gaji", "uang", "investasi", "saham", "scam", "penipuan", "phishing",
+            "ojol", "gojek", "grab", "tokopedia", "shopee", "tiktok",
+            "pajak", "bpjs", "jht", "kpr", "kartu kredit",
+            "gratis", "diskon", "promo", "cashback",
+            "iphone", "samsung", "xiaomi", "oppo", "vivo",
+            "viral", "heboh", "korban", "dipecat", "resign",
+            "emiten", "ihsg", "rupiah", "dolar", "inflasi",
+        ]
+        _RELATE_MED = [
+            "startup", "fintech", "ecommerce", "cloud", "cyber",
+            "google", "microsoft", "apple", "openai", "meta",
+            "indonesia", "jakarta", "ri", "pemerintah", "presiden",
+            "kreator", "freelance", "remote", "wfh", "kerja",
+            "robot", "drone", "otomatisasi", "teknologi",
+            "game", "esports", "streaming", "netflix", "spotify",
+        ]
         relatable_fresh = []
         for art in fresh:
-            rel = _check_relatability(art["title"], art["body"][:500])
+            tl = art["title"].lower() + " " + art.get("body", "")[:300].lower()
+            high = sum(1 for kw in _RELATE_HIGH if kw in tl)
+            med = sum(1 for kw in _RELATE_MED if kw in tl)
+            rel = min(5, max(1, high * 2 + med))
+            art["relatability"] = rel
             if rel >= 3:
-                art["relatability"] = rel
                 relatable_fresh.append(art)
                 print(f"  [RELATE] {rel}/5 ✅ {art['title'][:60]}")
             else:
@@ -686,15 +739,21 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             print(f"  [2/4] Generating carousel via LM...")
             slides = generate_carousel(art["title"], art["body"], art["image"] or "", art["url"] or "", art["source"] if "source" in art.keys() else "")
             if not slides:
-                print("  ERROR: LM generation failed")
+                logger.warning(f"Skipped: {art['title']} (evaluator rejected)")
                 mark_failed(conn, article_id)
                 continue
 
             provider = slides.pop("_provider", "unknown")
             print(f"  Generated via {provider}")
 
+            # Extract A/B tracking data
+            hook_pattern = slides.pop("_hook_pattern", "")
+            hook_score = slides.pop("_hook_score", 0)
+            cta_pattern = slides.pop("_cta_pattern", "")
+
             # 4. Stage post
-            post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", ""))
+            post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", ""),
+                                hook_pattern=hook_pattern, hook_score=hook_score, cta_pattern=cta_pattern)
             posted_titles.append(art['title'])
             staged_titles_this_run.append(art['title'])
             # Track entity combo to prevent same story re-post
@@ -720,7 +779,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
         unposted = conn.execute("""
             SELECT a.id, a.title, a.body, a.url, a.image, a.score, a.source
             FROM articles a
-            WHERE a.id NOT IN (SELECT article_id FROM posts)
+            WHERE a.id NOT IN (SELECT article_id FROM posts WHERE status='posted')
               AND a.source IN ({})
             ORDER BY a.score DESC
             LIMIT ?
@@ -768,7 +827,13 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
                 provider = slides.pop("_provider", "unknown")
                 print(f"  Generated via {provider}")
 
-                post_id = stage_post(conn, art["id"], slides, slides.get("caption", ""), slides.get("hashtags", ""))
+                # Extract A/B tracking data
+                hook_pattern = slides.pop("_hook_pattern", "")
+                hook_score = slides.pop("_hook_score", 0)
+                cta_pattern = slides.pop("_cta_pattern", "")
+
+                post_id = stage_post(conn, art["id"], slides, slides.get("caption", ""), slides.get("hashtags", ""),
+                                    hook_pattern=hook_pattern, hook_score=hook_score, cta_pattern=cta_pattern)
                 staged_titles_this_run.append(art["title"])
                 # Track entity combo
                 art_entity = tuple(sorted(_extract_topic(art["title"])))
@@ -801,6 +866,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--top", type=int, default=TOP_N)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--jitter", type=int, default=0,
+        help="Random delay 0-N seconds before start (anti-bot)")
     args = parser.parse_args()
+
+    if args.jitter > 0:
+        import random
+        delay = random.randint(0, args.jitter)
+        if delay:
+            time.sleep(delay)
+
     posted = run(args.top, args.dry_run)
     sys.exit(0 if posted else 1)

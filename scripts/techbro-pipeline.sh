@@ -16,25 +16,26 @@ if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
 fi
 echo $$ > .pipeline.pid
 
-# Random delay 30-180s biar gak predictable
-delay=$((RANDOM % 151 + 30))
-sleep "$delay"
-
-# Load API keys from threads-agent .env
+# Load API keys
 set -a
-source /home/ubuntu/threads-agent/.env
-source /home/ubuntu/techbro/.env
+source /home/ubuntu/threads-agent/.env 2>/dev/null || true
+source /home/ubuntu/techbro/.env 2>/dev/null || true
 set +a
 
 LOG="logs/pipeline-$(date +%Y%m%d-%H%M%S).log"
 
 echo "=== Pipeline run: $(TZ='Asia/Jakarta' date '+%H:%M WIB %d %b %Y') ===" >> "$LOG"
 
-# Python exit code determines our exit code
+# Python handles: jitter 0-30s, then scrape → generate → post
 EXIT_CODE=0
-python3 scripts/pipeline.py >> "$LOG" 2>&1 || EXIT_CODE=$?
+python3 scripts/pipeline.py --jitter 30 >> "$LOG" 2>&1 || EXIT_CODE=$?
 
 echo "=== Done (exit: $EXIT_CODE) ===" >> "$LOG"
+
+# Write status file on success so watchdog knows last good run
+if [ "$EXIT_CODE" -eq 0 ]; then
+    date +%s > /tmp/techbro-last-post
+fi
 
 # Summary to stdout (delivered to Telegram — don't override pipeline exit)
 python3 << 'PYEOF' 2>/dev/null || true

@@ -19,7 +19,7 @@ TOP_N = 1
 # Source names used by scrape_all_async — single source of truth
 SOURCE_NAMES = [
     "bloomberg_technoz", "cnbc_id", "detik_inet", "liputan6_tekno",
-    "liputan6_bisnis", "hn", "ars_technica", "reuters_tech",
+    "liputan6_bisnis"
 ]
 
 HEADERS = {
@@ -277,6 +277,13 @@ def get_og_image(soup) -> str:
     tag = soup.find("meta", property="og:image")
     if tag and tag.get("content"):
         return fix_image_url(str(tag["content"]).strip())
+    # Fallback: cari img pertama di body artikel
+    body_img = soup.find("article") or soup.find("div", class_=re.compile(r"article|content|post"))
+    if body_img:
+        img = body_img.find("img")
+        if img and img.get("src"):
+            return fix_image_url(img["src"].strip())
+    return "https://i.imgur.com/placeholder.jpg"  # fallback default
     return ""
 
 
@@ -647,8 +654,8 @@ async def get_links_reuters_tech(client: httpx.AsyncClient) -> list[tuple[str, d
 
 # ─── Bloomberg Technoz ──────────────────────────────────────────
 
-async def get_links_bloomberg_technoz(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Bloomberg Technoz — Indonesian business, tech, economy news."""
+async def scrape_bloomberg_technoz(client: httpx.AsyncClient) -> list[dict]:
+    """Scrape Bloomberg Technoz articles for image."""
     items = []
     try:
         r = await client.get("https://www.bloombergtechnoz.com/rss", timeout=12)
@@ -669,7 +676,25 @@ async def get_links_bloomberg_technoz(client: httpx.AsyncClient) -> list[tuple[s
             items.append((url, dt))
     except Exception:
         pass
-    return items[:20]
+    
+    articles = []
+    for url, rss_date in items[:20]:
+        try:
+            r = await client.get(url, timeout=15)
+            soup = BeautifulSoup(r.text, "html.parser")
+            title = soup.find("meta", property="og:title")
+            title = title["content"] if title else "Untitled"
+            image = get_og_image(soup)  # gunakan fallback gambar default
+            articles.append({
+                "title": title,
+                "url": url,
+                "date": rss_date,
+                "image": image,
+                "source": "bloomberg_technoz"
+            })
+        except Exception:
+            continue
+    return articles
 
 
 # ─── Main Scraper ────────────────────────────────────────────────
@@ -678,14 +703,11 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
         # 1. Gather links from all sources
         link_tasks = await asyncio.gather(
-            get_links_bloomberg_technoz(client),
+            scrape_bloomberg_technoz(client),  # scrape langsung
             get_links_cnbc_id(client),
             get_links_detik_inet(client),
             get_links_liputan6_tekno(client),
             get_links_liputan6_bisnis(client),
-            get_links_hn(client),
-            get_links_ars_technica(client),
-            get_links_reuters_tech(client),
         )
 
         # 2. Build scrape tasks

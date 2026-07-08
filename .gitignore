@@ -6,4 +6,6 @@ __pycache__/
 output/
 *.log
 .pipeline.lock
+.pipeline.pid
 pipeline.db
+hot-cache.json

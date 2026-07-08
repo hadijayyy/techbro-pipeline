@@ -67,7 +67,7 @@ def upsert_article(conn, art: dict) -> int:
     conn.commit()
     return conn.execute("SELECT id FROM articles WHERE url = ?", (art["url"],)).fetchone()["id"]
 
-def stage_post(conn, article_id: int, slides: dict, caption: str, hashtags: str) -> int:
+def stage_post(conn, article_id: int, slides: dict, caption: str, hashtags: str, hook_pattern: str = "", hook_score: int = 0, cta_pattern: str = "") -> int:
     # Generator uses slide_1..slide_6, DB uses hook/setup/twist/deep/sowhat/cta
     key_map = {"slide_1": "hook", "slide_2": "setup", "slide_3": "twist",
                "slide_4": "deep", "slide_5": "sowhat", "slide_6": "cta"}
@@ -77,10 +77,11 @@ def stage_post(conn, article_id: int, slides: dict, caption: str, hashtags: str)
         mapped[db_key] = slides.get(slide_key, "")
 
     conn.execute("""INSERT INTO posts (article_id, status, slide_hook, slide_setup, slide_twist,
-        slide_deep, slide_sowhat, slide_cta, caption, hashtags)
-        VALUES (?, 'staged', ?, ?, ?, ?, ?, ?, ?, ?)""",
+        slide_deep, slide_sowhat, slide_cta, caption, hashtags, hook_pattern, hook_score, cta_pattern)
+        VALUES (?, 'staged', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (article_id, mapped["hook"], mapped["setup"], mapped["twist"],
-         mapped["deep"], mapped["sowhat"], mapped["cta"], caption, hashtags))
+         mapped["deep"], mapped["sowhat"], mapped["cta"], caption, hashtags,
+         hook_pattern, hook_score, cta_pattern))
     conn.commit()
     return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
