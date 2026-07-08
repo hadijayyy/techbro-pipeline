@@ -1395,6 +1395,12 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     # Hook variety: get recent patterns and pick unused one
     recent = _get_recent_hook_patterns(5)
     hook_instr = _pick_hook_instruction(recent)
+    # Foreign country in title → hook must not start with country name
+    _FOREIGN_NAMES = {"argentina", "amerika", "china", "jepang", "korea", "india", 
+                       "singapura", "malaysia", "vietnam", "france", "germany",
+                       "brasil", "mexico", "australia", "russia", "ukraina"}
+    if any(n in title.lower() for n in _FOREIGN_NAMES):
+        hook_instr += " KUNCI: jangan mulai hook dengan nama negara. Bikin hook yang relate ke orang Indonesia."
     print(f"[HOOK] Recent patterns: {recent}")
     print(f"[HOOK] Chosen instruction: {hook_instr[:60]}...")
 

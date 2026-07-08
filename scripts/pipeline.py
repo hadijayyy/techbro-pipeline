@@ -441,6 +441,12 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
             if any(kw in title_l for kw in indo_local_kw):
                 art["score"] = min(art["score"] + 20, 150)
                 art.setdefault("analytics_tag", []).append("indo-local+20")
+            # Penalize foreign-country topics (low relatability for Indo audience)
+            foreign_kw = ["argentina", "amerika", "china", "jepang", "korea", "india",
+                           "singapura", "malaysia", "vietnam", "united states", "russia",
+                           "brasil", "mexico", "australia", "inggris", "eropa", "eu "]
+            if any(kw in title_l for kw in foreign_kw):
+                art["score"] = max(art["score"] - 15, 0)
             # Penalize pure product news (low educational value)
             if any(kw in title_l for kw in ["review:", "hands-on", "launch", "peluncuran", "diluncurkan",
                                               "iphone", "galaxy", "smartphone", "ponsel", "hp baru", "fold"]):
