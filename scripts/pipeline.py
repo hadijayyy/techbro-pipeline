@@ -488,7 +488,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             elif median_views >= 1000:
                 dynamic_limit = 18  # Decent
             elif median_views >= 500:
-                dynamic_limit = 15  # Average
+                dynamic_limit = 20  # Average → boosted
             else:
                 dynamic_limit = 12  # Low engagement → post less
             print(f"  [DYNAMIC LIMIT] Median views: {median_views} → limit: {dynamic_limit}/day")
