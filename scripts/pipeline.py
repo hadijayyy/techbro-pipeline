@@ -29,7 +29,7 @@ from trending import score_article_drama, detect_dramas
 
 TOP_N = 50  # articles per run (pick best unposted from larger pool)
 DRAMA_BOOST = 30  # bonus points for drama articles
-ENTITY_REPOST_WINDOW = 12  # hours — block same entity combination
+ENTITY_REPOST_WINDOW = 24  # hours — block same entity combination within 24h
 
 def _normalize_title(title: str) -> str:
     """Normalize title for dedup: lowercase, strip punctuation, collapse spaces."""
@@ -374,9 +374,12 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
 
     # Track topics staged THIS run (prevents duplicates within same run)
     staged_titles_this_run = []
-    # Track entity combos posted within window (e.g., {"microsoft"} = already posted microsoft story)
+    # Track entity combos posted within 24h (e.g., {"microsoft"} blocked for full day)
     entity_combo_set = set()
-    for pt in posted_titles:
+    entity_titles = [row['title'] for row in conn.execute(
+        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='posted' AND p.created_at > datetime('now', '-24 hours')"
+    ).fetchall()]
+    for pt in entity_titles:
         e = tuple(sorted(_extract_topic(pt)))
         if e:
             entity_combo_set.add(e)
