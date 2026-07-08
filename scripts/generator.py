@@ -34,13 +34,13 @@ Format strictly as a flat JSON with keys "slide_1" to "slide_6", "caption", "has
 
 - slide_2 (Setup, 40-60 words, MAX 3 sentences): Bridge to the real problem using everyday analogies (9-5 grind, broke college student, hustle culture). Reader should think: "Yeah, I deal with this too"
 
-- slide_3 (Twist, 40-60 words, MAX 3 sentences): Reveal a shocking root cause or fact. Explain simply without jargon.
+- slide_3 (Contoh Nyata, 40-60 words, MAX 3 sentences): Real-world example: brand, company, person, or concrete situation. Make reader think "oh, so that's how it works". Grounded in article facts.
 
 - slide_4 (Tips, 40-60 words, MAX 3 sentences): Provide actionable advice derived directly from the article.
 
-- slide_5 (Lesson, 30-50 words, MAX 3 sentences): Deliver a relatable mindset shift or punchline. One sentence that makes people share.
+- slide_5 (Framework/Checklist, 30-50 words, MAX 3 sentences): 2-3 concrete steps reader can apply immediately. Narrative format: "First... then... finally..."
 
-- slide_6 (CTA, 30-40 words, MAX 3 sentences): End with one of these to force comments:
+- slide_6 (Ringkasan + CTA, 30-40 words, MAX 3 sentences): Sentence 1: summarize key point from slides 1-5. Sentence 2: end with one of these to force comments:
   1. PROVOCATIVE: "Is [X]? Or [Y]?"
   2. PERSONAL: "Have you ever [action]? Drop it in the comments."
   3. DEBATE: "Hot take: [opinion]. Agree or disagree?"
@@ -216,26 +216,29 @@ SLIDE 2 — THE PROBLEM (Kenapa Ini Relevan)
   • Ini alasan KENAPA mereka harus lanjut baca, bukan penjelasan cara
   • Jika hook bahas e-commerce → slide 2 juga bahas e-commerce, JANGAN lompat ke industri lain
 
-SLIDE 3 — TIP 1 (Tips/Trick Pertama)
+SLIDE 3 — CONTOH NYATA (Studi Kasus / Real-Life Example)
   • MAX 3 kalimat, <40 kata
-  • Tips pertama yang PALING actionable — bisa langsung dipraktekkan
-  • Spesifik: apa yang diklik/dibuka/ditulis/diinstall
+  • HARUS kasih contoh nyata: brand, perusahaan, orang, atau situasi konkret
+  • Bisa dari artikel atau analogi yang relevan sama kehidupan orang Indonesia
+  • Tujuan: bikin pembaca mikir "oh jadi kayak gini ternyata"
   • Grounded di fakta artikel, bukan karangan
 
-SLIDE 4 — TIP 2 (Tips/Trick Kedua)
+SLIDE 4 — SOLUSI / TIPS (Actionable Advice)
   • MAX 3 kalimat, <40 kata
-  • Tips kedua — angle berbeda dari Tip 1
+  • Tips PRAKTIS yang bisa langsung dipraktekkan
+  • Spesifik: apa yang diklik/dibuka/ditulis/diinstall
   • Kalau ada data/angka pendukung dari artikel, tambahin
 
-SLIDE 5 — TIP 3 (Tips/Trick Ketiga)
+SLIDE 5 — FRAMEWORK / CHECKLIST (Langkah Praktis)
   • MAX 3 kalimat, <40 kata
-  • Tips ketiga — yang paling surprising atau out of the box
+  • Kasih 2-3 langkah konkret yang bisa langsung diterapkan
+  • Format naratif: "Pertama... abis itu... terakhir..." (bukan bullet list)
   • Boleh kasih 2 sisi (pro & con) biar orang COMMENT: setuju atau enggak
-  • Contoh: "Meta buktiin: kadang solusi paling murah itu yang udah ada di depan mata. Tapi risikonya, lo ketinggalan rally AI kalau tren balik."
 
-SLIDE 6 — THE CTA (Closing)
+SLIDE 6 — RINGKASAN + CTA (Closing)
   • MAX 2 kalimat, <30 kata
-  • Ajakan action yang santai, bukan closing formal
+  • Kalimat 1: Ringkas poin utama dari slide 1-5 dalam 1 kalimat kuat
+  • Kalimat 2: Ajakan action yang santai, bukan closing formal
   • Boleh reflektif tapi tetep ngundang orang buat balas, bukan sekadar penutup
   {cta_instruction}
 
@@ -254,9 +257,9 @@ Setiap slide HARUS connect ke slide sebelumnya. Pembaca gak boleh bingung "ini n
 
 ATURAN WAJIB:
 • Slide 2 HARUS expand dari Slide 1 (hook) — topik sama, angle lebih dalam
-• Slide 3 HARUS lanjut dari Slide 2 — gak boleh lompat ke topik baru
-• Slide 4-5 HARUS masuk di konteks slide sebelumnya
-• Slide 6 (CTA) HARUS relate ke tema utama (slide 1-5)
+• Slide 3 (Contoh nyata) HARUS lanjut dari Slide 2 — kasih contoh konkret
+• Slide 4-5 HARUS masuk di konteks slide sebelumnya (solusi + checklist)
+• Slide 6 (Ringkasan + CTA) HARUS relate ke tema utama (slide 1-5)
 
 CARA CEK: Baca slide 1→2→3→4→5→6. Kalau ada lompatan topik yang bikin bingung → rewrite.
 
@@ -291,7 +294,8 @@ Tiap slide HARUS hit minimal 1 kriteria viral di bawah ini:
 4. SURPRISING FACT — fakta yang bikin orang "anjir, seriusan?"
 
 Slide 1: WAJIB surprising fact ATAU famous figure
-Slide 3-5 (Tips): masing-masing WAJIB hit ≥1 kriteria
+Slide 3 (Contoh nyata): WAJIB relatable atau famous figure
+Slide 4-5 (Tips/Checklist): masing-masing WAJIB hit ≥1 kriteria
 Slide 5: WAJIB pro & con (2 sisi, bikin orang diskusi)
 Slide 6: Boleh relatable atau surprising
 
