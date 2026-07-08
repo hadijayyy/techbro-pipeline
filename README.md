@@ -26,19 +26,24 @@ Indonesian tech/AI carousel generator for Threads (@ryanhadiii). Scrapes, scores
 
 ## Slide Structure
 
+Mengikuti **Formula HISSC** (Hook → Insight → Support → Solution → CTA) + viral equation `Attention × Emotion × Novelty × Practical Value`:
+
 | Slide | Role | Words |
 |-------|------|-------|
 | 1 | **Hook** — fakta paling mengejutkan dari artikel, data-driven pattern | <25 |
-| 2 | **Setup** — expand dari hook, JANGAN lompat topik baru | <40 |
-| 3 | **Tips 1** — action step pertama, bahasa sederhana | <50 |
-| 4 | **Tips 2** — action step kedua | <50 |
-| 5 | **Tips 3** — action step ketiga + dampak | <50 |
-| 6 | **CTA** — rotating closing pattern (8 variants, DB-aware) | <30 |
+| 2 | **Problem/Insight** — expand dari hook, JANGAN lompat topik baru | <40 |
+| 3 | **Contoh Nyata** — studi kasus / real-life example (brand, perusahaan, situasi konkret) | <40 |
+| 4 | **Solusi/Tips** — advice praktis dari artikel | <40 |
+| 5 | **Framework/Checklist** — 2-3 langkah konkret yang bisa langsung diterapkan | <40 |
+| 6 | **Ringkasan + CTA** — poin utama + rotating closing pattern | <30 |
 
 ## Content Rules
 
 - **Hook langsung ke fakta** — tanpa "bayangin lo lagi..." atau analogi random
 - **Pattern C (Default)** — `[Specific number] + [Human consequence] + [Reply bait]` — proven 500K+ views
+- **Contoh nyata wajib** — slide 3 HARUS kasih studi kasus/brand/situasi konkret, bukan teori
+- **Framework/Checklist** — slide 5 kasih langkah praktis yang bisa langsung diterapkan
+- **Ringkasan** — slide 6 mulai dengan poin utama sebelum CTA
 - **Inter-slide flow** — slide 2 HARUS expand dari slide 1, JANGAN lompat topik
 - **Jargon validator** — istilah asing WAJIB diterangkan dalam bahasa Indonesia
 - **Cliffhanger** — slide 1-5 wajib akhir dengan kalimat gantung
