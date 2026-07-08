@@ -18,9 +18,8 @@ TOP_N = 1
 
 # Source names used by scrape_all_async — single source of truth
 SOURCE_NAMES = [
-    "techcrunch", "wired", "bbc", "bloomberg_technoz", "cnbc_id",
-    "detik_inet", "liputan6_tekno", "liputan6_bisnis", "the_verge", "hn",
-    "ars_technica", "engadget", "mashable", "reuters_tech",
+    "bloomberg_technoz", "cnbc_id", "detik_inet", "liputan6_tekno",
+    "liputan6_bisnis", "hn", "ars_technica", "reuters_tech",
 ]
 
 HEADERS = {
@@ -679,19 +678,13 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
         # 1. Gather links from all sources
         link_tasks = await asyncio.gather(
-            get_links_techcrunch(client),
-            get_links_wired(client),
-            get_links_bbc(client),
             get_links_bloomberg_technoz(client),
             get_links_cnbc_id(client),
             get_links_detik_inet(client),
             get_links_liputan6_tekno(client),
             get_links_liputan6_bisnis(client),
-            get_links_the_verge(client),
             get_links_hn(client),
             get_links_ars_technica(client),
-            get_links_engadget(client),
-            get_links_mashable(client),
             get_links_reuters_tech(client),
         )
 
