@@ -560,6 +560,8 @@ def _clean(text: str) -> str:
     # Clean up after banned phrase removal: "gue !" → remove whole fragment
     # If sentence starts with "gue" followed by orphan punctuation, remove it
     out = re.sub(r'(?i)\bgue\b\s*[,;:.!?]+', '', out)
+    # Normalize em-dash/en-dash → space (LLM sering generate ini, breaks number regex)
+    out = re.sub('[\u2013\u2014]', ' ', out)
     # Fix: year split by newline e.g. "2\n026" → "2026"
     out = re.sub(r'(?<=\d)\n(?=\d)', '', out)
     # Remove orphan punctuation at start of sentences
@@ -977,8 +979,9 @@ Rules:
 - Mix Indonesian-English naturally
 - Sound like a real person texting, not an AI
 - NEVER start with "gue [emotion]" (gue gila, gue kaget, etc.) — meaningless filler
-- Format: [ANGKA/FAKTA] + [KONSEKUENSI ATAU PERTANYAAN]
-- If no numbers in excerpt, start with the most surprising fact instead
+|- Format: [ANGKA/FAKTA] + [KONSEKUENSI ATAU PERTANYAAN]
+|- If no numbers in excerpt, start with the most surprising fact instead
+|- Do NOT use em-dashes (—) or special dashes. Use commas or hyphens only.
 
 Return ONLY the rewritten hook text, nothing else."""
 
