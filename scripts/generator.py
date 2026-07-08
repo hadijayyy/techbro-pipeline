@@ -357,7 +357,7 @@ BANNED_EN = [
 ]
 
 # Cross-language quantity mapping: ID → EN (for grounding check against EN articles)
-QTY_EN_MAP = {'juta': 'million', 'miliar': 'billion', 'triliun': 'trillion', 'ribu': 'thousand', 'ratus': 'hundred', 'jutaan': 'millions', 'miliaran': 'billions', 'triliunan': 'trillions', 'ribuan': 'thousands', 'ratusan': 'hundreds', 'puluhan': 'tens'}
+QTY_EN_MAP = {'juta': 'million', 'miliar': 'billion', 'triliun': 'trillion', 'ribu': 'thousand', 'ratus': 'hundred', 'jt': 'million', 'jutaan': 'millions', 'miliaran': 'billions', 'triliunan': 'trillions', 'ribuan': 'thousands', 'ratusan': 'hundreds', 'puluhan': 'tens'}
 
 BANNED_ID = [
     r'\bgeleng[- ]geleng\b', r'\bgaruk kepala\b', r'\bkayak dari masa depan\b',
@@ -1478,7 +1478,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     if violations:
         for v in violations:
             print(f"[GROUNDING] ⚠️ {v}")
-        quantity_words = re.compile(r'\b(jutaan|ribuan|ratusan|puluhan|miliaran|triliunan|juta|ribu|ratus)\b', re.I)
+        quantity_words = re.compile(r'\b(jt|jutaan|ribuan|ratusan|puluhan|miliaran|triliunan|juta|ribu|ratus)\b', re.I)
         for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
             if key not in data:
                 continue
@@ -1504,9 +1504,9 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
                     # Instead of leaving a hole ("bisa turun ke per gram"), replace with vague ref
                     original = data[key]
                     # Handle US$ prefix
-                    data[key] = re.sub(r'(?:Rp|US?\s*\$|USD|\$)\s*' + re.escape(sn) + r'\s*(?:juta|miliar|triliun|million|billion|trillion)?', 'harga tertentu', data[key], flags=re.I)
+                    data[key] = re.sub(r'(?:Rp|US?\s*\$|USD|\$)\s*' + re.escape(sn) + r'\s*(?:jt|juta|miliar|triliun|million|billion|trillion)?', 'harga tertentu', data[key], flags=re.I)
                     # Also strip [number] [quantity word] without currency prefix
-                    data[key] = re.sub(re.escape(sn) + r'\s*(?:juta|miliar|triliun|million|billion|trillion)\b', 'harga tertentu', data[key], flags=re.I)
+                    data[key] = re.sub(re.escape(sn) + r'\s*(?:jt|juta|miliar|triliun|million|billion|trillion)\b', 'harga tertentu', data[key], flags=re.I)
                     # Fallback: strip just the number
                     if original == data[key]:
                         data[key] = data[key].replace(sn, '')
@@ -1538,6 +1538,8 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         t = re.sub(r'\b(ke|di|dari|untuk|dengan)\s+(harga tertentu|sejumlah)\b', r'\2', t, flags=re.I)
         # Fix "US harga tertentu" → "harga tertentu"
         t = re.sub(r'\bUS\s+harga tertentu\b', 'harga tertentu', t, flags=re.I)
+        # Fix orphan "jt" after number stripped (e.g. "100 jt" → " jt" → remove)
+        t = re.sub(r'\bjt\b', '', t)
         # Fix double spaces
         t = re.sub(r' +', ' ', t).strip()
         t = re.sub(r'\s+([,.!?])', r'\1', t)
