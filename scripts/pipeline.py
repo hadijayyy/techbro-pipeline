@@ -480,17 +480,17 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
         if views_list:
             mid = len(views_list) // 2
             median_views = views_list[mid] if len(views_list) % 2 else (views_list[mid-1] + views_list[mid]) // 2
-            # Dynamic limit: base 15 + boost if performing well
+            # Dynamic limit: minimum 20
             if median_views >= 5000:
                 dynamic_limit = 25  # High engagement → post more
             elif median_views >= 2000:
-                dynamic_limit = 20  # Good engagement
+                dynamic_limit = 22  # Good engagement
             elif median_views >= 1000:
-                dynamic_limit = 18  # Decent
+                dynamic_limit = 20  # Decent
             elif median_views >= 500:
                 dynamic_limit = 20  # Average → boosted
             else:
-                dynamic_limit = 12  # Low engagement → post less
+                dynamic_limit = 20  # Minimum floor
             print(f"  [DYNAMIC LIMIT] Median views: {median_views} → limit: {dynamic_limit}/day")
         else:
             dynamic_limit = DAILY_POST_LIMIT
