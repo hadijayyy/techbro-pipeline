@@ -314,6 +314,120 @@ def _pull_analytics_feedback(conn) -> dict:
     return result
 
 
+# ─── Hot Topic Detection (persistent 4h cache, pressbox pattern) ───
+
+HOT_CACHE_PATH = Path(__file__).parent.parent / "hot-cache.json"
+
+_KNOWN_ENTITIES = {k.lower(): k for e in [_ENTITIES] for k in e}
+_KNOWN_ENTITIES.update({"iphone":"iphone","ipad":"ipad","macbook":"macbook","vision":"vision",
+    "spacex":"spacex","starlink":"starlink","openai":"openai","claude":"claude",
+    "godot":"godot","github":"github","cursor":"cursor","copilot":"copilot",
+    "gemini":"gemini","chatgpt":"chatgpt","sora":"sora","midjourney":"midjourney",
+    "deepseek":"deepseek","mistral":"mistral","cohere":"cohere","sonnet":"sonnet",
+    "nvidia":"nvidia","tesla":"tesla","meta":"meta","google":"google","microsoft":"microsoft",
+    "anthropic":"anthropic","apple":"apple","amazon":"amazon",
+    "android":"android","gpt":"gpt","llama":"llama","ai":"ai"})
+
+def _load_hot_cache() -> dict:
+    """Load persistent hot cache (4h window). Returns {url: {title, source, entities, ts}}."""
+    import json
+    try:
+        raw = json.loads(HOT_CACHE_PATH.read_text())
+        now = time.time()
+        cutoff = now - 14400  # 4h
+        return {k: v for k, v in raw.items() if isinstance(v, dict) and v.get("ts", 0) > cutoff}
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def _save_hot_cache(cache: dict):
+    import json
+    HOT_CACHE_PATH.write_text(json.dumps(cache, ensure_ascii=False, indent=2))
+
+def _extract_entities(text: str) -> set[str]:
+    """Extract known entity names from text."""
+    import unicodedata
+    t = unicodedata.normalize('NFKD', text.lower()).encode('ascii', 'ignore').decode()
+    words = set(re.findall(r'[a-z][a-z0-9]{2,}', t))
+    found = set()
+    for w in words:
+        if w in _KNOWN_ENTITIES:
+            found.add(_KNOWN_ENTITIES[w])
+    return found
+
+def _detect_hot_topics(articles: list[dict]) -> dict:
+    """Cluster articles by entity overlap, return {url: hot_boost}."""
+    # Merge into persistent cache
+    cache = _load_hot_cache()
+    now = time.time()
+    for art in articles:
+        url = art.get("url", "")
+        if url and url not in cache:
+            entities = tuple(sorted(_extract_entities(art.get("title","") + " " + art.get("body",""))))
+            cache[url] = {"title": art.get("title",""), "source": art.get("source",""),
+                          "entities": entities, "ts": now}
+    _save_hot_cache(cache)
+
+    # Cluster by entity overlap
+    entries = list(cache.values())
+    n = len(entries)
+    clusters = list(range(n))  # Union-Find init
+
+    def find(x):
+        while clusters[x] != x:
+            clusters[x] = clusters[clusters[x]]
+            x = clusters[x]
+        return x
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            clusters[ra] = rb
+
+    for i in range(n):
+        ei = set(entries[i].get("entities", ()))
+        for j in range(i+1, n):
+            ej = set(entries[j].get("entities", ()))
+            if not ei or not ej:
+                continue
+            # 2+ shared entities → same cluster
+            if len(ei & ej) >= 2:
+                union(i, j)
+            # 1 entity + 4+ title words overlap → same cluster
+            elif len(ei & ej) == 1:
+                wi = set(re.findall(r'[a-z]{4,}', entries[i].get("title","").lower()))
+                wj = set(re.findall(r'[a-z]{4,}', entries[j].get("title","").lower()))
+                if len(wi & wj) >= 4:
+                    union(i, j)
+
+    # Score each cluster
+    from collections import defaultdict
+    cluster_map = defaultdict(list)
+    for i, e in enumerate(entries):
+        cluster_map[find(i)].append(e)
+
+    hot_scores = {}
+    for cid, members in cluster_map.items():
+        articles_count = len(members)
+        if articles_count < 2:
+            continue
+        source_tiers = set(m["source"] for m in members if m.get("source"))
+        # Cache age recency: count fresh (< 2h) vs old
+        fresh = sum(1 for m in members if m.get("ts", 0) > now - 7200)
+        hotness = articles_count * (1 + 0.5 * (len(source_tiers) - 1)) * (1 + 0.3 * fresh / max(articles_count, 1))
+        for m in members:
+            hot_scores[m.get("title", "")] = hotness
+
+    # Build boost dict by title match in current articles
+    boosts = {}
+    for art in articles:
+        t = art.get("title", "")
+        h = hot_scores.get(t, 0)
+        if h >= 5:
+            boosts[art.get("url", "")] = 25  # ≥5 hotness → +25
+        elif h >= 3:
+            boosts[art.get("url", "")] = 15  # ≥3 → +15
+    return boosts
+
+
 def run(top_n: int = TOP_N, dry_run: bool = False) -> bool:
     """Returns True if a post was staged, False if skipped."""
     t0 = time.time()
@@ -368,6 +482,16 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
     print(f"[1/4] Scraping top {top_n} articles...")
 
     articles = scrape_all(top_n)
+
+    # ── HOT TOPIC DETECTION (persistent 4h cache) ────────────────
+    hot_boosts = _detect_hot_topics(articles)
+    if hot_boosts:
+        for art in articles:
+            if art.get("url") in hot_boosts:
+                boost = hot_boosts[art["url"]]
+                art["score"] = art.get("score", 0) + boost
+                print(f"  [HOT +{boost}] {art['title'][:60]}...")
+        print(f"  [HOT] {len(hot_boosts)} hot articles boosted")
 
     # Track topics from RECENT posts only (last 12 hours) for dedup — exclude failed
     posted_titles = [row['title'] for row in conn.execute(

@@ -533,8 +533,9 @@ def _call_groq(title: str, body: str, source: str = "", hook_instruction: str = 
 def _fix_slides(data: dict) -> dict:
     """Fix empty slides and collapse gaps in carousel data.
     If a slide is empty/whitespace, merge it with next slide or remove the key.
+    Never leaves placeholder values — slides with no content are dropped.
     """
-    keys = ['slide_hook', 'slide_setup', 'slide_twist', 'slide_deep', 'slide_sowhat', 'slide_cta']
+    keys = ['slide_1', 'slide_2', 'slide_3', 'slide_4', 'slide_5', 'slide_6']
     for i, key in enumerate(keys):
         val = (data.get(key) or '').strip()
         if not val:
@@ -545,8 +546,9 @@ def _fix_slides(data: dict) -> dict:
                     data[key] = next_val
                     data[next_key] = ''
                     break
+            # If still empty after shift, delete the key to avoid placeholder
             if not data.get(key, '').strip():
-                data[key] = ' '  # placeholder (will be skipped, but maintains slide count)
+                del data[key]
     return data
 
 def _clean(text: str) -> str:
@@ -1699,22 +1701,33 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         data[key] = '\n\n'.join(clean_lines)
 
     # ─── Evaluator: independent skeptical review (pressbox pattern) ───
-    verdict = _evaluate_slides(data, title, body)
-    print(f"  [EVAL] Verdict: {verdict}")
-    if verdict == "REJECT":
-        # Retry once with stronger grounding
-        stronger = hook_instr + " ATURAN MUTLAK: HANYA pakai fakta yang ADA di artikel. JANGAN tambah apapun."
-        v = _generate_variant(title, body, source, primary, hook_instruction=stronger)
-        if v and "slide_1" in v:
-            retry_verdict = _evaluate_slides(v, title, body)
-            print(f"  [EVAL] Retry verdict: {retry_verdict}")
-            if retry_verdict != "REJECT":
-                data = v
+    # Skip evaluator for high-score articles (≥80) — saves ~50s per run
+    if best_score >= 80:
+        print(f"  [EVAL] Skipped (score {best_score} ≥ 80)")
+    else:
+        verdict = _evaluate_slides(data, title, body)
+        print(f"  [EVAL] Verdict: {verdict}")
+        if verdict == "REJECT":
+            # Retry up to 3 times with stronger grounding each attempt
+            retry_data = None
+            for attempt in range(1, 4):
+                stronger = hook_instr + f" ATURAN MUTLAK (attempt {attempt+1}): HANYA pakai fakta yang ADA di artikel. JANGAN tambah apapun. Periksa tiap klaim: apakah ini beneran ada di artikel?"
+                v = _generate_variant(title, body, source, primary, hook_instruction=stronger)
+                if v and "slide_1" in v:
+                    rv = _evaluate_slides(v, title, body)
+                    print(f"  [EVAL] Retry {attempt}/3 verdict: {rv}")
+                    if rv != "REJECT":
+                        retry_data = v
+                        break
+                else:
+                    print(f"  [EVAL] Retry {attempt}/3 generation failed")
+            if retry_data:
+                data = retry_data
             else:
-                # Advisory only — don't block. Grounding + topic checks already passed.
-                print(f"  [EVAL] ⚠️ Still REJECT after retry — posting anyway (advisory mode)")
-        else:
-            print(f"  [EVAL] ⚠️ Retry generation failed — posting original (advisory mode)")
+                print(f"  [EVAL] 🔴 All retries REJECT — returning None (skip article)")
+                return None
+        elif verdict == "REVISE":
+            print(f"  [EVAL] ⚠️ Few issues — posting anyway (advisory)")
 
     # ─── Fix empty slides (collapse gaps) ───
     _fix_slides(data)

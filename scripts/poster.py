@@ -230,20 +230,23 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
             if val and val != ' ':
                 slides.append(val)
             else:
-                slides.append('…')  # placeholder — keeps 6-slide count
-        
-        # Auto-append article URL to last slide (CTA) — always from DB, never hardcoded
-        article_url = (post.get('article_url') or '').strip()
-        if slides and article_url:
-            # Strip any existing URLs in last slide to prevent mismatch
-            import re as _re
-            slides[-1] = _re.sub(r'https?://\S+', '', slides[-1]).rstrip()
-            slides[-1] = slides[-1].rstrip() + '\n\n' + article_url
-        
+                slides.append('…')
+
+        # Strip trailing placeholder slides so "…" never appears in posted carousel
+        while slides and slides[-1] == '…':
+            slides.pop()
+        # Post whatever we have — Threads supports 1-20 slides, no padding
         if not slides:
             print("  [SKIP] No slides")
             continue
-        
+
+        # Auto-append article URL to last slide (CTA)
+        article_url = (post.get('article_url') or '').strip()
+        if article_url:
+            import re as _re
+            slides[-1] = _re.sub(r'https?://\S+', '', slides[-1]).rstrip()
+            slides[-1] = slides[-1].rstrip() + '\n\n' + article_url
+
         image_url = post.get('article_image')
         
         # If no image stored, try re-fetching og:image from article URL
