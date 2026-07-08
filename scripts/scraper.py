@@ -177,17 +177,17 @@ def _unique_matches(text: str, keywords: set) -> int:
 def check_article_quality(body: str) -> str | None:
     """3-layer content quality filter (from pressbox). Returns rejection reason or None."""
     text = body.strip()
-    # Layer 1: character count
-    if len(text) < 800:
-        return f"too short ({len(text)} chars < 800)"
-    # Layer 2: word count
+    # Layer 1: character count (pressbox: 1000)
+    if len(text) < 1000:
+        return f"too short ({len(text)} chars < 1000)"
+    # Layer 2: word count (pressbox: 150)
     words = len(text.split())
-    if words < 120:
-        return f"too few words ({words} < 120)"
-    # Layer 3: sentence count (min 20 chars each to count)
+    if words < 150:
+        return f"too few words ({words} < 150)"
+    # Layer 3: sentence count (pressbox: 8, min 20 chars each to count)
     sentences = [s.strip() for s in re.split(r'[.!?]+', text) if len(s.strip()) >= 20]
-    if len(sentences) < 6:
-        return f"too few sentences ({len(sentences)} < 6)"
+    if len(sentences) < 8:
+        return f"too few sentences ({len(sentences)} < 8)"
     return None
 
 

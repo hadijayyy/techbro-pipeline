@@ -314,16 +314,18 @@ def _pull_analytics_feedback(conn) -> dict:
     return result
 
 
-def run(top_n: int = TOP_N, dry_run: bool = False):
+def run(top_n: int = TOP_N, dry_run: bool = False) -> bool:
+    """Returns True if a post was staged, False if skipped."""
     t0 = time.time()
     conn = get_db()
     try:
-        _run_inner(conn, top_n, dry_run, t0)
+        return _run_inner(conn, top_n, dry_run, t0)
     finally:
         conn.close()
 
 
-def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
+def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
+    """Returns True if a post was staged, False if skipped."""
     staged_this_run = False
 
     # 0. Posting hours check (WIB = UTC+7)
@@ -332,7 +334,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
     current_hour = now_wib.hour
     if not (POSTING_HOURS[0] <= current_hour < POSTING_HOURS[1]) and not dry_run:
         print(f"Outside posting hours ({POSTING_HOURS[0]}:00-{POSTING_HOURS[1]}:00 WIB). Now: {current_hour}:00. Skipping.")
-        return
+        return False
 
     # 0b. Simple file lock to prevent overlapping runs
     import fcntl
@@ -342,7 +344,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         print("Another pipeline run is already in progress. Skipping.")
-        return
+        return False
     print(f"[HOURS] {current_hour}:00 WIB — within posting window")
 
     # 1. Daily post limit check
@@ -351,7 +353,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
     ).fetchone()['c']
     if today_count >= DAILY_POST_LIMIT and not dry_run:
         print(f"Daily limit reached ({today_count}/{DAILY_POST_LIMIT}). Skipping.")
-        return
+        return False
     print(f"[LIMIT] {today_count}/{DAILY_POST_LIMIT} posted today")
 
     # 1. Auto-clean old articles (>7 days)
@@ -669,9 +671,12 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float):
     if not staged_this_run:
         print("No posts staged this run.")
 
+    return staged_this_run
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--top", type=int, default=TOP_N)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-    run(args.top, args.dry_run)
+    posted = run(args.top, args.dry_run)
+    sys.exit(0 if posted else 1)

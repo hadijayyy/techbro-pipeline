@@ -995,7 +995,7 @@ Return ONLY the rewritten hook text, nothing else."""
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
             json={"model": "mistral-large-latest",
                   "messages": [{"role": "user", "content": prompt_fix}],
-                  "temperature": 0.4, "max_tokens": 100},
+                  "temperature": 0.3, "max_tokens": 100},
             timeout=30)
         if r.status_code == 200:
             new_hook = r.json()["choices"][0]["message"]["content"].strip().strip('"')
@@ -1543,6 +1543,10 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         # Fix double spaces
         t = re.sub(r' +', ' ', t).strip()
         t = re.sub(r'\s+([,.!?])', r'\1', t)
+        # Kill placeholder "...", "... " (empty slide marker)
+        t = re.sub(r'^\.\.\.\s*$', '', t)
+        # Rejoin broken words: "2\n026" → "2026" (year split by newline)
+        t = re.sub(r'(?<=\d)\n(?=\d)', '', t)
         data[key] = t
 
     # Coherence check: validate intra-slide sentence flow
