@@ -18,7 +18,8 @@ TOP_N = 1
 
 # Source names used by scrape_all_async — single of truth
 SOURCE_NAMES = [
-    "detik_edu", "hipwee", "mark_manson", "james_clear", "ryan_holiday"
+    "detik_edu", "hipwee", "mark_manson", "james_clear", "ryan_holiday",
+    "darius_foroux", "scott_young"
 ]
 
 HEADERS = {
@@ -955,6 +956,112 @@ async def scrape_ryan_holiday(client: httpx.AsyncClient) -> list[dict]:
     return articles
 
 
+async def scrape_darius_foroux(client: httpx.AsyncClient) -> list[dict]:
+    """Scrape Darius Foroux articles (productivity, habits, wealth mindset)."""
+    items = []
+    try:
+        r = await client.get("https://dariusforoux.com/feed/", timeout=12)
+        from email.utils import parsedate_to_datetime
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>([^<]+)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip()
+            dt = None
+            if date_m:
+                try:
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+
+    articles = []
+    DF_SELECTORS = [("div", "entry-content"), ("article", None), ("div", "post-content")]
+    for url, rss_date in items[:10]:
+        try:
+            r = await client.get(url, timeout=15)
+            soup = BeautifulSoup(r.text, "html.parser")
+            title = soup.find("meta", property="og:title")
+            if not title:
+                title = soup.find("h1")
+                title = title.get_text(strip=True) if title else None
+            else:
+                title = title["content"]
+            if not title:
+                title_tag = soup.find("title")
+                title = title_tag.get_text(strip=True) if title_tag else "Untitled"
+            body = extract_body(soup, DF_SELECTORS)
+            image = get_og_image(soup)
+            articles.append({
+                "title": title,
+                "url": url,
+                "date": rss_date,
+                "body": body,
+                "image": image,
+                "source": "darius_foroux"
+            })
+        except Exception:
+            continue
+    return articles
+
+
+async def scrape_scott_young(client: httpx.AsyncClient) -> list[dict]:
+    """Scrape Scott Young articles (learning, habits, productivity)."""
+    items = []
+    try:
+        r = await client.get("https://www.scotthyoung.com/blog/feed/", timeout=12)
+        from email.utils import parsedate_to_datetime
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>([^<]+)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip()
+            dt = None
+            if date_m:
+                try:
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+
+    articles = []
+    SY_SELECTORS = [("div", "entry-content"), ("article", None), ("div", "post-content")]
+    for url, rss_date in items[:10]:
+        try:
+            r = await client.get(url, timeout=15)
+            soup = BeautifulSoup(r.text, "html.parser")
+            title = soup.find("meta", property="og:title")
+            if not title:
+                title = soup.find("h1")
+                title = title.get_text(strip=True) if title else None
+            else:
+                title = title["content"]
+            if not title:
+                title_tag = soup.find("title")
+                title = title_tag.get_text(strip=True) if title_tag else "Untitled"
+            body = extract_body(soup, SY_SELECTORS)
+            image = get_og_image(soup)
+            articles.append({
+                "title": title,
+                "url": url,
+                "date": rss_date,
+                "body": body,
+                "image": image,
+                "source": "scott_young"
+            })
+        except Exception:
+            continue
+    return articles
+
+
 # ─── Main Scraper ────────────────────────────────────────────────
 
 async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
@@ -966,6 +1073,8 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
             scrape_mark_manson(client),
             scrape_james_clear(client),
             scrape_ryan_holiday(client),
+            scrape_darius_foroux(client),
+            scrape_scott_young(client),
         )
 
     # 2. Collect all articles (new functions already return full article dicts)
