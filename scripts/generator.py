@@ -2119,7 +2119,7 @@ def evaluator_check(slides: dict, article_text: str, url: str = "") -> tuple[str
             headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
             json={"model": "mistral-small-latest", "messages": [
                 {"role": "system", "content": system}, {"role": "user", "content": user}],
-                "max_tokens": 500, "temperature": 0.1},
+                "max_tokens": 800, "temperature": 0.1},
             timeout=30)
         if r.status_code != 200:
             return "APPROVE", [f"evaluator HTTP {r.status_code}"]
