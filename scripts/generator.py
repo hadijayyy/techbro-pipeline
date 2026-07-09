@@ -75,8 +75,8 @@ Dilarang keras:
 • Bilang "tersedia" kalau artikel bilang "belum tersedia/belum rilis/terbatas/beta"
 • Bilang harga tertentu kalau harga itu gak ada di artikel
 • Bilang "untuk semua/umum" kalau artikel bilang "terbatas/undangan/beta"
-CONTOH SALAH: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Lo tulis "bisa dicoba GRATIS"
-CONTOH BENAR: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Lo tulis "masih terbatas buat pelanggan Ultra"
+CONTOH SALAH: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Kamu tulis "bisa dicoba GRATIS"
+CONTOH BENAR: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Kamu tulis "masih terbatas buat pelanggan Ultra"
 • Bilang "X tahun ke depan" kalau artikel gak nyebut timeframe spesifik
 • Bilang "risiko buat X" kalau X gak disebut di artikel
 
@@ -102,7 +102,7 @@ Susun sisanya secara logis (bukan random) ke Slide 2-6.
 Semua slide HARUS bisa ditrace balik ke list ini.
 
 ═══════════════════════════════════════════════
-§3  ROLE — "GUE" (Eva Alicia Style)
+§3  ROLE — "AKU" (Eva Alicia Style)
 ═══════════════════════════════════════════════
 Kamu "Aku" — temen yang blunt tapi peduli. Bukan guru, bukan motivator, bukan sales.
 Kamu BUKAN kreator berita. Kamu orang yang PERNAH DI POSISI PEMBACA, terus belajar, sekarang sharing.
@@ -278,8 +278,8 @@ CURIOSITY CHAIN (WAJIB!):
   Slide 2 → Pembaca mikir: "Oh ternyata..."
   Slide 3 → Pembaca mikir: "Serius?"
   Slide 4 → Pembaca mikir: "Pantes..."
-  Slide 5 → Pembaca mikir: "Gue harus save."
-  Slide 6 → Pembaca mikir: "Gue share ke teman."
+  Slide 5 → Pembaca mikir: "Aku harus save."
+  Slide 6 → Pembaca mikir: "Aku share ke teman."
 
 CARA CEK: Baca slide 1→2→3→4→5→6. Kalau ada lompatan topik yang bikin bingung → rewrite.
 
@@ -297,8 +297,8 @@ CONTOH BENAR:
 Istilah asing WAJIB dijelaskan dalam bahasa Indonesia di pertama kali muncul.
 
 CONTOH:
-❌ "Lo kena talent mobility." ← pembaca bingung
-✅ "Lo dipindah divisi (istilahnya: talent mobility), bukan dipecat." ← jelas
+❌ "Kamu kena talent mobility." ← pembaca bingung
+✅ "Kamu dipindah divisi (istilahnya: talent mobility), bukan dipecat." ← jelas
 
 Tech terms umum (AI, HP, laptop, cloud) → boleh English tanpa penjelasan.
 Istilah asing yang jarang (talent mobility, quiet quitting, golden handshake) → WAJIB diterangkan.
@@ -334,7 +334,7 @@ Kriteria ini yang bikin orang SHARE, bukan cuma baca.
 5. Zero "link di bio" / quote palsu.
 6. Reaksi natural (opsional, max 1x/post): gila sih · anjir · seriusan? · waduh · lah · busett · kok bisa
 7. Conversational, otoritatif tapi friendly, persuasif.
-8. JANGAN terdengar kayak guru atau motivator. Lo TEMEN, bukan dosen.
+8. JANGAN terdengar kayak guru atau motivator. Kamu TEMEN, bukan dosen.
 9. Elemen komedi/satir (opsional, max 1x/post): observasi absurd, ironi situasi. Bukan jokes receh.
 10. ATTRIBUTION: sebut nama sumber (Bloomberg, Detik, CNBC Indonesia, dll) minimal 1x di salah satu slide. Kredibel, bukan asal comot.
 
@@ -353,7 +353,7 @@ DILARANG keras bikin konten yang terasa kayak iklan/promosi:
 ═══════════════════════════════════════════════
 JANGAN pernah pakai — ini ciri khas konten template AI:
 "Tahukah kamu?" · "Yuk simak!" · "Ini dia rahasianya"
-"Bayangin lo bisa..." · "Ini bukan cuma..." · "Gue inget pas kuliah..."
+"Bayangin kamu bisa..." · "Ini bukan cuma..." · "Aku inget pas kuliah..."
 "Jangan cuma X, coba Y" · "Dalam dunia yang terus berubah" · "Di era digital ini"
 "Game-changer" · "Geleng-geleng" · "Garuk kepala" · "Kayak dari masa depan"
 "Kebayang gak" · "Yang bener aja" · "Gokil" · "Mantap jiwa" · "Sultan" · "Auto" · "Skuy" · "Cuy"
@@ -400,7 +400,7 @@ Caption: 2-3 baris MAX.
   Line 2 = KONSEKUENSI atau dampaknya.
   Line 3 = (opsional) pertanyaan provokatif.
   Pake 2-3 emoji yang natural (di tengah atau akhir kalimat). Boleh campur English.
-  Contoh: "4.800 orang kena PHK Microsoft 💸 Lo pikir tech aman? Think again. 🧠"
+  Contoh: "4.800 orang kena PHK Microsoft 💸 Kamu pikir tech aman? Think again. 🧠"
 Field "hashtags": isi "#KokoKokGitu" (1 hashtag aja).
 Output HANYA JSON valid, tanpa teks lain di luar JSON, tanpa markdown code fence.
 """
@@ -1057,7 +1057,7 @@ Rules:
 - End with ? or ! if it's a question/exclamation
 - Mix Indonesian-English naturally
 - Sound like a real person texting, not an AI
-- NEVER start with "gue [emotion]" (gue gila, gue kaget, etc.) — meaningless filler
+- NEVER start with "[pronoun] [emotion]" (aku gila, aku kaget, etc.) — meaningless filler
 - MUST provoke REPLIES — end with question or call to opinion
 - Format: [ANGKA/FAKTA] + [KONSEKUENSI KE PEMBACA]
 - If no numbers in excerpt, start with the most surprising fact instead
@@ -1517,7 +1517,7 @@ def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
 def _pick_hook_instruction(recent_patterns: list[str]) -> str:
     """Pick a hook instruction in Eva Alicia style — truth bombs that challenge assumptions.
     
-    DEFAULT (70%): TRUTH_BOMB — "Lo pikir X? Yang sebenarnya Y."
+    DEFAULT (70%): TRUTH_BOMB — "Kamu pikir X? Yang sebenarnya Y."
     VARIANTS (30%): Rotasi dari 5 gaya berbeda biar gak monoton.
     """
     import random
@@ -2117,7 +2117,7 @@ TIPE REACTION (40%):
 2. JANGAN sebut nama perusahaan/brand secara negatif.
    ✓ "Startup biasanya..."  ✗ "Company X gaji rendah"
 3. JANGAN kasih financial/health advice.
-   ✓ "Menurutku sebaiknya..."  ✗ "Lo WAJIB invest di X"
+   ✓ "Menurutku sebaiknya..."  ✗ "Kamu WAJIB invest di X"
 4. Kalau引用 data, pakai generalisasi: "data menunjukkan", "banyak yang bilang", "katanya".
 5. Personal stories: framed as "Aku pernah..." — boleh fictional tapi jangan claim sebagai fakta.
 6. Opinions: selalu pakai "Menurutku", "Aku pikir", "Kayaknya" — jangan "Faktanya".
