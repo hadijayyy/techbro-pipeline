@@ -2104,9 +2104,20 @@ TIPE REACTION (40%):
 - Bahasa: kasual, "aku/kamu/kalian"
 - Boleh campur English (natural)
 - Pake 2-3 emoji yang natural
-- Ga perlu source/angka — ini opini pribadi
 - Hashtag: #KokoKokGitu di akhir
 - Jangan pake "gue/lo/lu"
+
+[ANTI-HALLUCINATION RULES — WAJIB]
+1. JANGAN sebut angka/percentage spesifik.
+   ✓ "Banyak orang gak nabung"  ✗ "68% orang gak nabung"
+   ✓ "IHSG turun signifikan"  ✗ "IHSG turun 3%"
+2. JANGAN sebut nama perusahaan/brand secara negatif.
+   ✓ "Startup biasanya..."  ✗ "Company X gaji rendah"
+3. JANGAN kasih financial/health advice.
+   ✓ "Menurutku sebaiknya..."  ✗ "Lo WAJIB invest di X"
+4. Kalau引用 data, pakai generalisasi: "data menunjukkan", "banyak yang bilang", "katanya".
+5. Personal stories: framed as "Aku pernah..." — boleh fictional tapi jangan claim sebagai fakta.
+6. Opinions: selalu pakai "Menurutku", "Aku pikir", "Kayaknya" — jangan "Faktanya".
 
 [OUTPUT]
 JSON: {{"text": "...", "type": "opinion|personal|question|reaction"}}
