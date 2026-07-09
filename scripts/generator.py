@@ -430,6 +430,7 @@ BANNED_ID = [
     r'\bauto\b', r'\bskuy\b', r'\bcuy\b',
     r'\bini gak nyangka\b', r'\bsurprise banget\b',
     r'\bhebat\b', r'\bkeren banget\b',
+    r'\bgue\b', r'\blo\b', r'\blu\b',  # Personal pronouns — use aku/kamu/kalian
     r'\btemen gue\b', r'\bbapak gue\b', r'\bemak gue\b',
     r'\bkeluarga gue\b', r'\brekan kerja gue\b', r'\bsahabat gue\b',
     r'\blink di bio\b',
@@ -630,7 +631,9 @@ def _clean(text: str) -> str:
     # Normalize em-dash/en-dash → space (LLM sering generate ini, breaks number regex)
     out = re.sub('[\u2013\u2014]', ' ', out)
     # Fix: year split by newline e.g. "2\n026" → "2026"
-    out = re.sub(r'(?<=\d)\n(?=\d)', '', out)
+    out = re.sub(r'(\d)\n(\d)', r'\1\2', out)
+    # Also handle cases like "Agustus 2\n026" where the year is split
+    out = re.sub(r'(\d)\n(?=\d{3})', r'\1', out)
     # Remove orphan punctuation at start of sentences
     out = re.sub(r'(?m)^[\s,;:.!?]+\s*', '', out)
     # Collapse double spaces
