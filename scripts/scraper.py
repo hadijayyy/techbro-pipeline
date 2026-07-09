@@ -16,10 +16,10 @@ MAX_AGE_HOURS = 720  # 30 days max
 FALLBACK_HOURS = 720  # same for fallback
 TOP_N = 1
 
-# Source names used by scrape_all_async — single source of truth
+# Source names used by scrape_all_async — single of truth
 SOURCE_NAMES = [
-    "bloomberg_technoz", "cnbc_id", "detik_inet", "liputan6_tekno",
-    "liputan6_bisnis"
+    "bloomberg_technoz", "cnbc_id_bisnis", "detik_finance", "liputan6_bisnis",
+    "kompas_bisnis"
 ]
 
 HEADERS = {
@@ -453,7 +453,7 @@ async def scrape_article_async(url: str, client: httpx.AsyncClient, source: str,
             body = extract_body(soup, _WIRED_SEL)
         elif source in ("hn", "anthropic"):
             body = extract_body(soup, _HN_SEL)
-        elif source in ("cnbc_id", "detik", "liputan6", "kumparan", "antara", "republika", "cnnindonesia", "merdeka", "kompas", "hipwee"):
+        elif source in ("cnbc_id", "cnbc_id_bisnis", "detik", "detik_finance", "liputan6", "liputan6_bisnis", "kumparan", "antara", "republika", "cnnindonesia", "merdeka", "kompas", "kompas_bisnis", "hipwee"):
             # Indonesian sources: try common selectors
             _ID_SEL = [
                 ("div", "post-content"), ("div", "detail-text"),
@@ -616,21 +616,21 @@ async def get_links_wired(client: httpx.AsyncClient) -> list[tuple[str, datetime
     """Wired — tech culture, gadgets, AI, cybersecurity."""
     return await _rss_links(client, "https://www.wired.com/feed/rss")
 
-async def get_links_cnbc_id(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """CNBC Indonesia — Indonesian tech/business news."""
-    return await _rss_links(client, "https://www.cnbcindonesia.com/tech/rss")
+async def get_links_cnbc_id_bisnis(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """CNBC Indonesia — business/finance/economy news."""
+    return await _rss_links(client, "https://www.cnbcindonesia.com/market-and-economy/rss")
 
-async def get_links_detik_inet(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Detik Inet — Indonesian tech news."""
-    return await _rss_links(client, "https://inet.detik.com/rss")
-
-async def get_links_liputan6_tekno(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
-    """Liputan6 Tekno — Indonesian tech news."""
-    return await _rss_links(client, "https://feed.liputan6.com/rss/tekno")
+async def get_links_detik_finance(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Detik Finance — Indonesian finance/money news."""
+    return await _rss_links(client, "https://finance.detik.com/rss")
 
 async def get_links_liputan6_bisnis(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
     """Liputan6 Bisnis — Indonesian business/finance news."""
     return await _rss_links(client, "https://feed.liputan6.com/rss/bisnis")
+
+async def get_links_kompas_bisnis(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
+    """Kompas Bisnis — Indonesian business/finance/economy."""
+    return await _rss_links(client, "https://biz.kompas.com/rss")
 
 async def get_links_the_verge(client: httpx.AsyncClient) -> list[tuple[str, datetime | None]]:
     """The Verge — international tech news."""
@@ -708,10 +708,10 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
         # 1. Gather links from all sources
         link_tasks = await asyncio.gather(
             scrape_bloomberg_technoz(client),  # scrape langsung
-            get_links_cnbc_id(client),
-            get_links_detik_inet(client),
-            get_links_liputan6_tekno(client),
+            get_links_cnbc_id_bisnis(client),
+            get_links_detik_finance(client),
             get_links_liputan6_bisnis(client),
+            get_links_kompas_bisnis(client),
         )
 
         # 2. Build scrape tasks

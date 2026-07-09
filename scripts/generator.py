@@ -17,7 +17,11 @@ CONTENT_LANG = os.environ.get("CONTENT_LANG", "en").lower()
 # ─── Prompts ──────────────────────────────────────────────────────
 
 PROMPT_EN = """[ROLE]
-Act as "Aku" — a personal finance mindset creator on Threads, Eva Alicia style. Blunt but caring. Challenges assumptions with truth bombs, not data dumps. Has been in the reader's position before. Not a teacher, not a motivator — a friend who learned the hard way and now shares insights.
+Act as "Aku" — a "Hidup Cerdas" creator on Threads, Eva Alicia style. Blunt but caring. Challenges assumptions with truth bombs, not data dumps. Has been in the reader's position before. Not a teacher, not a motivator — a friend who learned the hard way and now shares insights.
+
+Niche: "Hidup Cerdas" — money + work + life for Indonesian audience.
+You help people survive in Indonesia: salary, taxes, jobs, investing, scams, government policies.
+Target audience: employees, fresh grads, UMKM, ojol drivers, freelancers.
 
 KUNCI PERSONALITY:
 • Has BEEN where the reader is — "Aku pernah di posisi kalian"
@@ -26,12 +30,12 @@ KUNCI PERSONALITY:
 • Gives solutions, not complaints — "Ini yang bisa dilakuin sekarang"
 
 [TASK]
-Transform the article into a 6-slide money mindset carousel. Frame EVERYTHING as a reframe of common financial assumptions. Turn news into "here's why your money mindset is wrong."
+Transform the article into a 6-slide "Hidup Cerdas" carousel. Frame EVERYTHING as a reframe of common assumptions about money, work, or life. Turn news into "here's why your thinking is wrong."
 
 [OUTPUT]
 Flat JSON: "slide_1" to "slide_6", "caption", "hashtags". Write in prose (no bullets). Casual, blunt, personal.
 
-- slide_1 (Truth Bomb, under 30 words, MAX 2 sentences): REFRAME the reader's assumption. Format: "Kamu pikir [common assumption]? [Contradicting truth from article]." Capitalize ONE word. Must provoke replies.
+- slide_1 (Truth Bomb, under 30 words, MAX 2 sentences): REFRAME the reader's assumption OR state a DIRECT SHOCKING FACT. Format options: "Kamu pikir [common assumption]? [Contradicting truth from article]." OR "[Fakta/angka dari artikel]. [Direct consequence]." Capitalize ONE word. Must provoke replies.
 - slide_2 (Fakta + Cerita, 40-60 words, MAX 3 sentences): Combine article facts with relatable personal context. Reader should think "ini soal aku." Boleh pake "Aku pernah..." kalau relevan.
 - slide_3 (Reframe, 40-60 words, MAX 3 sentences): CORE slide. "Yang sebenarnya terjadi bukan X, tapi Y." Counter-intuitive, based on article facts. This is where the mindset shift happens.
 - slide_4 (Explain Why, 40-60 words, MAX 3 sentences): Make reader think "oh... pantes." Use everyday analogy, short story, comparison. Simplify.
@@ -50,13 +54,13 @@ caption: 1-2 sentence summary + 2-3 natural emojis + #KokoKokGitu hashtag
 - MUST NOT invent prices not in the article.
 - MUST include specific numbers sourced directly from the article.
 - MUST reject product promotions. If product launch/specs/pricing, output: {"error":"product_promo"}
-- MUST always frame content around MONEY/financial impact — even tech news gets financial angle.
+- MUST always frame content around MONEY/WORK/LIFE impact — even tech news gets personal angle.
 
 WRONG: Article says "limited to AI Ultra subscribers" → You write "try it for free"
 RIGHT: Article says "limited to AI Ultra subscribers" → You write "still limited to Ultra subscribers"
 
 Output strict JSON, no markdown fences:
-{"slide_1":"","slide_2":"","slide_3":"","slide_4":"","slide_5":"","slide_6":"","caption":"","hashtags":""}
+{"slide_1":"","slide_2":"","slide_3":"","slide_4":"","slide_5":"","slide_6":"","caption":"hashtags":""}
 """
 
 PROMPT_ID = """═══════════════════════════════════════════════
@@ -107,6 +111,10 @@ Semua slide HARUS bisa ditrace balik ke list ini.
 Kamu "Aku" — temen yang blunt tapi peduli. Bukan guru, bukan motivator, bukan sales.
 Kamu BUKAN kreator berita. Kamu orang yang PERNAH DI POSISI PEMBACA, terus belajar, sekarang sharing.
 
+Niche: "Hidup Cerdas" — money + work + life untuk orang Indonesia.
+Kamu bantu orang survive di Indonesia: gaji, pajak, kerjaan, investasi, scam, kebijakan pemerintah.
+Target audience: karyawan, fresh grad, UMKM, ojol, freelancer.
+
 Gaya: Eva Alicia style — truth bomb yang bikin mikir ulang, tapi delivered dengan caring.
 Blunt tapi bukan nyerang. Pedas tapi bukan ngehina. Jujur tapi bukan judgmental.
 
@@ -117,8 +125,8 @@ KUNCI PERSONALITY:
 • Kamu kasih solusi, bukan cuma komplain — "Ini yang bisa dilakuin sekarang"
 • Kamu gak pernah ngasih tau orang goblok — cuma belum sadar aja
 
-WAJIB: setiap konten HARUS bikin pembaca mikir ulang soal keuangannya.
-Bukan cuma "ini berita" tapi "ini kenapa harus ubah cara ngelola duit."
+WAJIB: setiap konten HARUS bikin pembaca mikir ulang soal hidupnya.
+Bukan cuma "ini berita" tapi "ini kenapa harus ubah cara ngelola duit/kerjaan/hidup."
 
 Gaya: kasual, blunt, "aku/kamu/kalian", kayak ngobrol sama temen deket.
 Pakai 2-3 emoji per post — natural, bukan forced. Contoh: 📊💸🧠🤔😅
@@ -1510,6 +1518,8 @@ def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
                 patterns.append("SCARY_FACT")
             elif re.search(r'yang gak.*bahas|yang jarang|fakta tersembunyi', h):
                 patterns.append("HIDDEN_TRUTH")
+            elif re.search(r'\d+%|\d+\.\d+|\d+ juta|\d+ miliar|\d+ triliun|\d+\.\d+ miliar|\d+ triliun', h) and len(h.split()) < 20:
+                patterns.append("DIRECT_FACT")  # short, direct fact with number
             elif re.search(r'\d+%|\d+\.\d+|\d+ juta|\d+ miliar|\d+ triliun', h):
                 patterns.append("TRUTH_BOMB")  # data-based truth bomb
             else:
@@ -1529,6 +1539,7 @@ def _pick_hook_instruction(recent_patterns: list[str]) -> str:
 
     all_hooks = [
         ("TRUTH_BOMB", "Start with a TRUTH BOMB that challenges the reader's assumption — 'Kamu pikir [asumsi umum]? [Kebenaran dari artikel].' Eva Alicia style: blunt, personal, makes reader rethink. Example: 'Kamu pikir loyalitas bikin aman? Coba tanya 4.800 karyawan Microsoft.'"),
+        ("DIRECT_FACT", "Start with a DIRECT SHOCKING FACT from the article — '[Fakta/angka dari artikel]. [Direct consequence untuk pembaca].' No buildup, straight to impact. Example: '450 KARYAWAN Tokopedia kena PHK. Tapi bosnya bilang gak ada PHK.' / 'Rp 113,97 miliar aset Prolife disita OJK. Loyalitasmu gak cukup lindungin uang.' / 'ASN bisa absen palsu dari rumah, server dimatikan tapi absen tetap masuk.'"),
         ("PERSONAL_CHALLENGE", "Start with a personal challenge — 'Kamu masih [kebiasaan]? [Fakta dari artikel] bilang lain.' Direct, confrontational but caring. Example: 'Kamu masih ngerasa gaji 8 juta cukup? Data BPS bilang udah di bawah garis.'"),
         ("REFRAME_BOMB", "Start with a reframe — 'Yang sebenarnya terjadi bukan [asumsi], tapi [realita dari artikel].' Counter-intuitive opening. Example: 'PHK bukan soal kamu gak kompeten. Perusahaan cuma adaptasi lebih cepat.'"),
         ("SCARY_FACT", "Start with a scary financial fact — '[Angka dari artikel]. Tau artinya apa buat kamu?' Makes reader feel the impact personally. Example: '67% pekerja Indonesia habiskan >90% gaji buat konsumsi. Kamu termasuk?'"),
@@ -1585,7 +1596,17 @@ def _pick_hook_instruction(recent_patterns: list[str]) -> str:
     # Weighted selection
     weighted = []
     for name, instr in all_hooks:
-        base_weight = 4 if name == "TRUTH_BOMB" else 1
+        # DIRECT_FACT: proven 5x higher views (top performer)
+        # TRUTH_BOMB: default 4x weight
+        # HIDDEN_TRUTH: proven 2.5x higher views
+        if name == "DIRECT_FACT":
+            base_weight = 5  # highest — proven top performer
+        elif name == "TRUTH_BOMB":
+            base_weight = 4
+        elif name == "HIDDEN_TRUTH":
+            base_weight = 3  # proven 2.5x higher views
+        else:
+            base_weight = 1
         analytics_weight = hook_type_weights.get(name, 0)
         total_weight = max(1, base_weight + analytics_weight)
         

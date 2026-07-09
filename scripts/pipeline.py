@@ -678,9 +678,35 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             if any(kw in title_l for kw in foreign_kw):
                 art["score"] = max(art["score"] - 15, 0)
             # Penalize pure product news (low educational value)
-            if any(kw in title_l for kw in ["review:", "hands-on", "launch", "peluncuran", "diluncurkan",
+            if any(kw in title_l for kw in ["review:", "hands-on", "launch", "peluncuran", "dilucurkan",
                                               "iphone", "galaxy", "smartphone", "ponsel", "hp baru", "fold"]):
                 art["score"] = max(art["score"] - 20, 0)  # stronger penalty -20
+
+            # ── HIDUP CERDAS NICHE BOOST ─────────────────────────
+            # Boost money/work/life topics (proven 5x higher views)
+            hidup_cerdas_high = ["phk", "karyawan", "gaji", "pajak", "jht", "bpjs", "kpr",
+                                 "investasi", "saham", "emas", "rupiah", "dolar", "inflasi",
+                                 "ojol", "grab", "gojek", "driver", "ojek", "mitra",
+                                 "asn", "pns", "pegawai", "pemerintah", "menteri", "presiden",
+                                 "scam", "penipuan", "phishing", "pinjol", "fintech",
+                                 "umkm", "ecommerce", "tokopedia", "shopee", "tiktok",
+                                 "tabungan", "nabung", "cicilan", "utang", "kartu kredit", "paylater"]
+            hidup_cerdas_med = ["startup", "freelance", "side hustle", "remote", "wfh", "hybrid",
+                                "karier", "cv", "resume", "interview", "linkedin",
+                                "thr", "bonus", "insentif", "komisi", "tunjangan",
+                                "harga", "mahal", "murah", "diskon", "promo", "sembako", "pangan",
+                                "listrik", "bbm", "bensin", "gas", "minyak goreng"]
+            hc_high = sum(1 for kw in hidup_cerdas_high if kw in title_l)
+            hc_med = sum(1 for kw in hidup_cerdas_med if kw in title_l)
+            if hc_high >= 2:
+                art["score"] = min(art["score"] + 25, 150)
+                art.setdefault("analytics_tag", []).append("hidup-cerdas+25")
+            elif hc_high >= 1:
+                art["score"] = min(art["score"] + 15, 150)
+                art.setdefault("analytics_tag", []).append("hidup-cerdas+15")
+            elif hc_med >= 2:
+                art["score"] = min(art["score"] + 10, 150)
+                art.setdefault("analytics_tag", []).append("hidup-cerdas+10")
 
         # ── LAYER 3a: Analytics Feedback Boosts ──────────────────
         if analytics.get("hook_boosts") or analytics.get("topic_penalties") or analytics.get("cat_boosts") or analytics.get("cat_penalties"):
