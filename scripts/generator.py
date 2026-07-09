@@ -306,10 +306,12 @@ Istilah asing yang jarang (talent mobility, quiet quitting, golden handshake) �
 ═══════════════════════════════════════════════
 Tiap slide HARUS hit minimal 1 kriteria viral di bawah ini:
 
-1. PRO & CON — kasih 2 sisi: "Ini bagus karena... tapi risikonya..."
-2. RELATABLE — "Lo yang jualan di Shopee pasti ngalamin..."
-3. FAMOUS FIGURE — sebut brand/personaliti besar: ChatGPT, Elon Musk, Apple, Meta
+1. REFRAME — nabrak asumsi: "Lo pikir X? Yang sebenarnya Y."
+2. RELATABLE — "Gue pernah di posisi lo..." atau "Lo yang [situasi] pasti ngalamin..."
+3. FAMOUS FIGURE — sebut brand/personaliti besar: Microsoft, Tokopedia, Prabowo
 4. SURPRISING FACT — fakta yang bikin orang "anjir, seriusan?"
+5. MONEY IMPACT — hubungin ke duit: "Ini artinya lo bakal bayar lebih..." atau "Lo bisa hemat X..."
+6. PROVOCATIVE — challenge pembaca: "Lo masih mau defend ini?"
 
 Slide 1: WAJIB surprising fact ATAU famous figure
 Slide 3 (Reframe): WAJIB kontra-intuitif atau pro & con
@@ -377,10 +379,11 @@ Cek satu-satu:
 □ Tiap slide ≤ 400 karakter?
 □ Banned patterns terhindari?
 □ Bahasa cukup sederhana buat anak SMA ngerti?
-□ Ada actionable tips di konten ini?
-□ Slide 1 mulai dari FAKTA/ANGKA, bukan emosi?
-□ Slide 5 ada 2 sisi (pro & con)?
+□ Ada langkah konkret di konten ini?
+□ Slide 1 truth bomb / reframe (bukan data drop dingin)?
+□ Slide 6 ada challenge ("Lo setuju?")?
 □ Tiap slide hit ≥1 viral criteria (§7c)?
+□ Ada money angle di setiap slide?
 □ Insight pakai ranking filter (§2 A-E)?
 □ Sumber disebut minimal 1x (§8 #10)?
 Baru setelah lolos, tulis output final.
@@ -1487,49 +1490,44 @@ def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
         patterns = []
         for r in rows:
             h = (r['slide_hook'] or '').strip().lower()
-            # Fact-first pattern detection
-            if re.search(r'\d+%|\d+\.\d+|\d+ juta|\d+ miliar|\d+ triliun|\d+ ribu', h):
-                patterns.append("DATA_DROP")
-            elif re.search(r'tapi|kenyataannya|padahal|tapi faktanya', h) and not re.search(r'^\s*ternyata', h):
-                patterns.append("CONTRAST")
-            elif h.endswith('?') and re.search(r'lo masih|lo yang|lo tau', h):
-                patterns.append("QUESTION")
-            elif re.search(r'\b(meta|google|apple|openai|chatgpt|shopee|tokopedia)\b', h):
-                patterns.append("IMPACT")
-            elif re.search(r'\b(ternyata|fakta|heran|gak nyangka)\b', h):
-                patterns.append("REVELATION")  # renamed from SURPRISING — no 'Ternyata'
-            elif re.search(r'\b(harga|rp|juta|bayar|gratis|murah|uang|duit)\b', h):
-                patterns.append("MONEY")
-            elif re.search(r'\btren|mulai|\bmulai\b|ke depan|kedepan|makin\b', h):
-                patterns.append("TREND")
-            elif re.search(r'\bbayangin|coba bayangin|misalnya|\bimagine\b', h):
-                patterns.append("SCENARIO")
+            # Eva Alicia style pattern detection
+            if re.search(r'lo pikir|lo masih pikir|lo masih ngerasa', h):
+                patterns.append("TRUTH_BOMB")
+            elif re.search(r'lo masih|lo yang|lo ngerasa', h):
+                patterns.append("PERSONAL_CHALLENGE")
+            elif re.search(r'yang sebenarnya|bukan soal|bukan tentang', h):
+                patterns.append("REFRAME_BOMB")
+            elif re.search(r'\d+%|\d+\.\d+|\d+ juta|\d+ miliar|\d+ triliun', h) and re.search(r'lo tau|artinya|buat lo', h):
+                patterns.append("SCARY_FACT")
+            elif re.search(r'yang gak.*bahas|yang jarang|fakta tersembunyi', h):
+                patterns.append("HIDDEN_TRUTH")
+            elif re.search(r'\d+%|\d+\.\d+|\d+ juta|\d+ miliar|\d+ triliun', h):
+                patterns.append("TRUTH_BOMB")  # data-based truth bomb
             else:
-                patterns.append("OTHER")
+                patterns.append("TRUTH_BOMB")  # default
         return patterns
     except Exception:
         return []
 
 def _pick_hook_instruction(recent_patterns: list[str]) -> str:
-    """Pick a hook instruction that avoids recent patterns. Data-driven (pressbox pattern).
+    """Pick a hook instruction in Eva Alicia style — truth bombs that challenge assumptions.
     
-    Pattern C (DEFAULT, 80%): Specific Detail + Emotional Weight — proven 500K+ avg
-    Pattern A (20%): Curiosity Gap — "Nobody's talking about" + hidden angle
+    DEFAULT (70%): TRUTH_BOMB — "Lo pikir X? Yang sebenarnya Y."
+    VARIANTS (30%): Rotasi dari 5 gaya berbeda biar gak monoton.
     """
     import random
     all_hooks = [
-        ("PATTERN_C", "Start with SPECIFIC NUMBER/AMOUNT from article + HUMAN CONSEQUENCE — 'Rp[X] triliun. [Siapa] kena dampaknya.' or '[Angka]%, dan yang rugi [target audience].' Numbers create curiosity, human cost drives replies."),
-        ("CURIOSITY_GAP", "Start with hidden angle — 'Yang gak dibahas: [fakta tersembunyi dari artikel]. [Implikasi]' or '[Fakta dari artikel] — tapi yang sebenarnya [angle tersembunyi].' Only use if article has genuinely hidden angle."),
-        ("DATA_DROP", "Start with a NUMBER from the article + its consequence — 'X% [fakta], [dampaknya].'"),
-        ("CONTRAST", "Start with contradiction — '[Expectation dari artikel]... Tapi [reality dari artikel]?'"),
-        ("QUESTION", "Start with question based on fact — '[Fakta dari artikel]. Lo masih [A]?'"),
-        ("IMPACT", "Start with impact on reader — '[Brand/tech] [action]. Lo yang [target audience] kena.'"),
+        ("TRUTH_BOMB", "Start with a TRUTH BOMB that challenges the reader's assumption — 'Lo pikir [asumsi umum]? [Kebenaran dari artikel].' This is Eva Alicia style: blunt, personal, makes reader rethink. Example: 'Lo pikir loyalitas bikin lo aman? Coba tanya 4.800 karyawan Microsoft.'"),
+        ("PERSONAL_CHALLENGE", "Start with a personal challenge — 'Lo masih [kebiasaan]? [Fakta dari artikel] bilang lain.' Direct, confrontational but caring. Example: 'Lo masih ngerasa gaji 8 juta cukup? Data BPS bilang lo udah di bawah garis.'"),
+        ("REFRAME_BOMB", "Start with a reframe — 'Yang sebenarnya terjadi bukan [asumsi], tapi [realita dari artikel].' Counter-intuitive opening. Example: 'PHK bukan soal lo gak kompeten. Perusahaan cuma adaptasi lebih cepat dari lo.'"),
+        ("SCARY_FACT", "Start with a scary financial fact — '[Angka dari artikel]. Lo tau artinya apa buat lo?' Makes reader feel the impact personally. Example: '67% pekerja Indonesia habiskan >90% gaji buat konsumsi. Lo termasuk?'"),
+        ("HIDDEN_TRUTH", "Start with hidden angle — 'Yang gak orang bahas: [fakta tersembunyi dari artikel].' Curiosity gap + money angle. Example: 'Yang gak orang bahas: PHK ini bukan soal AI. Ini soal perusahaan gak mau bayar lo lebih.'"),
     ]
-    # Pattern C is DEFAULT (pressbox proven 500K+). Weight it 5x.
+    # TRUTH_BOMB is DEFAULT (Eva Alicia style). Weight it 4x.
     weighted = []
     for name, instr in all_hooks:
-        if name == "PATTERN_C":
-            weighted.extend([(name, instr)] * 5)
+        if name == "TRUTH_BOMB":
+            weighted.extend([(name, instr)] * 4)
         elif name not in recent_patterns[-4:]:
             weighted.append((name, instr))
     if not weighted:
@@ -1549,8 +1547,8 @@ def _evaluate_slides(slides: list[str]) -> tuple[bool, str]:
     """
     prompt = f"""
     [ROLE]
-    TechBro Content Evaluator (Indonesian tech educator).
-    Evaluate 6-slide carousel for quality + coherence.
+    Eva Alicia Style Content Evaluator (Money Mindset Indonesia).
+    Evaluate 6-slide carousel for quality + Eva Alicia voice compliance.
 
     [INPUT]
     Slides: {slides}
@@ -1560,11 +1558,14 @@ def _evaluate_slides(slides: list[str]) -> tuple[bool, str]:
     2. INTER-SLIDE FLOW: Slide 1→2→3→4→5→6 must connect logically. No topic jumps.
        - Slide 2 MUST expand from Slide 1 (same topic, deeper angle)
        - No slide should introduce a topic not mentioned in previous slides
-    3. JARGON: Foreign terms (talent mobility, quiet quitting, etc.) MUST be explained in Indonesian
-    4. NO "Gratis"/"Free" unless article explicitly says so
-    5. Hook quality: Slide 1 must have number + consequence + reply bait
-    6. Each slide max 400 chars, 2-3 sentences
-    7. Full Indonesian (tech terms OK in English)
+    3. EVA ALICIA VOICE:
+       - Slide 1 MUST be truth bomb / reframe (NOT cold data drop)
+       - MUST use "lo/gue" personal voice
+       - MUST challenge assumption, not just state fact
+       - Slide 6 MUST end with challenge ("Lo setuju?" / "Lo masih mau defend ini?")
+    4. MONEY ANGLE: Every slide must connect to financial impact
+    5. Each slide max 400 chars, 2-3 sentences
+    6. Full Indonesian (tech terms OK in English)
 
     [OUTPUT FORMAT]
     APPROVE
