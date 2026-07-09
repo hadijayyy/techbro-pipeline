@@ -145,7 +145,7 @@ Bayangin lagi ngobrol sama temen yang baru sadar dia salah soal duit.
 PRINSIP KONTEN:
 1. SETIAP slide = 1 IDE (jangan campur)
 2. Slide 1 = TRUTH BOMB yang nabrak asumsi
-3. Slide 2 = FAKTA + cerita yang bikin "oh gue juga ngalamin"
+3. Slide 2 = FAKTA + cerita yang bikin "oh aku juga ngalamin"
 4. Slide 3 = REFRAME — ubah cara pikir
 5. Slide 4 = ANALOGI yang bikin "masuk akal"
 6. Slide 5 = LANGKAH KONKRET yang bisa langsung diterapkan
@@ -287,7 +287,7 @@ CONTOH SALAH:
 
 CONTOH BENAR:
   Slide 1: "Tokopedia gak PHK massal."
-  Slide 2: "Yang terjadi: karyawan dipindah divisi, bukan dipecat. Tapi lo tetap harus siap." ← EXPAND
+  Slide 2: "Yang terjadi: karyawan dipindah divisi, bukan dipecat. Tapi kamu tetap harus siap." ← EXPAND
 
 ═══════════════════════════════════════════════
 §7e  JARGON → BAHASA INDONESIA
@@ -478,20 +478,20 @@ def _get_banned() -> list:
 ANGLES = {
     "news": [
         "Write as PRACTICAL INSIGHT — what's the 1 actionable takeaway from this news for orang Indonesia? Everything else is just context.",
-        "Write as REAL-WORLD IMPACT — skip the news summary. Focus on: 'Gimana ini ngaruh ke dompet/hidup/kerja lo?'",
+        "Write as REAL-WORLD IMPACT — skip the news summary. Focus on: 'Gimana ini ngaruh ke dompet/hidup/kerja kamu?'",
         "Write as LESSON EXTRACTOR — from this news article, extract 3 things pembaca bisa LAKUKAN sekarang.",
     ],
     "product": [
-        "Write as BUYER ADVISORY — before lo beli, ini yang perlu lo tau. Skip specs, focus on 'worth it gak untuk orang Indonesia?'",
+        "Write as BUYER ADVISORY — sebelum beli, ini yang perlu kamu tau. Skip specs, focus on 'worth it gak untuk orang Indonesia?'",
         "Write as VALUE ANALYST — 'Apakah ini worth your money/time?' Bandingin sama alternatif gratis/murah.",
     ],
     "impact": [
-        "Write as CAREER ADVISORY — how this affects your job/skills. 3 steps lo bisa ambil.",
+        "Write as CAREER ADVISORY — how this affects your job/skills. 3 steps yang bisa kamu ambil.",
         "Write as MONEY INSIGHT — what this means for your finances. Angka konkret, tips praktis.",
         "Write as PREPARATION GUIDE — what to do NOW to prepare for this change. 3 action steps.",
     ],
     "controversy": [
-        "Write as DEBRIEF + TIPS — why this controversial, then 3 things lo bisa lakuin soal ini.",
+        "Write as DEBRIEF + TIPS — why this controversial, then 3 things yang bisa dilakuin soal ini.",
         "Write as PATTERN RECOGNITION — what history tells us, plus what to watch out for.",
     ],
     "scandal": [
@@ -923,7 +923,7 @@ def _validate_hook(text: str) -> tuple[bool, list[str]]:
     
     # 5. Check for personal angle ("you", "your", "I", "we")
     personal_words = {"you", "your", "i", "we", "our", "my",
-                      "lo", "gue", "kita", "lu", "kamu", "elo"}
+                      "aku", "kamu", "kalian", "kita"}
     has_personal = any(w in text_lower.split() for w in personal_words)
     
     # Score the hook
@@ -1047,7 +1047,7 @@ Article excerpt: {body[:500]}
 Rules:
 - Under 25 words, MAX 2 sentences
 - MUST start with a FACT or NUMBER from the article excerpt above — copy exact numbers, do NOT invent
-- PREFERRED FORMAT (pressbox Pattern C): [Specific amount/number] + [Human consequence] — e.g. 'Rp46,9 triliun. Yang rugi lo juga.'
+- PREFERRED FORMAT (pressbox Pattern C): [Specific amount/number] + [Human consequence] — e.g. 'Rp46,9 triliun. Yang rugi kamu juga.'
 - Capitalize ONE key word
 - End with ? or ! if it's a question/exclamation
 - Mix Indonesian-English naturally
@@ -1283,7 +1283,7 @@ def _check_inter_slide_flow(slides: dict) -> list[str]:
                  'gak', 'bukan', 'lebih', 'paling', 'sangat', 'atau', 'tapi', 'namun',
                  'the', 'is', 'are', 'was', 'and', 'or', 'but', 'in', 'on', 'at', 'to',
                  'for', 'of', 'with', 'by', 'a', 'an', 'that', 'this', 'it', 'not',
-                 'just', 'so', 'lo', 'gue', 'lu', 'kita', 'mereka'}
+                 'just', 'so', 'aku', 'kamu', 'kalian', 'kita', 'mereka'}
     
     slide_keys = [f"slide_{i}" for i in range(1, 7)]
     prev_core = set()
@@ -1390,7 +1390,7 @@ def _check_topic_relevance(slides: dict, article_title: str, article_body: str) 
                  'the', 'is', 'are', 'was', 'and', 'or', 'but', 'in', 'on', 'at', 'to',
                  'for', 'of', 'with', 'by', 'a', 'an', 'that', 'this', 'it', 'not',
                  'just', 'so', 'how', 'what', 'why', 'when', 'new', 'ini', 'itu',
-                 'yang', 'lo', 'gue', 'dan', 'atau', 'tapi', 'juga', 'sudah', 'baru'}
+                 'yang', 'aku', 'kamu', 'dan', 'atau', 'tapi', 'juga', 'sudah', 'baru'}
     
     # ── Check 1: Does article contain tutorial/how-to content? ──
     tutorial_phrases = [
@@ -1625,12 +1625,12 @@ def _pick_cta_instruction() -> str:
     from db import get_db
     
     cta_patterns = [
-        "Pola 1 (Pengalaman): \"Lo pernah [situasi dari artikel]? Share di komen.\"",
-        "Pola 2 (Pilihan A/B): \"Lo lebih milih [A] atau [B]? Bilang di komen.\"",
-        "Pola 3 (Provokatif): \"Menurut lo ini [bagus/berbahaya]? Gue penasaran pendapat lo.\"",
-        "Pola 4 (Prediksi): \"Lo prediksi [tren dari artikel] bakal gimana 5 tahun lagi?\"",
+        "Pola 1 (Pengalaman): \"Kamu pernah [situasi dari artikel]? Share di komen.\"",
+        "Pola 2 (Pilihan A/B): \"Kamu lebih milih [A] atau [B]? Bilang di komen.\"",
+        "Pola 3 (Provokatif): \"Menurut kalian ini [bagus/berbahaya]? Penasaran pendapat kalian.\"",
+        "Pola 4 (Prediksi): \"Kamu prediksi [tren dari artikel] bakal gimana 5 tahun lagi?\"",
         "Pola 5 (Challenge): \"Coba tebak [fakta dari artikel]. Jawab di komen sebelum scroll.\"",
-        "Pola 6 (Reflektif): \"Kalau lo di posisi [situasi dari artikel], lo bakal gimana?\"",
+        "Pola 6 (Reflektif): \"Kalau kamu di posisi [situasi dari artikel], bakal gimana?\"",
         "Pola 7 (Hot take): \"Unpopular opinion: [kontroversial take dari artikel]. Setuju atau enggak?\"",
         "Pola 8 (Story): \"Pernah ngalamin [situasi]? Cerita dong di bawah.\"",
     ]
