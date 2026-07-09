@@ -606,9 +606,9 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             entity_combo_set.add(e)
 
     # Topic keyword dedup — block INDIVIDUAL topic words posted within 4h
-    # e.g., if "phk" was posted 2h ago, skip any article with "phk" in title
-    _TOPIC_KEYWORDS = {"phk", "jht", "bpjs", "karyawan", "ihsg", "saham",
-                       "pajak", "demo", "unjuk", "rasa", "talenta", "digital"}
+    _TOPIC_KEYWORDS = {"mindset", "kebiasaan", "disiplin", "motivasi", "produktif",
+                       "habits", "ikigai", "tujuan", "tujuan hidup", "purpose",
+                       "life hack", "prokrastinasi", "burnout", "anxiety"}
     posted_topic_words = set()
     topic_recent = [row['title'] for row in conn.execute(
         "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='posted' AND p.created_at > datetime('now', '-4 hours')"
@@ -693,31 +693,35 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
                                               "iphone", "galaxy", "smartphone", "ponsel", "hp baru", "fold"]):
                 art["score"] = max(art["score"] - 20, 0)  # stronger penalty -20
 
-            # ── HIDUP CERDAS NICHE BOOST ─────────────────────────
-            # Boost money/work/life topics (proven 5x higher views)
-            hidup_cerdas_high = ["phk", "karyawan", "gaji", "pajak", "jht", "bpjs", "kpr",
-                                 "investasi", "saham", "emas", "rupiah", "dolar", "inflasi",
-                                 "ojol", "grab", "gojek", "driver", "ojek", "mitra",
-                                 "asn", "pns", "pegawai", "pemerintah", "menteri", "presiden",
-                                 "scam", "penipuan", "phishing", "pinjol", "fintech",
-                                 "umkm", "ecommerce", "tokopedia", "shopee", "tiktok",
-                                 "tabungan", "nabung", "cicilan", "utang", "kartu kredit", "paylater"]
-            hidup_cerdas_med = ["startup", "freelance", "side hustle", "remote", "wfh", "hybrid",
-                                "karier", "cv", "resume", "interview", "linkedin",
-                                "thr", "bonus", "insentif", "komisi", "tunjangan",
-                                "harga", "mahal", "murah", "diskon", "promo", "sembako", "pangan",
-                                "listrik", "bbm", "bensin", "gas", "minyak goreng"]
-            hc_high = sum(1 for kw in hidup_cerdas_high if kw in title_l)
-            hc_med = sum(1 for kw in hidup_cerdas_med if kw in title_l)
+            # ── 1% BETTER NICHE BOOST ─────────────────────────
+            # Boost mindset/growth/habits topics
+            one_pct_high = ["mindset", "kebiasaan", "habits", "disiplin", "produktif",
+                            "produktivitas", "motivasi", "inspirasi", "fokus",
+                            "tujuan", "mimpi", "goal", "ikigai", "purpose",
+                            "life hack", "lifehack", "tips", "trik",
+                            "pengembangan diri", "self improvement", "belajar",
+                            "gagal", "sukses", "resilien", "bangkit",
+                            "prokrastinasi", "burnout", "anxiety", "stres",
+                            "kesehatan mental", "mental health", "meditasi",
+                            "buku", "membaca", "wisdom", "kebijaksanaan",
+                            "stoic", "sabar", "ikhlas", "refleksi"]
+            one_pct_med = ["karier", "karir", "pekerjaan", "skill", "keahlian",
+                           "time management", "manajemen waktu", "prioritas",
+                           "reframe", "perspektif", "cara pikir",
+                           "leadership", "kepemimpinan", "komunikasi",
+                           "financial freedom", "bebas finansial", "investasi",
+                           "digital detox", "screen time", "dopamine"]
+            hc_high = sum(1 for kw in one_pct_high if kw in title_l)
+            hc_med = sum(1 for kw in one_pct_med if kw in title_l)
             if hc_high >= 2:
                 art["score"] = min(art["score"] + 25, 150)
-                art.setdefault("analytics_tag", []).append("hidup-cerdas+25")
+                art.setdefault("analytics_tag", []).append("1pct-better+25")
             elif hc_high >= 1:
                 art["score"] = min(art["score"] + 15, 150)
-                art.setdefault("analytics_tag", []).append("hidup-cerdas+15")
+                art.setdefault("analytics_tag", []).append("1pct-better+15")
             elif hc_med >= 2:
                 art["score"] = min(art["score"] + 10, 150)
-                art.setdefault("analytics_tag", []).append("hidup-cerdas+10")
+                art.setdefault("analytics_tag", []).append("1pct-better+10")
 
         # ── LAYER 3a: Analytics Feedback Boosts ──────────────────
         if analytics.get("hook_boosts") or analytics.get("topic_penalties") or analytics.get("cat_boosts") or analytics.get("cat_penalties"):
@@ -758,22 +762,26 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
         # Score relatability via keyword matching instead of LLM.
         # Saves ~10s per article + no false rejections.
         _RELATE_HIGH = [
-            "ai", "chatgpt", "gemini", "copilot", "phk", "layoff", "karyawan",
-            "gaji", "uang", "investasi", "saham", "scam", "penipuan", "phishing",
-            "ojol", "gojek", "grab", "tokopedia", "shopee", "tiktok",
-            "pajak", "bpjs", "jht", "kpr", "kartu kredit",
-            "gratis", "diskon", "promo", "cashback",
-            "iphone", "samsung", "xiaomi", "oppo", "vivo",
-            "viral", "heboh", "korban", "dipecat", "resign",
-            "emiten", "ihsg", "rupiah", "dolar", "inflasi",
+            "mindset", "kebiasaan", "habits", "disiplin", "motivasi",
+            "produktif", "produktivitas", "fokus", "tujuan", "mimpi",
+            "ikigai", "purpose", "life hack", "tips", "trik",
+            "belajar", "pengembangan diri", "self improvement",
+            "gagal", "sukses", "resilien", "bangkit", "prokrastinasi",
+            "burnout", "anxiety", "stres", "kesehatan mental",
+            "meditasi", "mindfulness", "refleksi", "buku", "membaca",
+            "wisdom", "kebijaksanaan", "stoic", "sabar", "ikhlas",
+            "time management", "manajemen waktu", "prioritas",
+            "karier", "karir", "skill", "keahlian",
+            "financial freedom", "bebas finansial", "investasi",
         ]
         _RELATE_MED = [
-            "startup", "fintech", "ecommerce", "cloud", "cyber",
-            "google", "microsoft", "apple", "openai", "meta",
-            "indonesia", "jakarta", "ri", "pemerintah", "presiden",
-            "kreator", "freelance", "remote", "wfh", "kerja",
-            "robot", "drone", "otomatisasi", "teknologi",
-            "game", "esports", "streaming", "netflix", "spotify",
+            "leadership", "kepemimpinan", "komunikasi",
+            "digital detox", "screen time", "dopamine",
+            "growth mindset", "fixed mindset", "reframe", "perspektif",
+            "compound effect", "atomic habits", "1% better",
+            "jurnal", "rutinitas", "kebiasaan pagi", "morning routine",
+            "podcast", "kursus", "pelatihan",
+            "work life balance", "bekerja",
         ]
         relatable_fresh = []
         for art in fresh:
@@ -851,13 +859,13 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             article_id = upsert_article(conn, art)
             print(f"  Article #{article_id} saved to DB")
 
-            # 3. Content type router: carousel (60%) vs text post (40%)
+            # 3. Content type router: 50/50 carousel vs text post
             import random
-            is_text_post = random.random() < 0.40  # 40% text posts
+            is_text_post = random.random() < 0.50  # 50% text posts
             text_result = None
 
             if is_text_post:
-                print(f"  [2/4] Generating TEXT POST (Theo/Marco style)...")
+                print(f"  [2/4] Generating TEXT POST (Ryan 1% Better style)...")
                 text_result = generate_text_post()
                 if not text_result:
                     print(f"  [FALLBACK] Text post failed, trying carousel...")
@@ -896,7 +904,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
                     print(f"  ⏭️ Evaluator skipped (hook_score={hook_score} ≥ 8)")
 
             # 4. Stage post
-            post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", "#KokoKokGitu"),
+            post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", "#1PercentBetter"),
                                 hook_pattern=hook_pattern, hook_score=hook_score, cta_pattern=cta_pattern)
             posted_titles.append(art['title'])
             staged_titles_this_run.append(art['title'])

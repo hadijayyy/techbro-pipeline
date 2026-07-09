@@ -18,8 +18,7 @@ TOP_N = 1
 
 # Source names used by scrape_all_async — single of truth
 SOURCE_NAMES = [
-    "bloomberg_technoz", "cnbc_id_bisnis", "detik_finance", "liputan6_bisnis",
-    "kompas_bisnis"
+    "detik_edu", "hipwee", "mark_manson", "james_clear", "ryan_holiday"
 ]
 
 HEADERS = {
@@ -30,51 +29,69 @@ HEADERS = {
     "Referer": "https://www.google.com/",
 }
 
-# ─── Scoring Keywords (Money Mindset Niche) ───────────────────────
+# ─── Scoring Keywords (1% Better Niche) ───────────────────────
 
 # TIER1 = core niche — scored 3x on title match
 TIER1 = [
-    # Personal Finance Core
-    "gaji", "upah", "penghasilan", "pendapatan", "tabungan", "menabung", "nabung",
-    "budgeting", "anggaran", "dana darurat", "emergency fund", "dana pensiun",
-    "investasi", "saham", "reksadana", "obligasi", "deposito", "emas",
-    "compound interest", "bunga majemuk", "passive income", "cuan", "untung", "rugi",
-    "financial freedom", "bebas finansial", "financial planning", "literasi keuangan",
-    "belajar investasi", "cara investasi", "tips keuangan", "money management",
-    "pengeluaran", "hemat", "boros", "cicilan", "utang", "kartu kredit", "paylater",
-    "bpjs", "jht", "jaminan hari tua", "pensiun", "thr", "bonus",
-    # Money Mindset & Behavior
-    "mindset uang", "mental kaya", "mental miskin", "uang", "duit", "harta",
-    "finansial", "keuangan", "kaya", "miskin", "kemiskinan", "kemakmuran",
-    # Salary & Career (money angle)
-    "negosiasi gaji", "kenaikan gaji", "gaji umr", "gaji pns", "gaji guru",
-    "tunjangan", "insentif", "komisi", "freelance", "side hustle", "penghasilan sampingan",
-    # Indonesian Economy (direct impact)
-    "inflasi", "deflasi", "suku bunga", "bi", "bank indonesia", "ojk",
-    "pajak", "ppn", "pbb", "pajak penghasilan", "npwp",
-    "ihsg", "rupiah", "kurs", "dolar",
-    # Employment (money angle)
-    "phk", "resign", "karyawan", "pekerja", "buruh", "asn", "pns",
-    "umr", "upah minimum", "kerja", "karier",
+    # Mindset & Self-Development
+    "mindset", "pola pikir", "pemikiran", "perspektif", "sudut pandang",
+    "motivasi", "inspirasi", "semangat", "kemauan", "tekad",
+    "disiplin", "konsisten", "istiqomah", "komitmen",
+    "kebiasaan", "habits", "rutinitas", "daily routine",
+    "produktif", "produktivitas", "efisien", "efektif",
+    "fokus", "konsentrasi", "perhatian",
+    # Personal Growth
+    "pengembangan diri", "self improvement", "self development",
+    "belajar", "belajar hal baru", "upgrade diri",
+    "goal setting", "tujuan", "target", "mimpi", "visi",
+    "resolusi", "perubahan", "transformasi",
+    # Ikigai & Purpose
+    "ikigai", "tujuan hidup", "purpose", "makna hidup",
+    "passion", "minat", "bakat", "potensi",
+    # Life Hacks & Tips
+    "life hack", "tips", "trik", "cara", "panduan", "tutorial",
+    "langkah", "strategi", "metode", "teknik", "framework",
+    # Productivity
+    "time management", "manajemen waktu", "prioritas",
+    "to do list", "checklist", "deadline",
+    "prokrastinasi", "procrastination", "menunda",
+    # Mindset Shifts
+    "reframe", "perspektif baru", "cara pikir baru",
+    "mindset shift", "ubah pola pikir",
+    "growth mindset", "fixed mindset",
+    # Stoicism & Philosophy
+    "stoic", "stoicism", "filosofi", "kebijaksanaan", "wisdom",
+    "sabar", "ikhlas", "redha", "tawakal",
+    # Success & Failure
+    "gagal", "kegagalan", "sukses", "keberhasilan",
+    "resilien", "ketahanan", "bangkit", "pantang menyerah",
+    # Habits & Systems
+    "atomic habits", "kebiasaan kecil", "1% better",
+    "compound effect", "efek majemuk",
+    "sistem", "proses", "jalur",
 ]
 
 TIER2 = [
-    # Economy & Policy (affects money)
-    "apbn", "anggaran", "pemerintah", "presiden", "menteri", "komdigi",
-    "prabowo", "kebijakan", "regulasi", "aturan baru", "uu",
-    # Fintech & Banking
-    "bank digital", "e-wallet", "payment", "transaksi", "cashback",
-    "pinjol", "fintech", "startup", "umkm", "ecommerce",
-    # Global (affects Indonesian money)
-    "microsoft", "google", "apple", "nvidia", "meta", "openai",
-    "ai", "chatgpt", "gemini", "teknologi", "digital",
-    # Living costs
-    "harga", "mahal", "murah", "diskon", "promo", "voucher",
-    "listrik", "bbm", "bensin", "gas", "minyak goreng",
-    "sembako", "pangan", "makanan",
-    # Workplace (money adjacent)
-    "wfh", "hybrid", "remote work", "freelance", "remote",
-    "linkedin", "personal branding", "cv", "resume", "interview",
+    # Wellness & Mental Health
+    "kesehatan mental", "mental health", "anxiety", "stres",
+    "burnout", "kelelahan", "work life balance",
+    "meditasi", "mindfulness", "jurnal", "refleksi",
+    # Books & Learning
+    "buku", "membaca", "literasi", "pengetahuan",
+    "podcast", "audiobook", "kursus", "pelatihan",
+    # Finance (mindset angle)
+    "keuangan", "uang", "duit", "investasi", "nabung",
+    "dana darurat", "budgeting", "financial freedom",
+    # Career (growth angle)
+    "karier", "karir", "pekerjaan", "kerja",
+    "skill", "keahlian", "kompetensi",
+    "interview", "cv", "resume", "linkedin",
+    # Relationships & Social
+    "hubungan", "relasi", "komunikasi",
+    "leadership", "kepemimpinan", "influence",
+    # Digital & Tech (life angle)
+    "digital detox", "screen time", "teknologi",
+    "sosial media", "dopamine", "kecanduan",
 ]
 
 # TIER3 = general support — scored 1x
@@ -701,53 +718,266 @@ async def scrape_bloomberg_technoz(client: httpx.AsyncClient) -> list[dict]:
     return articles
 
 
+async def scrape_detik_edu(client: httpx.AsyncClient) -> list[dict]:
+    """Scrape Detik Edu articles."""
+    items = []
+    try:
+        r = await client.get("https://www.detik.com/edu/rss", timeout=12)
+        from email.utils import parsedate_to_datetime
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>([^<]+)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip()
+            dt = None
+            if date_m:
+                try:
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    
+    DETIK_SELECTORS = [("article", None), ("div", "detail__body"), ("div", "detail-content")]
+    articles = []
+    for url, rss_date in items[:15]:
+        try:
+            r = await client.get(url, timeout=15)
+            soup = BeautifulSoup(r.text, "html.parser")
+            title = soup.find("meta", property="og:title")
+            title = title["content"] if title else "Untitled"
+            body = extract_body(soup, DETIK_SELECTORS)
+            image = get_og_image(soup)
+            articles.append({
+                "title": title,
+                "url": url,
+                "date": rss_date,
+                "body": body,
+                "image": image,
+                "source": "detik_edu"
+            })
+        except Exception:
+            continue
+    return articles
+
+
+async def scrape_hipwee(client: httpx.AsyncClient) -> list[dict]:
+    """Scrape Hipwee articles."""
+    items = []
+    try:
+        r = await client.get("https://www.hipwee.com/feed/", timeout=12)
+        from email.utils import parsedate_to_datetime
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>([^<]+)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip()
+            dt = None
+            if date_m:
+                try:
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    
+    articles = []
+    HIPWEE_SELECTORS = [("article", None), ("div", "entry-content"), ("div", "post-content")]
+    for url, rss_date in items[:15]:
+        try:
+            r = await client.get(url, timeout=15)
+            soup = BeautifulSoup(r.text, "html.parser")
+            title = soup.find("meta", property="og:title")
+            title = title["content"] if title else "Untitled"
+            body = extract_body(soup, HIPWEE_SELECTORS)
+            image = get_og_image(soup)
+            articles.append({
+                "title": title,
+                "url": url,
+                "date": rss_date,
+                "body": body,
+                "image": image,
+                "source": "hipwee"
+            })
+        except Exception:
+            continue
+    return articles
+
+
+async def scrape_mark_manson(client: httpx.AsyncClient) -> list[dict]:
+    """Scrape Mark Manson articles."""
+    items = []
+    try:
+        r = await client.get("https://markmanson.net/feed", timeout=12)
+        from email.utils import parsedate_to_datetime
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>([^<]+)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip()
+            dt = None
+            if date_m:
+                try:
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    
+    articles = []
+    MM_SELECTORS = [("article", None), ("div", "entry-content"), ("div", "post-content")]
+    for url, rss_date in items[:10]:
+        try:
+            r = await client.get(url, timeout=15)
+            soup = BeautifulSoup(r.text, "html.parser")
+            title = soup.find("meta", property="og:title")
+            title = title["content"] if title else "Untitled"
+            body = extract_body(soup, MM_SELECTORS)
+            image = get_og_image(soup)
+            articles.append({
+                "title": title,
+                "url": url,
+                "date": rss_date,
+                "body": body,
+                "image": image,
+                "source": "mark_manson"
+            })
+        except Exception:
+            continue
+    return articles
+
+
+async def scrape_james_clear(client: httpx.AsyncClient) -> list[dict]:
+    """Scrape James Clear articles."""
+    items = []
+    try:
+        r = await client.get("https://jamesclear.com/feed", timeout=12)
+        from email.utils import parsedate_to_datetime
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>([^<]+)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip()
+            dt = None
+            if date_m:
+                try:
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    
+    articles = []
+    JC_SELECTORS = [("article", None), ("div", "entry-content"), ("div", "post-content")]
+    for url, rss_date in items[:10]:
+        try:
+            r = await client.get(url, timeout=15)
+            soup = BeautifulSoup(r.text, "html.parser")
+            title = soup.find("meta", property="og:title")
+            title = title["content"] if title else "Untitled"
+            body = extract_body(soup, JC_SELECTORS)
+            image = get_og_image(soup)
+            articles.append({
+                "title": title,
+                "url": url,
+                "date": rss_date,
+                "body": body,
+                "image": image,
+                "source": "james_clear"
+            })
+        except Exception:
+            continue
+    return articles
+
+
+async def scrape_ryan_holiday(client: httpx.AsyncClient) -> list[dict]:
+    """Scrape Ryan Holiday articles."""
+    items = []
+    try:
+        r = await client.get("https://ryanholiday.net/feed/", timeout=12)
+        from email.utils import parsedate_to_datetime
+        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
+            block = item_block.group(1)
+            link_m = re.search(r"<link>([^<]+)</link>", block)
+            date_m = re.search(r"<pubDate>([^<]+)</pubDate>", block)
+            if not link_m:
+                continue
+            url = link_m.group(1).strip()
+            dt = None
+            if date_m:
+                try:
+                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
+                except Exception:
+                    pass
+            items.append((url, dt))
+    except Exception:
+        pass
+    
+    articles = []
+    RH_SELECTORS = [("article", None), ("div", "entry-content"), ("div", "post-content")]
+    for url, rss_date in items[:10]:
+        try:
+            r = await client.get(url, timeout=15)
+            soup = BeautifulSoup(r.text, "html.parser")
+            title = soup.find("meta", property="og:title")
+            title = title["content"] if title else "Untitled"
+            body = extract_body(soup, RH_SELECTORS)
+            image = get_og_image(soup)
+            articles.append({
+                "title": title,
+                "url": url,
+                "date": rss_date,
+                "body": body,
+                "image": image,
+                "source": "ryan_holiday"
+            })
+        except Exception:
+            continue
+    return articles
+
+
 # ─── Main Scraper ────────────────────────────────────────────────
 
 async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
-        # 1. Gather links from all sources
+        # 1. Gather articles from all sources (new functions return dicts directly)
         link_tasks = await asyncio.gather(
-            scrape_bloomberg_technoz(client),  # scrape langsung
-            get_links_cnbc_id_bisnis(client),
-            get_links_detik_finance(client),
-            get_links_liputan6_bisnis(client),
-            get_links_kompas_bisnis(client),
+            scrape_detik_edu(client),
+            scrape_hipwee(client),
+            scrape_mark_manson(client),
+            scrape_james_clear(client),
+            scrape_ryan_holiday(client),
         )
 
-        # 2. Build scrape tasks
-        all_tasks = []
-        seen_urls = set()
+    # 2. Collect all articles (new functions already return full article dicts)
+    all_articles = []
+    for src_name, articles in zip(SOURCE_NAMES, link_tasks):
+        if not isinstance(articles, list):
+            continue
+        for art in articles:
+            if isinstance(art, dict) and 'url' in art and 'title' in art:
+                all_articles.append(art)
 
-        for src, links in zip(SOURCE_NAMES, link_tasks):
-            if not isinstance(links, list) or not links:
-                continue
-            for item in links:
-                if isinstance(item, tuple) and len(item) == 3:
-                    url, rss_date = item
-                elif isinstance(item, tuple) and len(item) == 2:
-                    url, rss_date = item
-                else:
-                    continue
-                if url in seen_urls:
-                    continue
-                seen_urls.add(url)
-                all_tasks.append(
-                    scrape_article_async(url, client, src, rss_date=rss_date)
-                )
-
-        # 3. Scrape all articles
-        results = await asyncio.gather(*all_tasks, return_exceptions=True)
-
-    # 4. Score and sort with source diversity
+    # 3. Score and sort with source diversity
     articles = []
     seen = set()
-    for art in results:
-        if not isinstance(art, dict):
-            continue
+    for art in all_articles:
         if art["url"] in seen:
             continue
         seen.add(art["url"])
-        art["score"] = score_article(art["title"], art["body"], art["date"])
+        art["score"] = score_article(art["title"], art.get("body", ""), art.get("date"))
         if art["score"] > 10:
             articles.append(art)
 
