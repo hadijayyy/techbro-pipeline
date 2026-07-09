@@ -762,6 +762,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
         # Score relatability via keyword matching instead of LLM.
         # Saves ~10s per article + no false rejections.
         _RELATE_HIGH = [
+            # Indonesian
             "mindset", "kebiasaan", "habits", "disiplin", "motivasi",
             "produktif", "produktivitas", "fokus", "tujuan", "mimpi",
             "ikigai", "purpose", "life hack", "tips", "trik",
@@ -773,8 +774,30 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             "time management", "manajemen waktu", "prioritas",
             "karier", "karir", "skill", "keahlian",
             "financial freedom", "bebas finansial", "investasi",
+            # English — self-dev creators
+            "habit", "habits", "discipline", "consistent", "consistency",
+            "productive", "productivity", "focus", "goal", "goals",
+            "learn", "learning", "grow", "growth", "improve", "improvement",
+            "success", "failure", "fail", "resilient", "resilience",
+            "overcome", "mindset", "motivation", "inspire", "inspiring",
+            "purpose", "meaning", "meaningful", "passion", "fulfillment",
+            "wisdom", "stoic", "philosophy", "patience", "virtue",
+            "procrastinate", "procrastination", "overcome", "lazy",
+            "burnout", "stress", "anxiety", "mental health", "wellbeing",
+            "time management", "deep work", "priority", "schedule",
+            "book", "reading", "read", "knowledge", "lesson", "insight",
+            "money", "rich", "wealth", "saving", "income", "financial",
+            "career", "work", "job", "salary", "promotion",
+            "skill", "skills", "learn", "study", "course",
+            "personal brand", "brand", "audience", "entrepreneur",
+            "startup", "freelance", "business", "hustle", "hard work",
+            "system", "process", "compound", "incremental", "marginal",
+            "atomic", "change", "transform", "paradigm", "perspective",
+            "step", "steps", "framework", "method", "technique", "guide",
+            "strategy", "strategies", "hack", "hacks", "shortcut",
         ]
         _RELATE_MED = [
+            # Indonesian
             "leadership", "kepemimpinan", "komunikasi",
             "digital detox", "screen time", "dopamine",
             "growth mindset", "fixed mindset", "reframe", "perspektif",
@@ -782,6 +805,14 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             "jurnal", "rutinitas", "kebiasaan pagi", "morning routine",
             "podcast", "kursus", "pelatihan",
             "work life balance", "bekerja",
+            # English
+            "leadership", "communicate", "influence", "social",
+            "phone", "phone addiction", "distraction", "unplug",
+            "routine", "morning", "evening", "daily",
+            "podcast", "course", "lesson", "insight",
+            "balance", "wellness", "well-being", "calm", "meditation",
+            "journal", "journaling", "reflect", "reflection",
+            "rich", "poor", "money", "wealthy", "debt", "save",
         ]
         relatable_fresh = []
         for art in fresh:

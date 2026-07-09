@@ -38,38 +38,61 @@ TIER1 = [
     "mindset", "pola pikir", "pemikiran", "perspektif", "sudut pandang",
     "motivasi", "inspirasi", "semangat", "kemauan", "tekad",
     "disiplin", "konsisten", "istiqomah", "komitmen",
+    "discipline", "consistency", "commitment", "dedication",
     "kebiasaan", "habits", "rutinitas", "daily routine",
+    "habit", "routine", "practice", "ritual",
     "produktif", "produktivitas", "efisien", "efektif",
+    "productive", "productivity", "efficient", "effective",
     "fokus", "konsentrasi", "perhatian",
+    "focus", "concentration", "attention", "deep work",
     # Personal Growth
     "pengembangan diri", "self improvement", "self development",
+    "personal growth", "personal development", "self help", "self mastery",
     "belajar", "belajar hal baru", "upgrade diri",
+    "learn", "learning", "study", "skill", "skills",
     "goal setting", "tujuan", "target", "mimpi", "visi",
+    "goal", "goals", "ambition", "vision", "aspire",
     "resolusi", "perubahan", "transformasi",
+    "change", "growth", "improve", "improvement", "transform",
     # Ikigai & Purpose
     "ikigai", "tujuan hidup", "purpose", "makna hidup",
+    "meaning", "meaningful", "fulfillment", "calling", "passion",
     "passion", "minat", "bakat", "potensi",
     # Life Hacks & Tips
     "life hack", "tips", "trik", "cara", "panduan", "tutorial",
+    "hack", "shortcut", "trick", "guide", "method",
     "langkah", "strategi", "metode", "teknik", "framework",
+    "strategy", "technique", "framework", "system", "step",
     # Productivity
     "time management", "manajemen waktu", "prioritas",
+    "priority", "schedule", "planning", "organize",
     "to do list", "checklist", "deadline",
     "prokrastinasi", "procrastination", "menunda",
+    "procrastinate", "lazy", "laziness", "delay", "overcome",
     # Mindset Shifts
     "reframe", "perspektif baru", "cara pikir baru",
     "mindset shift", "ubah pola pikir",
     "growth mindset", "fixed mindset",
+    "mindset", "perspective", "paradigm",
     # Stoicism & Philosophy
     "stoic", "stoicism", "filosofi", "kebijaksanaan", "wisdom",
     "sabar", "ikhlas", "redha", "tawakal",
+    "philosophy", "virtue", "resilience", "endure", "patience",
     # Success & Failure
     "gagal", "kegagalan", "sukses", "keberhasilan",
     "resilien", "ketahanan", "bangkit", "pantang menyerah",
+    "success", "failure", "fail", "resilient", "bounce back", "persevere",
+    "win", "winner", "achieve", "achievement", "overcome",
     # Habits & Systems
     "atomic habits", "kebiasaan kecil", "1% better",
     "compound effect", "efek majemuk",
     "sistem", "proses", "jalur",
+    "system", "process", "compound", "tiny", "marginal", "incremental",
+    # Work & Career
+    "work", "career", "job", "money", "rich", "wealth",
+    "kerjakeras", "hard work", "burnout", "hustle",
+    "audience", "brand", "personal brand", "marketing",
+    "entrepreneur", "business", "startup", "freelance",
 ]
 
 TIER2 = [
@@ -77,22 +100,29 @@ TIER2 = [
     "kesehatan mental", "mental health", "anxiety", "stres",
     "burnout", "kelelahan", "work life balance",
     "meditasi", "mindfulness", "jurnal", "refleksi",
+    "mental", "wellbeing", "well-being", "wellness", "meditation", "journal",
+    "stress", "exhaustion", "tired", "overwhelm", "calm",
     # Books & Learning
     "buku", "membaca", "literasi", "pengetahuan",
     "podcast", "audiobook", "kursus", "pelatihan",
+    "book", "reading", "read", "knowledge", "course", "lesson", "insight",
     # Finance (mindset angle)
     "keuangan", "uang", "duit", "investasi", "nabung",
     "dana darurat", "budgeting", "financial freedom",
+    "money", "save", "saving", "invest", "wealth", "financial", "budget", "income",
     # Career (growth angle)
     "karier", "karir", "pekerjaan", "kerja",
     "skill", "keahlian", "kompetensi",
     "interview", "cv", "resume", "linkedin",
+    "career", "job", "work", "hire", "salary", "promotion", "employer",
     # Relationships & Social
     "hubungan", "relasi", "komunikasi",
     "leadership", "kepemimpinan", "influence",
+    "relationship", "communicate", "lead", "leader", "influence", "social",
     # Digital & Tech (life angle)
     "digital detox", "screen time", "teknologi",
     "sosial media", "dopamine", "kecanduan",
+    "phone", "phone addiction", "distraction", "productive", "unplug",
 ]
 
 # TIER3 = general support — scored 1x
