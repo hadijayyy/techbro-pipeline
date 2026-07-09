@@ -2125,38 +2125,51 @@ JSON: {{"text": "...", "type": "opinion|personal|question|reaction"}}
 
 def generate_text_post(hot_topics: Optional[list[str]] = None) -> Optional[dict]:
     """Generate a text post (non-carousel) — Theo/Marco style.
+    Uses real scraped articles as source material.
     Types: opinion, personal, question, reaction.
     """
     import random
 
-    # Get trending topics if available
-    topics_str = ""
-    if hot_topics:
-        topics_str = ", ".join(hot_topics[:5])
-    else:
-        try:
-            from db import get_db
-            conn = get_db()
-            rows = conn.execute("""
-                SELECT a.title FROM posts p
-                JOIN articles a ON p.article_id = a.id
-                WHERE p.status = 'posted'
-                ORDER BY p.posted_at DESC LIMIT 5
-            """).fetchall()
-            conn.close()
-            topics_str = ", ".join([r['title'] for r in rows])
-        except Exception:
-            topics_str = ""
+    # Fetch recent articles from DB as source material
+    articles_str = ""
+    try:
+        from db import get_db
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT a.title, a.body, a.url FROM articles a
+            WHERE a.body IS NOT NULL AND LENGTH(a.body) > 100
+            ORDER BY a.created_at DESC LIMIT 10
+        """).fetchall()
+        conn.close()
+        if rows:
+            # Pick 3 random articles as context
+            picked = random.sample(rows, min(3, len(rows)))
+            articles_str = "\n\n".join([
+                f"ARTICLE: {r['title']}\nSNIPPET: {r['body'][:200]}\nURL: {r['url']}"
+                for r in picked
+            ])
+    except Exception:
+        pass
+
+    if not articles_str:
+        # Fallback: use hot_topics
+        if hot_topics:
+            articles_str = "Topik terkini: " + ", ".join(hot_topics[:5])
+        else:
+            return None  # No source material available
 
     # Pick random type with weights
     types = ["opinion"]*4 + ["personal"]*3 + ["question"]*2 + ["reaction"]*6
     chosen_type = random.choice(types)
 
-    user_msg = f"""Buat text post tipe {chosen_type}.
+    user_msg = f"""Buat text post tipe {chosen_type} BERDASARKAN artikel di bawah.
 
-Topik/berita terkini: {topics_str}
+Artikel sumber:
+{articles_str}
 
-Pilih salah satu topik yang BELUM dibahas di atas. Buat beneran natural, bukan template.
+Pilih 1 artikel. Buat opini/reaksi/cerita BERDASARKAN isi artikel — jangan ngarang fakta.
+Boleh tambah perspective pribadi, tapi fakta harus dari artikel.
+
 Output JSON: {{"text": "...", "type": "{chosen_type}"}}"""
 
     for attempt in range(3):
