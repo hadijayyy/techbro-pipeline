@@ -30,56 +30,60 @@ HEADERS = {
     "Referer": "https://www.google.com/",
 }
 
-# ─── Scoring Keywords (Educator Niche) ──────────────────────────
+# ─── Scoring Keywords (Money Mindset Niche) ───────────────────────
 
 # TIER1 = core niche — scored 3x on title match
 TIER1 = [
-    # AI & Tech Tools (Practical)
-    "ai", "chatgpt", "gemini", "claude", "copilot", "ai tools", "prompt", "prompt engineering",
-    "automation", "otomatisasi", "no-code", "ai productivity", "ai agent",
-    "ai untuk kerja", "cara pakai ai", "ai gratis",
-    "belajar ai", "tutorial ai", "ai untuk pemula", "ai buat",
     # Personal Finance Core
+    "gaji", "upah", "penghasilan", "pendapatan", "tabungan", "menabung", "nabung",
+    "budgeting", "anggaran", "dana darurat", "emergency fund", "dana pensiun",
     "investasi", "saham", "reksadana", "obligasi", "deposito", "emas",
-    "nabung", "menabung", "budgeting", "anggaran", "dana darurat", "emergency fund",
-    "compound interest", "bunga majemuk", "passive income", "cuan",
-    "financial freedom", "bebas finansial", "financial planning",
+    "compound interest", "bunga majemuk", "passive income", "cuan", "untung", "rugi",
+    "financial freedom", "bebas finansial", "financial planning", "literasi keuangan",
     "belajar investasi", "cara investasi", "tips keuangan", "money management",
-    # Cybersecurity & Digital Safety
-    "scam", "penipuan", "phishing", "data breach", "privacy", "keamanan data",
-    "password manager", "2fa", "cyber hygiene",
-    # Productivity & Career
-    "productivity", "produktivitas", "upskilling", "skill", "cv", "resume",
-    "interview", "wawancara kerja", "gaji", "negosiasi gaji", "side hustle",
-    "freelance", "remote work", "digital nomad",
-    # Education & Learning (personal branding focus)
-    "edukasi", "belajar", "tips", "tutorial", "panduan", "langkah", "cara",
-    "strategi", "rahasia", "ternyata", "kesalahan umum", "mistake",
-    "peluang", "kesempatan", "tren", "perubahan", "dampak",
-    # Indonesian-local relatable (high engagement)
-    "asn", "pns", "pegawai", "karyawan", "pekerja", "buruh",
-    "gaji", "thr", "bpjs", "pajak", "npwp", "ktp", "nik",
-    "ojk", "kominfo", "pemerintah", "menteri", "presiden",
-    "komdigi", "kemenkominfo", "ppn", "pbb", "pajak penghasilan",
-]
-TIER2 = [
-    # Indonesian Economy & Fintech
-    "startup", "pendanaan", "umkm", "digital", "ecommerce", "e-commerce",
-    "bank digital", "e-wallet", "payment", "transaksi", "cashback", "promo", "voucher",
-    # Global Tech (relevan ke tools/trend)
-    "openai", "google", "microsoft", "meta", "apple", "nvidia",
-    "semiconductor", "chip", "app", "aplikasi", "platform",
-    # Career & Workplace Trends
-    "resign", "quiet quitting", "kerja remote", "wfh", "hybrid work",
-    "linkedin", "personal branding", "portofolio",
+    "pengeluaran", "hemat", "boros", "cicilan", "utang", "kartu kredit", "paylater",
+    "bpjs", "jht", "jaminan hari tua", "pensiun", "thr", "bonus",
     # Money Mindset & Behavior
-    "fomo", "literasi keuangan", "utang", "cicilan", "kartu kredit", "paylater",
+    "mindset uang", "mental kaya", "mental miskin", "uang", "duit", "harta",
+    "finansial", "keuangan", "kaya", "miskin", "kemiskinan", "kemakmuran",
+    # Salary & Career (money angle)
+    "negosiasi gaji", "kenaikan gaji", "gaji umr", "gaji pns", "gaji guru",
+    "tunjangan", "insentif", "komisi", "freelance", "side hustle", "penghasilan sampingan",
+    # Indonesian Economy (direct impact)
+    "inflasi", "deflasi", "suku bunga", "bi", "bank indonesia", "ojk",
+    "pajak", "ppn", "pbb", "pajak penghasilan", "npwp",
+    "ihsg", "rupiah", "kurs", "dolar",
+    # Employment (money angle)
+    "phk", "resign", "karyawan", "pekerja", "buruh", "asn", "pns",
+    "umr", "upah minimum", "kerja", "karier",
+]
+
+TIER2 = [
+    # Economy & Policy (affects money)
+    "apbn", "anggaran", "pemerintah", "presiden", "menteri", "komdigi",
+    "prabowo", "kebijakan", "regulasi", "aturan baru", "uu",
+    # Fintech & Banking
+    "bank digital", "e-wallet", "payment", "transaksi", "cashback",
+    "pinjol", "fintech", "startup", "umkm", "ecommerce",
+    # Global (affects Indonesian money)
+    "microsoft", "google", "apple", "nvidia", "meta", "openai",
+    "ai", "chatgpt", "gemini", "teknologi", "digital",
+    # Living costs
+    "harga", "mahal", "murah", "diskon", "promo", "voucher",
+    "listrik", "bbm", "bensin", "gas", "minyak goreng",
+    "sembako", "pangan", "makanan",
+    # Workplace (money adjacent)
+    "wfh", "hybrid", "remote work", "freelance", "remote",
+    "linkedin", "personal branding", "cv", "resume", "interview",
 ]
 
 # TIER3 = general support — scored 1x
 TIER3 = [
-    "technology", "innovation", "digital", "teknologi", "inovasi",
-    "tips", "trik", "cara", "panduan", "tutorial", "step by step",
+    "tips", "trik", "cara", "panduan", "tutorial", "langkah",
+    "strategi", "rahasia", "ternyata", "kesalahan umum",
+    "peluang", "kesempatan", "tren", "perubahan", "dampak",
+    "studi", "riset", "data", "fakta", "angka", "survey",
+    "indonesia", "jakarta", "ri", "nasional",
     "rahasia", "ternyata", "kesalahan umum", "mistake",
 ]
 

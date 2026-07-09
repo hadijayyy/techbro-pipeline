@@ -1,11 +1,14 @@
 # 🇮🇩 TechBro Pipeline
 
-Indonesian tech/AI carousel generator for Threads (@ryanhadiii). Scrapes, scores, generates, and posts 6-slide narrative carousels automatically. Pressbox-pattern architecture.
+Indonesian **money mindset** carousel generator for Threads (@ryanhadiii). Scrapes, scores, generates, and posts 6-slide narrative carousels automatically. **Eva Alicia style**: blunt, personal, truth bombs that challenge assumptions. Pressbox-pattern architecture.
+
+**Voice:** "Gue" — temen yang pernah di posisi lo, blak-blakan tapi peduli.
+**Niche:** Reframe cara lo mikir soal uang — dari gaji, investasi, sampe mindset finansial.
 
 ## How It Works
 
 ```
-5 Sources → Scrape + Score → LLM Generate → Quality Gates → Post to Threads
+5 Sources → Scrape + Score (money keywords) → LLM Generate (Eva Alicia voice) → Quality Gates → Post to Threads
 ```
 
 1. **Scrape** — Pulls articles from 5 Indonesian news sources (Bloomberg Technoz, CNBC, Detik, Liputan6 Tekno, Liputan6 Bisnis)
@@ -30,32 +33,31 @@ Mengikuti **Viral AI Threads Framework** — `Attention → Curiosity → Eviden
 
 | Slide | Role | Target Reaction | Words |
 |-------|------|----------------|-------|
-| 1 | **Pattern Interrupt (Hook)** — emosi + curiosity, stop scroll | "Apa maksudnya?" | <25 |
-| 2 | **Context** — fakta/data/riset, bangun kredibilitas | "Oh ternyata..." | <40 |
-| 3 | **Reframe** — ubah cara pikir, kontra-intuitif | "Serius?" | <40 |
-| 4 | **Explain Why** — analogi/studi kasus, bikin "masuk akal" | "Pantes..." | <40 |
-| 5 | **Actionable Framework** — checklist/SOP/template, trigger SAVE | "Gue harus save." | <40 |
-| 6 | **Conclusion + CTA** — ringkasan 1 kalimat + ajakan | "Gue share ke teman." | <30 |
+| 1 | **Truth Bomb** — reframe asumsi, "Lo pikir X?" | "Serius?" | <25 |
+| 2 | **Fakta + Cerita** — data dari artikel + konteks personal | "Gue juga ngalamin" | <40 |
+| 3 | **Reframe** — "Yang sebenarnya terjadi bukan X, tapi Y" | "Oh..." | <40 |
+| 4 | **Explain Why** — analogi kehidupan sehari-hari | "Pantes..." | <40 |
+| 5 | **Langkah Konkret** — action steps spesifik, trigger SAVE | "Gue harus save." | <40 |
+| 6 | **Ringkasan + Challenge** — 1 kalimat kuat + "Lo setuju?" | "Gue comment ah." | <30 |
 
 **Golden Rules:**
 - 1 ide = 1 slide (jangan campur)
 - Kalimat pendek: 5-12 kata per kalimat
 - Setiap slide menghasilkan pertanyaan berikutnya (curiosity chain)
+- Eva Alicia style: blunt, personal, caring
 
 ## Content Rules
 
-- **Hook langsung ke fakta** — tanpa "bayangin lo lagi..." atau analogi random
-- **Pattern C (Default)** — `[Specific number] + [Human consequence] + [Reply bait]` — proven 500K+ views
+- **Truth bomb hook** — slide 1 nabrak asumsi, bukan data drop dingin
+- **Personal voice** — "Gue pernah..." / "Lo pikir...?" / challenge cara pikir
+- **Money angle** — SEMUA konten harus ada sudut finansial (PHK → keamanan finansial, harga naik → budgeting)
 - **Reframe wajib** — slide 3 HARUS ubah perspektif, kontra-intuitif (inti konten)
-- **Explain Why** — slide 4 kasih analogi/studi kasus yang bikin "masuk akal"
-- **Framework = Save trigger** — slide 5 kasih checklist/SOP/template yang langsung bisa dipraktekkan
-- **Ringkasan** — slide 6 mulai dengan poin utama sebelum CTA
+- **Explain Why** — slide 4 kasih analogi kehidupan sehari-hari yang bikin "masuk akal"
+- **Langkah spesifik** — slide 5 kasih steps yang bisa langsung diterapkan, bukan "belajar lebih banyak"
+- **Challenge CTA** — slide 6 akhir dengan "Lo setuju atau enggak?" / "Lo masih mau defend ini?"
 - **Inter-slide flow** — slide 2 HARUS expand dari slide 1, JANGAN lompat topik
-- **Jargon validator** — istilah asing WAJIB diterangkan dalam bahasa Indonesia
-- **Cliffhanger** — slide 1-5 wajib akhir dengan kalimat gantung
 - **Anti-hallucination** — semua fakta/angka dari artikel, grounding check strips unverified claims
 - **No product promo** — auto-zero score untuk artikel product launch/review
-- **No fake quotes** — kutipan hanya dari narasumber asli
 - **No em-dash** — postprocessor replaces (—) → koma
 - **No cringe** — banned phrases stripped (geleng-geleng, gila sih, kebayang gak, dll)
 - **Voice** — Content Creator, 27 y/o, casual Jakarta, "lo/gua"
