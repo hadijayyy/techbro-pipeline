@@ -760,7 +760,7 @@ def _clean(text: str) -> str:
     out = re.sub(r'(?:\d+\.\n\n.+\n\n){2,}', _rejoin_items, out)
 
     # Step 4: add newline before "N. " that directly follows text (no newline separator)
-    out = re.sub(r'(\S)(\d+\.?\s)', lambda m: m.group(1) + '\n' + m.group(2), out)
+    out = re.sub(r'(\S)(\d+\.\s)', lambda m: m.group(1) + '\n' + m.group(2), out)
 
     # Capitalize first letter of slide (LLM sometimes starts with lowercase connectors like "gini:", "terus:")
     if out and out[0].islower():

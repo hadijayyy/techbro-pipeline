@@ -710,6 +710,13 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
                         art["score"] = max(art["score"] + pts, 0)
                         art.setdefault("analytics_tag", []).append(f"cat{pts}({cat})")
 
+                # Hook-type boost: if article is likely to generate a high-performing hook type
+                hook_type = _classify_hook_type(art["title"])  # classify from title keywords
+                if hook_type in analytics.get("hook_type_boosts", {}):
+                    pts = analytics["hook_type_boosts"][hook_type]
+                    art["score"] = min(art["score"] + pts, 150)
+                    art.setdefault("analytics_tag", []).append(f"hook-type+{pts}({hook_type})")
+
         # ── LAYER 3b: Relatability Check (keyword-based, pressbox pattern) ──
         # Score relatability via keyword matching instead of LLM.
         # Saves ~10s per article + no false rejections.
