@@ -964,6 +964,21 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
         print(f"  [ERR] JSON parse failed: {e}")
         print(f"  [ERR] Raw response (first 500): {raw[:500]}")
         return None
+    # Handle {"slides": [{"slide": 1, "content": "..."}, ...]} format
+    if "slides" in data and isinstance(data["slides"], list):
+        converted = {}
+        for item in data["slides"]:
+            if isinstance(item, dict):
+                idx = item.get("slide", item.get("index", item.get("number", 0)))
+                content = item.get("content", item.get("text", item.get("body", "")))
+                if idx and content:
+                    converted[f"slide_{idx}"] = content
+        if converted:
+            data = converted
+            if "caption" not in data:
+                data["caption"] = ""
+            if "hashtags" not in data:
+                data["hashtags"] = "#1PercentBetter"
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:
             data[key] = _format_lists(_clean(data[key]))
