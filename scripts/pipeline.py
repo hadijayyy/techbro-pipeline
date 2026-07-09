@@ -501,6 +501,17 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
     from datetime import datetime, timezone, timedelta
     now_wib = datetime.now(timezone(timedelta(hours=7)))
     current_hour = now_wib.hour
+
+    # 0a. Post any stuck staged posts from previous runs FIRST (regardless of hours)
+    if not dry_run:
+        stuck = conn.execute("SELECT COUNT(*) as c FROM posts WHERE status='staged'").fetchone()['c']
+        if stuck > 0:
+            print(f"[RECOVERY] {stuck} stuck staged posts — posting oldest first...")
+            try:
+                post_from_db(limit=1)
+            except Exception as e:
+                print(f"[RECOVERY] Failed: {e}")
+
     if not (POSTING_HOURS[0] <= current_hour < POSTING_HOURS[1]) and not dry_run:
         print(f"Outside posting hours ({POSTING_HOURS[0]}:00-{POSTING_HOURS[1]}:00 WIB). Now: {current_hour}:00. Skipping.")
         return False
