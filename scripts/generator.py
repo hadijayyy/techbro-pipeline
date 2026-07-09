@@ -5,6 +5,7 @@ Switch language with CONTENT_LANG=en|id in .env
 import httpx
 import json
 import re
+import time
 from typing import Optional
 
 import os
@@ -37,10 +38,10 @@ Flat JSON: "slide_1" to "slide_6", "caption", "hashtags". Write in prose (no bul
 - slide_5 (Langkah Konkret, 30-50 words, MAX 3 sentences): 2-3 actionable steps. SPECIFIC — not "learn more" but "find course X on platform Y." This is the SAVE trigger.
 - slide_6 (Ringkasan + Challenge, 30-40 words, MAX 2 sentences): Sentence 1: powerful one-liner summary (truth bomb). Sentence 2: CHALLENGE — "Kalian setuju atau enggak?" / "Kamu masih mau defend ini?"
 
-caption: 1-2 sentence summary + hashtags
+caption: 1-2 sentence summary + 2-3 natural emojis + #KokoKokGitu hashtag
 
 [CONSTRAINTS]
-- MUST NOT use emojis/emoticons.
+- Use 2-3 emojis per post — natural, not forced.
 - MUST NOT use em-dashes (—) or en-dashes (–); use commas instead.
 - MUST NOT use "link in bio" or fabricated quotes.
 - MUST NOT fabricate stories, events, names, or statistics.
@@ -120,6 +121,7 @@ WAJIB: setiap konten HARUS bikin pembaca mikir ulang soal keuangannya.
 Bukan cuma "ini berita" tapi "ini kenapa harus ubah cara ngelola duit."
 
 Gaya: kasual, blunt, "aku/kamu/kalian", kayak ngobrol sama temen deket.
+Pakai 2-3 emoji per post — natural, bukan forced. Contoh: 📊💸🧠🤔😅
 Bahasa: SESEDERHANA mungkin. Anak kecil harus ngerti.
 Jangan pernah pake kata-kata yang bikin orang mikir keras.
 Kalau ada istilah teknis → jelasin pake bahasa sehari-hari.
@@ -397,9 +399,9 @@ Caption: 2-3 baris MAX.
   Line 1 = ANGKA/FAKTA paling SHOCKING dari artikel (satu kalimat pendek).
   Line 2 = KONSEKUENSI atau dampaknya.
   Line 3 = (opsional) pertanyaan provokatif.
-  Zero emoji. Zero hashtags.
-  Contoh: "DDR5 harganya 2x lipat DDR4. Tapi Meta malah pake yang lama di server AI. Lo masih pikir baru = lebih baik?"
-Field "hashtags": isi maksimal 1 hashtag saja (bukan list).
+  Pake 2-3 emoji yang natural (di tengah atau akhir kalimat). Boleh campur English.
+  Contoh: "4.800 orang kena PHK Microsoft 💸 Lo pikir tech aman? Think again. 🧠"
+Field "hashtags": isi "#KokoKokGitu" (1 hashtag aja).
 Output HANYA JSON valid, tanpa teks lain di luar JSON, tanpa markdown code fence.
 """
 
@@ -1625,14 +1627,14 @@ def _pick_cta_instruction() -> str:
     from db import get_db
     
     cta_patterns = [
-        "Pola 1 (Pengalaman): \"Kamu pernah [situasi dari artikel]? Share di komen.\"",
-        "Pola 2 (Pilihan A/B): \"Kamu lebih milih [A] atau [B]? Bilang di komen.\"",
-        "Pola 3 (Provokatif): \"Menurut kalian ini [bagus/berbahaya]? Penasaran pendapat kalian.\"",
-        "Pola 4 (Prediksi): \"Kamu prediksi [tren dari artikel] bakal gimana 5 tahun lagi?\"",
-        "Pola 5 (Challenge): \"Coba tebak [fakta dari artikel]. Jawab di komen sebelum scroll.\"",
-        "Pola 6 (Reflektif): \"Kalau kamu di posisi [situasi dari artikel], bakal gimana?\"",
-        "Pola 7 (Hot take): \"Unpopular opinion: [kontroversial take dari artikel]. Setuju atau enggak?\"",
-        "Pola 8 (Story): \"Pernah ngalamin [situasi]? Cerita dong di bawah.\"",
+        "Pola 1 (Natural): \"Gimana menurut kalian?\"",
+        "Pola 2 (Personal): \"Kalian pernah ngalamin?\"",
+        "Pola 3 (Open): \"Bener gak sih?\"",
+        "Pola 4 (CMIIW): \"CMIIW ya kalau salah\"",
+        "Pola 5 (Curious): \"Kalian juga ngerasain?\"",
+        "Pola 6 (Challenge): \"Coba tebak berapa angkanya. Jawab di komen.\"",
+        "Pola 7 (Story): \"Pernah ngalamin? Cerita dong.\"",
+        "Pola 8 (Share): \"Tag temen yang harus baca ini.\"",
     ]
     
     # Get recent CTA patterns from DB to avoid repetition
@@ -2065,6 +2067,134 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     data["_hook_score"] = best_score
     data["_cta_pattern"] = cta_instr[:100]
     return data
+
+# ─── Text Post Generator (Theo/Marco style) ───────────────────────
+
+TEXT_POST_PROMPT = """[ROLE]
+Kamu "Aku" — personal branding creator di Threads. #KokoKokGitu style.
+Kamu bukan guru. Kamu orang biasa yang punya opini soal kehidupan sehari-hari.
+Kamu suka nanya "kok gitu ya?" dan ajak orang mikir bareng.
+
+[FORMAT — PILIH SALAH SATU TIPE]
+
+TIPE OPINION (25%):
+- 2-4 kalimat, pendapat lo soal berita/hot topic yang lagi rame
+- Frame: "Gue pikir [opini]. Soalnya [alasan]. Kalian gimana?"
+- Pake emoji 2-3
+- Boleh campur English
+
+TIPE PERSONAL (20%):
+- 2-3 kalimat, cerita singkat pengalaman daily life yang relate
+- Frame: "Aku pernah [situasi]. Ternyata [insight]."
+- Pake emoji 2-3
+- Kasual, kayak lagi cerita ke temen
+
+TIPE QUESTION (15%):
+- 1-2 kalimat, tanya ke followers soal sesuatu yang hot
+- Frame: "Pernah ga sih [situasi]? Aku penasaran kalian gimana."
+- Pake emoji 1-2
+
+TIPE REACTION (40%):
+- 2-3 kalimat, reaksi lo terhadap sesuatu (berita, tren, fenomena)
+- Frame: "[Fenomena]. Ternyata [fakta]. Kok bisa ya?"
+- Pake emoji 2-3
+
+[ATURAN]
+- Max 80 kata
+- Bahasa: kasual, "aku/kamu/kalian"
+- Boleh campur English (natural)
+- Pake 2-3 emoji yang natural
+- Ga perlu source/angka — ini opini pribadi
+- Hashtag: #KokoKokGitu di akhir
+- Jangan pake "gue/lo/lu"
+
+[OUTPUT]
+JSON: {{"text": "...", "type": "opinion|personal|question|reaction"}}
+"""
+
+def generate_text_post(hot_topics: Optional[list[str]] = None) -> Optional[dict]:
+    """Generate a text post (non-carousel) — Theo/Marco style.
+    Types: opinion, personal, question, reaction.
+    """
+    import random
+
+    # Get trending topics if available
+    topics_str = ""
+    if hot_topics:
+        topics_str = ", ".join(hot_topics[:5])
+    else:
+        try:
+            from db import get_db
+            conn = get_db()
+            rows = conn.execute("""
+                SELECT a.title FROM posts p
+                JOIN articles a ON p.article_id = a.id
+                WHERE p.status = 'posted'
+                ORDER BY p.posted_at DESC LIMIT 5
+            """).fetchall()
+            conn.close()
+            topics_str = ", ".join([r['title'] for r in rows])
+        except Exception:
+            topics_str = ""
+
+    # Pick random type with weights
+    types = ["opinion"]*4 + ["personal"]*3 + ["question"]*2 + ["reaction"]*6
+    chosen_type = random.choice(types)
+
+    user_msg = f"""Buat text post tipe {chosen_type}.
+
+Topik/berita terkini: {topics_str}
+
+Pilih salah satu topik yang BELUM dibahas di atas. Buat beneran natural, bukan template.
+Output JSON: {{"text": "...", "type": "{chosen_type}"}}"""
+
+    for attempt in range(3):
+        try:
+            r = httpx.post(
+                "https://api.mistral.ai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
+                json={
+                    "model": "mistral-small-latest",
+                    "messages": [
+                        {"role": "system", "content": TEXT_POST_PROMPT},
+                        {"role": "user", "content": user_msg}
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 400,
+                },
+                timeout=30,
+            )
+            if r.status_code == 200:
+                raw = r.json()["choices"][0]["message"]["content"].strip()
+                if "```json" in raw:
+                    raw = raw.split("```json")[1].split("```")[0].strip()
+                elif "```" in raw:
+                    raw = raw.split("```")[1].split("```")[0].strip()
+                data = json.loads(raw)
+                text = data.get("text", "").strip()
+                post_type = data.get("type", chosen_type)
+                if text:
+                    # Ensure #KokoKokGitu is in the text
+                    if "#KokoKokGitu" not in text:
+                        text = text.rstrip() + " #KokoKokGitu"
+                    print(f"[TEXT POST] {post_type} ({len(text)} chars): {text[:80]}...")
+                    return {
+                        "slide_hook": text,
+                        "slide_setup": "",
+                        "slide_twist": "",
+                        "slide_deep": "",
+                        "slide_sowhat": "",
+                        "slide_cta": "",
+                        "_hook_pattern": f"TEXT_{post_type.upper()}",
+                        "_provider": "mistral",
+                    }
+            else:
+                print(f"[TEXT POST] API {r.status_code}: {r.text[:100]}")
+        except Exception as e:
+            print(f"[TEXT POST] Error: {e}")
+        time.sleep(2)
+    return None
+
 
 # ─── CLI ──────────────────────────────────────────────────────────
 if __name__ == "__main__":

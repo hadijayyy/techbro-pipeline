@@ -25,7 +25,7 @@ if _env_path.exists():
 sys.path.insert(0, str(Path(__file__).parent))
 
 from scraper import scrape_all, score_article, fast_content_filter, check_article_quality, SOURCE_NAMES, scrape_bloomberg_technoz
-from generator import generate_carousel
+from generator import generate_carousel, generate_text_post
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed, cleanup_old
 from poster import post_from_db
 from trending import score_article_drama, detect_dramas
@@ -759,9 +759,24 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             article_id = upsert_article(conn, art)
             print(f"  Article #{article_id} saved to DB")
 
-            # 3. Generate carousel
-            print(f"  [2/4] Generating carousel via LM...")
-            slides = generate_carousel(art["title"], art["body"], art["image"] or "", art["url"] or "", art["source"] if "source" in art.keys() else "")
+            # 3. Content type router: carousel (60%) vs text post (40%)
+            import random
+            is_text_post = random.random() < 0.40  # 40% text posts
+            text_result = None
+
+            if is_text_post:
+                print(f"  [2/4] Generating TEXT POST (Theo/Marco style)...")
+                text_result = generate_text_post()
+                if not text_result:
+                    print(f"  [FALLBACK] Text post failed, trying carousel...")
+                    is_text_post = False
+
+            if not is_text_post:
+                print(f"  [2/4] Generating carousel via LM...")
+                slides = generate_carousel(art["title"], art["body"], art["image"] or "", art["url"] or "", art["source"] if "source" in art.keys() else "")
+            else:
+                slides = text_result
+
             if not slides:
                 logger.warning(f"Skipped: {art['title']} (evaluator rejected)")
                 mark_failed(conn, article_id)
@@ -776,7 +791,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             cta_pattern = slides.pop("_cta_pattern", "")
 
             # 4. Stage post
-            post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", ""),
+            post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", "#KokoKokGitu"),
                                 hook_pattern=hook_pattern, hook_score=hook_score, cta_pattern=cta_pattern)
             posted_titles.append(art['title'])
             staged_titles_this_run.append(art['title'])
@@ -786,7 +801,9 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
                 entity_combo_set.add(art_entity)
             staged_this_run = True
             print(f"  [3/4] Post #{post_id} staged in DB")
-            print(f"  Hook: {slides.get('slide_1', slides.get('hook', '?'))[:80]}")
+            post_type_label = "TEXT" if is_text_post else "CAROUSEL"
+            print(f"  Type: {post_type_label}")
+            print(f"  Hook: {slides.get('slide_1', slides.get('slide_hook', slides.get('hook', '?')))[:80]}")
             print(f"  CTA:  {slides.get('slide_6', slides.get('cta', '?'))[:80]}")
 
             # 4. Post to Threads immediately
