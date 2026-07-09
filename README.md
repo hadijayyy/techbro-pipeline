@@ -2,8 +2,8 @@
 
 Indonesian **money mindset** carousel generator for Threads (@ryanhadiii). Scrapes, scores, generates, and posts 6-slide narrative carousels automatically. **Eva Alicia style**: blunt, personal, truth bombs that challenge assumptions. Pressbox-pattern architecture.
 
-**Voice:** "Gue" — temen yang pernah di posisi lo, blak-blakan tapi peduli.
-**Niche:** Reframe cara lo mikir soal uang — dari gaji, investasi, sampe mindset finansial.
+**Voice:** "Aku" — temen yang pernah di posisi kalian, blak-blakan tapi peduli.
+**Niche:** Reframe cara pikir soal uang — dari gaji, investasi, sampe mindset finansial.
 
 ## How It Works
 
@@ -49,18 +49,18 @@ Mengikuti **Viral AI Threads Framework** — `Attention → Curiosity → Eviden
 ## Content Rules
 
 - **Truth bomb hook** — slide 1 nabrak asumsi, bukan data drop dingin
-- **Personal voice** — "Gue pernah..." / "Lo pikir...?" / challenge cara pikir
+- **Personal voice** — "Aku pernah..." / "Kamu pikir...?" / challenge cara pikir
 - **Money angle** — SEMUA konten harus ada sudut finansial (PHK → keamanan finansial, harga naik → budgeting)
 - **Reframe wajib** — slide 3 HARUS ubah perspektif, kontra-intuitif (inti konten)
 - **Explain Why** — slide 4 kasih analogi kehidupan sehari-hari yang bikin "masuk akal"
 - **Langkah spesifik** — slide 5 kasih steps yang bisa langsung diterapkan, bukan "belajar lebih banyak"
-- **Challenge CTA** — slide 6 akhir dengan "Lo setuju atau enggak?" / "Lo masih mau defend ini?"
+- **Challenge CTA** — slide 6 akhir dengan "Kalian setuju atau enggak?" / "Kamu masih mau defend ini?"
 - **Inter-slide flow** — slide 2 HARUS expand dari slide 1, JANGAN lompat topik
 - **Anti-hallucination** — semua fakta/angka dari artikel, grounding check strips unverified claims
 - **No product promo** — auto-zero score untuk artikel product launch/review
 - **No em-dash** — postprocessor replaces (—) → koma
 - **No cringe** — banned phrases stripped (geleng-geleng, gila sih, kebayang gak, dll)
-- **Voice** — Content Creator, 27 y/o, casual Jakarta, "lo/gua"
+- **Voice** — "aku/kamu/kalian", kasual, blunt, caring
 - **JSON flat** — output `slide_1` s/d `slide_6`, no nested objects
 
 ## Hook System (Pressbox Pattern)
