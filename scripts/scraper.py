@@ -794,7 +794,14 @@ async def scrape_hipwee(client: httpx.AsyncClient) -> list[dict]:
             r = await client.get(url, timeout=15)
             soup = BeautifulSoup(r.text, "html.parser")
             title = soup.find("meta", property="og:title")
-            title = title["content"] if title else "Untitled"
+            if not title:
+                title = soup.find("h1")
+                title = title.get_text(strip=True) if title else None
+            else:
+                title = title["content"]
+            if not title:
+                title_tag = soup.find("title")
+                title = title_tag.get_text(strip=True) if title_tag else "Untitled"
             body = extract_body(soup, HIPWEE_SELECTORS)
             image = get_og_image(soup)
             articles.append({
@@ -880,7 +887,7 @@ async def scrape_james_clear(client: httpx.AsyncClient) -> list[dict]:
         pass
     
     articles = []
-    JC_SELECTORS = [("article", None), ("div", "entry-content"), ("div", "post-content")]
+    JC_SELECTORS = [("div", "page__content"), ("div", "page-content-style"), ("article", None)]
     for url, rss_date in items[:10]:
         try:
             r = await client.get(url, timeout=15)
@@ -926,7 +933,7 @@ async def scrape_ryan_holiday(client: httpx.AsyncClient) -> list[dict]:
         pass
     
     articles = []
-    RH_SELECTORS = [("article", None), ("div", "entry-content"), ("div", "post-content")]
+    RH_SELECTORS = [("div", "sentry"), ("div", "posttext"), ("div", "blogpost")]
     for url, rss_date in items[:10]:
         try:
             r = await client.get(url, timeout=15)
