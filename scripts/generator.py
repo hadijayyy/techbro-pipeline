@@ -2071,6 +2071,70 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     data["_cta_pattern"] = cta_instr[:100]
     return data
 
+# ─── Evaluator — Independent Skeptical Review ───────────────────────
+
+def evaluator_check(slides: dict, article_text: str, url: str = "") -> tuple[str, list[str]]:
+    """Independent skeptical LLM review before posting.
+    Generator says 'looks done'; evaluator says 'actually right'.
+    Returns (decision, reasons): APPROVE/REVISE/REJECT.
+    Fail-open: if API error or missing key → APPROVE.
+    """
+    import os, requests, json, re as _re
+    MISTRAL_KEY = os.environ.get("MISTRAL_API_KEY") or os.environ.get("MISTRAL_KEY")
+    if not MISTRAL_KEY:
+        return "APPROVE", ["no API key — skip eval"]
+
+    # Build slides text
+    slide_keys = ["slide_hook", "slide_setup", "slide_twist", "slide_deep", "slide_sowhat", "slide_cta"]
+    slide_labels = ["Hook", "Fakta+Cerita", "Reframe", "Explain Why", "Langkah", "Ringkasan+CTA"]
+    slides_text = "\n\n".join(
+        f"[Slide {i+1} ({slide_labels[i]})]:\n{slides.get(k, '')}"
+        for i, k in enumerate(slide_keys) if slides.get(k)
+    )
+    art_short = article_text[:3000]
+
+    system = (
+        "You are a skeptical Indonesian content editor reviewing social media carousel slides BEFORE publication. "
+        "Your job is to find problems, not praise. Be harsh. Look for:\n"
+        "1. FACTUAL ERRORS: claims not supported by the article\n"
+        "2. HALLUCINATION: invented stats, names, quotes not in the article\n"
+        "3. VOICE VIOLATIONS: uses 'gue/lo/lu' instead of 'aku/kamu/kalian'\n"
+        "4. TONE ISSUES: clickbait that damages credibility, generic AI-speak\n"
+        "5. FLOW: incoherent slide progression, topic jumps between slides\n"
+        "6. MISLEADING: frame says X but article says Y\n\n"
+        "Respond in EXACTLY this JSON format:\n"
+        '{"decision": "APPROVE|REVISE|REJECT", "reasons": ["reason1", "reason2"]}\n'
+        "APPROVE = post as-is. REVISE = has issues but fixable. REJECT = do not post."
+    )
+    user = (
+        f"ARTICLE (source):\n{art_short}\n\n"
+        f"SLIDES (to review):\n{slides_text}\n\n"
+        f"Source URL: {url}\n\n"
+        "Review these slides. Be skeptical. Find problems."
+    )
+
+    try:
+        r = requests.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
+            json={"model": "mistral-small-latest", "messages": [
+                {"role": "system", "content": system}, {"role": "user", "content": user}],
+                "max_tokens": 500, "temperature": 0.1},
+            timeout=30)
+        if r.status_code != 200:
+            return "APPROVE", [f"evaluator HTTP {r.status_code}"]
+        content = r.json()["choices"][0]["message"]["content"].strip()
+        candidate = _re.sub(r"^```(?:json)?\s*", "", content)
+        candidate = _re.sub(r"\s*```$", "", candidate)
+        data = json.loads(candidate)
+        decision = data.get("decision", "APPROVE").upper()
+        reasons = data.get("reasons", [])
+        if decision not in ("APPROVE", "REVISE", "REJECT"):
+            decision = "APPROVE"
+        return decision, reasons
+    except Exception as e:
+        return "APPROVE", [f"evaluator error: {e}"]
+
 # ─── Text Post Generator (Theo/Marco style) ───────────────────────
 
 TEXT_POST_PROMPT = """[ROLE]

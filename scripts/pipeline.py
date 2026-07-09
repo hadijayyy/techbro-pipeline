@@ -790,6 +790,19 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             hook_score = slides.pop("_hook_score", 0)
             cta_pattern = slides.pop("_cta_pattern", "")
 
+            # 3.5 Evaluator — independent skeptical review (skip for high hook_score)
+            if hook_score < 8 and not is_text_post:
+                from generator import evaluator_check
+                eval_decision, eval_reasons = evaluator_check(slides, art["body"], art.get("url", ""))
+                print(f"  🔍 Evaluator: {eval_decision} — {'; '.join(eval_reasons[:3])}")
+                if eval_decision == "REJECT":
+                    print(f"  🚫 Evaluator REJECTED — skipping. Reasons: {'; '.join(eval_reasons)}")
+                    mark_failed(conn, article_id)
+                    continue
+            else:
+                if not is_text_post:
+                    print(f"  ⏭️ Evaluator skipped (hook_score={hook_score} ≥ 8)")
+
             # 4. Stage post
             post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", "#KokoKokGitu"),
                                 hook_pattern=hook_pattern, hook_score=hook_score, cta_pattern=cta_pattern)
