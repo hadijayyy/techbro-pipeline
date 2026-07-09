@@ -5,7 +5,6 @@ Switch language with CONTENT_LANG=en|id in .env
 import httpx
 import json
 import re
-import time
 from typing import Optional
 
 import os
@@ -2066,112 +2065,6 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     data["_hook_score"] = best_score
     data["_cta_pattern"] = cta_instr[:100]
     return data
-
-# ─── Vulnerable Ask Generator ──────────────────────────────────────
-
-VULNERABLE_ASK_PROMPT = """[ROLE]
-Kamu "Aku" — Eva Alicia style, money mindset creator. Blunt tapi caring.
-Sekarang kamu lagi VULNERABLE. Kamu lagi mikir sesuatu dan MAU denger cerita orang lain.
-Ini bukan tips, bukan carousel, bukan truth bomb. Ini cuma kamu jujur soal perasaan kamu.
-
-[FORMAT]
-- 1-3 kalimat aja, MAX 50 kata
-- Mulai dari pengalaman/perasaan kamu yang genuine
-- Akhiri dengan pertanyaan yang bikin orang MAU reply
-- Pake 2-3 emoji yang natural
-- Boleh campur English (natural, bukan forced)
-- Jangan terlalu formal, jangan terlalu casual
-- TONE: kayak lagi cerita ke temen deket, bukan lagi ngomong ke audience
-
-[TEMPLATE]
-Pola 1 (Pengalaman): "Aku pernah [situasi]. Ternyata [insight]. Kalian pernah ngalamin? 🥹"
-Pola 2 (Vulnerable): "Jujur, aku lagi [perasaan]. Kadang [momen]. Siapa yang sama? 😅"
-Pola 3 (Question): "Pernah ga sih [situasi]? Aku penasaran kalian gimana caranya 💭"
-Pola 4 (Milestone): "Aku udah [capaian] dan ternyata [realita]. Kalian pas di posisi [X] ngerasain apa?"
-Pola 5 (Challenge): "Aku lagi coba [kebiasaan]. Hari ini [realita]. Kalian yang udah konsisten, gimana caranya? 🙏"
-
-[OUTPUT]
-JSON: {{"text": "..."}}
-"""
-
-def generate_vulnerable_ask(recent_topics: Optional[list[str]] = None) -> Optional[dict]:
-    """Generate a vulnerable ask text post — community engagement bait."""
-    import random
-    from db import get_db
-
-    # Get recent posted topics for variety
-    if recent_topics is None:
-        try:
-            conn = get_db()
-            rows = conn.execute("""
-                SELECT a.title FROM posts p
-                JOIN articles a ON p.article_id = a.id
-                WHERE p.status = 'posted'
-                ORDER BY p.posted_at DESC LIMIT 15
-            """).fetchall()
-            conn.close()
-            recent_topics = [r['title'] for r in rows]
-        except Exception:
-            recent_topics = []
-
-    topics_str = ", ".join(recent_topics[:5]) if recent_topics else "umum"
-
-    user_msg = f"""Buat vulnerable ask post.
-
-Topik terakhir yang dibahas: {topics_str}
-
-Tentukan topik vulnerable ask yang BERBEDA dari di atas.
-Pilih salah satu pola dari template. Buat beneran personal, bukan template.
-
-Output JSON: {{"text": "..."}}"""
-
-    prompt = VULNERABLE_ASK_PROMPT
-
-    for attempt in range(3):
-        try:
-            r = httpx.post(
-                "https://api.mistral.ai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
-                json={
-                    "model": "mistral-small-latest",
-                    "messages": [
-                        {"role": "system", "content": prompt},
-                        {"role": "user", "content": user_msg}
-                    ],
-                    "temperature": 0.7,
-                    "max_tokens": 300,
-                },
-                timeout=30,
-            )
-            if r.status_code == 200:
-                raw = r.json()["choices"][0]["message"]["content"]
-                raw = raw.strip()
-                # Extract JSON
-                if "```json" in raw:
-                    raw = raw.split("```json")[1].split("```")[0].strip()
-                elif "```" in raw:
-                    raw = raw.split("```")[1].split("```")[0].strip()
-                data = json.loads(raw)
-                text = data.get("text", "").strip()
-                if text:
-                    print(f"[VULNERABLE] Generated ({len(text)} chars): {text[:80]}...")
-                    return {
-                        "slide_hook": text,
-                        "slide_setup": "",
-                        "slide_twist": "",
-                        "slide_deep": "",
-                        "slide_sowhat": "",
-                        "slide_cta": "",
-                        "_hook_pattern": "VULNERABLE_ASK",
-                        "_provider": "mistral",
-                    }
-            else:
-                print(f"[VULNERABLE] API {r.status_code}: {r.text[:100]}")
-        except Exception as e:
-            print(f"[VULNERABLE] Error: {e}")
-        time.sleep(2)
-    return None
-
 
 # ─── CLI ──────────────────────────────────────────────────────────
 if __name__ == "__main__":

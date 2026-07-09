@@ -257,24 +257,9 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
                 conn.execute("UPDATE articles SET image=? WHERE id=(SELECT article_id FROM posts WHERE id=?)", (image_url, post['id']))
                 conn.commit()
         
-        # Wajib image untuk slide 1 — skip kalau gak ada (kecuali vulnerable ask = text only)
-        if not image_url and post.get('hook_pattern') != 'VULNERABLE_ASK':
+        # Wajib image untuk slide 1 — skip kalau gak ada
+        if not image_url:
             print(f"  [SKIP] No image for slide 1: {post.get('title', 'Untitled')[:50]}")
-            continue
-        
-        # Vulnerable ask: text-only, no carousel needed
-        if post.get('hook_pattern') == 'VULNERABLE_ASK':
-            text = slides[0] if slides else ''
-            print(f"  [VULNERABLE] Text-only post: {text[:60]}...")
-            if dry_run:
-                print(f"  [DRY RUN] {text}")
-                continue
-            post_id = _post_container(text)
-            if post_id:
-                mark_posted(conn, post['id'], post_id)
-                print(f"  ✓ Posted: {post_id}")
-            else:
-                print(f"  ✗ Failed")
             continue
         
         print(f"  {len(slides)} slides, image: {image_url[:60] if image_url else 'none'}")
