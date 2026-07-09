@@ -25,7 +25,7 @@ if _env_path.exists():
 sys.path.insert(0, str(Path(__file__).parent))
 
 from scraper import scrape_all, score_article, fast_content_filter, check_article_quality, SOURCE_NAMES, scrape_bloomberg_technoz
-from generator import generate_carousel
+from generator import generate_carousel, generate_vulnerable_ask
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed, cleanup_old
 from poster import post_from_db
 from trending import score_article_drama, detect_dramas
@@ -506,7 +506,40 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
         return False
     print(f"[LIMIT] {today_count}/{dynamic_limit} posted today")
 
-    # 1. Auto-clean old articles (>7 days)
+    # 1b. VULNERABLE ASK — every 12 posts, inject community engagement
+    VULNERABLE_INTERVAL = 12
+    posts_since_vulnerable = conn.execute("""
+        SELECT COUNT(*) as c FROM posts
+        WHERE status='posted'
+        AND hook_pattern != 'VULNERABLE_ASK'
+        AND id > COALESCE(
+            (SELECT MAX(id) FROM posts WHERE hook_pattern='VULNERABLE_ASK' AND status='posted'),
+            0
+        )
+    """).fetchone()['c']
+
+    if posts_since_vulnerable >= VULNERABLE_INTERVAL and not dry_run:
+        print(f"\n[VULNERABLE] {posts_since_vulnerable} posts since last ask — generating vulnerable ask...")
+        vuln = generate_vulnerable_ask()
+        if vuln:
+            vuln_article_id = upsert_article(conn, {
+                "title": "VULNERABLE_ASK",
+                "body": vuln["slide_hook"],
+                "url": "",
+                "image": "",
+                "source": "vulnerable_ask",
+                "score": 0,
+            })
+            post_id = stage_post(conn, vuln_article_id, vuln, "", "",
+                                hook_pattern="VULNERABLE_ASK", hook_score=0, cta_pattern="")
+            print(f"  [VULNERABLE] Post #{post_id} staged")
+            print(f"  Text: {vuln['slide_hook'][:80]}")
+            post_from_db(limit=1)
+            return True
+        else:
+            print(f"  [VULNERABLE] Generation failed, falling back to carousel")
+
+    # 1c. Auto-clean old articles (>7 days)
     cleaned = cleanup_old(conn, days=7)
     if cleaned["deleted_articles"] > 0:
         print(f"[0/4] Cleaned {cleaned['deleted_articles']} old articles")
