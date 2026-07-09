@@ -224,15 +224,36 @@ def _classify_topic(title: str, body: str) -> list[str]:
     return cats if cats else ["other"]
 
 
+def _classify_hook_type(hook: str) -> str:
+    """Classify slide_hook into Eva Alicia pattern type for analytics boost.
+    Returns: TRUTH_BOMB/PERSONAL_CHALLENGE/REFRAME_BOMB/SCARY_FACT/HIDDEN_TRUTH
+    Same detection as _get_recent_hook_patterns() in generator.py."""
+    h = (hook or "").lower()
+    if re.search(r'kamu pikir|kamu masih pikir|kamu masih ngerasa', h):
+        return "TRUTH_BOMB"
+    if re.search(r'kamu masih|kamu yang|kamu ngerasa', h):
+        return "PERSONAL_CHALLENGE"
+    if re.search(r'yang sebenarnya|bukan soal|bukan tentang', h):
+        return "REFRAME_BOMB"
+    if re.search(r'\d+%|\d+\.\d+|\d+ juta|\d+ miliar|\d+ triliun', h) and re.search(r'artinya|buat kamu', h):
+        return "SCARY_FACT"
+    if re.search(r'yang gak.*bahas|yang jarang|fakta tersembunyi', h):
+        return "HIDDEN_TRUTH"
+    if re.search(r'\d+%|\d+\.\d+|\d+ juta|\d+ miliar|\d+ triliun', h):
+        return "TRUTH_BOMB"
+    return "TRUTH_BOMB"  # default
+
+
 def _pull_analytics_feedback(conn) -> dict:
-    """Pull engagement metrics and compute category-level boosts/penalties.
-    Returns: {'hook_boosts': {keyword: +pts}, 'topic_penalties': {keyword: -pts},
-              'cat_boosts': {category: +pts}, 'cat_penalties': {category: -pts},
+    """Pull engagement metrics and compute category + hook-type boosts/penalties.
+    Returns: {'hook_boosts': {word: +pts}, 'topic_penalties': {word: -pts},
+              'cat_boosts': {cat: +pts}, 'cat_penalties': {cat: -pts},
+              'hook_type_boosts': {type: +pts}, 'hook_type_views': {type: avg_views},
               'median_views': int}
-    Uses topic CATEGORIES instead of individual words to avoid noise.
     """
     from poster import fetch_engagement, track_engagement
-    result = {"hook_boosts": {}, "topic_penalties": {}, "cat_boosts": {}, "cat_penalties": {}, "median_views": 0}
+    result = {"hook_boosts": {}, "topic_penalties": {}, "cat_boosts": {}, "cat_penalties": {},
+              "hook_type_boosts": {}, "hook_type_views": {}, "median_views": 0}
 
     # Auto-track engagement for posted posts missing metrics (>12h old)
     try:
@@ -317,6 +338,33 @@ def _pull_analytics_feedback(conn) -> dict:
 
     if result["hook_boosts"]:
         print(f"  [ANALYTICS] Hook boosts: {list(result['hook_boosts'].keys())[:8]}")
+
+    # ── Hook Type Analytics (Eva Alicia pattern tracking) ──
+    # Classify each post's hook by type, compute avg views per type
+    hook_type_views = {}  # {type: [views_list]}
+    for r in rows:
+        ht = _classify_hook_type(r["slide_hook"])
+        if r["views"] and r["views"] > 0:
+            hook_type_views.setdefault(ht, []).append(r["views"])
+
+    # Compute avg views per hook type
+    for ht, views in hook_type_views.items():
+        avg_v = sum(views) // len(views)
+        result["hook_type_views"][ht] = avg_v
+
+    # Boost hook types that outperform median by 30%+
+    for ht, avg_v in result["hook_type_views"].items():
+        if avg_v >= median_views * 1.3 and len(hook_type_views[ht]) >= 2:
+            boost = min(15, max(5, (avg_v // (median_views or 1) - 1) * 5))
+            result["hook_type_boosts"][ht] = boost
+            print(f"  [ANALYTICS] hook_type boost: +{boost} ({ht}) — avg {avg_v} views ({len(hook_type_views[ht])} posts)")
+        elif avg_v < median_views * 0.7 and len(hook_type_views[ht]) >= 2:
+            result["hook_type_boosts"][ht] = -10
+            print(f"  [ANALYTICS] hook_type penalty: -10 ({ht}) — avg {avg_v} views")
+
+    # Print hook type summary
+    if result["hook_type_views"]:
+        print(f"  [ANALYTICS] Hook type perf: {', '.join(f'{k}={v}' for k,v in sorted(result['hook_type_views'].items(), key=lambda x: -x[1]))}")
 
     return result
 

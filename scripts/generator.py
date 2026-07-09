@@ -1523,8 +1523,10 @@ def _pick_hook_instruction(recent_patterns: list[str]) -> str:
     
     DEFAULT (70%): TRUTH_BOMB — "Kamu pikir X? Yang sebenarnya Y."
     VARIANTS (30%): Rotasi dari 5 gaya berbeda biar gak monoton.
+    Analytics-adjusted: hook types with high views get boosted weights.
     """
     import random
+
     all_hooks = [
         ("TRUTH_BOMB", "Start with a TRUTH BOMB that challenges the reader's assumption — 'Kamu pikir [asumsi umum]? [Kebenaran dari artikel].' Eva Alicia style: blunt, personal, makes reader rethink. Example: 'Kamu pikir loyalitas bikin aman? Coba tanya 4.800 karyawan Microsoft.'"),
         ("PERSONAL_CHALLENGE", "Start with a personal challenge — 'Kamu masih [kebiasaan]? [Fakta dari artikel] bilang lain.' Direct, confrontational but caring. Example: 'Kamu masih ngerasa gaji 8 juta cukup? Data BPS bilang udah di bawah garis.'"),
@@ -1532,16 +1534,69 @@ def _pick_hook_instruction(recent_patterns: list[str]) -> str:
         ("SCARY_FACT", "Start with a scary financial fact — '[Angka dari artikel]. Tau artinya apa buat kamu?' Makes reader feel the impact personally. Example: '67% pekerja Indonesia habiskan >90% gaji buat konsumsi. Kamu termasuk?'"),
         ("HIDDEN_TRUTH", "Start with hidden angle — 'Yang gak orang bahas: [fakta tersembunyi dari artikel].' Curiosity gap + money angle. Example: 'Yang gak orang bahas: PHK ini bukan soal AI. Ini soal perusahaan gak mau bayar lebih.'"),
     ]
-    # TRUTH_BOMB is DEFAULT (Eva Alicia style). Weight it 4x.
+
+    # Load hook type analytics from DB (computed by pipeline)
+    hook_type_weights = {}
+    try:
+        from db import get_db
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT p.slide_hook, perf.views
+            FROM posts p
+            JOIN performance perf ON perf.post_id = p.id
+            WHERE p.status = 'posted' AND p.slide_hook IS NOT NULL AND perf.views > 0
+            ORDER BY p.posted_at DESC LIMIT 30
+        """).fetchall()
+        conn.close()
+        
+        if len(rows) >= 5:
+            # Classify hooks and compute avg views per type
+            type_views = {}
+            for r in rows:
+                h = (r['slide_hook'] or '').lower()
+                ht = "TRUTH_BOMB"  # default
+                if re.search(r'kamu pikir|kamu masih pikir|kamu masih ngerasa', h):
+                    ht = "TRUTH_BOMB"
+                elif re.search(r'kamu masih|kamu yang|kamu ngerasa', h):
+                    ht = "PERSONAL_CHALLENGE"
+                elif re.search(r'yang sebenarnya|bukan soal|bukan tentang', h):
+                    ht = "REFRAME_BOMB"
+                elif re.search(r'\d+%|\d+\.\d+|\d+ juta|\d+ miliar|\d+ triliun', h) and re.search(r'artinya|buat kamu', h):
+                    ht = "SCARY_FACT"
+                elif re.search(r'yang gak.*bahas|yang jarang|fakta tersembunyi', h):
+                    ht = "HIDDEN_TRUTH"
+                elif re.search(r'\d+%|\d+\.\d+|\d+ juta|\d+ miliar|\d+ triliun', h):
+                    ht = "TRUTH_BOMB"
+                type_views.setdefault(ht, []).append(r['views'])
+            
+            # Compute median views
+            all_views = sorted([v for views in type_views.values() for v in views])
+            median_v = all_views[len(all_views)//2] if all_views else 1
+            
+            # Boost types that outperform median by 30%+
+            for ht, views in type_views.items():
+                avg_v = sum(views) // len(views)
+                if avg_v >= median_v * 1.3 and len(views) >= 2:
+                    hook_type_weights[ht] = max(1, (avg_v // (median_v or 1) - 1) * 2)
+                    print(f"[HOOK] Analytics: {ht} avg={avg_v} views → +{hook_type_weights[ht]} weight")
+    except Exception:
+        pass  # fail-open
+
+    # Weighted selection
     weighted = []
     for name, instr in all_hooks:
-        if name == "TRUTH_BOMB":
-            weighted.extend([(name, instr)] * 4)
-        elif name not in recent_patterns[-4:]:
-            weighted.append((name, instr))
+        base_weight = 4 if name == "TRUTH_BOMB" else 1
+        analytics_weight = hook_type_weights.get(name, 0)
+        total_weight = max(1, base_weight + analytics_weight)
+        
+        if name not in recent_patterns[-4:]:
+            weighted.extend([(name, instr)] * total_weight)
+    
     if not weighted:
         weighted = [(n, i) for n, i in all_hooks]
+    
     chosen = random.choice(weighted)
+    print(f"[HOOK] Selected: {chosen[0]} (weights: {', '.join(f'{n}={sum(1 for w in weighted if w[0]==n)}' for n in set(w[0] for w in weighted))})")
     return chosen[1]
 
 import httpx
