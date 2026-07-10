@@ -2148,40 +2148,39 @@ TIPE LIFE HACK (20%):
 JSON: {{"text": "...", "type": "powerful_word|harsh_truth|engagement|life_hack"}}
 """
 
-def generate_text_post(hot_topics: Optional[list[str]] = None) -> Optional[dict]:
+def generate_text_post(article_title: str = "", article_body: str = "", source: str = "") -> Optional[dict]:
     """Generate a text post (non-carousel) — Ryan 1% Better style.
-    Uses real scraped articles as source material.
+    Uses the specific article as source material.
     Types: powerful_word, harsh_truth, engagement, life_hack.
     """
     import random
 
-    # Fetch recent articles from DB as source material
-    articles_str = ""
-    try:
-        from db import get_db
-        conn = get_db()
-        rows = conn.execute("""
-            SELECT a.title, a.body, a.url FROM articles a
-            WHERE a.body IS NOT NULL AND LENGTH(a.body) > 100
-            ORDER BY a.scraped_at DESC LIMIT 10
-        """).fetchall()
-        conn.close()
-        if rows:
-            # Pick 3 random articles as context
-            picked = random.sample(rows, min(3, len(rows)))
-            articles_str = "\n\n".join([
-                f"ARTICLE: {r['title']}\nSNIPPET: {r['body'][:200]}\nURL: {r['url']}"
-                for r in picked
-            ])
-    except Exception:
-        pass
+    # Use the specific article context
+    if article_title and article_body:
+        articles_str = f"ARTICLE: {article_title}\nSNIPPET: {article_body[:500]}"
+    else:
+        # Fallback: fetch random articles from DB
+        articles_str = ""
+        try:
+            from db import get_db
+            conn = get_db()
+            rows = conn.execute("""
+                SELECT a.title, a.body, a.url FROM articles a
+                WHERE a.body IS NOT NULL AND LENGTH(a.body) > 100
+                ORDER BY a.scraped_at DESC LIMIT 10
+            """).fetchall()
+            conn.close()
+            if rows:
+                picked = random.sample(rows, min(3, len(rows)))
+                articles_str = "\n\n".join([
+                    f"ARTICLE: {r['title']}\nSNIPPET: {r['body'][:200]}\nURL: {r['url']}"
+                    for r in picked
+                ])
+        except Exception:
+            pass
 
     if not articles_str:
-        # Fallback: use hot_topics
-        if hot_topics:
-            articles_str = "Topik terkini: " + ", ".join(hot_topics[:5])
-        else:
-            return None  # No source material available
+        return None
 
     # Pick random type with weights
     types = ["powerful_word"]*4 + ["harsh_truth"]*3 + ["engagement"]*2 + ["life_hack"]*6
@@ -2192,7 +2191,8 @@ def generate_text_post(hot_topics: Optional[list[str]] = None) -> Optional[dict]
 Artikel sumber:
 {articles_str}
 
-Pilih 1 artikel. Buat opini/reaksi/cerita BERDASARKAN isi artikel — jangan ngarang fakta.
+WAJIB: Konten HARUS nyambung sama isi artikel. Jangan bahas topik lain.
+Judul: {article_title}
 Boleh tambah perspective pribadi, tapi fakta harus dari artikel.
 
 Output JSON: {{"text": "...", "type": "{chosen_type}"}}"""
@@ -2223,6 +2223,28 @@ Output JSON: {{"text": "...", "type": "{chosen_type}"}}"""
                 text = data.get("text", "").strip()
                 post_type = data.get("type", chosen_type)
                 if text:
+                    # Topic relevance check — text must share words with article title
+                    if article_title:
+                        stopwords = {'yang', 'di', 'dan', 'ini', 'itu', 'dengan', 'untuk', 'pada', 'ke', 'dari',
+                                     'adalah', 'juga', 'sudah', 'masih', 'belum', 'akan', 'bisa', 'tidak',
+                                     'gak', 'bukan', 'lebih', 'paling', 'sangat', 'atau', 'tapi', 'namun',
+                                     'the', 'is', 'are', 'was', 'and', 'or', 'but', 'in', 'on', 'at', 'to',
+                                     'for', 'of', 'with', 'by', 'a', 'an', 'that', 'this', 'it', 'not'}
+                        title_words = set(w.lower() for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', article_title) if w.lower() not in stopwords)
+                        text_words = set(w.lower() for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', text) if w.lower() not in stopwords)
+                        # Also check body keywords
+                        body_words = set()
+                        if article_body:
+                            body_words = set(w.lower() for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{4,}', article_body[:1000]) if w.lower() not in stopwords)
+                        overlap = (title_words & text_words) | (body_words & text_words)
+                        ENGLISH_SOURCES = {"darius_foroux", "scott_young", "james_clear", "mark_manson", "ryan_holiday"}
+                        if source not in ENGLISH_SOURCES and len(overlap) < 2:
+                            print(f"[TEXT POST] Rejected — off-topic (overlap: {len(overlap)}, title: {article_title[:40]}...)")
+                            continue
+                        elif source in ENGLISH_SOURCES and len(text_words) < 3:
+                            print(f"[TEXT POST] Rejected — too generic ({len(text_words)} words)")
+                            continue
+
                     # Enforce max 2 sentences — split by .!? followed by space/newline or end
                     import re as _re
                     sentences = [s.strip() for s in _re.split(r'(?<=[.!?])\s+', text) if s.strip()]

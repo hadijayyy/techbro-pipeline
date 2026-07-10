@@ -897,7 +897,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
 
             if is_text_post:
                 print(f"  [2/4] Generating TEXT POST (Ryan 1% Better style)...")
-                text_result = generate_text_post()
+                text_result = generate_text_post(art["title"], art["body"], art.get("source", ""))
                 if not text_result:
                     print(f"  [FALLBACK] Text post failed, trying carousel...")
                     is_text_post = False
