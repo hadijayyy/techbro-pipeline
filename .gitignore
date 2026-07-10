@@ -9,3 +9,5 @@ output/
 .pipeline.pid
 pipeline.db
 hot-cache.json
+*.db-shm
+*.db-wal
