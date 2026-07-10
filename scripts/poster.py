@@ -240,7 +240,26 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
             print("  [SKIP] No slides")
             continue
 
-        # Auto-append article URL to last slide (CTA)
+        # Text posts — short-circuit before image/URL logic (Threads 500 char limit)
+        hook = post.get('hook_pattern', '')
+        if hook.startswith('TEXT_'):
+            text = slides[0] if slides else ''
+            # Truncate to Threads 500 char limit
+            if len(text) > 490:
+                text = text[:487] + '...'
+            print(f"  [TEXT POST] {hook}: {text[:60]}...")
+            if dry_run:
+                print(f"  [DRY RUN] {text}")
+                continue
+            post_id = _post_container(text)
+            if post_id:
+                mark_posted(conn, post['id'], post_id)
+                print(f"  ✓ Posted: {post_id}")
+            else:
+                print(f"  ✗ Failed")
+            continue
+
+        # Auto-append article URL to last slide (CTA) — carousels only
         article_url = (post.get('article_url') or '').strip()
         if article_url:
             import re as _re
@@ -257,22 +276,7 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
                 conn.execute("UPDATE articles SET image=? WHERE id=(SELECT article_id FROM posts WHERE id=?)", (image_url, post['id']))
                 conn.commit()
         
-        # Text posts (TEXT_OPINION, TEXT_PERSONAL, etc.) — text-only, no image needed
-        hook = post.get('hook_pattern', '')
-        if hook.startswith('TEXT_'):
-            text = slides[0] if slides else ''
-            print(f"  [TEXT POST] {hook}: {text[:60]}...")
-            if dry_run:
-                print(f"  [DRY RUN] {text}")
-                continue
-            post_id = _post_container(text)
-            if post_id:
-                mark_posted(conn, post['id'], post_id)
-                print(f"  ✓ Posted: {post_id}")
-            else:
-                print(f"  ✗ Failed")
-            continue
-        
+        # Text posts (TEXT_OPINION, TEXT_PERSONAL, etc.) — text-only, no image needed (already handled above)
         # Wajib image untuk slide 1 — skip kalau gak ada
         if not image_url:
             print(f"  [SKIP] No image for slide 1: {post.get('title', 'Untitled')[:50]}")

@@ -1252,7 +1252,7 @@ def _check_jargon(slides: dict) -> list[str]:
     return issues
 
 
-def _check_topic_relevance(slides: dict, article_title: str, article_body: str) -> list[str]:
+def _check_topic_relevance(slides: dict, article_title: str, article_body: str, source: str = "") -> list[str]:
     """Check if slides discuss the same topic AND same type of content as the article.
     
     Two checks:
@@ -1260,6 +1260,11 @@ def _check_topic_relevance(slides: dict, article_title: str, article_body: str) 
     2. Content type: if article is NOT a tutorial, slides shouldn't contain tutorials
        (catches LLM inventing 'how to use X' when article is about controversy/news)
     """
+    # Skip topic check for English sources — LLM translates to Indonesian,
+    # so word overlap is always 0%. Self-dev topics are inherently aligned.
+    ENGLISH_SOURCES = {"darius_foroux", "scott_young", "james_clear", "mark_manson", "ryan_holiday"}
+    if source in ENGLISH_SOURCES:
+        return []
     violations = []
     
     stopwords = {'yang', 'di', 'dan', 'ini', 'itu', 'dengan', 'untuk', 'pada', 'ke', 'dari',
@@ -1768,7 +1773,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
             print(f"[COHERENCE] ⚠️ {issue}")
 
     # ─── Topic relevance — REJECT if slides discuss wrong topic ───
-    topic_violations = _check_topic_relevance(data, title, body)
+    topic_violations = _check_topic_relevance(data, title, body, source)
     if topic_violations:
         for v in topic_violations:
             print(f"[TOPIC] 🔴 {v}")
@@ -1777,7 +1782,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         topic_hook = hook_instr + f" KUNCI: Konten HARUS bahas topik yang sama dengan artikel: '{title}'. Jangan bahas fitur/cara pakai produk kalau artikel bahas kontroversi/iklan/drama."
         v = _generate_variant(title, body, source, primary, hook_instruction=topic_hook)
         if v and "slide_1" in v:
-            topic_check2 = _check_topic_relevance(v, title, body)
+            topic_check2 = _check_topic_relevance(v, title, body, source)
             if topic_check2:
                 for c in topic_check2:
                     print(f"[TOPIC] 🔴 Retry also off-topic: {c}")
