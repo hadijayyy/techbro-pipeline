@@ -48,7 +48,7 @@ caption: 1-2 sentence summary
 - MUST include specific numbers sourced directly from the article
 - MUST reject product promotions. If product launch/specs/pricing, output: {"error":"product_promo"}
 - Voice: lu/gw, bukan aku/kamu. Natural bahasa Indonesia, bukan bahasa Inggris kaku.
-- 3-5 kalimat per slide. Medium length.
+- MAX 3 kalimat per slide. Padat, bukan bertele-tele.
 - Boleh pakai "..." (titik tiga) untuk efek dramatis.
 
 WRONG: Article says "limited to AI Ultra subscribers" → You write "try it for free"
@@ -982,6 +982,13 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:
             data[key] = _format_lists(_clean(data[key]))
+            # Enforce max 3 sentences per slide
+            text = data[key]
+            sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+            max_sents = 2 if key == "slide_1" else 3  # hook: max 2, others: max 3
+            if len(sentences) > max_sents:
+                data[key] = " ".join(sentences[:max_sents])
+                print(f"[{key}] Truncated {len(sentences)} → {max_sents} sentences")
     # Also clean caption (em dashes, banned phrases, etc.)
     if "caption" in data:
         data["caption"] = _clean(data["caption"])
