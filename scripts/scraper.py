@@ -18,7 +18,7 @@ TOP_N = 1
 
 # Source names used by scrape_all_async — single of truth
 SOURCE_NAMES = [
-    "detik_edu", "hipwee", "mark_manson", "james_clear", "ryan_holiday",
+    "detik", "gramedia", "mark_manson", "james_clear", "ryan_holiday",
     "darius_foroux", "scott_young"
 ]
 
@@ -749,57 +749,68 @@ async def scrape_bloomberg_technoz(client: httpx.AsyncClient) -> list[dict]:
     return articles
 
 
-async def scrape_detik_edu(client: httpx.AsyncClient) -> list[dict]:
-    """Scrape Detik Edu articles."""
-    items = []
-    try:
-        r = await client.get("https://www.detik.com/edu/rss", timeout=12)
-        from email.utils import parsedate_to_datetime
-        for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
-            block = item_block.group(1)
-            link_m = re.search(r"<link>([^<]+)</link>", block)
-            date_m = re.search(r"<pubDate>([^<]+)</pubDate>", block)
-            if not link_m:
-                continue
-            url = link_m.group(1).strip()
-            dt = None
-            if date_m:
-                try:
-                    dt = parsedate_to_datetime(date_m.group(1).strip()).astimezone(UTC)
-                except Exception:
-                    pass
-            items.append((url, dt))
-    except Exception:
-        pass
-    
-    DETIK_SELECTORS = [("article", None), ("div", "detail__body"), ("div", "detail-content")]
+async def scrape_detik(client: httpx.AsyncClient) -> list[dict]:
+    """Scrape Detik.com/edu articles via HTML (RSS broken)."""
+    DETIK_SELECTORS = [
+        ("div", "detail__body-text"),
+        ("div", "detail-text"),
+        ("article", None),
+    ]
     articles = []
-    for url, rss_date in items[:15]:
+    try:
+        r = await client.get("https://www.detik.com/edu", timeout=15)
+        if r.status_code != 200:
+            return []
+        # Extract article links: /edu/.../d-NNNNNNN/...
+        links = list(set(re.findall(r'href="(https://www\.detik\.com/edu/[^"]+/d-\d+[^"]*?)"', r.text)))
+        links = [l.split("?")[0] for l in links[:20]]  # dedupe query params
+    except Exception:
+        return []
+
+    for url in links:
         try:
             r = await client.get(url, timeout=15)
+            if r.status_code != 200:
+                continue
             soup = BeautifulSoup(r.text, "html.parser")
-            title = soup.find("meta", property="og:title")
-            title = title["content"] if title else "Untitled"
+            # Title
+            og = soup.find("meta", property="og:title")
+            title = og["content"].split(" - ")[0].strip() if og else ""
+            if not title:
+                h1 = soup.find("h1")
+                title = h1.get_text(strip=True) if h1 else ""
+            if not title:
+                continue
+            # Body
             body = extract_body(soup, DETIK_SELECTORS)
+            if not body or len(body) < 300:
+                continue
+            body = clean_body(body)
+            # Date
+            dt = parse_date_iso(
+                (soup.find("meta", property="article:published_time") or {}).get("content", "")
+            )
             image = get_og_image(soup)
             articles.append({
                 "title": title,
                 "url": url,
-                "date": rss_date,
+                "date": dt,
                 "body": body,
                 "image": image,
-                "source": "detik_edu"
+                "source": "detik",
             })
         except Exception:
             continue
+        if len(articles) >= 10:
+            break
     return articles
 
 
-async def scrape_hipwee(client: httpx.AsyncClient) -> list[dict]:
-    """Scrape Hipwee articles."""
+async def scrape_gramedia(client: httpx.AsyncClient) -> list[dict]:
+    """Scrape Gramedia Blog articles (books, reading, self-dev)."""
     items = []
     try:
-        r = await client.get("https://www.hipwee.com/feed/", timeout=12)
+        r = await client.get("https://www.gramedia.com/blog/feed/", timeout=12)
         from email.utils import parsedate_to_datetime
         for item_block in re.finditer(r"<item>(.*?)</item>", r.text, re.DOTALL):
             block = item_block.group(1)
@@ -817,9 +828,9 @@ async def scrape_hipwee(client: httpx.AsyncClient) -> list[dict]:
             items.append((url, dt))
     except Exception:
         pass
-    
+
     articles = []
-    HIPWEE_SELECTORS = [("article", None), ("div", "entry-content"), ("div", "post-content")]
+    GRAMEDIA_SELECTORS = [("article", None), ("div", "entry-content"), ("div", "post-content")]
     for url, rss_date in items[:15]:
         try:
             r = await client.get(url, timeout=15)
@@ -833,7 +844,7 @@ async def scrape_hipwee(client: httpx.AsyncClient) -> list[dict]:
             if not title:
                 title_tag = soup.find("title")
                 title = title_tag.get_text(strip=True) if title_tag else "Untitled"
-            body = extract_body(soup, HIPWEE_SELECTORS)
+            body = extract_body(soup, GRAMEDIA_SELECTORS)
             image = get_og_image(soup)
             articles.append({
                 "title": title,
@@ -841,7 +852,7 @@ async def scrape_hipwee(client: httpx.AsyncClient) -> list[dict]:
                 "date": rss_date,
                 "body": body,
                 "image": image,
-                "source": "hipwee"
+                "source": "gramedia",
             })
         except Exception:
             continue
@@ -1098,8 +1109,8 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
         # 1. Gather articles from all sources (new functions return dicts directly)
         link_tasks = await asyncio.gather(
-            scrape_detik_edu(client),
-            scrape_hipwee(client),
+            scrape_detik(client),
+            scrape_gramedia(client),
             scrape_mark_manson(client),
             scrape_james_clear(client),
             scrape_ryan_holiday(client),
