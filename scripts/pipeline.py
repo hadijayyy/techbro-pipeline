@@ -892,7 +892,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
 
             # 3. Content type router: 50/50 carousel vs text post
             import random
-            is_text_post = random.random() < 0.50  # 50% text posts
+            is_text_post = False  # 100% carousel
             text_result = None
 
             if is_text_post:
