@@ -18,7 +18,7 @@ TOP_N = 1
 
 # Source names used by scrape_all_async — single of truth
 SOURCE_NAMES = [
-    "detik", "gramedia", "mark_manson", "james_clear", "ryan_holiday",
+    "detik", "mark_manson", "james_clear", "ryan_holiday",
     "darius_foroux", "scott_young"
 ]
 
@@ -1110,7 +1110,6 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
         # 1. Gather articles from all sources (new functions return dicts directly)
         link_tasks = await asyncio.gather(
             scrape_detik(client),
-            scrape_gramedia(client),
             scrape_mark_manson(client),
             scrape_james_clear(client),
             scrape_ryan_holiday(client),
