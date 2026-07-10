@@ -161,6 +161,15 @@ EXCLUDE = [
     "roblox", "minecraft", "gacha", "gameplay", "let's play",
     "taylor swift", "travis kelce", "wedding", "married", "concert", "tour", "album",
     "election", "parliament", "war", "sanctions",
+    # Product launches / self-promo from blog sources
+    "we're launching", "i've been building", "introducing purpose",
+    "meet purpose", "sign up for purpose", "try purpose",
+    "i'm launching", "we're releasing", "early access",
+    "join the waitlist", "get early access", "pre-order now",
+    "i'm excited to announce", "proud to announce",
+    "today we launch", "today i'm launching",
+    "limited time offer", "special discount", "use code",
+    "affiliate", "sponsored", "partnership with",
     # Niche dev/infra — gak relate orang Indonesia biasa
     "linux distro", "phosh", "fedora", "arch linux", "ubuntu release", "debian",
     "kernel update", "wayland", "x11", "gnome release", "kde plasma",
