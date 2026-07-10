@@ -29,12 +29,12 @@ Transform the article into a 6-slide "1% Better" carousel. Frame as mindset shif
 [OUTPUT]
 Flat JSON: "slide_1" to "slide_6", "caption", "hashtags". Write in prose (no bullets). Blunt, direct, natural Indonesian.
 
-- slide_1 (Hook, under 30 words, MAX 2 sentences): Powerful opener. Challenge assumption OR state truth. Must make people stop scrolling.
-- slide_2 (Problem/Context, 40-60 words, MAX 3 sentences): Relatable situation. Reader should think "ini soal gw."
-- slide_3 (Mindset Shift, 40-60 words, MAX 3 sentences): CORE slide. Reframe thinking. "Yang sebenernya terjadi bukan X, tapi Y."
-- slide_4 (Why It Works, 40-60 words, MAX 3 sentences): Make it click. Simple analogy or explanation.
-- slide_5 (Action Steps, 30-50 words, MAX 3 sentences): 2-3 specific, actionable steps. Not generic.
-- slide_6 (Closing, 30-40 words, MAX 2 sentences): Powerful one-liner + engagement question.
+- slide_1 (Hook, under 30 words, MAX 2 sentences): OPEN LOOP pattern. Start with unexpected action or shocking fact from article. Create curiosity gap — reader MUST swipe to understand. Example: "[Orang] baru [unexpected action]... Alasannya? [bukan yang lo expect]"
+- slide_2 (Setup, 40-60 words, MAX 3 sentences): Specific context + stakes. Timeline, numbers, details from article. Relatable situation. Reader should think "ini soal gw."
+- slide_3 (Twist/Conflict, 40-60 words, MAX 3 sentences): CORE slide. Plot twist or reframe. Challenge assumption. "Yang sebenernya terjadi bukan X, tapi Y."
+- slide_4 (Deep Dive, 40-60 words, MAX 3 sentences): Why this matters. Simple analogy or explanation that makes it click.
+- slide_5 (Takeaway, 30-50 words, MAX 3 sentences): 2-3 specific, actionable steps. Personal insight. Not generic.
+- slide_6 (CTA, 30-40 words, MAX 2 sentences): Engagement question that invites opinion/experience. Must be easy to answer.
 
 caption: 1-2 sentence summary
 
