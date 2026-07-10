@@ -33,7 +33,7 @@ Flat JSON: "slide_1" to "slide_6", "caption", "hashtags". Write in prose (no bul
 - slide_2 (Setup, 40-60 words, MAX 3 sentences): Specific context + stakes. Timeline, numbers, details from article. Relatable situation. Reader should think "ini soal gw."
 - slide_3 (Twist/Conflict, 40-60 words, MAX 3 sentences): CORE slide. Plot twist or reframe. Challenge assumption. "Yang sebenernya terjadi bukan X, tapi Y."
 - slide_4 (Deep Dive, 40-60 words, MAX 3 sentences): Why this matters. Simple analogy or explanation that makes it click.
-- slide_5 (Takeaway, 30-50 words, MAX 3 sentences): 2-3 specific, actionable steps. Personal insight. Not generic.
+- slide_5 (Takeaway, 30-50 words, MAX 3 sentences): 2-3 specific, actionable steps written in prose (NOT numbered lists). Personal insight. Not generic.
 - slide_6 (CTA, 30-40 words, MAX 2 sentences): Engagement question that invites opinion/experience. Must be easy to answer.
 
 caption: 1-2 sentence summary
@@ -237,7 +237,8 @@ SLIDE 5 — ACTION STEPS (Langkah Konkret)
   • 30-50 kata, 2-3 langkah
   • Spesifik dan actionable
   • JANGAN generik — kasih langkah yang bisa langsung diterapkan
-  • Contoh: "Pertama, tulis 3 hal yang mau lu capai hari ini. Kedua, selesaikan yang paling penting duluan. Ketiga, review sebelum tidur."
+  • DILARANG pakai numbered list (1. 2. 3.) — tulis dalam prose/kalimat
+  • Contoh: "Tulis 3 hal yang mau lu capai hari ini. Selesaikan yang paling penting duluan. Review sebelum tidur."
 
 SLIDE 6 — CLOSING (Ringkasan + Challenge)
   • 30-40 kata, 2 kalimat
@@ -1009,6 +1010,10 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
             if len(sentences) > max_sents:
                 data[key] = " ".join(sentences[:max_sents])
                 print(f"[{key}] Truncated {len(sentences)} → {max_sents} sentences")
+            # Fix incomplete numbered lists: "1. text. 2." → "1. text."
+            data[key] = re.sub(r'\s*\d+\.\s*$', '', data[key]).rstrip()
+            # Fix numbered lists → prose: "1. X. 2. Y." → "X. Y."
+            data[key] = re.sub(r'\b\d+\.\s+', '', data[key]).rstrip()
     # Also clean caption (em dashes, banned phrases, etc.)
     if "caption" in data:
         data["caption"] = _clean(data["caption"])
