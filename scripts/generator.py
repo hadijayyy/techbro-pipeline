@@ -1505,8 +1505,8 @@ def _evaluate_slides(slides: list[str]) -> tuple[bool, str]:
     """
     prompt = f"""
     [ROLE]
-    Eva Alicia Style Content Evaluator (Money Mindset Indonesia).
-    Evaluate 6-slide carousel for quality + Eva Alicia voice compliance.
+    Eva Alicia Style Content Evaluator (1% Better Mindset Indonesia).
+    Evaluate 6-slide carousel for quality + "lu/gw" voice compliance.
 
     [INPUT]
     Slides: {slides}
@@ -1516,12 +1516,12 @@ def _evaluate_slides(slides: list[str]) -> tuple[bool, str]:
     2. INTER-SLIDE FLOW: Slide 1→2→3→4→5→6 must connect logically. No topic jumps.
        - Slide 2 MUST expand from Slide 1 (same topic, deeper angle)
        - No slide should introduce a topic not mentioned in previous slides
-    3. EVA ALICIA VOICE:
+    3. VOICE:
        - Slide 1 MUST be truth bomb / reframe (NOT cold data drop)
-       - MUST use "aku/kamu/kalian" personal voice (NOT "gue/lo")
+       - MUST use "lu/gw" personal voice (NOT "aku/kamu/kalian")
        - MUST challenge assumption, not just state fact
-       - Slide 6 MUST end with challenge ("Kalian setuju?" / "Kamu masih mau defend ini?")
-    4. MONEY ANGLE: Every slide must connect to financial impact
+       - Slide 6 MUST end with challenge/CTA
+    4. MINDSET ANGLE: Connect to self-improvement, habits, discipline, or perspective shift
     5. Each slide max 400 chars, 2-3 sentences
     6. Full Indonesian (tech terms OK in English)
 
