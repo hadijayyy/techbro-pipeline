@@ -80,25 +80,19 @@ CONTOH BENAR: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Lu t
 • Bilang "risiko buat X" kalau X gak disebut di artikel
 
 ═══════════════════════════════════════════════
-§2  STEP 0 — EKSTRAKSI FAKTA (WAJIB SEBELUM NULIS)
+§2  STEP 0 — EKSTRAKSI FAKTA (internal, JANGAN outputkan)
 ═══════════════════════════════════════════════
-Sebelum nulis apapun, list dulu secara internal:
+Sebelum nulis slide, pikirin dulu:
 1. Fakta/angka konkret yang ADA di artikel
 2. Quote langsung yang bisa dipake verbatim
 3. Klaim "pasti" vs "berpotensi/dugaan" — pisahin
-4. Tips/cara/langkah yang bisa dijadikan konten
+4. Tips/cara/langkah yang bisa dijadiin konten
 
-Lalu, filter insight pakai ranking ini (bukan sekadar list):
-A. Kontra-intuitif — nabrak asumsi umum publik soal isu ini
-B. Ada angka/data/kutipan spesifik — bisa dikutip (paraphrase, bukan copy-paste)
-C. Angle langka — jarang diangkat media lain yang nulis berita sama
-D. Dampak konkret — mindset, kebiasaan, hidup sehari-hari yang kena ke orang biasa
-E. Out of the box — bukan cuma rangkuman berita, ada perspektif unik
+PENTING: STEP 0 ini cuma proses pikir, BUKAN output. Langsung ke slide JSON.
 
-Dari 5 insight terfilter, pilih yang PALING KUAT buat jadi hook (Slide 1).
-Susun sisanya secara logis (bukan random) ke Slide 2-6.
-
-Semua slide HARUS bisa ditrace balik ke list ini.
+Pilih insight PALING KUAT buat jadi hook (Slide 1).
+Susun sisanya secara logis ke Slide 2-6.
+Semua slide HARUS bisa ditrace balik ke fakta artikel.
 
 ═══════════════════════════════════════════════
 §3  ROLE — "RYAN" (1% Better Style)
@@ -963,12 +957,30 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
         if cleaned.startswith("```"):
             cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
             cleaned = re.sub(r'\s*```$', '', cleaned)
-        data = json.loads(cleaned)
+        try:
+            data = json.loads(cleaned)
+        except json.JSONDecodeError:
+            # LLM often outputs unescaped quotes inside strings — repair
+            # Fix unescaped quotes: "aku harus X" → 'aku harus X'
+            repaired = re.sub(r'(?<=: ")(.*?)(?=",?\s*[\n\r])', lambda m: m.group(0).replace('"', "'"), cleaned)
+            # Also fix trailing commas
+            repaired = re.sub(r',\s*([}\]])', r'\1', repaired)
+            try:
+                data = json.loads(repaired)
+            except json.JSONDecodeError:
+                # Last resort: try extracting just slide values with regex
+                slides = {}
+                for m in re.finditer(r'"slide_(\d)"\s*:\s*"((?:[^"\\]|\\.)*)"', cleaned):
+                    slides[f"slide_{m.group(1)}"] = m.group(2).replace('\\"', '"')
+                if len(slides) >= 4:
+                    data = {**slides, "caption": "", "hashtags": ""}
+                else:
+                    raise
     except json.JSONDecodeError as e:
         print(f"  [ERR] JSON parse failed: {e}")
         print(f"  [ERR] Raw response (first 500): {raw[:500]}")
         return None
-    # Handle {"slides": [{"slide": 1, "content": "..."}, ...]} format
+    # Handle {{"slides": [{...}]}} format
     if "slides" in data and isinstance(data["slides"], list):
         converted = {}
         for item in data["slides"]:
@@ -983,6 +995,10 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
                 data["caption"] = ""
             if "hashtags" not in data:
                 data["hashtags"] = ""
+    # Handle {{"extracted_facts": {...}}} — model stuck at STEP 0
+    if "extracted_facts" in data:
+        print("  [ERR] Model returned extracted_facts instead of slides — retrying with simpler prompt")
+        return None
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:
             data[key] = _format_lists(_clean(data[key]))
