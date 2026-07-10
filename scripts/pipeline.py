@@ -901,6 +901,13 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
                 if not text_result:
                     print(f"  [FALLBACK] Text post failed, trying carousel...")
                     is_text_post = False
+                else:
+                    # Normalize: text post uses slide_hook, DB expects slide_1
+                    if "slide_hook" in text_result and "slide_1" not in text_result:
+                        text_result["slide_1"] = text_result.pop("slide_hook")
+                    # Mark as TEXT_ prefix so poster recognizes it
+                    if not text_result.get("_hook_pattern", "").startswith("TEXT_"):
+                        text_result["_hook_pattern"] = "TEXT_" + text_result.get("_hook_pattern", "POST")
 
             if not is_text_post:
                 print(f"  [2/4] Generating carousel via LM...")
