@@ -1649,32 +1649,29 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
     primary = "mistral"
     fallback = "groq"
 
-    # A/B: generate 2 variants
+    # A/B: generate 1 variant (ponytail: was 2, saves ~30s per run)
     variants = []
-    for i, prov in enumerate([primary, primary], 1):  # both from same provider
-        v = _generate_variant(title, body, source, prov, hook_instruction=hook_instr, cta_instruction=cta_instr)
-        if v and "slide_1" in v:
-            v["_provider"] = prov
-            hook_score = _score_hook(v["slide_1"])
-            variants.append((v, hook_score))
-            print(f"  [A/B] Variant {i}: hook score {hook_score}/10 via {prov}")
+    v = _generate_variant(title, body, source, primary, hook_instruction=hook_instr, cta_instruction=cta_instr)
+    if v and "slide_1" in v:
+        v["_provider"] = primary
+        hook_score = _score_hook(v["slide_1"])
+        variants.append((v, hook_score))
+        print(f"  [GEN] Variant 1: hook score {hook_score}/10 via {primary}")
 
-    # If primary fails both times, try fallback
-    if len(variants) < 2:
+    # If primary fails, try fallback
+    if not variants:
         v = _generate_variant(title, body, source, fallback, hook_instruction=hook_instr, cta_instruction=cta_instr)
         if v and "slide_1" in v:
             v["_provider"] = fallback
             hook_score = _score_hook(v["slide_1"])
             variants.append((v, hook_score))
-            print(f"  [A/B] Fallback variant: hook score {hook_score}/10 via {fallback}")
+            print(f"  [GEN] Fallback variant: hook score {hook_score}/10 via {fallback}")
 
     if not variants:
         return None
 
-    # Pick best hook score
-    variants.sort(key=lambda x: x[1], reverse=True)
     data, best_score = variants[0]
-    print(f"  [A/B] Winner: hook score {best_score}/10 ({len(variants)} variants)")
+    print(f"  [GEN] Winner: hook score {best_score}/10")
 
     # Store A/B tracking data
     data["_hook_pattern"] = hook_instr[:100]  # truncate for DB
@@ -1833,44 +1830,17 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         else:
             return None
 
-    # ─── Inter-slide flow check — warn but don't block ───
+    # ─── Inter-slide flow check — warn only (ponytail: skip regeneration, saves ~30s) ───
     flow_issues = _check_inter_slide_flow(data)
     if flow_issues:
         for fi in flow_issues:
             print(f"[FLOW] ⚠️ {fi}")
-        # If 2+ flow issues, regenerate with stronger flow instruction
-        if len(flow_issues) >= 2:
-            print(f"[FLOW] Too many flow issues ({len(flow_issues)}), regenerating...")
-            stronger_hook = hook_instr + " KUNCI: Slide 2 HARUS expand dari Slide 1. Jangan lompat topik antar slide."
-            v = _generate_variant(title, body, source, primary, hook_instruction=stronger_hook)
-            if v and "slide_1" in v:
-                flow_check2 = _check_inter_slide_flow(v)
-                if len(flow_check2) < len(flow_issues):
-                    data = v
-                    data["_hook_pattern"] = hook_instr[:100]
-                    data["_hook_score"] = best_score
-                    data["_cta_pattern"] = cta_instr[:100]
-                    print(f"[FLOW] ✅ Regenerated with better flow ({len(flow_check2)} issues vs {len(flow_issues)})")
-                else:
-                    print(f"[FLOW] ⚠️ Regeneration didn't improve flow, keeping original")
 
-    # ─── Jargon check — warn, regenerate if multiple ───
+    # ─── Jargon check — warn only (ponytail: skip regeneration, saves ~30s) ───
     jargon_issues = _check_jargon(data)
     if jargon_issues:
         for ji in jargon_issues:
             print(f"[JARGON] ⚠️ {ji}")
-        if len(jargon_issues) >= 2:
-            print(f"[JARGON] Too many jargon issues ({len(jargon_issues)}), regenerating...")
-            stronger_hook = hook_instr + " KUNCI: Semua istilah asing WAJIB dijelasin dalam bahasa Indonesia. 'end user' → 'pengguna akhir', 'purchase order' → 'surat pesanan'."
-            v = _generate_variant(title, body, source, primary, hook_instruction=stronger_hook)
-            if v and "slide_1" in v:
-                jargon_check2 = _check_jargon(v)
-                if len(jargon_check2) < len(jargon_issues):
-                    data = v
-                    data["_hook_pattern"] = hook_instr[:100]
-                    data["_hook_score"] = best_score
-                    data["_cta_pattern"] = cta_instr[:100]
-                    print(f"[JARGON] ✅ Regenerated with less jargon ({len(jargon_check2)} issues vs {len(jargon_issues)})")
 
     # Final cleanup: strip orphaned markdown artifacts after grounding stripped content
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
@@ -1986,23 +1956,23 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
             return None
         else:
             data["slide_1"] = slides[0]
-            # Retry up to 3 times with stronger grounding each attempt
+            # Retry 1x with stronger grounding (ponytail: was 3, saves ~60s)
             retry_data = None
-            for attempt in range(1, 4):
+            for attempt in range(1, 2):
                 stronger = hook_instr + f" ATURAN MUTLAK (attempt {attempt+1}): HANYA pakai fakta yang ADA di artikel. JANGAN tambah apapun. Periksa tiap klaim: apakah ini beneran ada di artikel?"
                 v = _generate_variant(title, body, source, primary, hook_instruction=stronger)
                 if v and "slide_1" in v:
                     # evaluate revised variant
                     slides_v = [v.get(f"slide_{i}", "") for i in range(1, 7)]
                     approved_v, reason_v = _evaluate_slides(slides_v)
-                    print(f"  [EVAL] Retry {attempt}/3 verdict: {'APPROVED' if approved_v else 'REJECT'}")
+                    print(f"  [EVAL] Retry {attempt}/1 verdict: {'APPROVED' if approved_v else 'REJECT'}")
                     if approved_v:
                         # apply possible REVISE changes (slide_1 already updated inside evaluator)
                         v["slide_1"] = slides_v[0]
                         retry_data = v
                         break
                 else:
-                    print(f"  [EVAL] Retry {attempt}/3 generation failed")
+                    print(f"  [EVAL] Retry {attempt}/1 generation failed")
             if retry_data:
                 data = retry_data
                 # Preserve tracking data from original variant
