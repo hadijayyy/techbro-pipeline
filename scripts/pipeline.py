@@ -935,7 +935,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
                     print(f"  ⏭️ Evaluator skipped (hook_score={hook_score} ≥ 8)")
 
             # 4. Stage post
-            post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", "#1PercentBetter"),
+            post_id = stage_post(conn, article_id, slides, slides.get("caption", ""), slides.get("hashtags", ""),
                                 hook_pattern=hook_pattern, hook_score=hook_score, cta_pattern=cta_pattern)
             posted_titles.append(art['title'])
             staged_titles_this_run.append(art['title'])

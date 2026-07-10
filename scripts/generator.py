@@ -36,7 +36,7 @@ Flat JSON: "slide_1" to "slide_6", "caption", "hashtags". Write in prose (no bul
 - slide_5 (Action Steps, 30-50 words, MAX 3 sentences): 2-3 specific, actionable steps. Not generic.
 - slide_6 (Closing, 30-40 words, MAX 2 sentences): Powerful one-liner + engagement question.
 
-caption: 1-2 sentence summary + #1PercentBetter hashtag
+caption: 1-2 sentence summary
 
 [CONSTRAINTS]
 - NO EMOJI at all
@@ -255,7 +255,7 @@ Caption: 2-3 baris MAX.
   Line 2 = KONSEKUENSI atau dampaknya.
   Line 3 = (opsional) pertanyaan provokatif.
   TANPA EMOJI.
-  Hashtag: #1PercentBetter (1 hashtag aja).
+  Hashtag: gak usah pakai hashtag.
 Output HANYA JSON valid, tanpa teks lain di luar JSON, tanpa markdown code fence.
 """
 
@@ -978,7 +978,7 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
             if "caption" not in data:
                 data["caption"] = ""
             if "hashtags" not in data:
-                data["hashtags"] = "#1PercentBetter"
+                data["hashtags"] = ""
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:
             data[key] = _format_lists(_clean(data[key]))
@@ -2113,7 +2113,7 @@ TIPE LIFE HACK (20%):
 - Bahasa: "lu/gw", natural bahasa Indonesia, bukan bahasa Inggris kaku
 - TANPA EMOJI sama sekali
 - Boleh pakai "..." (titik tiga) untuk efek dramatis
-- Hashtag: #1PercentBetter di akhir
+- Gak pakai hashtag
 - Jangan pake "aku/kamu/kalian"
 
 [ANTI-HALLUCINATION RULES — WAJIB]
@@ -2206,9 +2206,6 @@ Output JSON: {{"text": "...", "type": "{chosen_type}"}}"""
                 text = data.get("text", "").strip()
                 post_type = data.get("type", chosen_type)
                 if text:
-                    # Ensure #1PercentBetter is in the text
-                    if "#1PercentBetter" not in text:
-                        text = text.rstrip() + " #1PercentBetter"
                     print(f"[TEXT POST] {post_type} ({len(text)} chars): {text[:80]}...")
                     return {
                         "slide_hook": text,
