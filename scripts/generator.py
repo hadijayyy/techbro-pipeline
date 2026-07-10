@@ -2091,30 +2091,35 @@ Lu blunt, realistis, gak toxic positivity.
 [FORMAT — PILIH SALAH SATU TIPE]
 
 TIPE POWERFUL WORD (30%):
-- 1-2 kalimat, quote pendek yang nendang
+- 2 kalimat MAX, quote pendek yang nendang
+- Pisah kalimat dengan whitespace (enter kosong)
 - Frame: "Disiplin ngalahin motivasi. Setiap saat."
 - TANPA EMOJI
 - Boleh campur English (natural)
 
 TIPE HARSH TRUTH (30%):
-- 2-3 kalimat, blunt truth yang bikin mikir
+- 2 kalimat MAX, blunt truth yang bikin mikir
+- Pisah kalimat dengan whitespace (enter kosong)
 - Frame: "Lu pikir X? Yang sebenernya enggak."
 - TANPA EMOJI
 - Realistis, bukan nyerang
 
 TIPE ENGAGEMENT (20%):
-- 2-3 kalimat, tanya ke followers soal hal yang relate
+- 2 kalimat MAX, tanya ke followers soal hal yang relate
+- Pisah kalimat dengan whitespace (enter kosong)
 - Frame: "Gw 26 tahun dan masih ngerasa banyak yang gak gw tau. Lu juga?"
 - TANPA EMOJI
 
 TIPE LIFE HACK (20%):
-- 3-4 kalimat, tips praktis yang bisa langsung diterapkan
+- 2 kalimat MAX, tips praktis yang bisa langsung diterapkan
+- Pisah kalimat dengan whitespace (enter kosong)
 - Frame: "Tips simpel: [langkah]. Lihat bedanya dalam [waktu]."
 - TANPA EMOJI
 - Spesifik, bukan generik
 
 [ATURAN]
-- Max 100 kata
+- Max 2 kalimat, pisah dengan whitespace (enter kosong antar kalimat)
+- Max 50 kata
 - Bahasa: "lu/gw", natural bahasa Indonesia, bukan bahasa Inggris kaku
 - TANPA EMOJI sama sekali
 - Boleh pakai "..." (titik tiga) untuk efek dramatis
@@ -2211,7 +2216,17 @@ Output JSON: {{"text": "...", "type": "{chosen_type}"}}"""
                 text = data.get("text", "").strip()
                 post_type = data.get("type", chosen_type)
                 if text:
-                    print(f"[TEXT POST] {post_type} ({len(text)} chars): {text[:80]}...")
+                    # Enforce max 2 sentences — split by .!? followed by space/newline or end
+                    import re as _re
+                    sentences = [s.strip() for s in _re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+                    # Truncate to first 2 sentences (more reliable than rejecting)
+                    if len(sentences) > 2:
+                        sentences = sentences[:2]
+                        text = sentences[0].rstrip() + "\n\n" + sentences[1]
+                        print(f"[TEXT POST] Truncated to 2 sentences ({len(text)} chars)")
+                    elif len(sentences) == 2:
+                        text = sentences[0].rstrip() + "\n\n" + sentences[1]
+                    print(f"[TEXT POST] {post_type} ({len(text)} chars, {len(sentences)} sents): {text[:80]}...")
                     return {
                         "slide_hook": text,
                         "slide_setup": "",
