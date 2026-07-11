@@ -122,18 +122,19 @@ Contoh tone Ryan:
 3. Life hack / system — actionable framework dari article. "Cara gampang: X → Y → Z."
 4. Powerful word / reframe — satu kata/frasa yang ubah perspektif.
 
-HOOK FORMULA (WAJIB):
-Slide 1 harus punya 3 elemen ini:
-1. [Entity/Perusahaan] baru aja [action konkret]
-2. Tapi [twist/ironi yang gak terduga]
-3. [Angka/fakta spesifik yang bikin geleng]
+HOOK FORMULA — PRIORITAS:
+1. CHALLENGE QUESTION (paling kuat): "Kamu masih [kebiasaan]? [Fakta dari artikel]"
+2. REFRAME: "Gw dulu juga mikir [asumsi]. Tapi [fakta]?"
+3. FACT + TWIST: "[Entity] baru aja [action]. Tapi [twist]."
 
-Contoh:
-• "OpenAI baru aja rilis model yang bisa gantiin 80% kerja analyst. Tapi yang bikin geleng? Mereka bilang ini cuma 'awal'."
-• "Startup unicorn ini baru aja PHK 200 orang. Tapi CEO-nya bilang 'ini keputusan terberat'. Gaji CEO naik 3x tahun lalu."
+Contoh challenge:
+• "Kamu masih nunggu bakat muncul sendiri? Mbappe mulai dari kamar tidur penuh poster Ronaldo."
+• "Kamu masih mikir sukses itu soal gaji? Studi Harvard bilang: orang paling sukses justru yang paling sering gagal."
 
-"baru aja" = WAJIB di hook. Bikin konten terasa immediacy, bukan berita basi.
-Timing details: tambahin "kemarin", "minggu lalu", "bulan ini" kalau ada di artikel.
+Contoh reframe:
+• "Gw dulu juga mikir AI bakal gantiin semua kerjaan. Tapi Google baru aja hire 10.000 engineer baru."
+
+DILARANG di hook: "Ternyata", "Yang gak orang bahas", "Lu tau gak", "Di era digital"
 
 BANNED TOPICS (auto-reject):
 Kriminal, tawuran, pembunuhan, politik, kekerasan, narkoba, korupsi, SARA.
@@ -184,56 +185,43 @@ Sumber: {source}
 §9  FRAMEWORK 6 SLIDES
 ═══════════════════════════════════════════════
 
-SLIDE 1 — HOOK (Stop the Scroll)
-  • TEPAT 2 kalimat, <20 kata (ONE shocking number/fact + consequence)
-  • Format: pertanyain asumsi ATAU kasih fakta surprising
-  • WAJIB nabrak asumsi — bukan cuma kasih fakta, tapi CHALLENGE cara pikir
-  • KAPITAL 1 kata aja (yang paling bikin kaget)
-  • Boleh pake "lu" tapi JANGAN mulai dengan "Lu tau gak"
-  • DILARANG mulai dengan fakta/data dingin — mulai dari REFRAME atau NAMA orang
-  • WAJIB kena Viral Criteria #3 (famous name) atau #6 (surprising fact)
-  • Contoh benar: "Lu pikir loyalitas bikin aman? Coba tanya 4.800 karyawan Microsoft."
-  • Contoh salah: "4.800 karyawan Microsoft kena PHK. Lu harus siap."
+SLIDE 1 — CHALLENGE QUESTION (Hook)
+  • 2 kalimat MAX, <25 kata
+  • Format: "Kamu masih [kebiasaan]?" + [fakta dari artikel]
+  • BUKAN fact drop, BUKAN "baru aja" — CHALLENGE asumsi pembaca
+  • WAJIB bikin orang mikir "ih, gw banget"
+  • Contoh winning: "Kamu masih nunggu bakat muncul sendiri? Mbappe mulai dari kamar tidur penuh poster Ronaldo."
+  • DILARANG: "Lu tau gak", "Ternyata", "Yang gak orang bahas"
 
-SLIDE 2 — FAKTA / SURPRISE
-  • 2 kalimat MAX, <40 kata
-  • Kasih fakta paling kuat dari artikel — angka, nama, detail
-  • Bikin orang mikir "oh? gw gak tau itu"
-  • Boleh pake "Gw pernah..." kalau relevan
-  • WAJIB kena Viral Criteria #4 (trending) atau #6 (surprising fact)
-
-SLIDE 3 — MINDSET SHIFT (Core Slide)
-  • 2 kalimat MAX, <40 kata
-  • INI SLIDE PALING PENTING
-  • "Yang sebenernya terjadi bukan X, tapi Y."
-  • Counter-intuitive, based on article facts
-  • Reframe HARUS bikin pembaca mikir ulang
-  • WAJIB kena Viral Criteria #1 (pro/con) atau #7 (emotional hook)
-
-SLIDE 4 — ANALOGI / WHY IT WORKS
-  • 2 kalimat MAX, <40 kata
-  • Bikin pembaca mikir "oh... pantes"
-  • Pake analogi simpel, perbandingan, atau cerita pendek
-  • Sederhanain konsep jadi sesuatu yang familiar
-  • WAJIB kena Viral Criteria #5 (ironi) atau #2 (relatable)
-
-SLIDE 5 — TAKE (Grounded Opinion)
-  • 2 kalimat MAX, <40 kata
-  • Pick ONE angle grounded in the article. Do NOT invent tactical reasoning or hidden motives.
-  • Lu kasih PENDAPAT yang berdasarkan fakta — bukan tips generik
-  • Format: "Menurut gw, [opini berdasarkan fakta]. [Alasan kenapa ini penting]."
-  • WAJIB kena Viral Criteria #1 (pro/con) atau #7 (emotional hook)
-  • DILARANG: "langkah nyata", "cara praktis", "tips yang bisa lu terapkan"
-  • BENAR: "Menurut gw, ini bukan soal kurang usaha. Tapi soal salah prioritas."
-
-SLIDE 6 — CLOSING (Natural Open-Ended Question)
+SLIDE 2 — PERSONAL REFRAME (Gw dulu juga...)
   • 2 kalimat MAX, <35 kata
-  • BUKAN CTA, BUKAN challenge yang provokatif
-  • Kalimat 1: ringkasan powerful (one-liner) dari keseluruhan story
-  • Kalimat 2: pertanyaan natural yang bikin orang mikir — "Gimana menurut lu?"
-  • Jangan pakai "Lu setuju atau enggak?" / "Lu masih mau defend ini?" — itu terlalu CTA
-  • Contoh: "Ternyata yang bikin beda bukan talenta. Tapi gimana lu respon kegagalan. Gimana menurut lu?"
-  • WAJIB kena Viral Criteria #2 (relatable) atau #5 (ironi)
+  • Format: "Gw dulu juga mikir [asumsi]. Tapi [fakta dari artikel]?"
+  • HARUS pakai "Gw" — bikin konten personal, bukan berita
+  • Contoh winning: "Gw dulu juga mikir sukses itu soal bakat. Tapi Mbappe? Dia 14 tahun, kamarnya cuma ada poster Ronaldo."
+
+SLIDE 3 — COUNTER-INTUITIVE (Yang bikin beda bukan X. Tapi Y.)
+  • 2 kalimat MAX, <35 kata
+  • Format: "Yang bikin [subjek] beda bukan [asumsi]. Tapi [fakta dari artikel]."
+  • Reframe HARUS bikin pembaca mikir ulang
+  • Contoh winning: "Yang bikin Mbappe beda bukan bakatnya. Tapi dia ubah kekaguman jadi tindakan."
+
+SLIDE 4 — DIRECT ADDRESS (Lu punya...)
+  • 2 kalimat MAX, <35 kata
+  • Format: "Lu punya [sesuatu yang relate]. [Action spesifik]."
+  • HARUS pakai "Lu" — langsung ngomong ke pembaca
+  • Contoh winning: "Lu punya kamar kayak Mbappe. Setiap bangun tidur, lihat tujuan lu."
+
+SLIDE 5 — STEP-BY-STEP ACTION (Pertama... Abis itu...)
+  • 2-3 kalimat MAX, <45 kata
+  • Format: "Pertama, [action 1]. Abis itu, [action 2]."
+  • HARUS konkret, bisa langsung dipraktekkan
+  • Contoh winning: "Pertama, cari satu orang yang lu idolain. Bukan buat stalking, tapi buat inget nilai apa yang dia punya. Abis itu, tempel fotonya di tempat yang lu liat tiap hari."
+
+SLIDE 6 — CHALLENGE CTA (Kamu masih mau...?)
+  • 2 kalimat MAX, <25 kata
+  • Format: [one-liner powerful] + "Kamu masih mau [kebiasaan lama]?"
+  • HARUS challenge, BUKAN pertanyaan lembut
+  • Contoh winning: "Sukses bukan soal bakat. Tapi soal apa yang lu lakuin tiap hari. Kamu masih mau cuma ngelamun?"
 
 ═══════════════════════════════════════════════
 §10  CAPTION
@@ -1475,21 +1463,20 @@ def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
         return []
 
 def _pick_hook_instruction(recent_patterns: list[str]) -> str:
-    """Pick a hook instruction in Eva Alicia style — truth bombs that challenge assumptions.
+    """Pick a hook instruction — CHALLENGE QUESTIONS win (27.7K views).
     
-    DEFAULT (70%): TRUTH_BOMB — "Kamu pikir X? Yang sebenarnya Y."
-    VARIANTS (30%): Rotasi dari 5 gaya berbeda biar gak monoton.
+    DEFAULT (70%): PERSONAL_CHALLENGE — "Kamu masih [kebiasaan]? [Fakta]"
+    VARIANTS (30%): REFRAME_BOMB, TRUTH_BOMB, DIRECT_FACT, SCARY_FACT
     Analytics-adjusted: hook types with high views get boosted weights.
     """
     import random
 
     all_hooks = [
-        ("TRUTH_BOMB", "Start with a TRUTH BOMB that challenges the reader's assumption — 'Kamu pikir [asumsi umum]? [Kebenaran dari artikel].' Eva Alicia style: blunt, personal, makes reader rethink. Example: 'Kamu pikir loyalitas bikin aman? Coba tanya 4.800 karyawan Microsoft.'"),
-        ("DIRECT_FACT", "Start with a DIRECT SHOCKING FACT from the article — '[Fakta/angka dari artikel]. [Direct consequence untuk pembaca].' No buildup, straight to impact. Example: '450 KARYAWAN Tokopedia kena PHK. Tapi bosnya bilang gak ada PHK.' / 'Rp 113,97 miliar aset Prolife disita OJK. Loyalitasmu gak cukup lindungin uang.' / 'ASN bisa absen palsu dari rumah, server dimatikan tapi absen tetap masuk.'"),
-        ("PERSONAL_CHALLENGE", "Start with a personal challenge — 'Kamu masih [kebiasaan]? [Fakta dari artikel] bilang lain.' Direct, confrontational but caring. Example: 'Kamu masih ngerasa gaji 8 juta cukup? Data BPS bilang udah di bawah garis.'"),
-        ("REFRAME_BOMB", "Start with a reframe — 'Yang sebenarnya terjadi bukan [asumsi], tapi [realita dari artikel].' Counter-intuitive opening. Example: 'PHK bukan soal kamu gak kompeten. Perusahaan cuma adaptasi lebih cepat.'"),
-        ("SCARY_FACT", "Start with a scary financial fact — '[Angka dari artikel]. Tau artinya apa buat kamu?' Makes reader feel the impact personally. Example: '67% pekerja Indonesia habiskan >90% gaji buat konsumsi. Kamu termasuk?'"),
-        ("HIDDEN_TRUTH", "Start with hidden angle — 'Yang gak orang bahas: [fakta tersembunyi dari artikel].' Curiosity gap + money angle. Example: 'Yang gak orang bahas: PHK ini bukan soal AI. Ini soal perusahaan gak mau bayar lebih.'"),
+        ("PERSONAL_CHALLENGE", "Start with a CHALLENGE QUESTION — 'Kamu masih [kebiasaan]? [Fakta dari artikel].' Direct, personal, bikin orang mikir 'ih gw banget'. Example: 'Kamu masih nunggu bakat muncul sendiri? Mbappe mulai dari kamar tidur penuh poster Ronaldo.' / 'Kamu masih mikir sukses itu soal gaji? Studi Harvard bilang: orang paling sukses justru yang paling sering gagal.'"),
+        ("REFRAME_BOMB", "Start with PERSONAL REFRAME — 'Gw dulu juga mikir [asumsi]. Tapi [fakta dari artikel].' First-person, relatable, bikin konten personal bukan berita. Example: 'Gw dulu juga mikir sukses itu soal bakat. Tapi Mbappe? Dia 14 tahun, kamarnya cuma ada poster Ronaldo.'"),
+        ("TRUTH_BOMB", "Start with COUNTER-INTUITIVE — 'Yang bikin [subjek] beda bukan [asumsi]. Tapi [fakta dari artikel].' Reframe yang bikin mikir ulang. Example: 'Yang bikin Mbappe beda bukan bakatnya. Tapi dia ubah kekaguman jadi tindakan.'"),
+        ("DIRECT_FACT", "Start with a DIRECT FACT — '[Fakta/angka dari artikel]. [Direct consequence].' No buildup, straight to impact. Example: 'UNICEF temuin 20 juta anak global sudah pakai AI. 13 juta di antaranya di bawah umur 15 tahun.'"),
+        ("SCARY_FACT", "Start with a scary fact — '[Angka dari artikel]. Artinya apa buat kamu?' Makes reader feel the impact personally. Example: '67% pekerja Indonesia habiskan >90% gaji buat konsumsi. Kamu termasuk?'"),
     ]
 
     # Load hook type analytics from DB (computed by pipeline)
@@ -1586,15 +1573,18 @@ def _evaluate_slides(slides: list[str]) -> tuple[bool, str]:
 
     [CHECKLIST — ALL must pass]
     1. GROUNDING: No facts/claims not in article. No hallucinated stats.
-    2. INTER-SLIDE FLOW: Slide 1→2→3→4→5→6 must connect logically. No topic jumps.
-       - Slide 2 MUST expand from Slide 1 (same topic, deeper angle)
-       - No slide should introduce a topic not mentioned in previous slides
+    2. STRUCTURE (winning pattern):
+       - S1: Challenge question ("Kamu masih...?")
+       - S2: Personal reframe with "Gw dulu juga mikir..."
+       - S3: Counter-intuitive ("Yang bikin beda bukan X. Tapi Y.")
+       - S4: Direct address with "Lu punya..."
+       - S5: Step-by-step action ("Pertama... Abis itu...")
+       - S6: Challenge CTA ("Kamu masih mau...?")
     3. VOICE:
-       - Slide 1 MUST be truth bomb / reframe (NOT cold data drop)
        - MUST use "lu/gw" personal voice (NOT "aku/kamu/kalian")
-       - MUST challenge assumption, not just state fact
-       - Slide 6 MUST end with challenge/CTA
-    4. MINDSET ANGLE: Connect to self-improvement, habits, discipline, or perspective shift
+       - S2 MUST use "Gw" (personal anecdote)
+       - S4 MUST use "Lu" (direct address)
+    4. FLOW: Each slide builds on previous. No topic jumps.
     5. Each slide max 400 chars, 2-3 sentences
     6. Full Indonesian (tech terms OK in English)
 
