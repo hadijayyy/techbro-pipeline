@@ -5,12 +5,17 @@ Run: python3 scripts/pipeline.py [--top N] [--dry-run]
 """
 import sys
 import re
+import os
+import json
 import time
+import random
 import argparse
 import logging
+import httpx
+from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 # Load .env from project root
@@ -24,7 +29,10 @@ if _env_path.exists():
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from scraper import scrape_all, score_article, fast_content_filter, check_article_quality, SOURCE_NAMES, scrape_bloomberg_technoz
+from scraper import (scrape_all, score_article, fast_content_filter, check_article_quality,
+                     SOURCE_NAMES, scrape_bloomberg_technoz, get_google_trending_keywords,
+                     _stem, HEADERS, _TIER1_SET, _TIER2_SET, _TIER3_SET,
+                     _REACH_SET, _CAT_MINDSET, _CAT_CAREER, _CAT_FINANCE, _CAT_HABITS, _CAT_FIGURES)
 from generator import generate_carousel, generate_text_post
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed, cleanup_old
 from poster import post_from_db
@@ -177,34 +185,41 @@ Respond with ONLY a single digit (1-5), nothing else."""
 
 
 _TOPIC_CATEGORIES = {
-    # High-engagement categories (from analytics)
-    "phk_layoff": ["phk", "karyawan", "layoff", "pecat", "dirumahkan", "pemutusan"],
-    "ojol_ridehail": ["gojek", "grab", "ojol", "driver", "mitra", "ridehail"],
-    "ecommerce_reg": ["e-commerce", "tiktok shop", "tokopedia", "shopee", "marketplace", "pajak", "regulasi"],
-    "emas_gold": ["emas", "gold", "batangan", "pegadaian", "antam"],
-    "apple": ["apple", "iphone", "ipad", "macbook", "ios"],
-    "bigtech_meta": ["meta", "facebook", "whatsapp", "instagram", "threads"],
-    "bigtech_google": ["google", "android", "chrome", "youtube", "gemini"],
-    "bigtech_microsoft": ["microsoft", "windows", "copilot", "bing"],
-    "ai_tech": ["openai", "chatgpt", "ai ", "artificial", "machine learning", "deepfake"],
-    "indo_gov": ["kominfo", "pemerintah", "kemenkominfo", "ri ", "indonesia", "presiden"],
-    "indo_local": ["asn", "pns", "pegawai", "bpjs", "pajak", "npwp", "ktp", "nik", "ojk", "komdigi"],
+    # 1% Better niche — self-dev/mindset/growth (HIGH engagement)
+    "mindset_growth": ["mindset", "pola pikir", "growth mindset", "fixed mindset", "reframe", "perspektif"],
+    "habits_systems": ["kebiasaan", "habits", "disiplin", "discipline", "konsisten", "consistency", "rutinitas", "routine", "atomic habits"],
+    "productivity_focus": ["produktif", "produktivitas", "productivity", "fokus", "focus", "deep work", "prokrastinasi", "procrastination"],
+    "mental_health": ["kesehatan mental", "mental health", "anxiety", "stres", "burnout", "meditasi", "mindfulness", "wellbeing"],
+    "purpose_ikigai": ["ikigai", "tujuan hidup", "purpose", "makna hidup", "meaning", "passion", "fulfillment"],
+    "career_skill": ["karier", "karir", "skill", "keahlian", "leadership", "kepemimpinan", "interview", "cv", "resume"],
+    "financial_mindset": ["financial freedom", "bebas finansial", "investasi", "nabung", "keuangan", "uang", "budgeting"],
+    "stoic_wisdom": ["stoic", "stoicism", "wisdom", "kebijaksanaan", "sabar", "ikhlas", "resilien", "resilience"],
+    "learning_growth": ["belajar", "membaca", "buku", "book", "reading", "podcast", "kursus", "course", "insight"],
+    "life_hacks": ["life hack", "tips", "trik", "cara", "strategi", "framework", "metode", "hack", "shortcut"],
     # Low-engagement categories (from analytics)
-    "foreign_news": ["nhs", "amerika serikat", "us government", "uk government", "eu ", "eropa", "jepang", "korea selatan", "inggris"],
-    "niche_ngo": ["umkm", "ngo", "kol", "influencer", "creator"],
-    "apple_mac": ["macbook", "mac ", "macos", "safari", "apple silicon"],
+    "foreign_news": ["nhs", "amerika serikat", "us government", "uk government", "eu ", "eropa"],
     "niche_devtools": ["github", "copilot", "claude code", "vs code", "cursor"],
     "infra_telco": ["telkom", "telkomsel", "5g", "bts", "fiber", "infrastruktur"],
     "crypto_web3": ["crypto", "bitcoin", "blockchain", "web3", "token", "nft"],
 }
 
 _EDUCATION_KEYWORDS = [
-    "tips", "cara", "panduan", "tutorial", "langkah", "belajar", "edukasi",
-    "investasi", "saham", "emas", "nabung", "dana darurat",
-    "scam", "penipuan", "keamanan", "privacy", "password",
-    "produktivitas", "skill", "cv", "resume", "gaji", "negosiasi", "side hustle",
-    "ai", "chatgpt", "prompt", "otomatisasi", "digital",
-    "strategi", "rahasia", "kesalahan", "mistake", "peluang",
+    # Self-dev / 1% Better niche
+    "mindset", "kebiasaan", "habits", "disiplin", "discipline",
+    "produktif", "produktivitas", "productivity", "fokus", "focus",
+    "goal", "tujuan", "mimpi", "ikigai", "purpose",
+    "motivasi", "inspirasi", "motivation", "inspiring",
+    "tips", "cara", "panduan", "tutorial", "langkah",
+    "strategi", "framework", "metode", "sistem", "system",
+    "prokrastinasi", "procrastination", "burnout", "anxiety",
+    "kesehatan mental", "mental health", "meditasi", "mindfulness",
+    "belajar", "learning", "membaca", "reading", "buku", "book",
+    "stoic", "wisdom", "kebijaksanaan", "resilien", "resilience",
+    "gagal", "sukses", "failure", "success", "overcome",
+    "skill", "keahlian", "karier", "karir", "leadership",
+    "financial freedom", "bebas finansial", "investasi",
+    "life hack", "hack", "shortcut", "trick",
+    "deep work", "atomic habits", "compound effect", "1% better",
 ]
 
 _STOPWORDS = {"yang", "dan", "ini", "itu", "dengan", "untuk", "dari", "pada", "adalah",
@@ -229,9 +244,9 @@ def _classify_hook_type(hook: str) -> str:
     Returns: TRUTH_BOMB/PERSONAL_CHALLENGE/REFRAME_BOMB/SCARY_FACT/HIDDEN_TRUTH
     Same detection as _get_recent_hook_patterns() in generator.py."""
     h = (hook or "").lower()
-    if re.search(r'kamu pikir|kamu masih pikir|kamu masih ngerasa', h):
+    if re.search(r'lu pikir|lu masih pikir|lu masih ngerasa', h):
         return "TRUTH_BOMB"
-    if re.search(r'kamu masih|kamu yang|kamu ngerasa', h):
+    if re.search(r'lu masih|lu yang|lu ngerasa', h):
         return "PERSONAL_CHALLENGE"
     if re.search(r'yang sebenarnya|bukan soal|bukan tentang', h):
         return "REFRAME_BOMB"
@@ -483,17 +498,136 @@ def _detect_hot_topics(articles: list[dict]) -> dict:
     return boosts
 
 
-def run(top_n: int = TOP_N, dry_run: bool = False) -> bool:
+# ─── Auto-Tuning (engagement-based scoring adjustments) ──────
+
+TUNING_FILE = os.path.join(os.path.dirname(__file__), "score-tuning.json")
+TUNING_MIN_POSTS = 20
+
+
+def _compute_auto_tuning(conn) -> dict:
+    """Analyze 20+ posts with engagement, return keyword/audience multipliers.
+    
+    Pressbox pattern: classify posts into high (≥1.3x median) and low (<0.7x median),
+    then extract which keywords/names correlate with each group.
+    Returns {"keyword_adj": int, "audience_adj": int, "category_boosts": dict}
+    """
+    rows = conn.execute("""
+        SELECT a.title, a.body, p.views, p.likes, p.replies, p.shares
+        FROM posts p JOIN articles a ON p.article_id = a.id
+        WHERE p.status = 'posted' AND p.views IS NOT NULL AND p.views > 0
+        ORDER BY p.created_at DESC LIMIT 50
+    """).fetchall()
+    
+    if len(rows) < TUNING_MIN_POSTS:
+        return {}
+    
+    # Compute engagement score per post (views-weighted)
+    eng_scores = []
+    for r in rows:
+        views = r['views'] or 0
+        likes = r['likes'] or 0
+        replies = r['replies'] or 0
+        shares = r['shares'] or 0
+        eng = views + likes * 10 + replies * 20 + shares * 30
+        eng_scores.append((r['title'], r['body'][:500] if r['body'] else '', eng))
+    
+    # Median engagement
+    sorted_eng = sorted(e[2] for e in eng_scores)
+    median = sorted_eng[len(sorted_eng) // 2]
+    
+    high_threshold = median * 1.3
+    low_threshold = median * 0.7
+    
+    high_posts = [(t, b) for t, b, e in eng_scores if e >= high_threshold]
+    low_posts = [(t, b) for t, b, e in eng_scores if e < low_threshold]
+    
+    if len(high_posts) < 3 or len(low_posts) < 3:
+        return {}
+    
+    # Extract keywords from high vs low performers
+    def extract_keywords(posts):
+        kw_counts = defaultdict(int)
+        for title, body in posts:
+            text = (title + " " + body).lower()
+            for kw_set in [_TIER1_SET, _TIER2_SET, _TIER3_SET]:
+                for kw in kw_set:
+                    if kw in text:
+                        kw_counts[kw] += 1
+        return kw_counts
+    
+    high_kw = extract_keywords(high_posts)
+    low_kw = extract_keywords(low_posts)
+    
+    # Keywords that appear MORE in high performers → boost
+    boost_kws = {kw for kw in high_kw if high_kw[kw] >= 2 and high_kw[kw] > low_kw.get(kw, 0) * 1.5}
+    # Keywords that appear MORE in low performers → penalty
+    penalty_kws = {kw for kw in low_kw if low_kw[kw] >= 2 and low_kw[kw] > high_kw.get(kw, 0) * 1.5}
+    
+    # Audience reach in high vs low
+    high_reach = sum(1 for t, b in high_posts for name in _REACH_SET if name in (t + " " + b).lower())
+    low_reach = sum(1 for t, b in low_posts for name in _REACH_SET if name in (t + " " + b).lower())
+    
+    # Compute adjustments
+    keyword_adj = min(15, max(-15, len(boost_kws) * 3 - len(penalty_kws) * 3))
+    audience_adj = min(10, max(-10, (high_reach - low_reach) * 2))
+    
+    # Category boosts
+    cat_boosts = {}
+    for cat_name, cat_set in [("mindset", _CAT_MINDSET), ("career", _CAT_CAREER),
+                               ("finance", _CAT_FINANCE), ("habits", _CAT_HABITS),
+                               ("figures", _CAT_FIGURES)]:
+        high_cat = sum(1 for t, b in high_posts for kw in cat_set if kw in (t + " " + b).lower())
+        low_cat = sum(1 for t, b in low_posts for kw in cat_set if kw in (t + " " + b).lower())
+        if high_cat > low_cat * 1.5:
+            cat_boosts[cat_name] = 10
+        elif low_cat > high_cat * 1.5:
+            cat_boosts[cat_name] = -10
+    
+    result = {
+        "keyword_adj": keyword_adj,
+        "audience_adj": audience_adj,
+        "category_boosts": cat_boosts,
+        "high_performers": len(high_posts),
+        "low_performers": len(low_posts),
+        "median_views": int(median),
+        "computed_at": datetime.now().isoformat()
+    }
+    
+    # Save to file
+    try:
+        with open(TUNING_FILE, 'w') as f:
+            json.dump(result, f, indent=2)
+    except Exception:
+        pass
+    
+    return result
+
+
+def _load_auto_tuning() -> dict:
+    """Load saved tuning data."""
+    try:
+        with open(TUNING_FILE) as f:
+            data = json.load(f)
+            # Expire after 7 days
+            computed = datetime.fromisoformat(data.get("computed_at", "2000-01-01"))
+            if (datetime.now() - computed).days > 7:
+                return {}
+            return data
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        return {}
+
+
+def run(top_n: int = TOP_N, dry_run: bool = False, force: bool = False) -> bool:
     """Returns True if a post was staged, False if skipped."""
     t0 = time.time()
     conn = get_db()
     try:
-        return _run_inner(conn, top_n, dry_run, t0)
+        return _run_inner(conn, top_n, dry_run, t0, force)
     finally:
         conn.close()
 
 
-def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
+def _run_inner(conn, top_n: int, dry_run: bool, t0: float, force: bool = False) -> bool:
     """Returns True if a post was staged, False if skipped."""
     staged_this_run = False
 
@@ -512,7 +646,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             except Exception as e:
                 print(f"[RECOVERY] Failed: {e}")
 
-    if not (POSTING_HOURS[0] <= current_hour < POSTING_HOURS[1]) and not dry_run:
+    if not (POSTING_HOURS[0] <= current_hour < POSTING_HOURS[1]) and not dry_run and not force:
         print(f"Outside posting hours ({POSTING_HOURS[0]}:00-{POSTING_HOURS[1]}:00 WIB). Now: {current_hour}:00. Skipping.")
         return False
 
@@ -560,10 +694,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
     except Exception:
         dynamic_limit = DAILY_POST_LIMIT
     
-    if today_count >= dynamic_limit and not dry_run:
-        print(f"Daily limit reached ({today_count}/{dynamic_limit}). Skipping.")
-        return False
-    print(f"[LIMIT] {today_count}/{dynamic_limit} posted today")
+    print(f"[LIMIT] {today_count} posted today (no limit)")
 
     # 1. Auto-clean old articles (>7 days)
     cleaned = cleanup_old(conn, days=7)
@@ -578,15 +709,37 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
 
     articles = scrape_all(top_n)
 
+    # ── GOOGLE NEWS TRENDING BOOST ─────────────────────────────
+    # Fetch trending keywords from Google News RSS, boost matching articles
+    try:
+        import asyncio as _aio
+        async def _fetch_trending():
+            async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as c:
+                return await get_google_trending_keywords(c)
+        trending_kw = _aio.run(_fetch_trending())
+        if trending_kw:
+            boosted = 0
+            for art in articles:
+                title_stems = {_stem(w.lower()) for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', art["title"]) if len(w) >= 3}
+                body_stems = {_stem(w.lower()) for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', art.get("body", "")[:500]) if len(w) >= 3}
+                all_stems = title_stems | body_stems
+                overlap = len(all_stems & trending_kw)
+                if overlap >= 4:
+                    art["score"] = min(art.get("score", 0) + 30, 180)
+                    art.setdefault("analytics_tag", []).append(f"trending+30({overlap}kw)")
+                    boosted += 1
+                elif overlap >= 2:
+                    art["score"] = min(art.get("score", 0) + 15, 180)
+                    art.setdefault("analytics_tag", []).append(f"trending+15({overlap}kw)")
+                    boosted += 1
+            print(f"  [TRENDING] {len(trending_kw)} keywords, {boosted} articles boosted")
+    except Exception as e:
+        print(f"  [TRENDING] Skipped: {e}")
+
     # ── HOT TOPIC DETECTION (persistent 4h cache) ────────────────
     hot_boosts = _detect_hot_topics(articles)
     if hot_boosts:
-        for art in articles:
-            if art.get("url") in hot_boosts:
-                boost = hot_boosts[art["url"]]
-                art["score"] = art.get("score", 0) + boost
-                print(f"  [HOT +{boost}] {art['title'][:60]}...")
-        print(f"  [HOT] {len(hot_boosts)} hot articles boosted")
+        print(f"  [HOT] {len(hot_boosts)} hot articles detected (boost applied in scoring)")
 
     # Track topics from RECENT posts only (last 12 hours) for dedup — exclude failed
     posted_titles = [row['title'] for row in conn.execute(
@@ -664,9 +817,15 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
                 continue
             fresh.append(art)
 
-        # ── LAYER 3: Scoring Engine (keyword + decay) ────────────
+        # ── LAYER 3: Scoring Engine (15-component + auto-tuning) ────
+        tuning = _load_auto_tuning()
+        tuning_adj = tuning.get("keyword_adj", 0)
         for art in fresh:
-            art["score"] = score_article(art["title"], art["body"], art.get("date"))
+            hb = hot_boosts.get(art.get("url", ""), 0)
+            art["score"] = score_article(art["title"], art["body"], art.get("date"), hot_boost=hb)
+            # Apply auto-tuning adjustments
+            if tuning_adj:
+                art["score"] = max(0, art["score"] + tuning_adj)
             # Personal branding: boost educational content
             title_l = art["title"].lower()
             body_l = art["body"][:800].lower()
@@ -683,10 +842,12 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
                 art["score"] = min(art["score"] + 20, 150)
                 art.setdefault("analytics_tag", []).append("indo-local+20")
             # Penalize foreign-country topics (low relatability for Indo audience)
+            # Skip penalty for English self-dev sources — their articles naturally mention countries
+            _ENGLISH_SOURCES = {"darius_foroux", "scott_young", "james_clear", "mark_manson", "ryan_holiday", "google_news"}
             foreign_kw = ["argentina", "amerika", "china", "jepang", "korea", "india",
                            "singapura", "malaysia", "vietnam", "united states", "russia",
                            "brasil", "mexico", "australia", "inggris", "eropa", "eu "]
-            if any(kw in title_l for kw in foreign_kw):
+            if any(kw in title_l for kw in foreign_kw) and art.get("source", "") not in _ENGLISH_SOURCES:
                 art["score"] = max(art["score"] - 15, 0)
             # Penalize pure product news (low educational value)
             if any(kw in title_l for kw in ["review:", "hands-on", "launch", "peluncuran", "dilucurkan",
@@ -814,14 +975,31 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             "journal", "journaling", "reflect", "reflection",
             "rich", "poor", "money", "wealthy", "debt", "save",
         ]
+        _RELATE_LOW = [
+            # General trending — high engagement even if not self-dev
+            "viral", "heboh", "trending", "populer", "terkenal",
+            "gaji", "upah", "pekerjaan", "lowongan", "phk", "resign",
+            "ekonomi", "inflasi", "biaya hidup", "harga",
+            "AI", "kecerdasan buatan", "otomasi", "robot",
+            "start up", "unicorn", "decacorn",
+            "kesehatan", "tidur", "olahraga", "diet", "kalori",
+            "stres", "burnout", "anxiety", "depresi",
+            "kecanduan", "sosial media", "scrolling", "gadget",
+            "skill", "kursus", "belajar", "ilmu",
+            "bisnis", "wirausaha", "omset", "untung",
+            "pengelolaan uang", "anggaran", "hemat", "investasi",
+            "karir", "promosi", "interview", "cv", "resume",
+            "leadership", "manajemen", "produktivitas", "efisiensi",
+        ]
         relatable_fresh = []
         for art in fresh:
             tl = art["title"].lower() + " " + art.get("body", "")[:300].lower()
             high = sum(1 for kw in _RELATE_HIGH if kw in tl)
             med = sum(1 for kw in _RELATE_MED if kw in tl)
-            rel = min(5, max(1, high * 2 + med))
+            low = sum(1 for kw in _RELATE_LOW if kw in tl)
+            rel = min(5, max(1, high * 2 + med + low))
             art["relatability"] = rel
-            if rel >= 3:
+            if rel >= 2:
                 relatable_fresh.append(art)
                 print(f"  [RELATE] {rel}/5 ✅ {art['title'][:60]}")
             else:
@@ -890,9 +1068,8 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
             article_id = upsert_article(conn, art)
             print(f"  Article #{article_id} saved to DB")
 
-            # 3. Content type router: 50/50 carousel vs text post
-            import random
-            is_text_post = False  # 100% carousel
+            # 3. Content router: 100% carousel (6-slide thread chain)
+            is_text_post = False
             text_result = None
 
             if is_text_post:
@@ -1052,12 +1229,22 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float) -> bool:
     if not staged_this_run:
         print("No posts staged this run.")
 
+    # ── Auto-tuning recompute (daily, needs 20+ posts with views) ──
+    try:
+        tuning = _load_auto_tuning()
+        if not tuning and stats['posted'] >= TUNING_MIN_POSTS:
+            print("\n[Auto-Tuning] Computing engagement multipliers...")
+            _compute_auto_tuning(conn)
+    except Exception as e:
+        print(f"  [Auto-Tuning] Skipped: {e}")
+
     return staged_this_run
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--top", type=int, default=TOP_N)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--force", action="store_true", help="Bypass posting hours check")
     parser.add_argument("--jitter", type=int, default=0,
         help="Random delay 0-N seconds before start (anti-bot)")
     args = parser.parse_args()
@@ -1068,5 +1255,5 @@ if __name__ == "__main__":
         if delay:
             time.sleep(delay)
 
-    posted = run(args.top, args.dry_run)
+    posted = run(args.top, args.dry_run, args.force)
     sys.exit(0 if posted else 1)

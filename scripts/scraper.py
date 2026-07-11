@@ -17,10 +17,7 @@ FALLBACK_HOURS = 720  # same for fallback
 TOP_N = 1
 
 # Source names used by scrape_all_async — single of truth
-SOURCE_NAMES = [
-    "detik", "mark_manson", "james_clear", "ryan_holiday",
-    "darius_foroux", "scott_young"
-]
+SOURCE_NAMES = ["google_news"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -198,18 +195,85 @@ EXCLUDE = [
     "technical paper", "whitepaper", "rfc", "specification",
     "changelog", "release notes", "patch notes",
     "fork", "pull request", "merge request",
+    # BLOCKED: Crime / violence / politics / sensitive
+    "kriminal", "pembunuhan", "pembunuh", "bunuh", "mayat", "jenazah",
+    "pemerkosaan", "pencabulan", "kekerasan", "penganiayaan",
+    "tawuran", "perkelahian", "bentrokan", "rusuh", "kerusuhan",
+    "penembakan", "senjata", "bom", "teroris", "terorisme",
+    "narkoba", "narkotika", "sabu", "ganja", "ekstasi",
+    "korupsi", "koruptor", "suap", "gratifikasi",
+    "pencurian", "maling", "copet", "penipuan", "scam",
+    "politik", "partai", "pemilu", "pilkada", "gubernur", "bupati", "walikota",
+    "presiden", "menteri", "dpr", "mpr", "parlemen", "legislatif",
+    "demo", "unjuk rasa", "mahasiswa", "aktivis", "reformasi",
+    "sara", "agama", "rasisme", "intoleransi", "radikalisme",
 ]
 
 _TIER1_SET = {k.lower() for k in TIER1}
 _TIER2_SET = {k.lower() for k in TIER2}
 _TIER3_SET = {k.lower() for k in TIER3}
 _PENALTY_RE = re.compile("|".join(re.escape(k.lower()) for k in PENALTY))
-_EXCL_RE = re.compile("|".join(re.escape(k.lower()) for k in EXCLUDE))
+_EXCL_RE = re.compile("(?:^|\\b|\\s)(?:" + "|".join(re.escape(k.lower()) for k in EXCLUDE) + ")(?:\\b|\\s|$)")
+
+# ─── 15-Component Scoring Keywords (Pressbox-adapted) ────────────
+
+# Drama signal: controversy, debate, conflict
+DRAMA_SIGNALS = [
+    "kontroversi", "kontroversional", "debat", "perdebatan", "konflik",
+    "pertentangan", "pro kontra", "pro-kontra", "dikritik", "kritik",
+    "kecaman", "kecam", "skandal", "heboh", "viral", "gemparkan",
+    "menggemparkan", "geger", "gempar", "mengejutkan", "kejutan",
+    "ternyata", "fakta", "bantah", "bantahan", "sanggah",
+    "controversy", "debate", "controversial", "divisive", "backlash",
+    "scandal", "shocking", "surprising", "unexpected", "reveal",
+]
+
+# Audience reach: big names in self-dev/mindset
+AUDIENCE_REACH = [
+    # Indonesian
+    "eva alicia", "mario teguh", "jaya setiabudi", "rex maung", "ardi bakrie",
+    "chairul tanjung", "susilo bambang", "jokowi", "ridwan kamil", "anies baswedan",
+    # International
+    "alex hormozi", "theo derick", "naval ravikant", "james clear", "jordan peterson",
+    "tony robbins", "brené brown", "tim ferriss", "joe rogan", "mark manson",
+    "lionel messi", "cristiano ronaldo", "kylian mbappe", "lebron james", "kobe bryant",
+    "elon musk", "jeff bezos", "bill gates", "warren buffett", "steve jobs",
+    "mark zuckerberg", "sam altman", "mark cuban", "gary vaynerchuk",
+    # Celebrities / influencers
+    "raffi nagita", "boy william", "deddy corbuzier", "raditya dika",
+    "sule", "andre taulany", "vincent rompies", "desta",
+]
+
+_DRAMA_SET = {k.lower() for k in DRAMA_SIGNALS}
+_REACH_SET = {k.lower() for k in AUDIENCE_REACH}
+
+# Paradox keywords: contradiction / counter-intuitive
+PARADOX_SIGNALS = [
+    "meskipun", "walaupun", "padahal", "sementara", "tetapi", "namun",
+    "walau", "biarpun", "although", "despite", "however", "while", "yet",
+    "barely", "only", "just", "unexpected", "ironi", "ironis",
+]
+_PARADOX_SET = {k.lower() for k in PARADOX_SIGNALS}
+
+# Niche penalty: off-topic for self-dev
+NICHE_PENALTY_KW = [
+    "sepatu", "jersey", "kostum", "tiket", "stadion", "konser",
+    "skor", "pertandingan", "liga", "turnamen",
+    "boots", "kit", "stadium", "ticket", "score", "match", "league",
+]
+_NICHE_SET = {k.lower() for k in NICHE_PENALTY_KW}
+
+# Category keywords (for category bonus)
+_CAT_MINDSET = {"mindset", "pola pikir", "perspektif", "sudut pandang", "growth mindset", "fixed mindset"}
+_CAT_CAREER = {"karir", "career", "gaji", "salary", "promosi", "promotion", "phk", "layoff", "resign", "interview"}
+_CAT_FINANCE = {"investasi", "investing", "keuangan", "finansial", "tabungan", "savings", "utang", "debt", "budget"}
+_CAT_HABITS = {"kebiasaan", "habits", "rutinitas", "routine", "disiplin", "discipline", "produktif", "productive"}
+_CAT_FIGURES = {"ceo", "founder", "entrepreneur", "pengusaha", "startup", "atlet", "athlete"}
 
 # ─── Stemming (simple suffix stripper for Jaccard dedup) ───────
 
 _STEM_SUFFIXES = ("ing", "tion", "sion", "ment", "ness", "able", "ible",
-                   "ies", "ied", "ing", "ers", "est", "ful", "ous",
+                   "ies", "ied", "ers", "est", "ful", "ous",
                    "ive", "ize", "ise", "ed", "er", "ly", "es", "s")
 
 
@@ -262,32 +326,85 @@ def fast_content_filter(title: str, body: str) -> str | None:
     return None
 
 
-def score_article(title: str, body: str, date=None) -> int:
-    """Score article. Assumes fast_content_filter() already passed."""
+def score_article(title: str, body: str, date=None, hot_boost: int = 0, analytics_boost: int = 0) -> int:
+    """15-component scoring (Pressbox-adapted for self-dev niche)."""
     title_l = title.lower()
     body_l = body[:1500].lower()
     text = title_l + " " + body_l
 
-    # Title gets 3x weight (readers see title first)
+    # ── Component 1: Keyword Match (3-tier, max 40) ──
     t1 = _unique_matches(title_l, _TIER1_SET) * 30 + _unique_matches(body_l, _TIER1_SET) * 10
     t2 = _unique_matches(title_l, _TIER2_SET) * 15 + _unique_matches(body_l, _TIER2_SET) * 5
     t3 = _unique_matches(title_l, _TIER3_SET) * 5 + _unique_matches(body_l, _TIER3_SET) * 2
+    keyword_score = min(t1 + t2 + t3, 40)
 
-    s = t1 + t2 + t3
+    # ── Component 2: Category (20/10/0) ──
+    cat_score = 0
+    for cat_set, bonus in [(_CAT_MINDSET, 20), (_CAT_CAREER, 15), (_CAT_FINANCE, 15),
+                           (_CAT_HABITS, 15), (_CAT_FIGURES, 10)]:
+        if _unique_matches(text, cat_set) >= 1:
+            cat_score = max(cat_score, bonus)
 
-    # Density bonus: if title has 2+ TIER1 keywords, it's a core AI story
-    if _unique_matches(title_l, _TIER1_SET) >= 2:
-        s += 20
-
-    # HN virality bonus: 500pts = +100, 1000pts = +100 (capped)
-
-    # Recency: exponential decay. 0h = +50, 30d = +0
+    # ── Component 3: Recency (15/10/5/0) ──
+    recency = 0
     if date:
-        hours_old = (datetime.now(UTC) - date).total_seconds() / 3600
-        recency_bonus = max(0, 50 - int(hours_old * 50 / MAX_AGE_HOURS))
-        s += recency_bonus
+        if isinstance(date, str):
+            try:
+                from email.utils import parsedate_to_datetime
+                date = parsedate_to_datetime(date)
+            except Exception:
+                date = None
+        if date:
+            hours_old = (datetime.now(UTC) - date).total_seconds() / 3600
+            if hours_old < 6:
+                recency = 15
+            elif hours_old < 12:
+                recency = 10
+            elif hours_old < 24:
+                recency = 5
 
-    # Soft cap: diminishing returns above 100 (from pressbox pattern)
+    # ── Component 4: Data/Konkret (15/7/0) ──
+    numbers = len(re.findall(r'\b\d+[.,]?\d*\b', title))
+    data_score = 15 if numbers >= 2 else (7 if numbers >= 1 else 0)
+
+    # ── Component 5: Source Tier (10/5/0) ──
+    # Could be passed as parameter; default 5 for any GNews source
+    source_score = 5
+
+    # ── Component 6: Audience Reach (max 20) ──
+    reach_count = _unique_matches(text, _REACH_SET)
+    reach_score = min(reach_count * 10, 20)
+
+    # ── Component 7: Drama Signal (max 15) ──
+    drama_count = _unique_matches(text, _DRAMA_SET)
+    drama_score = min(drama_count * 5, 15)
+
+    # ── Component 8: Paradox Bonus (+12) ──
+    paradox = 12 if _unique_matches(text, _PARADOX_SET) >= 2 else 0
+
+    # ── Component 9: Niche Penalty (-30) ──
+    niche_penalty = -30 if _unique_matches(text, _NICHE_SET) >= 1 else 0
+
+    # ── Component 10: Hot Topic (from Union-Find, passed in) ──
+    # hot_boost is +25 (≥5 hotness) or +15 (≥3), 0 otherwise
+
+    # ── Component 11: Peak-Hour (+10) ──
+    now_wib = datetime.now(timezone(timedelta(hours=7)))
+    hour = now_wib.hour
+    peak = 10 if hour in range(10, 13) or hour in range(17, 22) else 0
+
+    # ── Component 12: Analytics Boost (from hook/topic performance) ──
+    # analytics_boost is passed in from pipeline
+
+    # ── Component 13: Density bonus (+20 if title has 2+ TIER1) ──
+    density = 20 if _unique_matches(title_l, _TIER1_SET) >= 2 else 0
+
+    # ── Sum ──
+    s = (keyword_score + cat_score + recency + data_score + source_score +
+         reach_score + drama_score + paradox + niche_penalty + hot_boost +
+         peak + analytics_boost + density)
+
+    # ── Soft cap: diminishing returns above 100 ──
     if s > 100:
         s = int(100 + (s - 100) * 0.3)
     return max(0, s)
@@ -345,7 +462,6 @@ def get_og_image(soup) -> str:
         if img and img.get("src"):
             return fix_image_url(img["src"].strip())
     return "https://i.imgur.com/placeholder.jpg"  # fallback default
-    return ""
 
 
 def extract_body(soup, selectors: list[tuple]) -> str:
@@ -1114,79 +1230,316 @@ async def scrape_scott_young(client: httpx.AsyncClient) -> list[dict]:
 
 # ─── Main Scraper ────────────────────────────────────────────────
 
+# Google News RSS feeds for Indonesia (3 focused feeds + trending fetched dynamically)
+_GNEWS_FEEDS = [
+    # Self-improvement / mindset
+    ("https://news.google.com/rss/search?q=self+improvement+OR+mindset+OR+motivasi+OR+pengembangan+diri+OR+produktivitas+OR+kebiasaan+baik&hl=id&gl=ID&ceid=ID:id", "mindset"),
+    # Entrepreneurship / startup stories
+    ("https://news.google.com/rss/search?q=entrepreneur+OR+startup+OR+pengusaha+OR+bisnis+sukses+OR+CEO+OR+founder&hl=id&gl=ID&ceid=ID:id", "entrepreneur"),
+    # Public figures — athletes, celebrities, leaders
+    ("https://news.google.com/rss/search?q=atlet+OR+atletik+OR+pesepakbola+OR+tokoh+OR+figur+OR+inspirasi+OR+kisah+sukses&hl=id&gl=ID&ceid=ID:id", "public_figure"),
+    # Tech innovation / AI (non-political)
+    ("https://news.google.com/rss/search?q=inovasi+OR+teknologi+OR+AI+OR+startup+OR+digital+OR+aplikasi&hl=id&gl=ID&ceid=ID:id", "tech"),
+    # Career / professional development
+    ("https://news.google.com/rss/search?q=karier+OR+karir+OR+pekerjaan+OR+interview+OR+gaji+OR+promosi+OR+resign&hl=id&gl=ID&ceid=ID:id", "career"),
+]
+
+async def _fetch_trending_queries(client: httpx.AsyncClient) -> list[str]:
+    """Fetch top trending search queries from Google Trends RSS (Indonesia)."""
+    try:
+        r = await client.get("https://trends.google.com/trending/rss?geo=ID", timeout=10)
+        if r.status_code != 200:
+            return []
+        soup = BeautifulSoup(r.text, "xml")
+        items = soup.find_all("item")
+        queries = []
+        for item in items[:10]:  # Top 10 trends
+            title = item.find("title")
+            if title:
+                queries.append(title.text.strip())
+        print(f"  [TRENDS] {len(queries)} trending queries from Google Trends")
+        return queries
+    except Exception as e:
+        print(f"  [TRENDS] Failed: {e}")
+        return []
+
+async def _scrape_trending_articles(client: httpx.AsyncClient, queries: list[str]) -> list[dict]:
+    """Search Google News for articles matching trending queries, with self-dev angle."""
+    if not queries:
+        return []
+
+    # Add self-dev angle keywords to trending queries
+    angle_keywords = ["mindset", "disiplin", "mental", "kebiasaan", "sukses", "gagal", "resilien"]
+    all_articles = []
+
+    for query in queries[:5]:  # Top 5 trends only
+        # Search Google News for the trending topic + angle keyword
+        search_query = f"{query} {angle_keywords[hash(query) % len(angle_keywords)]}"
+        feed_url = f"https://news.google.com/rss/search?q={search_query.replace(' ', '+')}&hl=id&gl=ID&ceid=ID:id"
+        try:
+            r = await client.get(feed_url, timeout=10)
+            if r.status_code != 200:
+                continue
+            soup = BeautifulSoup(r.text, "xml")
+            items = soup.find_all("item")
+            for item in items[:3]:  # Top 3 per trend
+                title_el = item.find("title")
+                link_el = item.find("link")
+                if not title_el or not link_el:
+                    continue
+                all_articles.append({
+                    "title": title_el.text.strip(),
+                    "link": link_el.text.strip() if link_el.text else "",
+                    "source_name": "trending",
+                    "category": "trending",
+                    "date": item.find("pubDate").text if item.find("pubDate") else "",
+                    "is_trending": True,  # Flag for hybrid angle
+                })
+        except Exception:
+            continue
+
+    print(f"  [TRENDS] {len(all_articles)} articles from trending queries")
+    return all_articles
+
+# Generic body extraction — tries common selectors across Indonesian news sites
+_BODY_SELECTORS = [
+    "article", ".detail-content", ".read__content", ".article-content",
+    ".text-cnn_black", ".article-body", ".news-content", ".story-body",
+    "#article_content", ".post-content", ".entry-content",
+]
+
+def _extract_body(soup: BeautifulSoup) -> str:
+    """Extract article body text from soup using common selectors."""
+    for sel in _BODY_SELECTORS:
+        el = soup.select_one(sel)
+        if el and len(el.get_text(strip=True)) > 100:
+            # Remove script/style tags
+            for tag in el.find_all(["script", "style", "nav", "footer", "aside"]):
+                tag.decompose()
+            return el.get_text(separator="\n", strip=True)[:3000]
+    # Fallback: all p tags
+    ps = soup.find_all("p")
+    text = "\n".join(p.get_text(strip=True) for p in ps if len(p.get_text(strip=True)) > 20)
+    return text[:3000] if len(text) > 100 else ""
+
+
+def _extract_image(soup: BeautifulSoup) -> str:
+    """Extract og:image or first article image."""
+    og = soup.find("meta", property="og:image")
+    if og and og.get("content"):
+        return og["content"]
+    img = soup.select_one("article img, .detail img, .read img")
+    if img and img.get("src"):
+        return img["src"]
+    return ""
+
+
+async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
+    """Scrape articles from Google News RSS (Indonesia).
+    Decodes Google News URLs to get actual article URLs, then scrapes content."""
+    from googlenewsdecoder import new_decoderv1
+    import asyncio as _aio
+
+    articles = []
+
+    # 1. Fetch all RSS feeds
+    feed_results = await asyncio.gather(*[
+        client.get(url, timeout=15) for url, _ in _GNEWS_FEEDS
+    ])
+
+    # 2. Parse items from all feeds
+    items = []
+    for (feed_url, category), resp in zip(_GNEWS_FEEDS, feed_results):
+        if resp.status_code != 200:
+            continue
+        for item_match in re.finditer(r'<item>(.*?)</item>', resp.text, re.DOTALL):
+            item_xml = item_match.group(1)
+            title_m = re.search(r'<title>([^<]+)</title>', item_xml)
+            link_m = re.search(r'<link>([^<]+)</link>', item_xml)
+            source_m = re.search(r'<source[^>]*>([^<]+)</source>', item_xml)
+            pub_m = re.search(r'<pubDate>([^<]+)</pubDate>', item_xml)
+
+            if not title_m or not link_m:
+                continue
+
+            title = title_m.group(1).strip()
+            # Skip feed-level titles
+            if "Google" in title and "Berita" in title:
+                continue
+
+            items.append({
+                "title": title,
+                "link": link_m.group(1),
+                "source_name": source_m.group(1) if source_m else "unknown",
+                "date": pub_m.group(1) if pub_m else "",
+                "category": category,
+            })
+
+    print(f"  [GNEWS] {len(items)} items from {len(feed_results)} feeds")
+
+    # 2b. Also fetch trending articles from Google Trends
+    trending_queries = await _fetch_trending_queries(client)
+    trending_articles = await _scrape_trending_articles(client, trending_queries)
+    # Add trending articles directly (they have real URLs, no decode needed)
+    for ta in trending_articles:
+        items.append(ta)
+    print(f"  [GNEWS] Total items after trending: {len(items)}")
+
+    # 3. Decode URLs in parallel (sync decoder, run in thread pool)
+    #    Limit to 30 items to avoid timeout
+    items = items[:30]
+    seen_urls = set()
+    unique_items = []
+    for item in items:
+        if item["link"] not in seen_urls:
+            seen_urls.add(item["link"])
+            unique_items.append(item)
+
+    async def _decode(item):
+        try:
+            result = await _aio.to_thread(new_decoderv1, item["link"])
+            if result and result.get("status") and result.get("decoded_url"):
+                item["decoded_url"] = result["decoded_url"]
+        except Exception:
+            pass
+        return item
+
+    # Decode all in parallel with timeout
+    try:
+        await _aio.wait_for(
+            _aio.gather(*[_decode(item) for item in unique_items]),
+            timeout=60
+        )
+    except _aio.TimeoutError:
+        print("  [GNEWS] Decode timeout, using what we have")
+
+    decoded = [i for i in unique_items if "decoded_url" in i]
+    print(f"  [GNEWS] {len(decoded)} URLs decoded")
+
+    # 4. Scrape article content (parallel, max 15 at a time)
+    async def _scrape_one(item: dict) -> dict | None:
+        url = item["decoded_url"]
+        try:
+            r = await client.get(url, timeout=12, follow_redirects=True)
+            if r.status_code != 200:
+                return None
+            soup = BeautifulSoup(r.text, "html.parser")
+            body = _extract_body(soup)
+            if len(body) < 100:
+                return None
+            # Extract date from article page if RSS date missing
+            date = item["date"]
+            # Parse RFC 2822 date string to datetime
+            if isinstance(date, str) and date:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    date = parsedate_to_datetime(date)
+                except Exception:
+                    date = None
+            if not date:
+                time_el = soup.find("time")
+                if time_el and time_el.get("datetime"):
+                    date = time_el["datetime"]
+            return {
+                "title": item["title"],
+                "url": url,
+                "body": body,
+                "source": "google_news",
+                "date": date,
+                "image": _extract_image(soup),
+                "gnews_category": item["category"],
+                "gnews_source": item["source_name"],
+            }
+        except Exception:
+            return None
+
+    # Scrape in batches of 15
+    batch_size = 15
+    article_seen = set()
+    for i in range(0, len(decoded), batch_size):
+        batch = decoded[i:i + batch_size]
+        results = await asyncio.gather(*[_scrape_one(item) for item in batch])
+        for r in results:
+            if r and r["url"] not in article_seen:
+                article_seen.add(r["url"])
+                articles.append(r)
+
+    print(f"  [GNEWS] {len(articles)} articles scraped with content")
+    return articles
+
+
+async def get_google_trending_keywords(client: httpx.AsyncClient) -> set[str]:
+    """Fetch trending topic keywords from Google News RSS (Indonesia).
+    Returns stemmed keyword set for score boosting."""
+    keywords = set()
+    feeds = [
+        "https://news.google.com/rss?hl=id&gl=ID&ceid=ID:id",
+        "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx6TVdZU0FtVnVHZ0pWVXlnQVAB?hl=id&gl=ID&ceid=ID:id",  # Tech
+        "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1YlY4U0FtVnVHZ0pWVXlnQVAB?hl=id&gl=ID&ceid=ID:id",  # Business
+    ]
+    stop = {"yang", "dan", "ini", "itu", "dengan", "untuk", "dari", "pada", "adalah",
+            "juga", "sudah", "masih", "belum", "akan", "bisa", "tidak", "gak", "bukan",
+            "the", "is", "are", "was", "and", "or", "but", "in", "on", "at", "to",
+            "for", "of", "with", "by", "a", "an", "that", "this", "it", "not", "has",
+            "have", "been", "was", "were", "be", "do", "does", "did", "will", "would",
+            "could", "should", "may", "might", "must", "shall", "can", "need", "dare",
+            "ought", "used", "about", "after", "again", "all", "also", "any", "because",
+            "before", "between", "both", "come", "each", "even", "first", "from",
+            "get", "give", "go", "good", "great", "her", "here", "him", "his", "how",
+            "if", "into", "just", "keep", "know", "last", "let", "like", "long", "look",
+            "make", "many", "me", "most", "much", "must", "my", "new", "no", "now",
+            "old", "only", "other", "our", "out", "over", "own", "people", "say", "see",
+            "she", "so", "some", "take", "tell", "than", "their", "them", "then",
+            "there", "these", "they", "thing", "think", "time", "two", "up", "us",
+            "use", "very", "want", "way", "we", "well", "what", "when", "where",
+            "which", "who", "why", "will", "with", "work", "year", "you", "your",
+            "secara", "oleh", "telah", "karena", "namun", "agar", "yakni", "yaitu",
+            "serta", "hingga", "sejak", "tentang", "melalui", "setelah", "antara"}
+    for feed_url in feeds:
+        try:
+            r = await client.get(feed_url, timeout=12)
+            if r.status_code != 200:
+                continue
+            # Extract titles from RSS <item><title>...</title>
+            for m in re.finditer(r'<title>([^<]+)</title>', r.text):
+                title = m.group(1).strip()
+                # Skip feed-level title
+                if "Google" in title and "Berita" in title:
+                    continue
+                # Extract meaningful words (3+ chars)
+                words = set(w.lower() for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', title) if w.lower() not in stop)
+                keywords.update(_stem(w) for w in words)
+        except Exception:
+            continue
+    return keywords
+
+
 async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
     async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True) as client:
-        # 1. Gather articles from all sources (new functions return dicts directly)
-        link_tasks = await asyncio.gather(
-            scrape_detik(client),
-            scrape_mark_manson(client),
-            scrape_james_clear(client),
-            scrape_ryan_holiday(client),
-            scrape_darius_foroux(client),
-            scrape_scott_young(client),
-        )
+        # Google News only — scrape trending articles from Indonesia
+        all_articles = await scrape_google_news(client)
 
-    # 2. Collect all articles (new functions already return full article dicts)
-    all_articles = []
-    for src_name, articles in zip(SOURCE_NAMES, link_tasks):
-        if not isinstance(articles, list):
-            continue
-        for art in articles:
-            if isinstance(art, dict) and 'url' in art and 'title' in art:
-                all_articles.append(art)
-
-    # 3. Score and sort with source diversity
+    # Score and sort
     articles = []
     seen = set()
     for art in all_articles:
         if art["url"] in seen:
             continue
         seen.add(art["url"])
-        art["score"] = score_article(art["title"], art.get("body", ""), art.get("date"))
+        # Parse date string to datetime for scoring
+        date = art.get("date")
+        if isinstance(date, str) and date:
+            try:
+                from email.utils import parsedate_to_datetime
+                date = parsedate_to_datetime(date)
+            except Exception:
+                date = None
+        art["score"] = score_article(art["title"], art.get("body", ""), date)
         if art["score"] > 10:
             articles.append(art)
 
-    # 5. Cross-source virality: if same topic in 2+ sources, boost
-    topic_map: dict[str, list[dict]] = {}
-    for art in articles:
-        # Extract key topic words from title (skip common words)
-        words = set(re.findall(r'\b[a-z]{4,}\b', art["title"].lower()))
-        stop = {"this", "that", "with", "from", "have", "been", "will", "more", "than", "about", "just", "into", "your", "they", "their", "what", "when", "which", "were", "also", "could", "would", "should", "like", "very", "most", "some", "only"}
-        keywords = {_stem(w) for w in words - stop}
-        matched = False
-        for topic, group in topic_map.items():
-            topic_words = set(topic.split())
-            # Jaccard similarity > 0.3 = same topic (words already stemmed)
-            if keywords and topic_words and len(keywords & topic_words) / max(len(keywords | topic_words), 1) > 0.3:
-                group.append(art)
-                matched = True
-                break
-        if not matched:
-            topic_map[" ".join(sorted(keywords)[:5])] = [art]
-
-    # Boost articles that appear in 2+ sources
-    for topic, group in topic_map.items():
-        if len(group) >= 2:
-            sources = set(art["source"] for art in group)
-            if len(sources) >= 2:
-                for art in group:
-                    art["score"] = min(art["score"] + 30, 150)
-                    art["virality"] = f"cross-source ({len(sources)} sources)"
-
     articles.sort(key=lambda x: x["score"], reverse=True)
-
-    # Source diversity: max 2 per source
-    diversified = []
-    source_count: dict[str, int] = {}
-    MAX_PER_SOURCE = 20  # 20 per source, 14 sources = up to 280 articles
-    for art in articles:
-        src = art["source"]
-        if source_count.get(src, 0) < MAX_PER_SOURCE:
-            diversified.append(art)
-            source_count[src] = source_count.get(src, 0) + 1
-        if len(diversified) >= top_n:
-            break
-    return diversified
+    return articles[:top_n]
 
 
 def scrape_all(top_n: int = TOP_N) -> list[dict]:

@@ -16,68 +16,36 @@ CONTENT_LANG = os.environ.get("CONTENT_LANG", "en").lower()
 
 # ─── Prompts ──────────────────────────────────────────────────────
 
-PROMPT_EN = """[ROLE]
-Act as "Ryan" — a "1% Better" creator on Threads. Blunt, realistis, gak toxic positivity. Bukan guru, bukan motivator — temen yang belajar dari pengalaman dan share apa yang works.
-
-Niche: "1% Better" — mindset, powerful words, life hacks, ikigai.
-Target audience: cowok 20-30, yang lagi struggle tapi mau grow.
-Voice: lu/gw, casual Jakarta, natural bahasa Indonesia. NO EMOJI.
-
-[TASK]
-Transform the article into a 6-slide "1% Better" carousel. Frame as mindset shift, life hack, or powerful word. Turn any topic into "ini cara lu bisa 1% lebih baik."
-
-[OUTPUT]
-Flat JSON: "slide_1" to "slide_6", "caption", "hashtags". Write in prose (no bullets). Blunt, direct, natural Indonesian.
-
-- slide_1 (Hook, under 30 words, MAX 2 sentences): OPEN LOOP pattern. Start with unexpected action or shocking fact from article. Create curiosity gap — reader MUST swipe to understand. Example: "[Orang] baru [unexpected action]... Alasannya? [bukan yang lo expect]"
-- slide_2 (Setup, 40-60 words, MAX 3 sentences): Specific context + stakes. Timeline, numbers, details from article. Relatable situation. Reader should think "ini soal gw."
-- slide_3 (Twist/Conflict, 40-60 words, MAX 3 sentences): CORE slide. Plot twist or reframe. Challenge assumption. "Yang sebenernya terjadi bukan X, tapi Y."
-- slide_4 (Deep Dive, 40-60 words, MAX 3 sentences): Why this matters. Simple analogy or explanation that makes it click.
-- slide_5 (Takeaway, 30-50 words, MAX 3 sentences): 2-3 specific, actionable steps written in prose (NOT numbered lists). Personal insight. Not generic.
-- slide_6 (CTA, 30-40 words, MAX 2 sentences): Engagement question that invites opinion/experience. Must be easy to answer.
-
-caption: 1-2 sentence summary
-
-[CONSTRAINTS]
-- NO EMOJI at all
-- MUST NOT use em-dashes (—) or en-dashes (–); use commas instead
-- MUST NOT fabricate stories, events, names, or statistics
-- MUST NOT say "free" if article says paid/subscriber/limited
-- MUST NOT say "available" if article says not yet/limited/beta
-- MUST NOT invent prices not in the article
-- MUST include specific numbers sourced directly from the article
-- MUST reject product promotions. If product launch/specs/pricing, output: {"error":"product_promo"}
-- Voice: lu/gw, bukan aku/kamu. Natural bahasa Indonesia, bukan bahasa Inggris kaku.
-- MAX 3 kalimat per slide. Padat, bukan bertele-tele.
-- Boleh pakai "..." (titik tiga) untuk efek dramatis.
-
-WRONG: Article says "limited to AI Ultra subscribers" → You write "try it for free"
-RIGHT: Article says "limited to AI Ultra subscribers" → You write "masih terbatas buat pelanggan Ultra"
-
-Output strict JSON, no markdown fences:
-{"slide_1":"","slide_2":"","slide_3":"","slide_4":"","slide_5":"","slide_6":"","caption":"","hashtags":""}
-"""
-
 PROMPT_ID = """═══════════════════════════════════════════════
 §1  GROUNDING — ATURAN PALING PENTING
 ═══════════════════════════════════════════════
 Lu HANYA boleh pakai fakta yang ADA secara eksplisit di artikel.
 Ini aturan paling penting, lebih penting dari gaya bahasa atau engagement.
 
-Dilarang keras:
-• Nambahin alasan/motif di balik keputusan yang gak disebut artikel
-• Mengubah tingkat kepastian: artikel bilang "berpotensi" → HARUS tetap "berpotensi", jangan jadi "pasti"
-• Nulis dampak yang artikel gak sebut (kecuali artikel eksplisit bilang gitu)
-• Kutipan yang diubah kata-katanya. Quote = verbatim.
-• Nulis rumor/laporan belum terkonfirmasi sebagai fakta pasti
-• Bilang "gratis" kalau artikel bilang "bayar/berbayar/langganan/terbatas/pelanggan"
-• Bilang "tersedia" kalau artikel bilang "belum tersedia/belum rilis/terbatas/beta"
-• Bilang harga tertentu kalau harga itu gak ada di artikel
-• Bilang "untuk semua/umum" kalau artikel bilang "terbatas/undangan/beta"
+10 GROUNDING RULES (semua slide, bukan cuma Slide 4/5):
+
+1. NO INVENTED TACTICAL REASONING: Jangan mikir "Kenapa dia lakuin itu?" kalau artikel gak sebut. Artikel bilang "X terjadi" → lu tulis "X terjadi", JANGAN "X terjadi karena Y".
+
+2. NO EXAGGERATED PARAPHRASE: Preservasi kekuatan bahasa asli. "Called for" ≠ "demanded". "Suggested" ≠ "insisted". "Berpotensi" ≠ "pasti".
+
+3. NO SPECULATIVE CONSEQUENCES: Artikel bilang "X terjadi" → lu JANGAN tulis "ini bakal bikin Y terjadi". Sebutkan dampak HANYA kalau artikel eksplisit nyebut.
+
+4. NO PARTIAL LISTS: Artikel nyebut 5 nama → lu harus sebut semua atau tulis "antara lain". Jangan cherry-pick 2-3 nama sebagai "daftar lengkap".
+
+5. QUOTE ACCURACY: Kutipan harus VERBATIM. Jangan ubah satu kata pun.
+
+6. HEDGING PRESERVATION: Artikel bilang "kemungkinan" → lu harus tetap "kemungkinan". Jangan upgrade ke "pasti".
+
+7. NO INVENTED FEES/PRICES: Jangan nyebut angka harga/komisi kalau gak ada di artikel.
+
+8. NO INVENTED PEOPLE/NAMES: Jangan sebut nama orang/agen yang gak ada di artikel.
+
+9. NO INVENTED CONSEQUENCES: "X terjadi" ≠ "ini mengakibatkan Y". Sebutkan dampak HANYA kalau artikel eksplisit.
+
+10. TEST EACH SLIDE: Sebelum finalize, tanya: "Kalimat ini bisa gw trace ke artikel gak?" Kalau gak bisa → HAPUS.
+
 CONTOH SALAH: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Lu tulis "bisa dicoba GRATIS"
 CONTOH BENAR: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Lu tulis "masih terbatas buat pelanggan Ultra"
-• Bilang "X tahun ke depan" kalau artikel gak nyebut timeframe spesifik
-• Bilang "risiko buat X" kalau X gak disebut di artikel
 
 ═══════════════════════════════════════════════
 §2  STEP 0 — EKSTRAKSI FAKTA (internal, JANGAN outputkan)
@@ -85,17 +53,29 @@ CONTOH BENAR: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Lu t
 Sebelum nulis slide, pikirin dulu:
 1. Fakta/angka konkret yang ADA di artikel
 2. Quote langsung yang bisa dipake verbatim
-3. Klaim "pasti" vs "berpotensi/dugaan" — pisahin
-4. Tips/cara/langkah yang bisa dijadiin konten
+3. Klaim "pasti" vs "berpotensi/dugaan" → pisahin
+4. Nama public figure yang bisa dijadiin hook
 
 PENTING: STEP 0 ini cuma proses pikir, BUKAN output. Langsung ke slide JSON.
 
 Pilih insight PALING KUAT buat jadi hook (Slide 1).
-Susun sisanya secara logis ke Slide 2-6.
+Susun sisanya secara logis (bukan random) jadi 6 slide.
 Semua slide HARUS bisa ditrace balik ke fakta artikel.
 
 ═══════════════════════════════════════════════
-§3  ROLE — "RYAN" (1% Better Style)
+§3  VIRAL CRITERIA — apply ke SETIAP slide
+═══════════════════════════════════════════════
+Setiap slide harus kena minimal 2 dari 7 kriteria ini:
+1. **Pro & Con** — Ada debat, dua sisi? Frame di sekitar ketegangan itu.
+2. **Relatable** — Cowok 20-30 peduli? Hubungin ke hal universal: duit, karir, ambisi, gaji.
+3. **Famous figure** — Nama orang terkenal di awal. Eva Alicia, Hormozi, CEO, atlet. Big names stop the scroll.
+4. **Viral / trending** — Ini lagi dibahas? Masuk ke buzz yang udah ada.
+5. **Ironi** — Angle lucu atau absurd? Kontradiksi yang bikin orang mikir.
+6. **Surprising fact** — 1 fakta/angka yang bikin orang "gak nyangka."
+7. **Emotional hook** — Sentuh perasaan: frustrasi, harapan, iri, bangkit. Jangan cuma info — bikin mereka RASA.
+
+═══════════════════════════════════════════════
+§4  ROLE — "RYAN" (1% Better Style)
 ═══════════════════════════════════════════════
 Lu "Ryan" — temen yang blunt dan realistis. Bukan guru, bukan motivator, bukan sales.
 Lu BUKAN kreator berita. Lu orang yang SUKA BELAJAR HAL BARU, terus sharing apa yang works.
@@ -105,7 +85,6 @@ SALAH: "5 jam bisa ubah ketakutan jadi langkah nyata."
 BENAR: "Gw pernah takut gagal. Ternyata yang bikin takut itu bukan gagalnya, tapi mikirinnya doang."
 
 Niche: "1% Better" — mindset, powerful words, life hacks, ikigai.
-Lu bantu orang jadi 1% lebih baik setiap hari: mindset, kebiasaan, produktivitas, tujuan hidup.
 Target audience: cowok 20-30, yang lagi struggle tapi mau grow.
 
 Gaya: Hormozi + Gary Vee + Theo Derick style — blunt, direct, gak muluk-muluk.
@@ -116,7 +95,6 @@ KUNCI PERSONALITY:
 • Lu blak-blakan — "Gw bilang gini bukan buat nyakitin, tapi biar lu sadar"
 • Lu challenge asumsi — "Lu pikir X? Yang sebenernya enggak."
 • Lu kasih solusi, bukan cuma komplain — "Ini yang bisa lu lakuin sekarang"
-• Lu gak pernah ngasih tau orang goblok — cuma belum sadar aja
 
 WAJIB: setiap konten HARUS bikin pembaca mikir ulang soal hidupnya.
 Bukan cuma "ini tips" tapi "ini kenapa lu harus ubah cara pikir."
@@ -125,7 +103,6 @@ Gaya: blunt, "lu/gw", natural bahasa Indonesia, kayak ngobrol sama temen deket.
 TANPA EMOJI sama sekali.
 Boleh pakai "..." (titik tiga) untuk efek dramatis.
 Bahasa: SESEDERHANA mungkin. Anak kecil harus ngerti.
-Jangan pernah pake kata-kata yang bikin orang mikir keras.
 Kalau ada istilah teknis → jelasin pake bahasa sehari-hari.
 
 HOOK WAJIB PROVOKE REPLIES: akhiri hook dengan challenge/opini yang bikin orang MAU comment.
@@ -137,31 +114,19 @@ Contoh tone Ryan:
 ❌ "Menurut riset, literasi finansial masyarakat Indonesia masih rendah."
 
 ═══════════════════════════════════════════════
-§3b  STORYTELLING MODE — MINDSET SHIFT
+§5  ANGLE PRIORITY — pilih yang paling kuat
 ═══════════════════════════════════════════════
-Konten WAJIB berupa MINDSET SHIFT + ACTIONABLE INSIGHT.
-Bukan berita. Bukan motivasi kosong. Bukan tips generik.
+1. Public figure angle — entrepreneur, atlet, creator, CEO. Reframe their story as mindset lesson.
+2. Mindset shift — challenge common assumption. "Lu pikir X? Yang sebenernya enggak."
+3. Life hack / system — actionable framework dari article. "Cara gampang: X → Y → Z."
+4. Powerful word / reframe — satu kata/frasa yang ubah perspektif.
 
-Format: "Lu pikir X? Yang sebenernya terjadi Y." → Kenapa → Gimana
-
-Bayangin lagi ngobrol sama temen yang baru sadar dia salah cara pikir.
-
-PRINSIP KONTEN:
-1. SETIAP slide = 1 IDE (jangan campur)
-2. Slide 1 = HOOK yang nabrak asumsi
-3. Slide 2 = KONTEKS + situasi yang relate
-4. Slide 3 = MINDSET SHIFT — ubah cara pikir
-5. Slide 4 = ANALOGI yang bikin "masuk akal"
-6. Slide 5 = LANGKAH KONKRET yang bisa langsung diterapkan
-7. Slide 6 = RINGKASAN + CHALLENGE
-
-PENTING: Mindset shift HARUS dari fakta yang ADA di artikel, bukan dari pengetahuan umum.
-Kalau artikel bahas kebiasaan → frame sebagai sistem, bukan motivasi
-Kalau artikel bahas produktivitas → frame sebagai prioritas, bukan waktu
-Kalau artikel bahas tujuan → frame sebagai proses, bukan tujuan akhir
+BANNED TOPICS (auto-reject):
+Kriminal, tawuran, pembunuhan, politik, kekerasan, narkoba, korupsi, SARA.
+Kalau article tentang topik ini → output: {"error":"banned_topic"}
 
 ═══════════════════════════════════════════════
-§4  INSIGHT FILTER — CARI 5, PILIH TERKUAT
+§6  INSIGHT FILTER — CARI 5, PILIH TERKUAT
 ═══════════════════════════════════════════════
 Dari artikel, cari 5 insight paling kuat pake filter ini (ranking):
 1. Tips PRAKTIS yang bisa langsung dipake
@@ -174,7 +139,7 @@ Dari 5 itu, pilih yang paling kuat buat hook.
 Sisanya susun logis (bukan random) jadi 6 slide.
 
 ═══════════════════════════════════════════════
-§5  PLATFORM CONSTRAINTS
+§7  PLATFORM CONSTRAINTS
 ═══════════════════════════════════════════════
 • Target: Threads carousel (6 slide)
 • HARD LIMIT: maksimal 400 karakter per slide (termasuk spasi & line break)
@@ -188,7 +153,7 @@ Sisanya susun logis (bukan random) jadi 6 slide.
 • TANPA EMOJI
 
 ═══════════════════════════════════════════════
-§6  ARTIKEL
+§8  ARTIKEL
 ═══════════════════════════════════════════════
 Judul: {title}
 Isi:
@@ -196,70 +161,77 @@ Isi:
 Sumber: {source}
 
 ═══════════════════════════════════════════════
-§7  FRAMEWORK 6 SLIDES (HOW-TO)
+§9  FRAMEWORK 6 SLIDES
 ═══════════════════════════════════════════════
 
 SLIDE 1 — HOOK (Stop the Scroll)
-  • TEPAT 2 kalimat, <20 kata
-  • Format: "Lu pikir [asumsi umum]? [Kebenaran yang bikin mikir]."
+  • TEPAT 2 kalimat, <20 kata (ONE shocking number/fact + consequence)
+  • Format: pertanyain asumsi ATAU kasih fakta surprising
   • WAJIB nabrak asumsi — bukan cuma kasih fakta, tapi CHALLENGE cara pikir
   • KAPITAL 1 kata aja (yang paling bikin kaget)
   • Boleh pake "lu" tapi JANGAN mulai dengan "Lu tau gak"
-  • DILARANG mulai dengan fakta/data dingin — mulai dari REFRAME
+  • DILARANG mulai dengan fakta/data dingin — mulai dari REFRAME atau NAMA orang
+  • WAJIB kena Viral Criteria #3 (famous name) atau #6 (surprising fact)
   • Contoh benar: "Lu pikir loyalitas bikin aman? Coba tanya 4.800 karyawan Microsoft."
   • Contoh salah: "4.800 karyawan Microsoft kena PHK. Lu harus siap."
 
-{hook_instruction}
-
-SLIDE 2 — KONTEKS (Bikin "Ini Soal Gw")
-  • 40-60 kata, 2-3 kalimat
-  • Gabungin fakta dari artikel dengan situasi yang relate
-  • Pembaca harus mikir "ini soal gw"
+SLIDE 2 — FAKTA / SURPRISE
+  • 2 kalimat MAX, <40 kata
+  • Kasih fakta paling kuat dari artikel — angka, nama, detail
+  • Bikin orang mikir "oh? gw gak tau itu"
   • Boleh pake "Gw pernah..." kalau relevan
-  • Contoh: "Gw inget pas pertama kali ngelamar kerja. Kirain IPK tinggi udah cukup. Ternyata..."
+  • WAJIB kena Viral Criteria #4 (trending) atau #6 (surprising fact)
 
 SLIDE 3 — MINDSET SHIFT (Core Slide)
-  • 40-60 kata, 2-3 kalimat
+  • 2 kalimat MAX, <40 kata
   • INI SLIDE PALING PENTING
   • "Yang sebenernya terjadi bukan X, tapi Y."
   • Counter-intuitive, based on article facts
   • Reframe HARUS bikin pembaca mikir ulang
-  • Contoh: "Masalahnya bukan kurang waktu. Masalahnya lu gak tau prioritas."
+  • WAJIB kena Viral Criteria #1 (pro/con) atau #7 (emotional hook)
 
-SLIDE 4 — WHY IT WORKS (Masuk Akal)
-  • 40-60 kata, 2-3 kalimat
+SLIDE 4 — ANALOGI / WHY IT WORKS
+  • 2 kalimat MAX, <40 kata
   • Bikin pembaca mikir "oh... pantes"
-  • Pake analogi, perbandingan, atau cerita pendek
-  • Sederhanain konsep
-  • Contoh: "Bayangin otak lu kayak HP. Kalo 50 app kebuka sekaligus, pasti lemot."
+  • Pake analogi simpel, perbandingan, atau cerita pendek
+  • Sederhanain konsep jadi sesuatu yang familiar
+  • WAJIB kena Viral Criteria #5 (ironi) atau #2 (relatable)
 
-SLIDE 5 — ACTION STEPS (Langkah Konkret)
-  • 30-50 kata, 2-3 langkah
-  • Spesifik dan actionable
-  • JANGAN generik — kasih langkah yang bisa langsung diterapkan
-  • DILARANG pakai numbered list (1. 2. 3.) — tulis dalam prose/kalimat
-  • Contoh: "Tulis 3 hal yang mau lu capai hari ini. Selesaikan yang paling penting duluan. Review sebelum tidur."
+SLIDE 5 — TAKE (Grounded Opinion)
+  • 2 kalimat MAX, <40 kata
+  • Pick ONE angle grounded in the article. Do NOT invent tactical reasoning or hidden motives.
+  • Lu kasih PENDAPAT yang berdasarkan fakta — bukan tips generik
+  • Format: "Menurut gw, [opini berdasarkan fakta]. [Alasan kenapa ini penting]."
+  • WAJIB kena Viral Criteria #1 (pro/con) atau #7 (emotional hook)
+  • DILARANG: "langkah nyata", "cara praktis", "tips yang bisa lu terapkan"
+  • BENAR: "Menurut gw, ini bukan soal kurang usaha. Tapi soal salah prioritas."
 
-SLIDE 6 — CLOSING (Ringkasan + Challenge)
-  • 30-40 kata, 2 kalimat
-  • Kalimat 1: ringkasan powerful (one-liner)
-  • Kalimat 2: CHALLENGE — "Lu setuju atau enggak?" / "Lu masih mau defend ini?"
-  • WAJIB provoke replies
+SLIDE 6 — CLOSING (Natural Open-Ended Question)
+  • 2 kalimat MAX, <35 kata
+  • BUKAN CTA, BUKAN challenge yang provokatif
+  • Kalimat 1: ringkasan powerful (one-liner) dari keseluruhan story
+  • Kalimat 2: pertanyaan natural yang bikin orang mikir — "Gimana menurut lu?"
+  • Jangan pakai "Lu setuju atau enggak?" / "Lu masih mau defend ini?" — itu terlalu CTA
+  • Contoh: "Ternyata yang bikin beda bukan talenta. Tapi gimana lu respon kegagalan. Gimana menurut lu?"
+  • WAJIB kena Viral Criteria #2 (relatable) atau #5 (ironi)
 
 ═══════════════════════════════════════════════
-§8  CAPTION
+§10  CAPTION
 ═══════════════════════════════════════════════
-Caption: 2-3 baris MAX.
+Caption: 1-2 baris MAX.
   Line 1 = ANGKA/FAKTA paling SHOCKING dari artikel (satu kalimat pendek).
-  Line 2 = KONSEKUENSI atau dampaknya.
-  Line 3 = (opsional) pertanyaan provokatif.
+  Line 2 = (opsional) pertanyaan provokatif.
   TANPA EMOJI.
   Hashtag: gak usah pakai hashtag.
+
 Output HANYA JSON valid, tanpa teks lain di luar JSON, tanpa markdown code fence.
 """
 
+
+
 def _get_prompt() -> str:
-    return PROMPT_ID if CONTENT_LANG == "id" else PROMPT_EN
+    # ponutail: single prompt, multi-lang if needed later
+    return PROMPT_ID
 
 # ─── Banned phrases (per language) ────────────────────────────────
 
@@ -332,6 +304,13 @@ def _get_banned() -> list:
 # ─── Prompt rotation: different angles per article type ────────
 
 ANGLES = {
+    "selfdev": [
+        "Write as MINDSET SHIFT — take the core insight from this article and reframe it. 'Lu pikir X? Yang sebenernya Y.' Focus on ONE powerful reframe.",
+        "Write as HABIT EXTRACTOR — from this article, extract ONE kebiasaan kecil that creates compound results. Make it concrete: what exactly to do, when, for how long.",
+        "Write as WAKE-UP CALL — what's the uncomfortable truth in this article that most people ignore? Frame as: 'Gw tau ini gak enak didenger, tapi...'",
+        "Write as LESSON FROM FAILURE — what mistake does this article reveal? Frame as someone who learned it the hard way. 'Gw dulu pikir X. Ternyata...'",
+        "Write as DAILY SYSTEM — extract ONE system/routine from the article. Not motivation, but repeatable process. 'Gw sekarang lakuin ini setiap hari karena...'",
+    ],
     "news": [
         "Write as PRACTICAL INSIGHT — what's the 1 actionable takeaway from this news for orang Indonesia? Everything else is just context.",
         "Write as REAL-WORLD IMPACT — skip the news summary. Focus on: 'Gimana ini ngaruh ke dompet/hidup/kerja kamu?'",
@@ -358,10 +337,31 @@ ANGLES = {
 }
 
 def _classify_article(title: str, body: str) -> str:
-    """Classify article type for prompt rotation. Drama takes priority."""
+    """Classify article type for prompt rotation. Self-dev and drama take priority."""
     text = (title + " " + body[:500]).lower()
 
-    # Drama detection (highest priority — viral/hot stories)
+    # Self-dev detection (highest priority for 1% Better niche)
+    selfdev_signals = [
+        "habit", "habits", "kebiasaan", "mindset", "disiplin", "discipline",
+        "productivity", "produktif", "produktivitas", "focus", "fokus",
+        "procrastination", "prokrastinasi", "goal", "tujuan", "mimpi",
+        "growth", "improve", "improvement", "pengembangan diri",
+        "self improvement", "self development", "personal growth",
+        "motivation", "motivasi", "inspirasi", "inspiring",
+        "stoic", "stoicism", "resilien", "resilience", "resilient",
+        "wisdom", "kebijaksanaan", "ikigai", "purpose", "tujuan hidup",
+        "meditasi", "mindfulness", "journal", "refleksi",
+        "burnout", "anxiety", "kesehatan mental", "mental health",
+        "learning", "belajar", "reading", "membaca", "buku", "book",
+        "career", "karier", "karir", "leadership", "kepemimpinan",
+        "financial freedom", "bebas finansial",
+        "deep work", "atomic habits", "compound effect",
+    ]
+    selfdev_count = sum(1 for w in selfdev_signals if re.search(r'\b' + re.escape(w) + r'\b', text))
+    if selfdev_count >= 2:
+        return "selfdev"
+
+    # Drama detection (high priority — viral/hot stories)
     drama_signals = [
         "viral", "heboh", "kontroversial",
         "nganggur", "dipecat", "resign",
@@ -412,24 +412,34 @@ def _build_user_msg(title: str, body: str, source: str = "", hook_instruction: s
 
 def _call_mistral(title: str, body: str, source: str = "", hook_instruction: str = "", cta_instruction: str = "") -> Optional[str]:
     prompt = _get_prompt()
-    try:
-        r = httpx.post(
-            "https://api.mistral.ai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
-            json={"model": "mistral-large-latest",
-                  "messages": [{"role": "system", "content": prompt},
-                               {"role": "user", "content": _build_user_msg(title, body, source, hook_instruction, cta_instruction)}],
-                  "temperature": 0.3, "max_tokens": 2000},
-            timeout=120)
-        if r.status_code == 200:
-            return r.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        print(f"Mistral error: {e}")
+    for attempt in range(3):
+        try:
+            r = httpx.post(
+                "https://api.mistral.ai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
+                json={"model": "mistral-small-latest",
+                      "messages": [{"role": "system", "content": prompt},
+                                   {"role": "user", "content": _build_user_msg(title, body, source, hook_instruction, cta_instruction)}],
+                      "temperature": 0.3, "max_tokens": 2000},
+                timeout=120)
+            if r.status_code == 200:
+                return r.json()["choices"][0]["message"]["content"]
+            elif r.status_code == 429:
+                wait = 5 * (attempt + 1)
+                print(f"  [MISTRAL] Rate limited (429), waiting {wait}s...")
+                time.sleep(wait)
+                continue
+            else:
+                print(f"  [MISTRAL] HTTP {r.status_code}: {r.text[:200]}")
+                return None
+        except Exception as e:
+            print(f"  [MISTRAL] Error: {e}")
+            time.sleep(3)
     return None
 
 def _call_groq(title: str, body: str, source: str = "", hook_instruction: str = "", cta_instruction: str = "") -> Optional[str]:
-    if not GROQ_KEY:
-        print("Groq skipped (no GROQ_API_KEY)")
+    if not GROQ_KEY or len(GROQ_KEY) < 20:
+        print("  [GROQ] Skipped (key invalid/too short)")
         return None
     prompt = _get_prompt()
     try:
@@ -465,9 +475,9 @@ def _fix_slides(data: dict) -> dict:
                     data[key] = next_val
                     data[next_key] = ''
                     break
-            # If still empty after shift, delete the key to avoid placeholder
+            # If still empty after shift, remove the key to avoid placeholder
             if not data.get(key, '').strip():
-                del data[key]
+                data.pop(key, None)
     return data
 
 def _clean(text: str) -> str:
@@ -491,6 +501,18 @@ def _clean(text: str) -> str:
     out = re.sub(r'(?m)^[\s,;:.!?]+\s*', '', out)
     # Collapse double spaces
     out = re.sub(r'  +', ' ', out).strip()
+
+    # Voice fix: force lu/gw instead of aku/kamu/Anda/saya
+    out = re.sub(r'\baku\b', 'gw', out, flags=re.I)
+    out = re.sub(r'\bkamu\b', 'lu', out, flags=re.I)
+    out = re.sub(r'\bkau\b', 'lu', out, flags=re.I)
+    out = re.sub(r'\banda\b', 'lu', out, flags=re.I)
+    out = re.sub(r'\bsaya\b', 'gw', out, flags=re.I)
+    # Fix "lu" that was already correct (avoid double replacement)
+    out = re.sub(r'\blulu\b', 'lu', out)  # edge case: "kamu" → "lu" + "lu" from existing
+    # Capitalize at sentence start
+    out = re.sub(r'(?m)^lu\b', 'Lu', out)
+    out = re.sub(r'(?m)^gw\b', 'Gw', out)
 
     # Reaksi natural: keep first occurrence per root word, remove rest
     reaksi_roots = {
@@ -645,6 +667,8 @@ def _lists_to_narrative(text: str) -> str:
                 if len(buffer) <= 3:
                     parts = []
                     for i, item in enumerate(buffer):
+                        if not item:
+                            continue
                         if i < len(connectors):
                             parts.append(f"{connectors[i]}, {item[0].lower()}{item[1:]}")
                         else:
@@ -846,10 +870,13 @@ def _score_hook(text: str) -> int:
     if any(w in text_lower.split() for w in tension):
         score += 1
 
-    # 8. Specificity (proper nouns or tech terms)
+    # 8. Specificity (proper nouns or domain terms)
     specificity = {'ai', 'openai', 'anthropic', 'claude', 'gpt', 'google', 'nvidia',
                    'microsoft', 'meta', 'apple', 'tesla', 'spacex', 'github', 'api',
-                   'llm', 'startup', 'python', 'javascript', 'blockchain'}
+                   'llm', 'startup', 'python', 'javascript', 'blockchain',
+                   # Self-dev specificity
+                   'atomic', 'habits', 'ikigai', 'stoic', 'meditation', 'journal',
+                   'deep', 'work', 'compound', 'effect', 'mindset', 'discipline'}
     if any(w in text_lower.split() for w in specificity):
         score += 1
 
@@ -981,14 +1008,14 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
         print(f"  [ERR] JSON parse failed: {e}")
         print(f"  [ERR] Raw response (first 500): {raw[:500]}")
         return None
-    # Handle {{"slides": [{...}]}} format
+    # Handle {"slides": [{...}]} format
     if "slides" in data and isinstance(data["slides"], list):
         converted = {}
-        for item in data["slides"]:
+        for i, item in enumerate(data["slides"], 1):
             if isinstance(item, dict):
-                idx = item.get("slide", item.get("index", item.get("number", 0)))
+                idx = item.get("slide", item.get("index", item.get("number", i)))
                 content = item.get("content", item.get("text", item.get("body", "")))
-                if idx and content:
+                if content:
                     converted[f"slide_{idx}"] = content
         if converted:
             data = converted
@@ -1003,17 +1030,18 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:
             data[key] = _format_lists(_clean(data[key]))
-            # Enforce max 3 sentences per slide
+            # Enforce max 2 sentences per slide (winning style)
             text = data[key]
             sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
-            max_sents = 2 if key == "slide_1" else 3  # hook: max 2, others: max 3
+            max_sents = 2
             if len(sentences) > max_sents:
                 data[key] = " ".join(sentences[:max_sents])
                 print(f"[{key}] Truncated {len(sentences)} → {max_sents} sentences")
             # Fix incomplete numbered lists: "1. text. 2." → "1. text."
             data[key] = re.sub(r'\s*\d+\.\s*$', '', data[key]).rstrip()
             # Fix numbered lists → prose: "1. X. 2. Y." → "X. Y."
-            data[key] = re.sub(r'\b\d+\.\s+', '', data[key]).rstrip()
+            # Only strip single-digit list markers (1-9), NOT years (2024) or multi-digit
+            data[key] = re.sub(r'(?<!\d)\b([1-9])\.\s+', '', data[key]).rstrip()
     # Also clean caption (em dashes, banned phrases, etc.)
     if "caption" in data:
         data["caption"] = _clean(data["caption"])
@@ -1145,7 +1173,7 @@ def _check_slide_coherence(slides: dict) -> list[str]:
             continue
         
         # Split into sentences (rough split on . ! ? or newlines)
-        sentences = [s.strip() for s in re.split(r'[.!?]\s*|\n\n+', text) if len(s.strip()) > 10]
+        sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
         
         if len(sentences) < 2:
             continue
@@ -1405,10 +1433,10 @@ def _get_recent_hook_patterns(limit: int = 5) -> list[str]:
         patterns = []
         for r in rows:
             h = (r['slide_hook'] or '').strip().lower()
-            # Eva Alicia style pattern detection
-            if re.search(r'kamu pikir|kamu masih pikir|kamu masih ngerasa', h):
+            # Hook pattern detection — matches lu/gw voice
+            if re.search(r'lu pikir|lu masih pikir|lu masih ngerasa', h):
                 patterns.append("TRUTH_BOMB")
-            elif re.search(r'kamu masih|kamu yang|kamu ngerasa', h):
+            elif re.search(r'lu masih|lu yang|lu ngerasa', h):
                 patterns.append("PERSONAL_CHALLENGE")
             elif re.search(r'yang sebenarnya|bukan soal|bukan tentang', h):
                 patterns.append("REFRAME_BOMB")
@@ -1683,8 +1711,9 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         variants.append((v, hook_score))
         print(f"  [GEN] Variant 1: hook score {hook_score}/10 via {primary}")
 
-    # If primary fails, try fallback
+    # If primary fails, try fallback (with rate limit gap)
     if not variants:
+        time.sleep(3)  # rate limit gap between providers
         v = _generate_variant(title, body, source, fallback, hook_instruction=hook_instr, cta_instruction=cta_instr)
         if v and "slide_1" in v:
             v["_provider"] = fallback
@@ -1897,7 +1926,7 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
         text = re.sub(r'(?m)^[\s,;:.!?]+(?=\s*\w)', '', text)
         
         # 3. Split into sentences, filter broken ones
-        sentences = [s.strip() for s in re.split(r'\n\n+', text) if s.strip()]
+        sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
         good = []
         for s in sentences:
             # Skip if sentence is just punctuation
@@ -2032,12 +2061,16 @@ def evaluator_check(slides: dict, article_text: str, url: str = "") -> tuple[str
     if not MISTRAL_KEY:
         return "APPROVE", ["no API key — skip eval"]
 
-    # Build slides text
-    slide_keys = ["slide_hook", "slide_setup", "slide_twist", "slide_deep", "slide_sowhat", "slide_cta"]
-    slide_labels = ["Hook", "Fakta+Cerita", "Reframe", "Explain Why", "Langkah", "Ringkasan+CTA"]
+    # Build slides text — try both key formats (generate_carousel uses slide_1..6,
+    # old format used slide_hook/slide_setup/etc)
+    slide_keys_v2 = [f"slide_{i}" for i in range(1, 7)]
+    slide_labels = ["Hook", "Setup", "Mindset Shift", "Why It Works", "Action Steps", "CTA"]
+    # Prefer slide_1..6, fall back to slide_hook..slide_cta
+    has_v2 = any(slides.get(k) for k in slide_keys_v2)
+    active_keys = slide_keys_v2 if has_v2 else ["slide_hook", "slide_setup", "slide_twist", "slide_deep", "slide_sowhat", "slide_cta"]
     slides_text = "\n\n".join(
         f"[Slide {i+1} ({slide_labels[i]})]:\n{slides.get(k, '')}"
-        for i, k in enumerate(slide_keys) if slides.get(k)
+        for i, k in enumerate(active_keys) if slides.get(k)
     )
     art_short = article_text[:3000]
 
@@ -2135,7 +2168,7 @@ TIPE LIFE HACK (20%):
    ✓ "Startup biasanya..."  ✗ "Company X gaji rendah"
 3. JANGAN kasih financial/health advice.
    ✓ "Menurut gw sebaiknya..."  ✗ "Lu WAJIB invest di X"
-4. Kalau引用 data, pakai generalisasi: "data menunjukkan", "banyak yang bilang", "katanya".
+4. Kalau kutip data, pakai generalisasi: "data menunjukkan", "banyak yang bilang", "katanya".
 5. Personal stories: framed as "Gw pernah..." — boleh fictional tapi jangan claim sebagai fakta.
 6. Opinions: selalu pakai "Menurut gw", "Gw pikir", "Kayaknya" — jangan "Faktanya".
 
@@ -2242,7 +2275,7 @@ Output JSON: {{"text": "...", "type": "{chosen_type}"}}"""
 
                     # Enforce max 2 sentences — split by .!? followed by space/newline or end
                     import re as _re
-                    sentences = [s.strip() for s in _re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+                    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
                     # Truncate to first 2 sentences (more reliable than rejecting)
                     if len(sentences) > 2:
                         sentences = sentences[:2]

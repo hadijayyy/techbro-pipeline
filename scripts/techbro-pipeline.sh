@@ -28,7 +28,7 @@ echo "=== Pipeline run: $(TZ='Asia/Jakarta' date '+%H:%M WIB %d %b %Y') ===" >> 
 
 # Python handles: jitter 0-30s, then scrape → generate → post
 EXIT_CODE=0
-python3 scripts/pipeline.py --jitter 30 >> "$LOG" 2>&1 || EXIT_CODE=$?
+/home/ubuntu/.hermes/hermes-agent/venv/bin/python3 scripts/pipeline.py --jitter 30 >> "$LOG" 2>&1 || EXIT_CODE=$?
 
 echo "=== Done (exit: $EXIT_CODE) ===" >> "$LOG"
 
@@ -38,7 +38,7 @@ if [ "$EXIT_CODE" -eq 0 ]; then
 fi
 
 # Summary to stdout (delivered to Telegram — don't override pipeline exit)
-python3 << 'PYEOF' 2>/dev/null || true
+/home/ubuntu/.hermes/hermes-agent/venv/bin/python3 << 'PYEOF' 2>/dev/null || true
 import sqlite3
 from datetime import datetime
 

@@ -227,13 +227,12 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
         slides = []
         for key in ['slide_hook', 'slide_setup', 'slide_twist', 'slide_deep', 'slide_sowhat', 'slide_cta']:
             val = post.get(key, '').strip()
-            if val and val != ' ':
+            if val and val != ' ' and val != '...':
                 slides.append(val)
-            else:
-                slides.append('…')
+            # Skip empty/placeholder slides — don't append '...'
 
-        # Strip trailing placeholder slides so "…" never appears in posted carousel
-        while slides and slides[-1] == '…':
+        # Strip trailing empty slides (no-op now, but kept for safety)
+        while slides and slides[-1] == '...':
             slides.pop()
         # Post whatever we have — Threads supports 1-20 slides, no padding
         if not slides:
@@ -276,10 +275,24 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
                 conn.execute("UPDATE articles SET image=? WHERE id=(SELECT article_id FROM posts WHERE id=?)", (image_url, post['id']))
                 conn.commit()
         
-        # Text posts (TEXT_OPINION, TEXT_PERSONAL, etc.) — text-only, no image needed (already handled above)
-        # Wajib image untuk slide 1 — skip kalau gak ada
+        # Wajib image untuk slide 1 carousel — kalau gak ada, fallback ke TEXT mode
         if not image_url:
-            print(f"  [SKIP] No image for slide 1: {post.get('title', 'Untitled')[:50]}")
+            fallback_text = slides[0] if slides else ''
+            if not fallback_text or len(fallback_text) < 10:
+                print(f"  [SKIP] No image + no usable text: {post.get('title', 'Untitled')[:50]}")
+                continue
+            if len(fallback_text) > 490:
+                fallback_text = fallback_text[:487] + '...'
+            print(f"  [FALLBACK→TEXT] No image, posting slide 1 as text ({len(fallback_text)} chars)")
+            if dry_run:
+                print(f"  [DRY RUN] {fallback_text}")
+                continue
+            post_id = _post_container(fallback_text)
+            if post_id:
+                mark_posted(conn, post['id'], post_id)
+                print(f"  ✓ Posted (text fallback): {post_id}")
+            else:
+                print(f"  ✗ Failed")
             continue
         
         print(f"  {len(slides)} slides, image: {image_url[:60] if image_url else 'none'}")
