@@ -218,10 +218,12 @@ SLIDE 5 — STEP-BY-STEP ACTION (Pertama... Abis itu...)
   • Contoh winning: "Pertama, cari satu orang yang lu idolain. Bukan buat stalking, tapi buat inget nilai apa yang dia punya. Abis itu, tempel fotonya di tempat yang lu liat tiap hari."
 
 SLIDE 6 — CHALLENGE CTA (Kamu masih mau...?)
-  • 2 kalimat MAX, <25 kata
+  • 2-3 kalimat MAX, <30 kata
+  • KALIMAT TERAKHIR WAJIB: "Kamu masih mau [kebiasaan lama]?"
   • Format: [one-liner powerful] + "Kamu masih mau [kebiasaan lama]?"
   • HARUS challenge, BUKAN pertanyaan lembut
   • Contoh winning: "Sukses bukan soal bakat. Tapi soal apa yang lu lakuin tiap hari. Kamu masih mau cuma ngelamun?"
+  • DILARANG: "Gimana menurut lu?", "Lu setuju?", pertanyaan lembut
 
 ═══════════════════════════════════════════════
 §10  CAPTION
@@ -289,6 +291,12 @@ BANNED_ID = [
     r'\bgue penasaran\b', r'\bgue bingung\b', r'\bgue kesel\b',
     r'\btahukah kamu\b', r'\byuk simak\b', r'\bini dia rahasianya\b',
     r'\bsemoga bermanfaat\b', r'\bsemangat ya\b',
+    # Winning formula banned patterns (challenge question style)
+    r'\bternyata\b', r'\byang gak orang bahas\b', r'\blu tau gak\b',
+    r'\bgak nyangka\b', r'\bteknologi terus berkembang\b',
+    r'\bai semakin canggih\b', r'\bstartup ini menarik\b',
+    r'\bpenting banget\b', r'\bwajib banget\b',
+    r'\bjangan sampai ketinggalan\b',
 ]
 
 # Reaksi natural — allowed but MAX 1x per post (tracked in _check_reaksi_count)
