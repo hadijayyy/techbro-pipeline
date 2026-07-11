@@ -2302,6 +2302,230 @@ Output JSON: {{"text": "...", "type": "{chosen_type}"}}"""
     return None
 
 
+# ─── 6-Post Text Thread (progressive revelation) ─────────────────
+
+TEXT_THREAD_PROMPT = """[ROLE]
+Lu "Ryan" — personal branding creator di Threads. 1% Better style.
+Lu bukan guru. Lu orang biasa yang suka belajar hal baru dan share apa yang works.
+Lu blunt, realistis, gak toxic positivity.
+
+═══════════════════════════════════════════════
+§1  GROUNDING — ATURAN PALING PENTING
+═══════════════════════════════════════════════
+Lu HANYA boleh pakai fakta yang ADA secara eksplisit di artikel.
+Ini aturan paling penting, lebih penting dari gaya bahasa atau engagement.
+
+10 GROUNDING RULES:
+
+1. NO INVENTED PEOPLE/NAMES: Jangan sebut nama orang yang GAK ada di artikel. Gary Neville, Pep Guardiola, Elon Musk — kalau gak ada di artikel, JANGAN sebut.
+2. NO INVENTED QUOTES: Jangan bikin kutipan palsu. Kalau artikel gak ada kutipan langsung, JANGAN fabricate.
+3. NO INVENTED FACTS: Jangan tambah fakta yang gak ada di artikel. "Apartemen mewah", "otot ingatan", "video pertandingan sendiri" — kalau gak ada di artikel, JANGAN tulis.
+4. NO EXAGGERATION: Preservasi kekuatan bahasa asli. Jangan upgrade "kamar sederhana" jadi "apartemen mewah".
+5. NO SPECULATIVE CONSEQUENCES: Artikel bilang "X terjadi" → lu tulis "X terjadi", JANGAN "ini bakal bikin Y terjadi".
+6. PRESERVE NUMBERS: Angka harus exact dari artikel. 8 gol = 8 gol, bukan "banyak gol".
+7. PRESERVE LOCATIONS: Bondy = Bondy, bukan "Paris" (kecuali artikel bilang Paris).
+8. PRESERVE TIMELINE: 14 tahun = 14 tahun, bukan "remaja" (kecuali artikel bilang remaja).
+9. QUOTE ACCURACY: Kalau kutip langsung, harus VERBATIM dari artikel.
+10. TEST EACH POST: Sebelum finalize, tanya: "Kalimat ini bisa gw trace ke artikel gak?" Kalau gak bisa → HAPUS dan ganti dengan fakta dari artikel.
+
+CONTOH SALAH: Artikel bilang "kamar dipenuhi poster Ronaldo" → Lu tulis "memutar ulang rekaman latihan"
+CONTOH BENAR: Artikel bilang "kamar dipenuhi poster Ronaldo" → Lu tulis "kamarnya penuh poster Ronaldo"
+
+§1b  FACT EXTRACTION (WAJIB sebelum nulis)
+═══════════════════════════════════════════════
+Langkah 1: Baca artikel
+Langkah 2: Ekstrak SEMUA fakta spesifik:
+  - Nama orang/brand yang disebut
+  - Angka/lokasi/tanggal
+  - Kutipan langsung
+  - Kejadian spesifik
+Langkah 3: Fakta-fakta ini SAJA yang boleh dipakai di semua 6 post
+Langkah 4: Kalau fakta kurang dari 4 → tulis apa yang ada, JANGAN fabricate
+
+═══════════════════════════════════════════════
+§2  FORMAT — 6 POSTS THREAD CHAIN
+═══════════════════════════════════════════════
+Ini BUKAN carousel. Ini 6 post terpisah yang reply ke post sebelumnya.
+Setiap post = 2 kalimat MAX, pisah dengan whitespace (enter kosong).
+Setiap post = 1 ide, 1 reveal, 1 alasan buat swipe ke post berikutnya.
+
+POST 1 — HOOK (Open Loop)
+  • Formula: [UNEXPECTED ACTION] + [TIMELINE/CONTEXT] + "Alasannya?" + [SURPRISING TWIST]
+  • <25 kata
+  • WAJIB ada open loop — pertanyaan yang bikin orang mau baca post berikutnya
+  • Famous name/public figure kalau ada
+
+POST 2 — CONTEXT (Specific Details)
+  • Formula: [NAMA SPESIFIK/LOKASI] + [KONFLIK/MASALAH] + [STAKES/TARUHAN]
+  • <30 kata
+  • Detail spesifik dari artikel: nama, lokasi, angka, kondisi
+
+POST 3 — TWIST (Hidden Reason / Plot Twist)
+  • Formula: [SUMBER] + [ALASAN KEDUA/FAKTA TERSEMBUNYI] + [QUOTED TERM]
+  • <30 kata
+  • Ini yang bikin orang share — reveal yang gak expect
+  • Boleh kutip langsung dari artikel
+
+POST 4 — ESCALATION (Raises The Stakes)
+  • Formula: [OTORITAS/FIGUR BESAR DARI ARTIKEL] + [TAPI... KONSEKUENSI]
+  • <30 kata
+  • Naikkan stakes — tambah dimensi baru yang bikin lebih serius
+
+POST 5 — PRECEDENT (Proof + Warning)
+  • Formula: [PENCAPAIAN DARI ARTIKEL] + [NAMA DARI ARTIKEL] + [PERINGATAN]
+  • <30 kata
+  • Kasih bukti bahwa ini bukan sekadar omong kosong
+
+POST 6 — CTA (Opinion Question)
+  • Formula: [PERTANYAAN OPINI] + [BINARY CHOICE] + [LINK SUMBER]
+  • <30 kata
+  • WAJIB pertanyaan yang GAK ADA jawaban benar → orang mau comment
+  • Binary choice (ya/tidak, A/B, setuju/nggak) = lebih banyak comment
+  • Tambahkan link artikel di akhir
+
+[ATURAN UMUM]
+- Bahasa: "lu/gw", natural bahasa Indonesia
+- TANPA EMOJI
+- TANPA HASHTAG
+- Setiap post WAJIB bisa bikin orang mau baca post berikutnya (curiosity chain)
+- Famous names, specific numbers, quoted terms = lebih engaging
+- Gak perlu semua post nyambung ke topik yang sama — tapi HARUS ada alur cerita
+
+[OUTPUT]
+JSON: {"posts": ["post 1 text", "post 2 text", "post 3 text", "post 4 text", "post 5 text", "post 6 text"]}
+Setiap post = 2 kalimat MAX, pisah dengan newline ganda.
+"""
+
+
+def generate_text_thread(article_title: str = "", article_body: str = "", source: str = "") -> Optional[dict]:
+    """Generate 6-post text thread (progressive revelation).
+    Each post replies to the previous one. NOT a carousel.
+    """
+    import random
+
+    if article_title and article_body:
+        body_text = article_body[:1500]
+    else:
+        body_text = ""
+        try:
+            from db import get_db
+            conn = get_db()
+            rows = conn.execute("""
+                SELECT a.title, a.body, a.url FROM articles a
+                WHERE a.body IS NOT NULL AND LENGTH(a.body) > 100
+                ORDER BY a.scraped_at DESC LIMIT 10
+            """).fetchall()
+            conn.close()
+            if rows:
+                picked = random.choice(rows)
+                article_title = picked['title']
+                body_text = picked['body'][:1500]
+                source = picked.get('url', '')
+        except Exception:
+            pass
+
+    if not body_text:
+        return None
+
+    # ── Extract specific facts from article ──
+    names = list(set(re.findall(r'[A-Z][a-z]+(?: [A-Z][a-z]+){1,3}', body_text)))[:5]
+    numbers = list(set(re.findall(r'\b\d+(?:[.,]\d+)*(?:\s*(?:juta|miliar|rbu|ribu|gol|tahun|%|kg|km|meter))\b', body_text)))[:5]
+    quotes = re.findall(r'"([^"]{10,100})"', body_text)[:2]
+    locations = list(set(re.findall(r'[A-Z][a-z]+(?:,\s*[A-Z][a-z]+)*', body_text)))[:3]
+
+    facts_block = f"""
+FAKTA-FAKTA DARI ARTIKEL (WAJIB PAKAI INI SAJA):
+- Nama: {', '.join(names) if names else 'Tidak ada'}
+- Angka: {', '.join(numbers) if numbers else 'Tidak ada'}
+- Kutipan: {'; '.join(quotes) if quotes else 'Tidak ada'}
+- Lokasi: {', '.join(locations) if locations else 'Tidak ada'}
+- Judul: {article_title}
+"""
+
+    user_msg = f"""ARTIKEL SUMBER:
+---
+{body_text[:1200]}
+---
+
+TUGAS: Buat 6-post text thread dari artikel di atas.
+
+FORMAT: {{"posts": ["post 1", "post 2", "post 3", "post 4", "post 5", "post 6"]}}
+
+ATURAN KETAT:
+- HANYA rewrite/paraphrase kalimat dari artikel. JANGAN tambah fakta baru.
+- Setiap post = 2 kalimat MAX, pisah dengan newline ganda.
+- Post 1 = hook dengan open loop (pertanyaan di akhir)
+- Post 2-5 = ambil fakta dari artikel, rewrite jadi lebih menarik
+- Post 6 = pertanyaan opini (ya/tidak) + link artikel: {source or '[link artikel]'}
+- JANGAN sebut nama orang yang gak ada di artikel
+- JANGAN bikin kutipan palsu
+- JANGAN tambah detail yang gak ada di artikel
+- Bahasa lu/gw, TANPA emoji, TANPA hashtag"""
+
+    for attempt in range(3):
+        try:
+            r = httpx.post(
+                "https://api.mistral.ai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
+                json={
+                    "model": "mistral-small-latest",
+                    "messages": [
+                        {"role": "system", "content": TEXT_THREAD_PROMPT},
+                        {"role": "user", "content": user_msg}
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 800,
+                },
+                timeout=30,
+            )
+            if r.status_code == 200:
+                raw = r.json()["choices"][0]["message"]["content"].strip()
+                if "```json" in raw:
+                    raw = raw.split("```json")[1].split("```")[0].strip()
+                elif "```" in raw:
+                    raw = raw.split("```")[1].split("```")[0].strip()
+                data = json.loads(raw)
+                posts = data.get("posts", [])
+
+                if len(posts) != 6:
+                    # Try alternative format: list of dicts
+                    if isinstance(posts, list) and len(posts) > 0 and isinstance(posts[0], dict):
+                        posts = [list(p.values())[0] if isinstance(p, dict) else str(p) for p in posts]
+                    if len(posts) != 6:
+                        print(f"[TEXT THREAD] Expected 6 posts, got {len(posts)}, retrying...")
+                        continue
+
+                # Clean + validate each post
+                cleaned = []
+                for i, post_text in enumerate(posts):
+                    if isinstance(post_text, dict):
+                        post_text = list(post_text.values())[0]
+                    post_text = str(post_text).strip()
+
+                    # Enforce max 2 sentences per post
+                    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', post_text) if s.strip()]
+                    if len(sentences) > 2:
+                        sentences = sentences[:2]
+                        post_text = sentences[0].rstrip() + "\n\n" + sentences[1]
+                    elif len(sentences) == 2:
+                        post_text = sentences[0].rstrip() + "\n\n" + sentences[1]
+
+                    cleaned.append(post_text)
+
+                print(f"[TEXT THREAD] Generated 6 posts ({sum(len(p) for p in cleaned)} total chars)")
+                return {
+                    "posts": cleaned,
+                    "_format": "text_thread",
+                    "_provider": "mistral",
+                }
+            else:
+                print(f"[TEXT THREAD] API {r.status_code}: {r.text[:100]}")
+        except Exception as e:
+            print(f"[TEXT THREAD] Error: {e}")
+        time.sleep(2)
+    return None
+
+
 # ─── CLI ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import sys

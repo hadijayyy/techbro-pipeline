@@ -199,6 +199,14 @@ def post_carousel(slides: list[str], image_url: str = None) -> list[str]:
     return post_ids
 
 
+def post_text_thread(posts: list[str], image_url: str = None) -> list[str]:
+    """Post 6-post text thread (progressive revelation chain).
+    First post gets optional image. Posts 2-6 reply to previous.
+    Returns list of post IDs.
+    """
+    return post_carousel(posts, image_url=image_url)
+
+
 def post_from_db(limit: int = 1, dry_run: bool = False):
     """Post staged posts from pipeline.db."""
     from db import get_db, get_staged_posts, mark_posted
