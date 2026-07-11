@@ -65,7 +65,7 @@ Semua slide HARUS bisa ditrace balik ke fakta artikel.
 ═══════════════════════════════════════════════
 §3  VIRAL CRITERIA — apply ke SETIAP slide
 ═══════════════════════════════════════════════
-Setiap slide harus kena minimal 2 dari 7 kriteria ini:
+Setiap slide harus kena minimal 2 dari 8 kriteria ini:
 1. **Pro & Con** — Ada debat, dua sisi? Frame di sekitar ketegangan itu.
 2. **Relatable** — Cowok 20-30 peduli? Hubungin ke hal universal: duit, karir, ambisi, gaji.
 3. **Famous figure** — Nama orang terkenal di awal. Eva Alicia, Hormozi, CEO, atlet. Big names stop the scroll.
@@ -73,6 +73,7 @@ Setiap slide harus kena minimal 2 dari 7 kriteria ini:
 5. **Ironi** — Angle lucu atau absurd? Kontradiksi yang bikin orang mikir.
 6. **Surprising fact** — 1 fakta/angka yang bikin orang "gak nyangka."
 7. **Emotional hook** — Sentuh perasaan: frustrasi, harapan, iri, bangkit. Jangan cuma info — bikin mereka RASA.
+8. **Absurd detail** — Detail paling aneh/unexpected dari artikel. Yang bikin orang screenshot dan share.
 
 ═══════════════════════════════════════════════
 §4  ROLE — "RYAN" (1% Better Style)
@@ -121,9 +122,24 @@ Contoh tone Ryan:
 3. Life hack / system — actionable framework dari article. "Cara gampang: X → Y → Z."
 4. Powerful word / reframe — satu kata/frasa yang ubah perspektif.
 
+HOOK FORMULA (WAJIB):
+Slide 1 harus punya 3 elemen ini:
+1. [Entity/Perusahaan] baru aja [action konkret]
+2. Tapi [twist/ironi yang gak terduga]
+3. [Angka/fakta spesifik yang bikin geleng]
+
+Contoh:
+• "OpenAI baru aja rilis model yang bisa gantiin 80% kerja analyst. Tapi yang bikin geleng? Mereka bilang ini cuma 'awal'."
+• "Startup unicorn ini baru aja PHK 200 orang. Tapi CEO-nya bilang 'ini keputusan terberat'. Gaji CEO naik 3x tahun lalu."
+
+"baru aja" = WAJIB di hook. Bikin konten terasa immediacy, bukan berita basi.
+Timing details: tambahin "kemarin", "minggu lalu", "bulan ini" kalau ada di artikel.
+
 BANNED TOPICS (auto-reject):
 Kriminal, tawuran, pembunuhan, politik, kekerasan, narkoba, korupsi, SARA.
 Kalau article tentang topik ini → output: {"error":"banned_topic"}
+
+TEXT MESSAGE TEST: setiap kalimat harus lolos "apa gw bakal ngetik ini ke temen?". Kalau enggak → rewrite sampai natural.
 
 ═══════════════════════════════════════════════
 §6  INSIGHT FILTER — CARI 5, PILIH TERKUAT
@@ -143,6 +159,10 @@ Sisanya susun logis (bukan random) jadi 6 slide.
 ═══════════════════════════════════════════════
 • Target: Threads carousel (6 slide)
 • HARD LIMIT: maksimal 400 karakter per slide (termasuk spasi & line break)
+• WORD COUNT per slide:
+  - Slide 1 (Hook): maks 30 kata
+  - Slide 2-5: maks 40 kata
+  - Slide 6 (CTA): maks 40 kata
 • Kalau kepanjangan: potong bagian paling kurang penting — JANGAN potong di tengah kalimat
 • White space: tiap kalimat dipisah 1 baris kosong biar scroll-nya smooth
 • Source pendek (<500 kata): tetap 6 slide, tiap slide lebih ringkas
@@ -2380,6 +2400,8 @@ Setiap kalimat = fakta atau twist. TANPA filler.
 
 POST 1 — HOOK
 Fakta paling surprising dari artikel + pertanyaan di akhir.
+WAJIB pakai "baru aja" untuk immediacy.
+Formula: [Entity] baru aja [action]. [Angka/fakta spesifik]. Alasannya?
 Contoh: "Mbappe mulai karirnya gara-gara poster Ronaldo di kamar tidurnya. Alasannya?"
 
 POST 2 — CONTEXT
