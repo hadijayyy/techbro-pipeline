@@ -207,6 +207,10 @@ EXCLUDE = [
     "presiden", "menteri", "dpr", "mpr", "parlemen", "legislatif",
     "demo", "unjuk rasa", "mahasiswa", "aktivis", "reformasi",
     "sara", "agama", "rasisme", "intoleransi", "radikalisme",
+    # Book listicles — no substance, just "rekomendasi buku X"
+    "rekomendasi buku", "daftar buku", "buku wajib baca",
+    "e-book self improvement", "ebook self improvement",
+    "buku self improvement", "buku self-improvement",
 ]
 
 _TIER1_SET = {k.lower() for k in TIER1}
