@@ -2361,6 +2361,16 @@ HANYA pakai fakta dari artikel. JANGAN fabricate.
 §1b  FACT EXTRACTION (WAJIB sebelum nulis)
 Baca artikel → ekstrak fakta spesifik (nama, angka, lokasi, kutipan, kejadian) → HANYA pakai fakta itu.
 
+§1c  INSIGHT RANKING (RCTOE — sebelum nulis)
+Dari fakta yang diekstrak, rank 5 insight paling kuat:
+1. Counter-intuitive — yang nge-lawan common sense
+2. Numbers — ada angka/data spesifik
+3. Rare angle — jarang dibahas kreator lain
+4. Impact — dampak besar, banyak orang kena
+5. Casual tone — bisa diceritain kayak ngobrol
+
+Pilih insight #1 buat Post 1 (hook). Sisanya susun logis ke post 2-6.
+
 ═══════════════════════════════════════════════
 §2  FORMAT — 6 POSTS
 ═══════════════════════════════════════════════
