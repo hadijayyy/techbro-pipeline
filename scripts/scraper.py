@@ -371,9 +371,15 @@ def score_article(title: str, body: str, date=None, hot_boost: int = 0, analytic
     numbers = len(re.findall(r'\b\d+[.,]?\d*\b', title))
     data_score = 15 if numbers >= 2 else (7 if numbers >= 1 else 0)
 
-    # ── Component 5: Source Tier (10/5/0) ──
-    # Could be passed as parameter; default 5 for any GNews source
+    # ── Component 5: Source Tier (15/10/5/0) ──
+    # Celebrity/public figure sources get priority
     source_score = 5
+    if source in ("celebrity", "celebrity_id"):
+        source_score = 15  # highest priority
+    elif source == "athlete":
+        source_score = 12  # athletes are great for mindset content
+    elif source == "entrepreneur":
+        source_score = 10  # entrepreneurs have journey stories
 
     # ── Component 6: Audience Reach (max 20) ──
     reach_count = _unique_matches(text, _REACH_SET)
@@ -1236,12 +1242,16 @@ async def scrape_scott_young(client: httpx.AsyncClient) -> list[dict]:
 
 # Google News RSS feeds for Indonesia (3 focused feeds + trending fetched dynamically)
 _GNEWS_FEEDS = [
+    # Global celebrities — athletes, entrepreneurs, tech leaders
+    ("https://news.google.com/rss/search?q=Mbappe+OR+Ronaldo+OR+Messi+OR+LeBron+OR+Jordan+OR+Kobe+OR+Bezos+OR+Musk+OR+Zuckerberg+OR+Jobs+OR+Gates+OR+Hormozi+OR+Vaynerchuk+OR+Naval+OR+Ferriss+OR+Djokovic+OR+Federer+OR+Nadal&hl=en&gl=US&ceid=US:en", "celebrity"),
+    # Indonesian public figures — entrepreneurs, creators, athletes
+    ("https://news.google.com/rss/search?q=Jokowi+OR+Gibran+OR+Kaesang+OR+Raffi+Ahmad+OR+Deddy+Corbuzier+OR+Jerome+Polin+OR+Arief+Muhammad+OR+Eva+Alicia+OR+Sultan+Raffi+OR+Putri+OR+Baim+Wong+OR+Atta+Halilintar&hl=id&gl=ID&ceid=ID:id", "celebrity_id"),
+    # Sports athletes — development, training, mindset
+    ("https://news.google.com/rss/search?q=atlet+OR+pesepakbola+OR+basket+OR+tenis+OR+Olimpiade+OR+Piala+Dunia+OR+latihan+OR+pelatih+OR+juara&hl=id&gl=ID&ceid=ID:id", "athlete"),
+    # Entrepreneurs — startup, business journey
+    ("https://news.google.com/rss/search?q=pengusaha+OR+startup+OR+founder+OR+CEO+OR+bisnis+sukses+OR+modal+OR+investasi+OR+unicorn&hl=id&gl=ID&ceid=ID:id", "entrepreneur"),
     # Self-improvement / mindset
     ("https://news.google.com/rss/search?q=self+improvement+OR+mindset+OR+motivasi+OR+pengembangan+diri+OR+produktivitas+OR+kebiasaan+baik&hl=id&gl=ID&ceid=ID:id", "mindset"),
-    # Entrepreneurship / startup stories
-    ("https://news.google.com/rss/search?q=entrepreneur+OR+startup+OR+pengusaha+OR+bisnis+sukses+OR+CEO+OR+founder&hl=id&gl=ID&ceid=ID:id", "entrepreneur"),
-    # Public figures — athletes, celebrities, leaders
-    ("https://news.google.com/rss/search?q=atlet+OR+atletik+OR+pesepakbola+OR+tokoh+OR+figur+OR+inspirasi+OR+kisah+sukses&hl=id&gl=ID&ceid=ID:id", "public_figure"),
     # Tech innovation / AI (non-political)
     ("https://news.google.com/rss/search?q=inovasi+OR+teknologi+OR+AI+OR+startup+OR+digital+OR+aplikasi&hl=id&gl=ID&ceid=ID:id", "tech"),
     # Career / professional development

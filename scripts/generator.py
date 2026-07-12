@@ -132,7 +132,9 @@ Contoh tone Ryan:
 ═══════════════════════════════════════════════
 §5  ANGLE PRIORITY — pilih yang paling kuat
 ═══════════════════════════════════════════════
-1. Public figure angle — entrepreneur, atlet, creator, CEO. Reframe their story as mindset lesson.
+1. Public figure angle (PALING KUAT) — entrepreneur, atlet, creator, CEO. Reframe their story as mindset lesson. WAJIB pakai nama orang terkenal di hook.
+   - Contoh: "Ronaldo latihan 3 jam lebih lama dari semua orang di tim. Bukan karena bakat. Tapi karena..."
+   - Contoh: "Bezos mulai Amazon dari garasi. 20 tahun kemudian, dia jadi orang terkais di dunia."
 2. Mindset shift — challenge common assumption. "Lu pikir X? Yang sebenernya enggak."
 3. Life hack / system — actionable framework dari article. "Cara gampang: X → Y → Z."
 4. Powerful word / reframe — satu kata/frasa yang ubah perspektif.
