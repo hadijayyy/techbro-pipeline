@@ -44,6 +44,11 @@ Ini aturan paling penting, lebih penting dari gaya bahasa atau engagement.
 
 10. TEST EACH SLIDE: Sebelum finalize, tanya: "Kalimat ini bisa gw trace ke artikel gak?" Kalau gak bisa → HAPUS.
 
+11. WAJIB ANGKA: Minimal 2 dari 6 slides HARUS ada angka/fakta spesifik dari artikel (tahun, persentase, jumlah, nominal). Slide 1 (hook) dan Slide 4 (direct address) PRIORITAS utama pakai angka. Tanpa angka = konten generic = gak relate.
+
+CONTOH SALAH: "Messi udah tahun, masih main kayak pemain muda." (gak ada angka)
+CONTOH BENAR: "Messi main 32 kali di Piala Dunia sejak umur 18. Lu masih nunggu bakat muncul sendiri?"
+
 CONTOH SALAH: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Lu tulis "bisa dicoba GRATIS"
 CONTOH BENAR: Artikel bilang "terbatas untuk pelanggan Google AI Ultra" → Lu tulis "masih terbatas buat pelanggan Ultra"
 
@@ -1074,13 +1079,20 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         if key in data:
             data[key] = _format_lists(_clean(data[key]))
-            # Enforce max 2 sentences per slide (winning style)
+            # Enforce max sentences per slide (winning style)
+            # Slides 4-5 get 3 sentences (insight + action need room for numbers/steps)
             text = data[key]
             sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
-            max_sents = 2
+            max_sents = 3 if key in ("slide_4", "slide_5") else 2
             if len(sentences) > max_sents:
-                data[key] = " ".join(sentences[:max_sents])
-                print(f"[{key}] Truncated {len(sentences)} → {max_sents} sentences")
+                # Preserve sentences with numbers — don't truncate facts
+                kept = sentences[:max_sents]
+                remaining = sentences[max_sents:]
+                for r in remaining:
+                    if re.search(r'\d', r) and len(kept) < max_sents + 1:
+                        kept.append(r)
+                data[key] = " ".join(kept)
+                print(f"[{key}] Truncated {len(sentences)} → {len(kept)} sentences")
             # Fix incomplete numbered lists: "1. text. 2." → "1. text."
             data[key] = re.sub(r'\s*\d+\.\s*$', '', data[key]).rstrip()
             # Fix numbered lists → prose: "1. X. 2. Y." → "X. Y."
