@@ -957,9 +957,9 @@ def _rewrite_hook(hook: str, article_title: str, body: str, score: int) -> tuple
             missing.append(f"add a number from the article (like {nums[0].strip()})")
         else:
             missing.append("add a specific number")
-    curiosity = {'shocking', 'surprising', 'never', 'actually', 'first', 'new', 'just', 'gila', 'seriusan', 'ternyata'}
+    curiosity = {'shocking', 'surprising', 'never', 'actually', 'first', 'new', 'just', 'gila', 'seriusan'}
     if not any(w in text_lower for w in curiosity):
-        missing.append("add a curiosity word (shocking, baru, ternyata, gila)")
+        missing.append("add a curiosity word (shocking, baru, gila)")
     if not hook.rstrip().endswith(('?', '!')):
         missing.append("end with ? or !")
     if not re.search(r'[A-Z]{2,}', hook):
@@ -984,6 +984,7 @@ Rules:
 - Sound like a real person texting, not an AI
 - NEVER start with "[pronoun] [emotion]" (aku gila, aku kaget, etc.) — meaningless filler
 - MUST provoke REPLIES — end with question or call to opinion
+- DILARANG pakai: "Ternyata", "Yang gak orang bahas", "Lu tau gak", "Di era digital"
 - Format: [ANGKA/FAKTA] + [KONSEKUENSI KE PEMBACA]
 - If no numbers in excerpt, start with the most surprising fact instead
 - Do NOT use em-dashes (—) or special dashes. Use commas or hyphens only.
