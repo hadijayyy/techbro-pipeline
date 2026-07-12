@@ -330,7 +330,7 @@ def fast_content_filter(title: str, body: str) -> str | None:
     return None
 
 
-def score_article(title: str, body: str, date=None, hot_boost: int = 0, analytics_boost: int = 0) -> int:
+def score_article(title: str, body: str, date=None, hot_boost: int = 0, analytics_boost: int = 0, source: str = "") -> int:
     """15-component scoring (Pressbox-adapted for self-dev niche)."""
     title_l = title.lower()
     body_l = body[:1500].lower()
@@ -1548,7 +1548,7 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
                 date = parsedate_to_datetime(date)
             except Exception:
                 date = None
-        art["score"] = score_article(art["title"], art.get("body", ""), date)
+        art["score"] = score_article(art["title"], art.get("body", ""), date, source=art.get("source", ""))
         if art["score"] > 10:
             articles.append(art)
 
