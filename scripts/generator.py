@@ -1409,9 +1409,12 @@ def _check_topic_relevance(slides: dict, article_title: str, article_body: str, 
     
     # ── Check 3: Word overlap with title ──
     title_words = set()
-    for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', article_title.lower()):
+    for w in re.findall(r'[a-zA-Z\\u00C0-\\u024F]{3,}', article_title.lower()):
         if w not in stopwords:
             title_words.add(w)
+    
+    # Celebrity/athlete sources get lenient topic check — we reframe their story as mindset lesson
+    is_celebrity = source in ("celebrity", "celebrity_id", "athlete", "public_figure")
     
     for key in ["slide_1", "slide_2", "slide_3", "slide_4", "slide_5", "slide_6"]:
         text = slides.get(key, "").lower()
@@ -1423,6 +1426,11 @@ def _check_topic_relevance(slides: dict, article_title: str, article_body: str, 
             continue
         # Short articles (<80 words) get more leeway
         if len(article_body.split()) < 80:
+            continue
+        
+        # Celebrity sources: skip topic check for slides 2-5 (mindset lesson slides)
+        # Only check slide 1 (hook with celebrity name) and slide 6 (CTA)
+        if is_celebrity and key in ("slide_2", "slide_3", "slide_4", "slide_5"):
             continue
         
         # ── Tutorial check: slide has tutorial but article doesn't ──
