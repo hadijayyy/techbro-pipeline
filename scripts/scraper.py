@@ -1399,8 +1399,10 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
     print(f"  [GNEWS] Total items after trending: {len(items)}")
 
     # 3. Decode URLs in parallel (sync decoder, run in thread pool)
-    #    For URLs that fail decoder, try httpx redirect following as fallback
-    items = items[:30]
+    #    Round-robin across feeds to ensure diversity (not just first feed)
+    import random
+    random.shuffle(items)  # shuffle to avoid feed-order bias
+    items = items[:50]  # more items = better diversity across feeds
     seen_urls = set()
     unique_items = []
     for item in items:
