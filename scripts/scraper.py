@@ -207,10 +207,10 @@ EXCLUDE = [
     "presiden", "menteri", "dpr", "mpr", "parlemen", "legislatif",
     "demo", "unjuk rasa", "mahasiswa", "aktivis", "reformasi",
     "sara", "agama", "rasisme", "intoleransi", "radikalisme",
-    # Book listicles — no substance, just "rekomendasi buku X"
-    "rekomendasi buku", "daftar buku", "buku wajib baca",
-    "e-book self improvement", "ebook self improvement",
-    "buku self improvement", "buku self-improvement",
+    # Book listicles — "rekomendasi buku" alone blocks genuine articles that mention books
+    # Only block pure listicles (title starts with number + "rekomendasi")
+    "5 rekomendasi buku", "10 rekomendasi buku", "7 rekomendasi buku",
+    "5 buku wajib", "10 buku wajib",
 ]
 
 _TIER1_SET = {k.lower() for k in TIER1}
@@ -303,16 +303,17 @@ def _unique_matches(text: str, keywords: set) -> int:
     return count
 
 
-def check_article_quality(body: str) -> str | None:
+def check_article_quality(body: str, source: str = "") -> str | None:
     """3-layer content quality filter (from pressbox). Returns rejection reason or None."""
     text = body.strip()
-    # Layer 1: character count (pressbox: 1000)
-    if len(text) < 1000:
-        return f"too short ({len(text)} chars < 1000)"
+    # Layer 1: character count — 500 for Indonesian sources (paywalled/JS-heavy), 1000 for English
+    min_chars = 500 if source in ("mindset", "tech", "career", "entrepreneur", "celebrity_id", "google_news") else 1000
+    if len(text) < min_chars:
+        return f"too short ({len(text)} chars < {min_chars})"
     # Layer 2: word count (pressbox: 150)
     words = len(text.split())
-    if words < 150:
-        return f"too few words ({words} < 150)"
+    if words < 80:
+        return f"too few words ({words} < 80)"
     # Layer 3: sentence count (pressbox: 8, min 20 chars each to count)
     sentences = [s.strip() for s in re.split(r'[.!?]+', text) if len(s.strip()) >= 20]
     if len(sentences) < 8:
@@ -1398,7 +1399,7 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
     print(f"  [GNEWS] Total items after trending: {len(items)}")
 
     # 3. Decode URLs in parallel (sync decoder, run in thread pool)
-    #    Limit to 30 items to avoid timeout
+    #    For URLs that fail decoder, try httpx redirect following as fallback
     items = items[:30]
     seen_urls = set()
     unique_items = []
@@ -1412,6 +1413,14 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
             result = await _aio.to_thread(new_decoderv1, item["link"])
             if result and result.get("status") and result.get("decoded_url"):
                 item["decoded_url"] = result["decoded_url"]
+                return item
+        except Exception:
+            pass
+        # Fallback: follow redirect with httpx
+        try:
+            r = await client.get(item["link"], timeout=10, follow_redirects=True)
+            if r.status_code == 200 and "news.google.com" not in str(r.url):
+                item["decoded_url"] = str(r.url)
         except Exception:
             pass
         return item
