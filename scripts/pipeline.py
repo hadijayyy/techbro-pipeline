@@ -993,6 +993,12 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float, force: bool = False) 
         ]
         relatable_fresh = []
         for art in fresh:
+            # Celebrity/athlete sources bypass relatability check — we reframe as mindset lessons
+            if art.get("source", "") in ("celebrity", "celebrity_id", "athlete"):
+                art["relatability"] = 3  # default passing score
+                relatable_fresh.append(art)
+                print(f"  [RELATE] 3/5 ✅ (celebrity bypass) {art['title'][:60]}")
+                continue
             tl = art["title"].lower() + " " + art.get("body", "")[:300].lower()
             high = sum(1 for kw in _RELATE_HIGH if kw in tl)
             med = sum(1 for kw in _RELATE_MED if kw in tl)
