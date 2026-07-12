@@ -1429,9 +1429,8 @@ def _check_topic_relevance(slides: dict, article_title: str, article_body: str, 
         if len(article_body.split()) < 80:
             continue
         
-        # Celebrity sources: skip topic check for slides 2-5 (mindset lesson slides)
-        # Only check slide 1 (hook with celebrity name) and slide 6 (CTA)
-        if is_celebrity and key in ("slide_2", "slide_3", "slide_4", "slide_5"):
+        # Celebrity/athlete sources skip topic check entirely — we reframe their story as mindset lesson
+        if is_celebrity:
             continue
         
         # ── Tutorial check: slide has tutorial but article doesn't ──
