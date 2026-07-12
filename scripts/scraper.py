@@ -17,7 +17,7 @@ FALLBACK_HOURS = 720  # same for fallback
 TOP_N = 1
 
 # Source names used by scrape_all_async — single of truth
-SOURCE_NAMES = ["google_news", "celebrity", "celebrity_id", "athlete", "entrepreneur", "mindset", "tech", "career"]
+SOURCE_NAMES = ["google_news", "celebrity", "celebrity_id", "entrepreneur", "mindset", "tech", "career"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -1242,12 +1242,10 @@ async def scrape_scott_young(client: httpx.AsyncClient) -> list[dict]:
 
 # Google News RSS feeds for Indonesia (3 focused feeds + trending fetched dynamically)
 _GNEWS_FEEDS = [
-    # Global celebrities — athletes, entrepreneurs, tech leaders
-    ("https://news.google.com/rss/search?q=Mbappe+OR+Ronaldo+OR+Messi+OR+LeBron+OR+Jordan+OR+Kobe+OR+Bezos+OR+Musk+OR+Zuckerberg+OR+Jobs+OR+Gates+OR+Hormozi+OR+Vaynerchuk+OR+Naval+OR+Ferriss+OR+Djokovic+OR+Federer+OR+Nadal&hl=en&gl=US&ceid=US:en", "celebrity"),
-    # Indonesian public figures — entrepreneurs, creators, athletes
-    ("https://news.google.com/rss/search?q=Jokowi+OR+Gibran+OR+Kaesang+OR+Raffi+Ahmad+OR+Deddy+Corbuzier+OR+Jerome+Polin+OR+Arief+Muhammad+OR+Eva+Alicia+OR+Sultan+Raffi+OR+Putri+OR+Baim+Wong+OR+Atta+Halilintar&hl=id&gl=ID&ceid=ID:id", "celebrity_id"),
-    # Sports athletes — development, training, mindset
-    ("https://news.google.com/rss/search?q=atlet+OR+pesepakbola+OR+basket+OR+tenis+OR+Olimpiade+OR+Piala+Dunia+OR+latihan+OR+pelatih+OR+juara&hl=id&gl=ID&ceid=ID:id", "athlete"),
+    # Global entrepreneurs & tech leaders (dominant — this is self-dev account, not sports)
+    ("https://news.google.com/rss/search?q=Bezos+OR+Musk+OR+Zuckerberg+OR+Altman+OR+Hormozi+OR+Naval+OR+Ferriss+OR+Vaynerchuk+OR+Jobs+OR+Gates+OR+Cook+OR+Nadella+OR+Pichai+OR+Dorsey+OR+Systrom&hl=en&gl=US&ceid=US:en", "celebrity"),
+    # Indonesian public figures — entrepreneurs, creators (NOT politics)
+    ("https://news.google.com/rss/search?q=Raffi+Ahmad+OR+Deddy+Corbuzier+OR+Jerome+Polin+OR+Arief+Muhammad+OR+Eva+Alicia+OR+William+Tanuwijaya+OR+Nadiem+Makarim+OR+Tokopedia+OR+Gojek+OR+Traveloka&hl=id&gl=ID&ceid=ID:id", "celebrity_id"),
     # Entrepreneurs — startup, business journey
     ("https://news.google.com/rss/search?q=pengusaha+OR+startup+OR+founder+OR+CEO+OR+bisnis+sukses+OR+modal+OR+investasi+OR+unicorn&hl=id&gl=ID&ceid=ID:id", "entrepreneur"),
     # Self-improvement / mindset

@@ -62,6 +62,23 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
     if articles:
         print(f"  Found {len(articles)} articles")
 
+        # Source diversity: count recent celebrity posts to cap ratio (30% max)
+        recent_celeb = conn.execute("""
+            SELECT COUNT(*) FROM posts p
+            JOIN articles a ON p.article_id = a.id
+            WHERE p.status = 'posted'
+              AND a.source IN ('celebrity', 'celebrity_id')
+              AND p.created_at > datetime('now', '-48 hours')
+        """).fetchone()[0]
+        recent_total = conn.execute("""
+            SELECT COUNT(*) FROM posts WHERE status = 'posted'
+            AND created_at > datetime('now', '-48 hours')
+        """).fetchone()[0]
+        celeb_ratio = recent_celeb / max(recent_total, 1)
+        allow_celeb = celeb_ratio < 0.3
+        if not allow_celeb:
+            print(f"  [RATIO] Celebrity cap hit ({recent_celeb}/{recent_total} = {celeb_ratio:.0%}). Will skip celebrity articles.")
+
         for art in articles:
             print(f"\n  [{art['source']}] score={art['score']} | {art['title'][:60]}...")
 
@@ -73,6 +90,11 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                     skip = True
                     break
             if skip:
+                continue
+
+            # Source diversity: skip celebrity if cap hit
+            if not allow_celeb and art.get('source', '') in ('celebrity', 'celebrity_id'):
+                print(f"  [RATIO] Skipping celebrity: {art['title'][:50]}...")
                 continue
 
             # 2. Upsert article to DB
