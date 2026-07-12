@@ -371,15 +371,15 @@ def score_article(title: str, body: str, date=None, hot_boost: int = 0, analytic
     numbers = len(re.findall(r'\b\d+[.,]?\d*\b', title))
     data_score = 15 if numbers >= 2 else (7 if numbers >= 1 else 0)
 
-    # ── Component 5: Source Tier (15/10/5/0) ──
-    # Celebrity/public figure sources get priority
+    # ── Component 5: Source Tier (10/7/5/0) ──
+    # Celebrity gets moderate boost, NOT dominant. Mindset/tech get equal weight.
     source_score = 5
-    if source in ("celebrity", "celebrity_id"):
-        source_score = 15  # highest priority
-    elif source == "athlete":
-        source_score = 12  # athletes are great for mindset content
+    if source in ("celebrity", "celebrity_id", "athlete"):
+        source_score = 10  # moderate — don't let sports dominate
+    elif source in ("mindset", "tech", "career"):
+        source_score = 7   # actual self-dev content deserves fair chance
     elif source == "entrepreneur":
-        source_score = 10  # entrepreneurs have journey stories
+        source_score = 7
 
     # ── Component 6: Audience Reach (max 20) ──
     reach_count = _unique_matches(text, _REACH_SET)

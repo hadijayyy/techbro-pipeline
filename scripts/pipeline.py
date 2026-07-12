@@ -1151,6 +1151,23 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float, force: bool = False) 
     # Fallback: if nothing staged from fresh scrape, pick best unposted from DB
     if not staged_this_run:
         print("  Checking DB for unposted articles...")
+        # Source diversity: count recent celebrity posts to cap ratio
+        recent_celeb = conn.execute("""
+            SELECT COUNT(*) FROM posts p
+            JOIN articles a ON p.article_id = a.id
+            WHERE p.status = 'posted'
+              AND a.source IN ('celebrity', 'celebrity_id', 'athlete')
+              AND p.created_at > datetime('now', '-48 hours')
+        """).fetchone()[0]
+        recent_total = conn.execute("""
+            SELECT COUNT(*) FROM posts WHERE status = 'posted'
+            AND created_at > datetime('now', '-48 hours')
+        """).fetchone()[0]
+        celeb_ratio = recent_celeb / max(recent_total, 1)
+        allow_celeb = celeb_ratio < 0.3  # max 30% celebrity
+        if not allow_celeb:
+            print(f"  [RATIO] Celebrity cap hit ({recent_celeb}/{recent_total} = {celeb_ratio:.0%}). Picking non-celebrity.")
+        
         unposted = conn.execute("""
             SELECT a.id, a.title, a.body, a.url, a.image, a.score, a.source
             FROM articles a
@@ -1171,6 +1188,11 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float, force: bool = False) 
                 qreject = check_article_quality(art['body'])
                 if qreject:
                     print(f"  [DROP] quality: {qreject}: {art['title'][:50]}...")
+                    continue
+                
+                # Source diversity: skip celebrity if cap hit
+                if not allow_celeb and art.get('source', '') in ('celebrity', 'celebrity_id', 'athlete'):
+                    print(f"  [RATIO] Skipping celebrity: {art['title'][:50]}...")
                     continue
 
                 skip = False
