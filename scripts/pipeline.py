@@ -822,7 +822,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float, force: bool = False) 
         tuning_adj = tuning.get("keyword_adj", 0)
         for art in fresh:
             hb = hot_boosts.get(art.get("url", ""), 0)
-            art["score"] = score_article(art["title"], art["body"], art.get("date"), hot_boost=hb)
+            art["score"] = score_article(art["title"], art["body"], art.get("date"), hot_boost=hb, source=art.get("source", ""))
             # Apply auto-tuning adjustments
             if tuning_adj:
                 art["score"] = max(0, art["score"] + tuning_adj)
@@ -843,7 +843,7 @@ def _run_inner(conn, top_n: int, dry_run: bool, t0: float, force: bool = False) 
                 art.setdefault("analytics_tag", []).append("indo-local+20")
             # Penalize foreign-country topics (low relatability for Indo audience)
             # Skip penalty for English self-dev sources — their articles naturally mention countries
-            _ENGLISH_SOURCES = {"darius_foroux", "scott_young", "james_clear", "mark_manson", "ryan_holiday", "google_news"}
+            _ENGLISH_SOURCES = {"darius_foroux", "scott_young", "james_clear", "mark_manson", "ryan_holiday", "google_news", "celebrity", "celebrity_id", "athlete"}
             foreign_kw = ["argentina", "amerika", "china", "jepang", "korea", "india",
                            "singapura", "malaysia", "vietnam", "united states", "russia",
                            "brasil", "mexico", "australia", "inggris", "eropa", "eu "]

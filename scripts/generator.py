@@ -1033,6 +1033,8 @@ def _generate_variant(title: str, body: str, source: str, provider: str, hook_in
             # LLM often outputs unescaped quotes inside strings — repair
             # Fix unescaped quotes: "aku harus X" → 'aku harus X'
             repaired = re.sub(r'(?<=: ")(.*?)(?=",?\s*[\n\r])', lambda m: m.group(0).replace('"', "'"), cleaned)
+            # Fix unescaped newlines inside JSON strings
+            repaired = re.sub(r'(?<=: ")(.*?)(?=",?\s*[\n\r])', lambda m: m.group(0).replace('\n', '\\n'), repaired)
             # Also fix trailing commas
             repaired = re.sub(r',\s*([}\]])', r'\1', repaired)
             try:
