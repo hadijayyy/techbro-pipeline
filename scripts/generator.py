@@ -2053,8 +2053,10 @@ def generate_carousel(title: str, body: str, image: str = "", url: str = "", sou
 
     # ─── Evaluator: independent skeptical review (pressbox pattern) ───
     # Skip evaluator for high-score articles (≥80) — saves ~50s per run
-    if best_score >= 80:
-        print(f"  [EVAL] Skipped (score {best_score} ≥ 80)")
+    # Also skip for celebrity/athlete sources — we reframe as mindset lessons
+    is_celebrity_eval = source in ("celebrity", "celebrity_id", "athlete", "public_figure")
+    if best_score >= 80 or is_celebrity_eval:
+        print(f"  [EVAL] Skipped (score {best_score}{'celebrity' if is_celebrity_eval else ''})")
     else:
         slides = [data.get(f"slide_{i}", "") for i in range(1, 7)]
         approved, reason = _evaluate_slides(slides)
