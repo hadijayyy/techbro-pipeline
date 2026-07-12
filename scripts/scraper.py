@@ -17,7 +17,7 @@ FALLBACK_HOURS = 720  # same for fallback
 TOP_N = 1
 
 # Source names used by scrape_all_async — single of truth
-SOURCE_NAMES = ["google_news"]
+SOURCE_NAMES = ["google_news", "celebrity", "celebrity_id", "athlete", "entrepreneur", "mindset", "tech", "career"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -1458,7 +1458,7 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
                 "title": item["title"],
                 "url": url,
                 "body": body,
-                "source": "google_news",
+                "source": item.get("category", "google_news"),  # Use feed tag (celebrity, athlete, etc.)
                 "date": date,
                 "image": _extract_image(soup),
                 "gnews_category": item["category"],
