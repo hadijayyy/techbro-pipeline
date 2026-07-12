@@ -204,48 +204,66 @@ Isi:
 Sumber: {source}
 
 ═══════════════════════════════════════════════
-§9  FRAMEWORK 6 SLIDES
+§9  FRAMEWORK 6 SLIDES — SATU CERITA UTUH
 ═══════════════════════════════════════════════
+
+ATURAN UTAMA: 6 slides = 1 cerita yang nyambung. Bukan 6 slide terpisah.
+Bayangin lu lagi cerita ke temen: ada masalah → gw dulu juga gitu → ternyata bedanya → lu juga bisa → caranya gini → mau terus?
+
+Tiap slide HARUS connect ke slide sebelumnya. Gak boleh loncat topik.
 
 SLIDE 1 — CHALLENGE QUESTION (Hook)
   • 2 kalimat MAX, <25 kata
-  • Format: "Kamu masih [kebiasaan]?" + [fakta dari artikel]
-  • BUKAN fact drop, BUKAN "baru aja" — CHALLENGE asumsi pembaca
-  • WAJIB bikin orang mikir "ih, gw banget"
-  • Contoh winning: "Kamu masih nunggu bakat muncul sendiri? Mbappe mulai dari kamar tidur penuh poster Ronaldo."
+  • Buka dengan PERTANYAAN yang bikin mikir "ih gw banget"
+  • Kalimat 2 = FAKTA/ANGKA dari artikel yang bikin pertanyaan makin nendang
+  • WAJIB nyambung ke Slide 2: pertanyaan ini yang bakal dijawab personal di S2
+  • Contoh: "Kamu masih nunggu bakat muncul sendiri? Mbappe mulai dari kamar tidur penuh poster Ronaldo."
   • DILARANG: "Lu tau gak", "Ternyata", "Yang gak orang bahas"
 
 SLIDE 2 — PERSONAL REFRAME (Gw dulu juga...)
   • 2 kalimat MAX, <35 kata
-  • Format: "Gw dulu juga mikir [asumsi]. Tapi [fakta dari artikel]?"
+  • NYAMBUNG dari S1: jawab pertanyaan S1 dengan pengalaman personal
+  • Format: "Gw dulu juga mikir [asumsi dari S1]. Tapi [fakta dari artikel]?"
   • HARUS pakai "Gw" — bikin konten personal, bukan berita
-  • Contoh winning: "Gw dulu juga mikir sukses itu soal bakat. Tapi Mbappe? Dia 14 tahun, kamarnya cuma ada poster Ronaldo."
+  • Contoh: "Gw dulu juga mikir sukses itu soal bakat. Tapi Mbappe? Dia 14 tahun, kamarnya cuma ada poster Ronaldo."
 
 SLIDE 3 — COUNTER-INTUITIVE (Yang bikin beda bukan X. Tapi Y.)
   • 2 kalimat MAX, <35 kata
+  • NYAMBUNG dari S2: kasih twist yang bikin mikir ulang
   • Format: "Yang bikin [subjek] beda bukan [asumsi]. Tapi [fakta dari artikel]."
-  • Reframe HARUS bikin pembaca mikir ulang
-  • Contoh winning: "Yang bikin Mbappe beda bukan bakatnya. Tapi dia ubah kekaguman jadi tindakan."
+  • Contoh: "Yang bikin Mbappe beda bukan bakatnya. Tapi dia ubah kekaguman jadi tindakan."
 
 SLIDE 4 — DIRECT ADDRESS (Lu punya...)
-  • 2 kalimat MAX, <35 kata
-  • Format: "Lu punya [sesuatu yang relate]. [Action spesifik]."
-  • HARUS pakai "Lu" — langsung ngomong ke pembaca
-  • Contoh winning: "Lu punya kamar kayak Mbappe. Setiap bangun tidur, lihat tujuan lu."
+  • 3 kalimat MAX, <45 kata
+  • NYAMBUNG dari S3: balikin insight kehidupan pembaca
+  • Kalimat 1 = tantangan personal ke pembaca (pakai "Lu")
+  • Kalimat 2 = FAKTA/ANGKA dari artikel yang relevan sama tantangan
+  • Format: "Lu punya [sesuatu yang relate]? [Fakta dari artikel]. [Implikasi]."
+  • Contoh: "Lu punya mimpi besar tapi malas mulai? Messi main di Piala Dunia sejak 2006, baru sekarang bisa istirahat."
 
 SLIDE 5 — STEP-BY-STEP ACTION (Pertama... Abis itu...)
   • 2-3 kalimat MAX, <45 kata
+  • NYAMBUNG dari S4: kasih cara konkret buat ngadepin tantangan di S4
   • Format: "Pertama, [action 1]. Abis itu, [action 2]."
   • HARUS konkret, bisa langsung dipraktekkan
-  • Contoh winning: "Pertama, cari satu orang yang lu idolain. Bukan buat stalking, tapi buat inget nilai apa yang dia punya. Abis itu, tempel fotonya di tempat yang lu liat tiap hari."
+  • Contoh: "Pertama, cari satu orang yang lu idolain. Bukan buat stalking, tapi buat inget nilai apa yang dia punya. Abis itu, tempel fotonya di tempat yang lu liat tiap hari."
 
 SLIDE 6 — CHALLENGE CTA (Kamu masih mau...?)
   • 2-3 kalimat MAX, <30 kata
-  • KALIMAT TERAKHIR WAJIB: "Kamu masih mau [kebiasaan lama]?"
-  • Format: [one-liner powerful] + "Kamu masih mau [kebiasaan lama]?"
-  • HARUS challenge, BUKAN pertanyaan lembut
-  • Contoh winning: "Sukses bukan soal bakat. Tapi soal apa yang lu lakuin tiap hari. Kamu masih mau cuma ngelamun?"
+  • NYAMBUNG dari S5: tutup cerita dengan tantangan
+  • Kalimat 1 = reframe singkat (1 baris powerful)
+  • Kalimat 2 = "Kamu masih mau [kebiasaan lama]?"
+  • Contoh: "Sukses bukan soal bakat. Tapi soal apa yang lu lakuin tiap hari. Kamu masih mau cuma ngelamun?"
   • DILARANG: "Gimana menurut lu?", "Lu setuju?", pertanyaan lembut
+
+═══════════════════════════════════════════════
+CEKLIST NARATIVE FLOW (sebelum finalize):
+  S1 → S2: S2 jawab pertanyaan S1? ✓
+  S2 → S3: S3 kasih twist dari pengalaman S2? ✓
+  S3 → S4: S4 balikin insight kehidupan pembaca? ✓
+  S4 → S5: S5 kasih cara ngadepin tantangan S4? ✓
+  S5 → S6: S6 tutup cerita dengan tantangan? ✓
+  Kalau ada yang gak nyambung → REWRITE slide itu.
 
 ═══════════════════════════════════════════════
 §10  CAPTION
