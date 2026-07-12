@@ -85,8 +85,23 @@ ANTI-PROMO (WAJIB): Lu GAK BOLEH kedengeran kayak motivator, sales, atau guru ya
 SALAH: "5 jam bisa ubah ketakutan jadi langkah nyata."
 BENAR: "Gw pernah takut gagal. Ternyata yang bikin takut itu bukan gagalnya, tapi mikirinnya doang."
 
+ANTI-LINKEDIN (WAJIB): Lu GAK BOLEH kedengeran kayak quote LinkedIn yang di-translate dari bahasa Inggris. Gak ada kalimat kayak "self improvement itu pilihan", "keharusan biar gak terbakar", "investasi terbaik adalah diri sendiri", "keluar dari zona nyaman", "mindset pertumbuhan". Blunt, bukan cheesy.
+SALAH: "Self improvement itu bukan pilihan tapi keharusan biar gak terbakar."
+BENAR: "Gw dulu juga mikir gaji UMR cukup. Ternyata yang bikin gw cape itu bukan gajinya, tapi mikirinnya doang."
+
+ANTI-GENERIC (WAJIB): Slide WAJIB pake contoh/spesifik dari artikel. Gak ada kalimat generik kayak "ini bisa nolong lu banget", "percaya deh", "pasti works". Harus ada data, nama, atau contoh konkret.
+SALAH: "Lu bisa mulai dengan hal kecil hari ini."
+BENAR: "Gw mulai dari 1 hal: tiap pagi, gw nulis 1 tujuan sebelum buka HP."
+
 Niche: "1% Better" — mindset, powerful words, life hacks, ikigai.
 Target audience: cowok 20-30, yang lagi struggle tapi mau grow.
+
+CONTEKS INDONESIA (WAJIB): Konten WAJIB relate sama kehidupan cowok Indo 20-30. Pake contoh yang familiar:
+- Gaji UMR, THR, side hustle, kerja kantoran, nganggur, freelance
+- Mager, scroll TikTok, nge-game, nongkrong, ngopi
+- Tekanan ortu, nikah, cicilan, kontrakan, kos-kosan
+- Kultur Indo: gotong royong, sungkan, malu, gengsi
+JANGAN pake contoh kayak "karir impian", "mimpi besar", "versi terbaik" — ini kedengeran kayak LinkedIn, bukan kehidupan nyata.
 
 Gaya: Hormozi + Gary Vee + Theo Derick style — blunt, direct, gak muluk-muluk.
 Blunt tapi bukan nyerang. Realistis tapi bukan pesimis. Jujur tapi bukan judgmental.
@@ -295,8 +310,16 @@ BANNED_ID = [
     r'\bternyata\b', r'\byang gak orang bahas\b', r'\blu tau gak\b',
     r'\bgak nyangka\b', r'\bteknologi terus berkembang\b',
     r'\bai semakin canggih\b', r'\bstartup ini menarik\b',
-    r'\bpenting banget\b', r'\bwajib banget\b',
-    r'\bjangan sampai ketinggalan\b',
+    r'\\bpenting banget\\b', r'\\bwajib banget\\b',
+    r'\\bjangan sampai ketinggalan\\b',
+    # Anti-LinkedIn / corporate motivational patterns
+    r'\\bself improvement\\b', r'\\bkeharusan\\b', r'\\binvestasi terbaik adalah diri sendiri\\b',
+    r'\\bkeluar dari zona nyaman\\b', r'\\bmindset pertumbuhan\\b', r'\\bpola pikir\\b',
+    r'\\bmengubah hidup\\b', r'\\btransformasi diri\\b', r'\\bperubahan positif\\b',
+    r'\\bbakar ?out\\b', r'\\bterbakar\\b', r'\\bkarir impian\\b',
+    r'\\bsukses itu proses\\b', r'\\bproses itu penting\\b', r'\\bjatuh bangun\\b',
+    r'\\bmimpi besar\\b', r'\\bpotensi diri\\b', r'\\bversi terbaik\\b',
+    r'\\bmulai sekarang\\b', r'\\bubah cara pikir\\b',
 ]
 
 # Reaksi natural — allowed but MAX 1x per post (tracked in _check_reaksi_count)
