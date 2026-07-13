@@ -39,6 +39,10 @@ def get_db() -> sqlite3.Connection:
             generated_at TEXT NOT NULL DEFAULT (datetime('now')),
             posted_at TEXT,
             thread_post_id TEXT,
+            views INTEGER DEFAULT 0,
+            likes INTEGER DEFAULT 0,
+            replies INTEGER DEFAULT 0,
+            shares INTEGER DEFAULT 0,
             FOREIGN KEY (article_id) REFERENCES articles(id)
         );
         CREATE TABLE IF NOT EXISTS performance (
@@ -55,6 +59,13 @@ def get_db() -> sqlite3.Connection:
         CREATE INDEX IF NOT EXISTS idx_articles_score ON articles(score DESC);
         CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status);
     """)
+    conn.commit()
+    # Migrate: add views/likes/replies/shares columns if missing (existing DBs)
+    for col in ["views", "likes", "replies", "shares"]:
+        try:
+            conn.execute(f"ALTER TABLE posts ADD COLUMN {col} INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # column already exists
     conn.commit()
     return conn
 

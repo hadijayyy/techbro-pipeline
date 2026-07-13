@@ -17,6 +17,21 @@ MAX_AGE_HOURS = 720  # 30 days max
 FALLBACK_HOURS = 720  # same for fallback
 TOP_N = 1
 
+# Source fingerprints — skip unchanged RSS feeds
+FINGERPRINTS_PATH = Path.home() / ".hermes" / "techbro" / "source-fingerprints.json"
+
+def _load_fingerprints() -> dict:
+    if not FINGERPRINTS_PATH.exists():
+        return {}
+    try:
+        return json.loads(FINGERPRINTS_PATH.read_text())
+    except:
+        return {}
+
+def _save_fingerprints(fps: dict):
+    FINGERPRINTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    FINGERPRINTS_PATH.write_text(json.dumps(fps))
+
 # Article cache — 4h rolling window (like pressbox)
 ARTICLE_CACHE_PATH = Path.home() / ".hermes" / "techbro" / "article-cache.json"
 ARTICLE_CACHE_HOURS = 4
@@ -1547,16 +1562,36 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
 
     articles = []
 
-    # 1. Fetch all RSS feeds
+    # 1. Fetch all RSS feeds (with fingerprint check)
+    fingerprints = _load_fingerprints()
+    new_fingerprints = {}
+    feed_urls = []
+    feed_meta = []
+    for url, category in _GNEWS_FEEDS:
+        fp_key = category  # use category as fingerprint key
+        feed_urls.append(url)
+        feed_meta.append((fp_key, category))
+    
     feed_results = await asyncio.gather(*[
-        client.get(url, timeout=15) for url, _ in _GNEWS_FEEDS
+        client.get(url, timeout=15) for url in feed_urls
     ])
 
-    # 2. Parse items from all feeds
+    # 2. Parse items from all feeds (skip unchanged)
     items = []
-    for (feed_url, category), resp in zip(_GNEWS_FEEDS, feed_results):
+    skipped_feeds = 0
+    for (fp_key, category), resp in zip(feed_meta, feed_results):
         if resp.status_code != 200:
             continue
+        # Check fingerprint: first <title> in feed
+        first_title_m = re.search(r'<item>.*?<title>([^<]+)</title>', resp.text, re.DOTALL)
+        first_title = first_title_m.group(1).strip() if first_title_m else ""
+        old_fp = fingerprints.get(fp_key, "")
+        if first_title and first_title == old_fp:
+            skipped_feeds += 1
+            continue  # feed unchanged, skip
+        if first_title:
+            new_fingerprints[fp_key] = first_title
+        
         for item_match in re.finditer(r'<item>(.*?)</item>', resp.text, re.DOTALL):
             item_xml = item_match.group(1)
             title_m = re.search(r'<title>([^<]+)</title>', item_xml)
@@ -1580,7 +1615,11 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
                 "category": category,
             })
 
-    print(f"  [GNEWS] {len(items)} items from {len(feed_results)} feeds")
+    print(f"  [GNEWS] {len(items)} items from {len(feed_results)} feeds" + (f" ({skipped_feeds} unchanged, skipped)" if skipped_feeds else ""))
+    
+    # Save fingerprints
+    fingerprints.update(new_fingerprints)
+    _save_fingerprints(fingerprints)
 
     # 2b. Also fetch trending articles from Google Trends
     trending_queries = await _fetch_trending_queries(client)

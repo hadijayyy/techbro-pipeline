@@ -170,6 +170,77 @@ def post_thread(slides: list[str], image_url: Optional[str] = None) -> list[dict
     return results
 
 
+def get_metrics(post_id: str) -> Optional[dict]:
+    """Pull engagement metrics for a Threads post. Returns dict or None."""
+    if not TOKEN:
+        return None
+    try:
+        r = httpx.get(
+            f"{GRAPH}/{post_id}",
+            params={
+                "fields": "permalink,like_count,reply_count,share_count,views",
+                "access_token": TOKEN,
+            },
+            timeout=15,
+        )
+        if r.status_code != 200:
+            return None
+        d = r.json()
+        return {
+            "views": d.get("views", 0),
+            "likes": d.get("like_count", 0),
+            "replies": d.get("reply_count", 0),
+            "shares": d.get("share_count", 0),
+            "permalink": d.get("permalink", ""),
+        }
+    except Exception:
+        return None
+
+
+def pull_engagement(conn, max_per_run: int = 10) -> int:
+    """Pull metrics for posts >12h old that haven't been tracked yet. Returns count updated."""
+    import time as _time
+    cutoff = _time.time() - 43200  # 12 hours
+    
+    rows = conn.execute("""
+        SELECT id, thread_post_id, posted_at 
+        FROM posts 
+        WHERE status='posted' 
+          AND thread_post_id IS NOT NULL 
+          AND (views IS NULL OR views = 0)
+        ORDER BY id DESC
+        LIMIT 50
+    """).fetchall()
+    
+    updated = 0
+    processed = 0
+    for row in rows:
+        if processed >= max_per_run:
+            break
+        if row['posted_at']:
+            try:
+                from datetime import datetime
+                pt = datetime.fromisoformat(row['posted_at']).timestamp()
+                if pt > cutoff:
+                    continue  # too recent
+            except:
+                continue
+        
+        metrics = get_metrics(row['thread_post_id'])
+        processed += 1
+        if metrics:
+            conn.execute("""
+                UPDATE posts SET views=?, likes=?, replies=?, shares=?
+                WHERE id=?
+            """, (metrics['views'], metrics['likes'], metrics['replies'], metrics['shares'], row['id']))
+            updated += 1
+        time.sleep(0.3)  # rate limit
+    
+    if updated:
+        conn.commit()
+    return updated
+
+
 def post_from_db(limit: int = 1, dry_run: bool = False):
     """Post staged posts from pipeline.db."""
     from db import get_db, get_staged_posts, mark_posted

@@ -11,19 +11,34 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from scraper import scrape_all, detect_hot_topics
-from generator import generate_carousel, generate_narrative_post, generate_thread_chain, evaluate_slides
+from generator import generate_carousel, generate_narrative_post, generate_thread_chain, evaluate_slides, generate_ab_variants
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed
 
 TOP_N = 1  # articles per run
 
+# Stopwords for title similarity (Indonesian + English, like Pressbox's clean_words)
+_STOPWORDS = frozenset({
+    "the","a","an","in","on","at","to","for","of","and","or","but","is","was","be","has","had",
+    "just","not","are","were","do","did","get","got","its","his","her","she","he","you","your",
+    "we","our","they","them","that","this","with","from","will","can","all","how","who","what",
+    "when","where","why","more","than","some","about","into","over","after","before","between",
+    "both","each","even","first","last","like","long","look","make","many","most","much","must",
+    "new","now","old","only","other","out","own","people","say","see","take","tell","two","up",
+    "us","use","very","want","way","well","also","back","come","good","great","here","him",
+    "yang","dan","di","ke","dari","ini","itu","dengan","untuk","pada","adalah","akan","oleh",
+    "tidak","bisa","ada","juga","sudah","sudah","atau","tapi","karena","namun","agar","serta",
+    "hingga","sejak","tentang","melalui","setelah","antara","telah","secara","para","lain",
+})
+
 def _normalize_title(title: str) -> str:
-    """Normalize title for dedup: lowercase, strip punctuation, collapse spaces."""
+    """Normalize title for dedup: lowercase, strip punctuation, remove stopwords."""
     import re
-    t = re.sub(r'[^a-z0-9\s]', '', title.lower())
-    return ' '.join(t.split())
+    t = re.sub(r'[^a-z0-9\\s]', '', title.lower())
+    words = [w for w in t.split() if w not in _STOPWORDS and len(w) > 1]
+    return ' '.join(words)
 
 def _title_overlap(t1: str, t2: str) -> float:
-    """Jaccard similarity on word sets. >0.5 = likely same story."""
+    """Jaccard similarity on word sets (with stopwords removed). >0.35 = likely same story."""
     w1 = set(_normalize_title(t1).split())
     w2 = set(_normalize_title(t2).split())
     if not w1 or not w2:
@@ -120,7 +135,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
             # Dedup: skip if already posted/staged (title similarity)
             skip = False
             for pt in posted_titles:
-                if _title_overlap(art['title'], pt) > 0.5:
+                if _title_overlap(art['title'], pt) > 0.35:
                     print(f"  [DEDUP] Similar to already-posted: {pt[:60]}...")
                     skip = True
                     break
@@ -150,7 +165,8 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
             elif format == "thread_chain":
                 slides = generate_thread_chain(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
             else:
-                slides = generate_carousel(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
+                # A/B testing: generate 3 hook variants, pick best
+                slides = generate_ab_variants(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""), n_variants=3)
             if not slides:
                 print("  ERROR: LM generation failed")
                 mark_failed(conn, article_id)
@@ -268,6 +284,40 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
 
     stats = get_stats(conn)
     elapsed = time.time() - t0
+    
+    # Pull engagement metrics for posts >12h old
+    try:
+        from poster import pull_engagement
+        updated = pull_engagement(conn)
+        if updated:
+            print(f"📊 Engagement: updated metrics for {updated} posts")
+    except Exception as e:
+        print(f"  [ENGAGEMENT] Skipped: {e}")
+    
+    # Telegram notify (if posts were staged this run)
+    if staged_this_run:
+        try:
+            import requests as _req
+            token_file = Path.home() / ".szejay_token"
+            if token_file.exists():
+                token = token_file.read_text().strip()
+                # Get the latest staged post
+                latest = conn.execute(
+                    "SELECT p.id, a.title, a.score FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='staged' ORDER BY p.id DESC LIMIT 1"
+                ).fetchone()
+                if latest:
+                    _req.post(
+                        f"https://api.telegram.org/bot{token}/sendMessage",
+                        json={
+                            "chat_id": 1022032312,
+                            "text": f"✅ Techbro staged: {dict(latest)['title'][:60]}\n📊 Score: {dict(latest)['score']}\n⏱️ {elapsed:.1f}s",
+                            "disable_web_page_preview": True,
+                        },
+                        timeout=10,
+                    )
+        except Exception:
+            pass  # non-critical
+    
     print(f"\n{'='*50}")
     print(f"Done in {elapsed:.1f}s")
     print(f"DB: {stats['articles']} articles | {stats['staged']} staged | {stats['posted']} posted")

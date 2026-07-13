@@ -482,6 +482,77 @@ def generate_carousel(title: str, body: str, image_url: str = "", source_url: st
     return slides
 
 
+# ─── A/B Testing: Generate 3 hook variants, pick best ─────────────────
+
+_HOOK_PATTERNS = [
+    "REALIZATION: \"Gue baru nyadar... [fakta mengejutkan]\"",
+    "OPINION: \"Jujur, gue [emotion] soal [topik]. [Fakta]\"",
+    "QUESTION: \"Lo tau gak... [fakta provokatif]?\"",
+    "QUOTE: \"[Nama] bilang: '[insight]'. Dan ini bener banget.\"",
+    "CONTRAST: \"[Ekspektasi]... Tapi kenyataannya? [Realita]\"",
+    "DATA DROP: \"[Angka spesifik] orang [konteks]. Lo termasuk?\"",
+]
+
+def generate_ab_variants(title: str, body: str, image_url: str = "", source_url: str = "", source: str = "", n_variants: int = 3) -> Optional[dict]:
+    """Generate n_variants carousels with different hook patterns, pick best by hook quality."""
+    import random
+    
+    if not MISTRAL_KEY:
+        return generate_carousel(title, body, image_url, source_url, source)
+    
+    # Pick n random hook patterns
+    patterns = random.sample(_HOOK_PATTERNS, min(n_variants, len(_HOOK_PATTERNS)))
+    
+    variants = []
+    for i, pattern in enumerate(patterns, 1):
+        print(f"  [A/B] Variant {i}/{len(patterns)}: {pattern[:40]}...")
+        
+        # Build modified prompt with specific hook instruction
+        hook_instruction = f"\n\n[A/B OVERRIDE] For Slide 1 (Hook), use THIS pattern: {pattern}"
+        
+        # Generate with modified body (append hook instruction)
+        raw = _call_mistral(title, body + hook_instruction, source)
+        if not raw:
+            continue
+        
+        slides = _parse_json(raw)
+        if not slides:
+            continue
+        
+        slides = _postprocess_slides(slides, source_url)
+        
+        # Score hook quality (simple heuristic)
+        hook = slides.get("slide_1", "")
+        hook_score = 0
+        # Has number/specific data
+        if re.search(r'\d', hook):
+            hook_score += 3
+        # Has CAPS emphasis
+        if re.search(r'[A-Z]{3,}', hook):
+            hook_score += 2
+        # Word count sweet spot (20-35)
+        wc = len(hook.split())
+        if 20 <= wc <= 35:
+            hook_score += 2
+        elif 15 <= wc <= 40:
+            hook_score += 1
+        # Has question mark (engagement)
+        if '?' in hook:
+            hook_score += 1
+        
+        variants.append((hook_score, slides))
+        print(f"    Hook score: {hook_score}, words: {wc}")
+    
+    if not variants:
+        print("  [A/B] All variants failed, falling back to single generation")
+        return generate_carousel(title, body, image_url, source_url, source)
+    
+    # Pick best variant
+    best_score, best_slides = max(variants, key=lambda x: x[0])
+    print(f"  [A/B] Winner: hook_score={best_score} from {len(variants)} variants")
+    return best_slides
+
+
 def evaluate_slides(slides: dict, title: str, body: str, score: int = 0) -> dict:
     """Independent LLM review of generated slides.
     
