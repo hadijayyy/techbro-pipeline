@@ -26,9 +26,19 @@ LOG="logs/pipeline-$(date +%Y%m%d-%H%M%S).log"
 
 echo "=== Pipeline run: $(TZ='Asia/Jakarta' date '+%H:%M WIB %d %b %Y') ===" >> "$LOG"
 
-# Python handles: jitter 0-30s, then scrape → generate → post
+# Python handles: scrape → generate → post
 EXIT_CODE=0
 /home/ubuntu/.hermes/hermes-agent/venv/bin/python3 scripts/pipeline.py >> "$LOG" 2>&1 || EXIT_CODE=$?
+
+# Step 2: Post staged content to Threads
+if [ "$EXIT_CODE" -eq 0 ]; then
+    echo "--- Posting staged content ---" >> "$LOG"
+    /home/ubuntu/.hermes/hermes-agent/venv/bin/python3 -c "
+import sys; sys.path.insert(0, 'scripts')
+from poster import post_from_db
+post_from_db(limit=1)
+" >> "$LOG" 2>&1 || true
+fi
 
 echo "=== Done (exit: $EXIT_CODE) ===" >> "$LOG"
 

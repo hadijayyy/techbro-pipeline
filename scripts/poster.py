@@ -190,18 +190,22 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
             if val:
                 slides.append(val)
         
+        caption = post.get('caption', '')
+        
+        # Fallback: if slide columns empty, check caption for thread_chain or single post
+        if not slides and caption:
+            if '\n---\n' in caption:
+                # Thread chain: parse all slides from caption
+                slides = [s.strip() for s in caption.split('\n---\n') if s.strip()]
+                print(f"  Thread chain from caption: {len(slides)} slides")
+            else:
+                # Single post: use caption as the only slide
+                slides = [caption]
+                print(f"  Single post from caption")
+        
         if not slides:
             print("  [SKIP] No slides")
             continue
-        
-        # Check if this is a thread_chain (caption contains all slides separated by ---)
-        caption = post.get('caption', '')
-        if caption and '\n---\n' in caption:
-            # Thread chain: parse all slides from caption
-            slides = [s.strip() for s in caption.split('\n---\n') if s.strip()]
-            print(f"  Thread chain: {len(slides)} slides")
-        else:
-            print(f"  {len(slides)} slides, image: {post.get('image', 'none')[:60]}")
         
         if dry_run:
             for i, s in enumerate(slides, 1):
