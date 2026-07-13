@@ -183,14 +183,17 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
     for post in staged:
         print(f"\nPosting: {post['title'][:60]}...")
         
+        # sqlite3.Row doesn't have .get(), convert to dict
+        p = dict(post)
+        
         # Build slides from DB columns
         slides = []
         for key in ['slide_hook', 'slide_setup', 'slide_twist', 'slide_deep', 'slide_sowhat', 'slide_cta']:
-            val = post.get(key, '')
+            val = p.get(key, '')
             if val:
                 slides.append(val)
         
-        caption = post.get('caption', '')
+        caption = p.get('caption', '')
         
         # Fallback: if slide columns empty, check caption for thread_chain or single post
         if not slides and caption:
@@ -212,7 +215,7 @@ def post_from_db(limit: int = 1, dry_run: bool = False):
                 print(f"  [{i}] {s[:80]}")
             continue
         
-        results = post_thread(slides, image_url=post.get('image'))
+        results = post_thread(slides, image_url=p.get('image'))
         if results:
             mark_posted(conn, post['id'], results[0]['post_id'])
             print(f"  ✓ Thread root: {results[0]['post_id']}")

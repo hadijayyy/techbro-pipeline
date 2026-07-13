@@ -142,26 +142,14 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                     }, caption, slides.get("hashtags", ""))
                     staged_this_run = True
                 else:
-                    # Carousel: 6 slides
-                    stage_post(conn, article_id, {
-                        "hook": slides.get("slide_1", ""),
-                        "setup": slides.get("slide_2", ""),
-                        "twist": slides.get("slide_3", ""),
-                        "deep": slides.get("slide_4", ""),
-                        "sowhat": slides.get("slide_5", ""),
-                        "cta": slides.get("slide_6", ""),
-                    }, slides.get("caption", ""), slides.get("hashtags", ""))
+                    # Carousel: 6 slides — pass original dict to stage_post
+                    stage_post(conn, article_id, slides,
+                        slides.get("caption", ""), slides.get("hashtags", ""))
                     staged_this_run = True
             else:
-                # Legacy carousel format (dict with slide_1..slide_6)
-                stage_post(conn, article_id, {
-                    "hook": slides.get("slide_1", ""),
-                    "setup": slides.get("slide_2", ""),
-                    "twist": slides.get("slide_3", ""),
-                    "deep": slides.get("slide_4", ""),
-                    "sowhat": slides.get("slide_5", ""),
-                    "cta": slides.get("slide_6", ""),
-                }, slides.get("caption", ""), slides.get("hashtags", ""))
+                # Legacy carousel format (dict with slide_1..slide_6) — pass directly
+                stage_post(conn, article_id, slides,
+                    slides.get("caption", ""), slides.get("hashtags", ""))
                 staged_this_run = True
             break  # one article per run
     else:
@@ -220,24 +208,12 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                         }, caption, slides.get("hashtags", ""))
                         staged_this_run = True
                     else:
-                        stage_post(conn, art["id"], {
-                            "hook": slides.get("slide_1", ""),
-                            "setup": slides.get("slide_2", ""),
-                            "twist": slides.get("slide_3", ""),
-                            "deep": slides.get("slide_4", ""),
-                            "sowhat": slides.get("slide_5", ""),
-                            "cta": slides.get("slide_6", ""),
-                        }, slides.get("caption", ""), slides.get("hashtags", ""))
+                        stage_post(conn, art["id"], slides,
+                            slides.get("caption", ""), slides.get("hashtags", ""))
                         staged_this_run = True
                 else:
-                    stage_post(conn, art["id"], {
-                        "hook": slides.get("slide_1", ""),
-                        "setup": slides.get("slide_2", ""),
-                        "twist": slides.get("slide_3", ""),
-                        "deep": slides.get("slide_4", ""),
-                        "sowhat": slides.get("slide_5", ""),
-                        "cta": slides.get("slide_6", ""),
-                    }, slides.get("caption", ""), slides.get("hashtags", ""))
+                    stage_post(conn, art["id"], slides,
+                        slides.get("caption", ""), slides.get("hashtags", ""))
                     staged_this_run = True
                 break  # one article per run
         else:
