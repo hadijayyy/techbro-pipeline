@@ -107,6 +107,36 @@ def get_stats(conn) -> dict:
         "posted": conn.execute("SELECT COUNT(*) c FROM posts WHERE status='posted'").fetchone()["c"],
     }
 
+
+def get_hook_analytics(conn, min_posts: int = 20) -> dict:
+    """Get hook pattern performance analytics from posted content.
+    
+    Returns dict: hook_pattern → boost_score (for scoring).
+    Requires min_posts with hook_pattern data to activate.
+    Uses DB-based tracking (no Threads API engagement needed).
+    """
+    posts = conn.execute("""
+        SELECT hook_pattern, hook_score, title
+        FROM posts 
+        WHERE status='posted' AND hook_pattern IS NOT NULL AND hook_pattern != ''
+        ORDER BY id DESC LIMIT 50
+    """).fetchall()
+    
+    if len(posts) < min_posts:
+        return {}
+    
+    # Count hook pattern frequency
+    from collections import Counter
+    pattern_counts = Counter(p['hook_pattern'] for p in posts)
+    
+    # Simple boost: top 2 patterns get +10 boost
+    top_patterns = pattern_counts.most_common(2)
+    boosts = {}
+    for pattern, count in top_patterns:
+        boosts[pattern] = 10
+    
+    return boosts
+
 def cleanup_old(conn, days: int = 7) -> dict:
     """Delete articles and posts older than N days. Returns counts."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
