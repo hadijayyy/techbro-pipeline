@@ -480,21 +480,18 @@ def evaluate_slides(slides: dict, title: str, body: str, score: int = 0) -> dict
     Returns:
         {"status": "APPROVE"|"REVISE"|"REJECT", "reason": str, "revised_slides": dict|None}
     
-    Skips evaluator for high-score posts (≥80) to save ~50s.
     Uses mistral-small-latest (cheap, different model than generator).
     """
-    # Skip evaluator for very high-score posts (rare, only extreme consensus)
-    if score >= 100:
-        print(f"  [EVALUATOR] Skipped (score={score} ≥ 100)")
-        return {"status": "APPROVE", "reason": "high_score_skip"}
-    
+    # Always run evaluator — no skip threshold
+    # (Old: skip ≥100, but grounding issues found even at high scores)
+
     slide_text = "\n".join([f"Slide {i}: {slides.get(f'slide_{i}', '')}" for i in range(1, 7)])
     
     evaluator_prompt = f"""You are a skeptical content reviewer for Threads posts targeting Indonesian audience. Review the following 6-slide carousel.
 
 ARTICLE TITLE: {title}
 
-ARTICLE EXCERPT: {body[:500]}
+ARTICLE EXCERPT: {body[:2000]}
 
 GENERATED SLIDES:
 {slide_text}

@@ -1148,6 +1148,11 @@ def main():
         elif hot >= 1.5:
             s += 15 + hot_adjust
 
+        # Breaking news boost — topic baru hari ini (last 2h) +15
+        pub_ts = t.get("published_ts")
+        if pub_ts and (time.time() - pub_ts) < 7200:
+            s += 15
+
         # Peak hour boost
         hour = datetime.now(WIB).hour
         if hour in {7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21}:
