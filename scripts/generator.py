@@ -454,6 +454,94 @@ def generate_carousel(title: str, body: str, image_url: str = "", source_url: st
     return slides
 
 
+def evaluate_slides(slides: dict, title: str, body: str, score: int = 0) -> dict:
+    """Independent LLM review of generated slides.
+    
+    Returns:
+        {"status": "APPROVE"|"REVISE"|"REJECT", "reason": str, "revised_slides": dict|None}
+    
+    Skips evaluator for high-score posts (≥80) to save ~50s.
+    Uses mistral-small-latest (cheap, different model than generator).
+    """
+    # Skip evaluator for high-score posts
+    if score >= 80:
+        print(f"  [EVALUATOR] Skipped (score={score} ≥ 80)")
+        return {"status": "APPROVE", "reason": "high_score_skip"}
+    
+    slide_text = "\n".join([f"Slide {i}: {slides.get(f'slide_{i}', '')}" for i in range(1, 7)])
+    
+    evaluator_prompt = f"""You are a skeptical content reviewer for Threads posts. Review the following 6-slide carousel.
+
+ARTICLE TITLE: {title}
+
+ARTICLE EXCERPT: {body[:500]}
+
+GENERATED SLIDES:
+{slide_text}
+
+YOUR TASK:
+1. Check if ALL facts in the slides come from the article (no hallucination)
+2. Check if the slides flow as a connected story (not 6 random facts)
+3. Check if Slide 1 hook is attention-grabbing (<20 words preferred)
+4. Check if Slide 6 has a clear CTA
+5. Check for banned patterns (filler words, generic phrases, overly corporate language)
+
+APPROVAL CRITERIA:
+- APPROVE: Facts grounded, story flows, hook strong, no hallucination
+- REVISE: Minor issues (wording, flow) but content is salvageable
+- REJECT: Major hallucination, facts not in article, broken narrative
+
+Return JSON:
+{{
+    "status": "APPROVE" or "REVISE" or "REJECT",
+    "reason": "brief explanation",
+    "issues": ["list of specific issues found"],
+    "revised_slides": null or {{"slide_1":"...",...}} if REVISE
+}}
+
+Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT."""
+    
+    try:
+        r = httpx.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
+            json={"model": "mistral-small-latest",
+                  "messages": [{"role": "user", "content": evaluator_prompt}],
+                  "temperature": 0.3,
+                  "max_tokens": 1000},
+            timeout=30
+        )
+        
+        if r.status_code != 200:
+            print(f"  [EVALUATOR] API error: {r.status_code}")
+            return {"status": "APPROVE", "reason": "api_error_fail_open"}
+        
+        content = r.json()["choices"][0]["message"]["content"]
+        
+        # Strip markdown code fences if present
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+        
+        result = json.loads(content)
+        
+        status = result.get("status", "APPROVE")
+        reason = result.get("reason", "")
+        
+        print(f"  [EVALUATOR] {status}: {reason[:100]}")
+        
+        return {
+            "status": status,
+            "reason": reason,
+            "revised_slides": result.get("revised_slides")
+        }
+        
+    except Exception as e:
+        print(f"  [EVALUATOR] Error: {e}")
+        return {"status": "APPROVE", "reason": f"exception_fail_open: {e}"}
+
+
 def generate_narrative_post(title: str, body: str, source_url: str = "", source: str = "") -> Optional[dict]:
     """Generate single narrative text post (Ethan Joshua pattern).
     

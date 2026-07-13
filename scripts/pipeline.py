@@ -10,8 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from scraper import scrape_all
-from generator import generate_carousel, generate_narrative_post, generate_thread_chain
+from scraper import scrape_all, detect_hot_topics
+from generator import generate_carousel, generate_narrative_post, generate_thread_chain, evaluate_slides
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed
 
 TOP_N = 1  # articles per run
@@ -64,7 +64,30 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
 
     # 1. Scrape + score
     print(f"[1/3] Scraping top {top_n} articles...")
-    articles = scrape_all(top_n)
+    articles = scrape_all(top_n * 10)  # Get more articles for hot detection
+    
+    # 1.5. Hot topic detection (Union-Find clustering)
+    if articles:
+        hotness = detect_hot_topics(articles)
+        if hotness:
+            # Re-score articles with hot boost
+            from scraper import score_article
+            for art in articles:
+                url = art.get("url", "")
+                hot_boost = 0
+                if url in hotness:
+                    score = hotness[url]
+                    if score >= 3.0:
+                        hot_boost = 25
+                    elif score >= 1.5:
+                        hot_boost = 15
+                art["score"] = score_article(art["title"], art.get("body", ""), art.get("date"), hot_boost=hot_boost, source=art.get("source", ""))
+            
+            # Re-sort by score
+            articles.sort(key=lambda x: x["score"], reverse=True)
+    
+    # Trim to requested top_n
+    articles = articles[:top_n]
 
     # Get already-posted/staged article titles for dedup
     posted_titles = [row['title'] for row in conn.execute(
@@ -132,7 +155,18 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                 print("  ERROR: LM generation failed")
                 mark_failed(conn, article_id)
                 continue
-
+            
+            # 2.5. Evaluator loop (independent LLM review)
+            eval_result = evaluate_slides(slides, a["title"], a["body"], art["score"])
+            
+            if eval_result["status"] == "REJECT":
+                print(f"  [EVALUATOR] REJECTED: {eval_result['reason'][:100]}")
+                mark_failed(conn, article_id)
+                continue
+            elif eval_result["status"] == "REVISE" and eval_result.get("revised_slides"):
+                print(f"  [EVALUATOR] REVISED: {eval_result['reason'][:100]}")
+                slides = eval_result["revised_slides"]
+            
             # Handle different format structures
             if isinstance(slides, dict) and "_format" in slides:
                 fmt = slides["_format"]

@@ -10,11 +10,203 @@ import httpx
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse, urlunparse
+from pathlib import Path
 
 UTC = timezone.utc
 MAX_AGE_HOURS = 720  # 30 days max
 FALLBACK_HOURS = 720  # same for fallback
 TOP_N = 1
+
+# Article cache — 4h rolling window (like pressbox)
+ARTICLE_CACHE_PATH = Path.home() / ".hermes" / "techbro" / "article-cache.json"
+ARTICLE_CACHE_HOURS = 4
+
+def _load_article_cache() -> dict:
+    """Load article cache (dict keyed by URL). Prune entries >4h old."""
+    if not ARTICLE_CACHE_PATH.exists():
+        return {}
+    try:
+        with open(ARTICLE_CACHE_PATH) as f:
+            cache = json.load(f)
+        if not isinstance(cache, dict):
+            return {}
+        # Prune old entries
+        cutoff = datetime.now(UTC) - timedelta(hours=ARTICLE_CACHE_HOURS)
+        pruned = {}
+        for url, data in cache.items():
+            if isinstance(data, dict) and "timestamp" in data:
+                try:
+                    ts = datetime.fromisoformat(data["timestamp"])
+                    if ts > cutoff:
+                        pruned[url] = data
+                except:
+                    pass
+        return pruned
+    except:
+        return {}
+
+def _save_article_cache(cache: dict):
+    """Save article cache to disk."""
+    ARTICLE_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(ARTICLE_CACHE_PATH, "w") as f:
+        json.dump(cache, f)
+
+def _get_cached_article(url: str) -> tuple:
+    """Get cached article (text, image). Returns ("", "") if not cached."""
+    cache = _load_article_cache()
+    if url in cache:
+        data = cache[url]
+        return data.get("text", ""), data.get("image", "")
+    return "", ""
+
+def _cache_article(url: str, text: str, image: str = ""):
+    """Cache article text and image."""
+    cache = _load_article_cache()
+    cache[url] = {
+        "text": text[:5000],  # Cap at 5000 chars
+        "image": image,
+        "timestamp": datetime.now(UTC).isoformat()
+    }
+    _save_article_cache(cache)
+
+
+# ─── Hot Topic Detection (Union-Find clustering) ───────────────
+
+# Big entities for clustering — Indonesian + international names/companies
+_ENTITIES = [
+    # Indonesian figures
+    "eva alicia", "mario teguh", "jaya setiabudi", "deddy corbuzier", "raffi ahmad",
+    "jerome polin", "arief muhammad", "nadiem makarim", "william tanuwijaya",
+    # International
+    "alex hormozi", "naval ravikant", "james clear", "jordan peterson",
+    "elon musk", "jeff bezos", "mark zuckerberg", "sam altman", "tim cook",
+    "sundar pichai", "jensen huang", "satya nadella", "bill gates",
+    "steve jobs", "tim ferriss", "gary vaynerchuk", "brian armstrong",
+    # Companies
+    "openai", "google", "apple", "meta", "microsoft", "amazon", "tesla",
+    "tokopedia", "gojek", "traveloka", "shopee", "grab", "bukalapak",
+    "chatgpt", "gemini", "claude", "midjourney", "nvidia", "anthropic",
+]
+
+def _extract_entities(title: str) -> set:
+    """Extract known entities from article title. Returns set of lowercase names."""
+    tl = title.lower()
+    found = set()
+    for entity in _ENTITIES:
+        if entity in tl:
+            found.add(entity)
+    return found
+
+
+def detect_hot_topics(articles: list, window_hours: int = 4) -> dict:
+    """Cluster articles by entity overlap (Union-Find). Returns dict: url → hotness_score.
+    
+    Uses the 4h rolling article cache for better cross-run clustering.
+    """
+    now = datetime.now(UTC).timestamp()
+    cutoff = now - (window_hours * 3600)
+    
+    # 1. Load persistent cache + merge current articles
+    cache = _load_article_cache()
+    merged = []
+    seen_urls = set()
+    
+    # Add cached articles
+    for url, data in cache.items():
+        if url not in seen_urls and isinstance(data, dict):
+            seen_urls.add(url)
+            merged.append({"url": url, "title": data.get("text", "")[:200]})
+    
+    # Add current articles
+    for art in articles:
+        url = art.get("url", "")
+        if url and url not in seen_urls:
+            seen_urls.add(url)
+            merged.append(art)
+    
+    if len(merged) < 2:
+        return {}
+    
+    # 2. Extract entities per article
+    article_entities = [(art, _extract_entities(art.get("title", ""))) for art in merged]
+    
+    # 3. Union-Find clustering
+    n = len(article_entities)
+    parent = list(range(n))
+    
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+    
+    # Cluster: 2+ shared entities
+    for i in range(n):
+        for j in range(i + 1, n):
+            shared = article_entities[i][1] & article_entities[j][1]
+            if len(shared) >= 2:
+                union(i, j)
+    
+    # Also: 1 entity + 4+ title word overlap (same story, different phrasing)
+    skip = {"the","a","an","in","on","at","to","for","of","and","or","but","is","was",
+            "just","not","has","had","are","were","be","yang","dan","di","ke","dari",
+            "ini","itu","dengan","untuk","pada","adalah","akan","oleh","itu"}
+    
+    def title_sig(title):
+        return set(w.lower() for w in re.findall(r'[a-zA-Z\u00C0-\u024F]{3,}', title)) - skip
+    
+    for i in range(n):
+        for j in range(i + 1, n):
+            shared = article_entities[i][1] & article_entities[j][1]
+            if len(shared) >= 1:
+                sig_i = title_sig(article_entities[i][0].get("title", ""))
+                sig_j = title_sig(article_entities[j][0].get("title", ""))
+                if len(sig_i & sig_j) >= 4:
+                    union(i, j)
+    
+    # 4. Score clusters
+    from collections import defaultdict
+    clusters = defaultdict(list)
+    for i in range(n):
+        root = find(i)
+        clusters[root].append(article_entities[i])
+    
+    hotness = {}
+    for root, members in clusters.items():
+        if len(members) < 2:
+            continue  # single-source = not hot
+        
+        count = len(members)
+        
+        # Recency: articles from last 1h count more
+        recency_sum = 0
+        for m, _ in members:
+            ts = m.get("published_ts") or now
+            age_h = max(0.01, (now - ts) / 3600) if ts else 4.0
+            recency_sum += 1.0 / age_h
+        recency_avg = recency_sum / count
+        
+        hot = count * recency_avg
+        
+        for m, _ in members:
+            url = m.get("url", "")
+            if url:
+                hotness[url] = max(hotness.get(url, 0), hot)
+    
+    if hotness:
+        hot_count = len(hotness)
+        top_hot = sorted(hotness.items(), key=lambda x: -x[1])[:3]
+        print(f"  🔥 Hot detection: {hot_count} articles in {sum(1 for c in clusters.values() if len(c)>=2)} clusters")
+        for url, score in top_hot:
+            title = next((a.get("title", "")[:50] for a in articles if a.get("url") == url), "?")
+            print(f"   🔥 {title}... (hotness={score:.1f})")
+    
+    return hotness
 
 # Source names used by scrape_all_async — single of truth
 SOURCE_NAMES = ["google_news", "celebrity", "celebrity_id", "entrepreneur", "mindset", "tech", "career"]
@@ -1442,6 +1634,22 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
     # 4. Scrape article content (parallel, max 15 at a time)
     async def _scrape_one(item: dict) -> dict | None:
         url = item["decoded_url"]
+        
+        # Check cache first (4h rolling window)
+        cached_text, cached_image = _get_cached_article(url)
+        if cached_text:
+            return {
+                "title": item["title"],
+                "url": url,
+                "body": cached_text,
+                "source": item.get("category", "google_news"),
+                "date": item["date"],
+                "image": cached_image or "",
+                "gnews_category": item["category"],
+                "gnews_source": item["source_name"],
+                "cached": True
+            }
+        
         try:
             r = await client.get(url, timeout=12, follow_redirects=True)
             if r.status_code != 200:
@@ -1450,6 +1658,12 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
             body = _extract_body(soup)
             if len(body) < 100:
                 return None
+            
+            image = _extract_image(soup)
+            
+            # Cache the article
+            _cache_article(url, body, image)
+            
             # Extract date from article page if RSS date missing
             date = item["date"]
             # Parse RFC 2822 date string to datetime
@@ -1469,7 +1683,7 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
                 "body": body,
                 "source": item.get("category", "google_news"),  # Use feed tag (celebrity, athlete, etc.)
                 "date": date,
-                "image": _extract_image(soup),
+                "image": image,
                 "gnews_category": item["category"],
                 "gnews_source": item["source_name"],
             }
