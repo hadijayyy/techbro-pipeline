@@ -70,7 +70,11 @@ TechBro mirrors [Pressbox](https://github.com/hadijayyy/pressbox-pipeline) archi
 | Grounding rules | ✅ | 10 anti-hallucination rules |
 | Escalation arc | ✅ | Hook→Context→Escalation→Tips→Lesson→CTA |
 | Caption rules | ✅ | 2-3 lines, zero emoji/hashtags |
-| A/B testing | ✅ | 1 variant |
+| A/B testing | ✅ | 3 variants with hook quality scoring |
+| Source fingerprints | ✅ | Skip unchanged RSS feeds |
+| Title similarity dedup | ✅ | Jaccard + stopwords, 72h window, threshold 0.35 |
+| Engagement feedback | ✅ | Pull views/likes/replies via Threads Graph API |
+| Telegram notify | ✅ | Post confirmation to Telegram |
 | Cover image selection | ⏭️ | Skipped — low impact for text posts |
 
 ## Files
