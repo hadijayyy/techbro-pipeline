@@ -65,7 +65,7 @@ conn.close()
 print('📊 TechBro Pipeline Report')
 print(f'🕐 {datetime.now().strftime("%H:%M WIB")}')
 print(f'📰 Articles today: {articles["c"]}')
-print(f'✅ Posts today: {total_today["c"]}/12')
+print(f'✅ Posts today: {total_today["c"]}/20')
 print()
 
 if posted:

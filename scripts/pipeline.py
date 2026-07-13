@@ -39,6 +39,19 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
     t0 = time.time()
     conn = get_db()
     staged_this_run = False
+    
+    # Daily limit: max 20 posts per day
+    DAILY_LIMIT = 20
+    today = __import__('datetime').datetime.now().strftime('%Y-%m-%d')
+    posts_today = conn.execute(
+        "SELECT COUNT(*) as c FROM posts WHERE status='posted' AND date(posted_at)=?",
+        (today,)
+    ).fetchone()['c']
+    
+    if posts_today >= DAILY_LIMIT:
+        print(f"  [LIMIT] Daily limit reached ({posts_today}/{DAILY_LIMIT}). Skipping.")
+        conn.close()
+        return
 
     # Auto format: alternate between thread_chain and narrative
     if format == "auto":
