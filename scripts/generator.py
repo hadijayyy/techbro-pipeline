@@ -103,8 +103,8 @@ Pilih salah satu hook pattern (variasi, JANGAN semua post pola sama):
 Escalation arc (urutan proven, jangan rearrange):
 - Slide 2 = Context: apa yang terjadi, situasi realita
 - Slide 3 = Escalation: fakta yang bikin "oh ternyata..." / twist yang bikin kaget
-- Slide 4 = Actionable tips: data dari ARTIKEL SAJA + tips yang bisa langsung dipake. Format: "Jadi, yang bisa lo lakuin: [tip 1], [tip 2]"
-- Slide 5 = Big lesson: satu kalimat yang mengubah cara pikir. Ini yang bikin orang share — "ini gue banget"
+- Slide 4 = Impact: kenapa ini penting buat lo — dampak konkret, angka, consequences
+- Slide 5 = So what: satu tips atau big lesson yang mengubah cara pikir
 
 ### Slide 6 — CTA
 - 2-3 sentences, 20-35 kata.
@@ -171,13 +171,13 @@ Input: "Waspada Penipuan Pre-Order GTA VI, Hacker Incar Rekening hingga Kripto. 
 
 Output:
 {
-  "slide_1": "GTA VI BELUM RILIS, tapi rekening lo udah bisa KOSONG gara-gara penipuan.\\n\\nKaspersky bilang: penipu manfaatin euforia pre-order buat jebak gamer yang gak sabar.\\n\\nLo termasuk yang udah klik Pesan Sekarang di situs abal-abal?",
-  "slide_2": "Bayangin lo udah nungguin GTA VI dari 2013.\\n\\nPas pre-order dibuka, lo langsung gas ke situs yang keliatan resmi — trailer keren, ulasan bintang lima, tombol Beli Sekarang menggiurkan.\\n\\nTapi pas udah transfer? Game gak datang, saldo lo ilang.",
-  "slide_3": "Ternyata, penipu bikin SITUS PALSU yang mirip banget sama toko resmi PlayStation.\\n\\nMereka minta data pribadi sampe nomor identitas wajib pajak, terus malah nguras rekening.\\n\\nModus lain? Tawarin beta version GTA VI yang sebenernya MALWARE buat nyuri data lo.",
-  "slide_4": "Jadi, gimana caranya lo bisa dapetin GTA VI dengan AMAN?\\n\\nPertama, BELI HANYA DI PLATFORM RESMI (PlayStation Store, Steam, Xbox Store).\\n\\nKedua, JANGAN PERNAH klik tautan dari DM atau komentar YouTube yang gak jelas.",
-  "slide_5": "Ini pelajaran mahal: ANTUSIASME lo bisa jadi KELEMAHAN terbesar.\\n\\nPenipu gak cuma jago bikin situs palsu, tapi juga paham PSIKOLOGI lo — rasa takut kehabisan dan keinginan dapetin game lebih cepat.\\n\\nSebelum klik Beli, tanya diri lo: ini beneran, atau gue lagi dijebak?",
-  "slide_6": "Lo pernah hampir kena tipu pas beli game? Atau malah udah jadi korban?\\n\\nCerita di comment, biar yang lain bisa belajar dari pengalaman lo.",
-  "caption": "GTA VI belum rilis, tapi rekening lo udah bisa kosong gara-gara penipuan.\\nKaspersky: penipu manfaatin euforia pre-order buat jebak gamer."
+  "slide_1": "GTA VI BELUM RILIS, tapi rekening lo udah bisa KOSONG.\\n\\nKaspersky: penipu manfaatin hype pre-order buat jebak gamer.",
+  "slide_2": "Mereka bikin situs palsu mirip PlayStation Store.\\n\\nKorban diminta data pribadi sampe nomor pajak.",
+  "slide_3": "Modus lain: beta version GTA VI = MALWARE.\\n\\nKripto token palsu juga beredar buat nyuri wallet lo.",
+  "slide_4": "Ini dampaknya: lo bukan cuma kehilangan duit, tapi data pribadi lo juga bocor.\\n\\nPenipu paham psikologi — rasa takut kehabisan bikin lo klik tanpa mikir.",
+  "slide_5": "Beli HANYA di platform resmi: PS Store, Steam, Xbox.\\n\\nJangan klik link dari DM atau komentar YouTube yang gak jelas.",
+  "slide_6": "Lo pernah hampir kena tipu beli game?\\n\\nCerita di comment, biar yang lain belajar dari pengalaman lo.",
+  "caption": "GTA VI belum rilis, tapi rekening lo udah bisa kosong.\\nKaspersky: penipu manfaatin hype pre-order buat jebak gamer."
 }
 """
 
