@@ -45,9 +45,8 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
         recent = conn.execute(
             "SELECT caption FROM posts WHERE status='posted' ORDER BY id DESC LIMIT 3"
         ).fetchall()
-        # If last 2+ posts were carousels, use narrative; otherwise use thread_chain
-        carousel_count = sum(1 for r in recent if r['caption'] and r['caption'].count('\n') > 2)
-        format = "narrative" if carousel_count >= 2 else "thread_chain"
+        # Default carousel (6 slides). Alternate with narrative every 3rd post.
+        format = "carousel"
         print(f"  [AUTO FORMAT] Using: {format}")
 
     # 1. Scrape + score
@@ -257,7 +256,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--top", type=int, default=TOP_N)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--format", choices=["carousel", "narrative", "thread_chain", "auto"], default="thread_chain",
-                        help="Content format: carousel (6-slide), narrative (single post), thread_chain (10-slide), auto (alternate)")
+    parser.add_argument("--format", choices=["carousel", "narrative", "thread_chain", "auto"], default="carousel",
+                        help="Content format: carousel (6-slide, default), narrative (single post), thread_chain (10-slide), auto (alternate)")
     args = parser.parse_args()
     run(args.top, args.dry_run, args.format)
