@@ -13,8 +13,8 @@ from urllib.parse import urlparse, urlunparse
 from pathlib import Path
 
 UTC = timezone.utc
-MAX_AGE_HOURS = 720  # 30 days max
-FALLBACK_HOURS = 720  # same for fallback
+MAX_AGE_HOURS = 48   # 2 days max (was 720 — old articles slip through trending RSS)
+FALLBACK_HOURS = 48   # same for fallback
 TOP_N = 1
 
 # Source fingerprints — skip unchanged RSS feeds
@@ -474,6 +474,17 @@ NICHE_PENALTY_KW = [
 ]
 _NICHE_SET = {k.lower() for k in NICHE_PENALTY_KW}
 
+# Western concept penalty: concepts that don't resonate with Indonesian audience
+WESTERN_CONCEPTS = [
+    "winter blues", "seasonal affective", "sad disorder",
+    "thanksgiving", "halloween", "super bowl", "prom night",
+    "spring break", "fall semester", "homecoming",
+    "credit score", "fico", "401k", "roth ira",
+    "fraternity", "sorority", "ivy league",
+    "black friday", "cyber monday",
+]
+_WESTERN_SET = {k.lower() for k in WESTERN_CONCEPTS}
+
 # Category keywords (for category bonus)
 _CAT_MINDSET = {"mindset", "pola pikir", "perspektif", "sudut pandang", "growth mindset", "fixed mindset"}
 _CAT_CAREER = {"karir", "career", "gaji", "salary", "promosi", "promotion", "phk", "layoff", "resign", "interview"}
@@ -603,6 +614,9 @@ def score_article(title: str, body: str, date=None, hot_boost: int = 0, analytic
     # ── Component 9: Niche Penalty (-30) ──
     niche_penalty = -30 if _unique_matches(text, _NICHE_SET) >= 1 else 0
 
+    # ── Component 9b: Western Concept Penalty (-40) ──
+    western_penalty = -40 if _unique_matches(text, _WESTERN_SET) >= 1 else 0
+
     # ── Component 10: Hot Topic (from Union-Find, passed in) ──
     # hot_boost is +25 (≥5 hotness) or +15 (≥3), 0 otherwise
 
@@ -619,7 +633,7 @@ def score_article(title: str, body: str, date=None, hot_boost: int = 0, analytic
 
     # ── Sum ──
     s = (keyword_score + cat_score + recency + data_score + source_score +
-         reach_score + drama_score + paradox + niche_penalty + hot_boost +
+         reach_score + drama_score + paradox + niche_penalty + western_penalty + hot_boost +
          peak + analytics_boost + density)
 
     # ── Soft cap: diminishing returns above 100 ──

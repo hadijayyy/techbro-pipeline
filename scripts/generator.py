@@ -596,6 +596,7 @@ YOUR TASK:
 4. Check if Slide 6 has a clear CTA
 5. Check for banned patterns (filler words, generic phrases, overly corporate language)
 6. **LOCAL RELEVANCE** — For Indonesian audience: prefer local examples (Filosofi Teras, Tere Liye, Eka Kurniawan) over foreign books (Your Pocket Therapist, Let Them Theory). If recommending 3+ items, at least 2 MUST be locally known in Indonesia.
+7. **RELATABILITY CHECK** — Flag concepts that don't resonate with Indonesian audience: "winter blues" (no winter in Indonesia), "Thanksgiving", "Super Bowl", "prom night", "401k", "credit score", "Ivy League". If the article uses a Western concept as the main angle, REJECT unless it can be reframed with a local equivalent.
 
 APPROVAL CRITERIA:
 - APPROVE: All facts grounded in article, story flows, hook strong, locally relevant
@@ -606,6 +607,7 @@ AUTO-REJECT TRIGGERS:
 - Inventing statistics ("BEST SELLER", "terlaris", "populer") without article data
 - Recommending 2+ books/products not mentioned in article
 - Generic advice with no source grounding
+- Western concept as main angle with no local reframing (e.g., "winter blues" in Indonesia, "Super Bowl" references, "Thanksgiving" traditions)
 
 Return JSON:
 {{
