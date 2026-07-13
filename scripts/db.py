@@ -70,10 +70,16 @@ def get_db() -> sqlite3.Connection:
     return conn
 
 def upsert_article(conn, art: dict) -> int:
+    date = art.get("date")
+    if date and hasattr(date, "isoformat"):
+        date = date.isoformat()
+    elif date and isinstance(date, str):
+        pass  # already a string
+    else:
+        date = None
     conn.execute("""INSERT OR IGNORE INTO articles (url, source, title, date, image, body, score)
         VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (art["url"], art["source"], art["title"],
-         art["date"].isoformat() if art.get("date") else None,
+        (art["url"], art["source"], art["title"], date,
          art.get("image", ""), art.get("body", ""), art.get("score", 0)))
     conn.commit()
     return conn.execute("SELECT id FROM articles WHERE url = ?", (art["url"],)).fetchone()["id"]
