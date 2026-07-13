@@ -676,7 +676,7 @@ def generate_thread_chain(title: str, body: str, image_url: str = "", source_url
                 json={"model": "mistral-large-latest",
                       "messages": [{"role": "system", "content": THREAD_CHAIN_PROMPT},
                                    {"role": "user", "content": user_msg}],
-                      "temperature": 0.5, "max_tokens": 2500},
+                      "temperature": 0.5, "max_tokens": 4000},
                 timeout=120)
             if r.status_code == 200:
                 raw = r.json()["choices"][0]["message"]["content"]
@@ -694,7 +694,7 @@ def generate_thread_chain(title: str, body: str, image_url: str = "", source_url
                 json={"model": "llama-3.3-70b-versatile",
                       "messages": [{"role": "system", "content": THREAD_CHAIN_PROMPT},
                                    {"role": "user", "content": user_msg}],
-                      "temperature": 0.5, "max_tokens": 2500},
+                      "temperature": 0.5, "max_tokens": 4000},
                 timeout=120)
             if r.status_code == 200:
                 raw = r.json()["choices"][0]["message"]["content"]
