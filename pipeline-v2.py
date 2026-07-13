@@ -1155,6 +1155,8 @@ def main():
 
         # Base score
         ws = _workplace_relevance(title, desc)
+        if ws < 5:
+            continue  # hard filter: must have SOME workplace relevance
         s = t.get("score", 5) + ws
 
         # Analytics-driven boost (pressbox pattern)

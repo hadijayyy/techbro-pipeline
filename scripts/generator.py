@@ -127,7 +127,7 @@ Zero emoji. Zero hashtags.
 ### Analogi Lokal
 Pakai analogi keresahan lokal sehari-hari di Slide 2-5 SAJA (budak korporat, dompet tipis, THR, ojol, warteg, angkringan). JANGAN di Slide 1 — hook harus langsung ke fakta.
 
-## 8. GROUNDING RULES (ALL SLIDES)
+## 10. GROUNDING RULES (ALL SLIDES)
 SEMUA fakta HARUS dari artikel. Never invent.
 
 1. NO INVENTED REASONING. Jangan klaim "[orang/perusahaan] sengaja [X]" kecuali artikel jelas bilang begitu.
@@ -139,7 +139,8 @@ SEMUA fakta HARUS dari artikel. Never invent.
 7. TEST EACH SLIDE: "Bisa gue tunjuk kalimat spesifik di artikel yang mendukung ini?" Kalau gak, hapus.
 8. NO INVENTED ANGKA. Jangan tulis "setara Rp500 juta" kecuali artikel jelas bilang.
 9. NO INVENTED INVOLVEMENT. Jangan tambahin orang/tokoh yang gak disebut artikel.
-10. PRESERVE HEDGING. "Kemungkinan besar" ≠ "pasti". "Dilaporkan" ≠ "sudah terjadi". Jangan upgrade uncertainty jadi certainty.
+10. PRESERVE HEDGING. "Kemungkinan besar" ≠ "pasti". "Dilaporkan" ≠ "udah terjadi". Jangan upgrade uncertainty jadi certainty.
+11. NO FAKE PERSONAL STORIES. Kalau artikel tentang pengalaman ORANG LAIN (CEO, pendiri, tokoh), JANGAN rewrite jadi "ibu gue", "temen gue", "kantor gue". Pakai nama orangnya atau sebut "seseorang yang [deskripsi]". Personal voice = reaksi lo terhadap fakta, BUKAN fabricate pengalaman pribadi lo sendiri.
 
 ## 9. LOCAL CONTENT — WAJIB
 Audience lo orang Indonesia. Konten harus RELATE sama mereka.
@@ -597,6 +598,7 @@ YOUR TASK:
 5. Check for banned patterns (filler words, generic phrases, overly corporate language)
 6. **LOCAL RELEVANCE** — For Indonesian audience: prefer local examples (Filosofi Teras, Tere Liye, Eka Kurniawan) over foreign books (Your Pocket Therapist, Let Them Theory). If recommending 3+ items, at least 2 MUST be locally known in Indonesia.
 7. **RELATABILITY CHECK** — Flag concepts that don't resonate with Indonesian audience: "winter blues" (no winter in Indonesia), "Thanksgiving", "Super Bowl", "prom night", "401k", "credit score", "Ivy League". If the article uses a Western concept as the main angle, REJECT unless it can be reframed with a local equivalent.
+8. **FAKE PERSONAL STORY CHECK** — If the article is about someone else's experience (a CEO, founder, named person), the slides MUST NOT rewrite it as the creator's own story ("ibu gue", "temen gue", "kantor gue"). That's fabrication. The creator can REACT to the story ("Gue kaget baca ini...") but cannot claim it happened to them.
 
 APPROVAL CRITERIA:
 - APPROVE: All facts grounded in article, story flows, hook strong, locally relevant
@@ -608,6 +610,7 @@ AUTO-REJECT TRIGGERS:
 - Recommending 2+ books/products not mentioned in article
 - Generic advice with no source grounding
 - Western concept as main angle with no local reframing (e.g., "winter blues" in Indonesia, "Super Bowl" references, "Thanksgiving" traditions)
+- Fake personal story: rewriting someone else's experience from the article as "ibu gue", "temen gue", "kantor gue" when the article names a different person. Personal voice = your reaction, not fabricating your own experience.
 
 Return JSON:
 {{
