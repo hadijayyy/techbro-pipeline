@@ -53,7 +53,10 @@ TechBro mirrors [Pressbox](https://github.com/hadijayyy/pressbox-pipeline) archi
 | Feature | Status | Detail |
 |---------|--------|--------|
 | 15-component scoring | ✅ | Adapted for self-dev keywords |
-| Evaluator loop | ✅ | Independent LLM review, skip ≥80 |
+| Evaluator loop | ✅ | Independent LLM review, skip ≥100 only |
+| Grounding score | ✅ | Auto-REJECT if < 5/10 |
+| Local content rules | ✅ | 2/3 recommendations must be Indonesian-known |
+| Foreign book detection | ✅ | Postprocess flags obscure foreign books |
 | 4h article cache | ✅ | Persistent, rolling window |
 | Hot topic detection | ✅ | Union-Find, 30+ entities |
 | Hook analytics | ✅ | DB-based, activates at 20+ posts |
