@@ -93,7 +93,8 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                 continue
 
             # Source diversity: skip celebrity if cap hit
-            if not allow_celeb and art.get('source', '') in ('celebrity', 'celebrity_id'):
+            a_src = dict(art)
+            if not allow_celeb and a_src.get('source', '') in ('celebrity', 'celebrity_id'):
                 print(f"  [RATIO] Skipping celebrity: {art['title'][:50]}...")
                 continue
 
@@ -106,14 +107,15 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                 continue
 
             # 3. Generate content (format-aware)
+            a = dict(art)  # sqlite3.Row → dict for .get()
             gen_label = "narrative post" if format == "narrative" else "thread chain" if format == "thread_chain" else "carousel"
             print(f"  [2/3] Generating {gen_label} via LM...")
             if format == "narrative":
-                slides = generate_narrative_post(art["title"], art["body"], art.get("url", ""), art.get("source", ""))
+                slides = generate_narrative_post(a["title"], a["body"], a.get("url", ""), a.get("source", ""))
             elif format == "thread_chain":
-                slides = generate_thread_chain(art["title"], art["body"], art.get("image", ""), art.get("url", ""), art.get("source", ""))
+                slides = generate_thread_chain(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
             else:
-                slides = generate_carousel(art["title"], art["body"], art.get("image", ""), art.get("url", ""), art.get("source", ""))
+                slides = generate_carousel(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
             if not slides:
                 print("  ERROR: LM generation failed")
                 mark_failed(conn, article_id)
@@ -170,7 +172,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
     if not staged_this_run:
         print("  Checking DB for unposted articles...")
         unposted = conn.execute("""
-            SELECT a.id, a.title, a.body, a.url, a.image, a.score
+            SELECT a.id, a.title, a.body, a.url, a.image, a.score, a.source
             FROM articles a
             WHERE a.id NOT IN (SELECT article_id FROM posts WHERE status != 'failed')
             ORDER BY a.score DESC
@@ -185,14 +187,16 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                     print("  [DRY RUN] Skipping generation")
                     continue
 
+                # sqlite3.Row doesn't have .get(), use dict()
+                a = dict(art)
                 gen_label = "narrative post" if format == "narrative" else "thread chain" if format == "thread_chain" else "carousel"
                 print(f"  [2/3] Generating {gen_label} via LM...")
                 if format == "narrative":
-                    slides = generate_narrative_post(art["title"], art["body"], art.get("url", ""), art.get("source", ""))
+                    slides = generate_narrative_post(a["title"], a["body"], a.get("url", ""), a.get("source", ""))
                 elif format == "thread_chain":
-                    slides = generate_thread_chain(art["title"], art["body"], art.get("image", ""), art.get("url", ""), art.get("source", ""))
+                    slides = generate_thread_chain(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
                 else:
-                    slides = generate_carousel(art["title"], art["body"], art.get("image", ""), art.get("url", ""), art.get("source", ""))
+                    slides = generate_carousel(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
                 if not slides:
                     print("  ERROR: LM generation failed")
                     mark_failed(conn, art["id"])
