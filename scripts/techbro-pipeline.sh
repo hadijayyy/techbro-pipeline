@@ -28,7 +28,7 @@ echo "=== Pipeline run: $(TZ='Asia/Jakarta' date '+%H:%M WIB %d %b %Y') ===" >> 
 
 # Python handles: jitter 0-30s, then scrape → generate → post
 EXIT_CODE=0
-/home/ubuntu/.hermes/hermes-agent/venv/bin/python3 scripts/pipeline.py --jitter 30 >> "$LOG" 2>&1 || EXIT_CODE=$?
+/home/ubuntu/.hermes/hermes-agent/venv/bin/python3 scripts/pipeline.py >> "$LOG" 2>&1 || EXIT_CODE=$?
 
 echo "=== Done (exit: $EXIT_CODE) ===" >> "$LOG"
 
