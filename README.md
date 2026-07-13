@@ -39,12 +39,15 @@ Scrapes articles → scores by relevance → generates 6-slide carousel via LLM 
 ## Content Rules
 
 - **Voice**: Casual Indonesian ("lu/gw"), empathetic, blunt, anti-corporate
-- **Format**: 6-slide carousel (Hook → Setup → Twist → Deep → So What → CTA)
+- **Framework**: RCTOE v2 (Role, Context, Task, Output, Execution)
+- **Format**: 6-slide carousel (Hook → Context → Escalation → Tips → Big Lesson → CTA)
+- **Viral criteria**: 7 kriteria per slide (Pro&Con, Relatable, Famous Figure, Trending, Ironi, Surprising Fact, Emotional Hook)
 - **Sources**: 6 feeds (celebrity global, celebrity ID, entrepreneur, mindset, tech, career)
 - **Celebrity cap**: 30% max per 48h window
 - **Daily limit**: 20 posts/day
 - **Banned patterns**: 84+ (cringe phrases, generic hooks, hallucinated facts)
-- **Grounding**: All facts must come from source article
+- **Grounding**: 10 rules, auto-REJECT if grounding < 5/10
+- **Worked example**: Full JSON example in prompt for consistency
 
 ## Pressbox Parity (~95%)
 
@@ -52,16 +55,21 @@ TechBro mirrors [Pressbox](https://github.com/hadijayyy/pressbox-pipeline) archi
 
 | Feature | Status | Detail |
 |---------|--------|--------|
+| RCTOE framework | ✅ | Role, Context, Task, Output, Execution |
 | 15-component scoring | ✅ | Adapted for self-dev keywords |
-| Evaluator loop | ✅ | Independent LLM review, skip ≥100 only |
+| Evaluator loop | ✅ | Independent LLM review, always runs |
 | Grounding score | ✅ | Auto-REJECT if < 5/10 |
+| Viral criteria | ✅ | 7 criteria per slide |
+| Worked example | ✅ | Full JSON GTA VI example in prompt |
 | Local content rules | ✅ | 2/3 recommendations must be Indonesian-known |
 | Foreign book detection | ✅ | Postprocess flags obscure foreign books |
 | 4h article cache | ✅ | Persistent, rolling window |
 | Hot topic detection | ✅ | Union-Find, 30+ entities |
 | Hook analytics | ✅ | DB-based, activates at 20+ posts |
 | Banned patterns | ✅ | 84+ (stricter than Pressbox) |
-| Grounding rules | ✅ | 7 anti-hallucination rules |
+| Grounding rules | ✅ | 10 anti-hallucination rules |
+| Escalation arc | ✅ | Hook→Context→Escalation→Tips→Lesson→CTA |
+| Caption rules | ✅ | 2-3 lines, zero emoji/hashtags |
 | A/B testing | ✅ | 1 variant |
 | Cover image selection | ⏭️ | Skipped — low impact for text posts |
 
