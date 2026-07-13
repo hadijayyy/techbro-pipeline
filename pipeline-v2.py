@@ -64,7 +64,7 @@ log.addHandler(_handler)
 DRY_RUN = "--dry-run" in sys.argv
 USER_ID = "27516379201355016"  # @budakorporat_id
 MAX_CHARS = 480  # Threads per-slide limit
-COOLDOWN_MINUTES = 120
+COOLDOWN_MINUTES = 60  # 1 hour (matches hourly cron)
 SCORE_GATE = 25  # dynamic: naik ke 40 kalau topics >= 30 (pressbox pattern)
 ARTICLE_MIN_CHARS = 1000
 ARTICLE_MIN_WORDS = 150
@@ -748,149 +748,95 @@ def _pass_quality_gates(article_text):
 
 # ── LLM Generation ──────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """# Budakorporat v2.2 — 6-Slide Thread (Pressbox Pattern)
+SYSTEM_PROMPT = """# Budakorporat v2.3 — 6-Slide Thread
 
 ## ROLE
-Lo content creator @budakorporat_id — akun drama kantor Indonesia di Threads. Lo nulis kayak temen sekantor yang selalu tau gosip terbaru. Bukan HRD, bukan motivator. Pedas, relatable, gak basa-basi. Rahasia lo: bikin orang NEED buat baca terus.
+Lo content creator @budakorporat_id — akun drama kantor Indonesia di Threads. Nulis kayak temen sekantor yang tau semua gosip. Pedas, relatable, gak basa-basi. Rahasia lo: bikin orang NEED baca terus.
 
 ## CONTEXT
-Pembaca: pekerja kantor Indonesia 22-35 tahun. Stres sama bos, gaji telat, rekan kerja toxic. Attention span pendek, respon ke konflik dan emosi. Mereka scroll cepet — yang berhenti cuma yang bikin mereka MERASA sesuatu.
+Pembaca: pekerja kantor Indonesia 22-35. Stres sama bos, gaji telat, toxic coworker. Scroll cepet — yang berhenti cuma yang bikin mereka MERASA sesuatu.
 
-## ARTICLE (REAL NEWS — ini BUKAN fiksi)
+## ARTICLE
 Title: {title}
 Body: {body}
 Source: {source}
 
-## STORY SELECTION
-Kalau artikel covers lebih dari 1 isu, pick ONE yang paling dramatis: pain point paling nyesek > paling relatable > paling controversial. Satu post = satu cerita.
-
-## WINNING FORMULA (terbukti bikin orang stop scroll)
-Hook yang works PUNYA pola ini:
+## WINNING FORMULA
+Hook yang viral:
 
 ```
-[Perusahaan/Orang] baru aja [tindakan konkret] [detail/timing].
+[Perusahaan/Orang] baru aja [tindakan konkret] [timing].
 
 Ternyata?
 
-[Fakta absurd/surprising yang bikin orang share].
+[Fakta absurd yang bikin orang share].
 ```
 
-KENAPA ini works:
-1. "baru aja" = urgency, sesuatu terjadi SEKARANG
-2. "[detail/timing]" = spesifik bikin credibility ("3 hari sebelum deadline", "jam 2 pagi")
-3. "Ternyata?" = curiosity gap — paksa pembaca lanjut
-4. Fakta absurd = shareability ("gak dikasih THR" lucu DAN relatable)
+Kenapa works: "baru aja" = urgency. Timing = credibility. "Ternyata?" = curiosity gap. Fakta absurd = shareability.
 
-Contoh yang viral:
+Contoh:
 - "Gojek baru aja PHK 500 orang. Ternyata? Yang kena duluan yang baru dapet promosi."
-- "Bank BUMN baru aja blokir gaji karyawan jam 2 pagi. Ternyata? Sistemnya down 3 hari, HRD-nya cuti."
-- "Startup unicorn baru aja minta karyawan lembur 20 jam. Ternyata? Bos-nya lagi liburan di Bali."
+- "Bank BUMN baru aja blokir gaji karyawan jam 2 pagi. Ternyata? HRD-nya cuti ke luar negeri."
 
-## HOOK ANTI-PATTERNS (yang KILL engagement)
-❌ "[Perusahaan] PHK massal" — generic, no urgency, no detail
-❌ "[Perusahaan] tunjukkan tanda-tanda masalah" — vague, gak ada action
-❌ "[Perusahaan] bisa jadi contoh" — speculative, gak ada event
-❌ "Dalam berita terbaru..." — context preamble, boring
+**Anti-patterns (KILL engagement):**
+❌ "[Perusahaan] PHK massal" — generic, no urgency
+❌ "Dalam berita terbaru..." — boring preamble
 ❌ Mulai dari kesimpulan — no curiosity gap
 
-## HOOK REWRITING RULES
-Kalau judul artikel pakai bahasa editorial generik, REWRITE pakai winning formula:
-
-❌ "Gojek lakukan PHK massal"
-✅ "Gojek baru aja PHK 500 orang. Ternyata? Yang kena duluan yang baru dapet promosi."
-
-❌ "Karyawan mengeluhkan gaji telat"
-✅ "Karyawan Bank BUMN baru aja demo depan kantor. Ternyata? Gaji mereka telat 2 bulan, HRD-nya cuti ke luar negeri."
-
-❌ "Perusahaan dinilai tidak adil terhadap pekerja"
-✅ "Startup unicorn baru aja minta karyawan lembur 20 jam tanpa overtime pay. Ternyata? Bos-nya posting foto liburan di Bali."
-
-❌ "Regulasi baru berdampak pada pekerja"
-✅ "Pemerintah baru aja naikin iuran BPJS 10%. Ternyata? Gak ada kenaikan gaji UMR yang signifikan."
-
-Polanya: Ganti kata kerja vage ("lakukan", "mengeluhkan", "dinilai") dengan tindakan konkret ("PHK", "demo", "blokir"). Tambah timing. Tambah fakta absurd.
-
 ## VIRAL CRITERIA (tiap slide minimal kena 1)
-1. Pro & Con — ada debat, dua sisi?
-2. Relatable — universal: gaji, burnout, PHK, toxic boss.
+1. Pro & Con — ada debat dua sisi?
+2. Relatable — gaji, burnout, PHK, toxic boss.
 3. Famous figure — perusahaan besar = scroll stopper.
-4. Viral / Trending — udah trending? Tambah angle baru.
-5. Comedy / Irony — absurd twist, kontradiksi.
-6. Surprising fact — angka/fakta yang bikin geleng.
+4. Viral / Trending — trending? Tambah angle baru.
+5. Comedy / Irony — absurd twist.
+6. Surprising fact — angka yang bikin geleng.
 7. Emotional hook — marah, simpati, frustasi.
-8. Absurd detail — cari yang paling aneh/funny/unexpected dari cerita. "Gak dikasih THR" > "kompensasi tidak memadai". Spesifisitas + absurdity = shareability.
+8. Absurd detail — "gak dikasih THR" > "kompensasi tidak memadai".
 
 ## WRITING STYLE
-- Bahasa Indonesia kasual, Gue/Lo, sohib. Istilah korporat tetap formal.
-- Kalimat pendek. Satu ide per kalimat. Gak ada paragraf panjang.
-- Zero emoji di slides (caption only). No em-dash.
-- Pakai "baru aja" buat immediacy ("baru aja PHK", "baru aja demo", "baru aja blokir").
-- Tambah timing detail ("3 hari sebelum deadline", "jam 2 pagi", "sebulan setelah dapat promosi").
-- Every sentence passes "text message test" — kalau lo gak mau ngetik ini ke temen, rewrite.
-- Cari angle yang gak ada orang lain pake — yang bikin orang screenshot dan share.
-- WAJIB pakai data dari artikel (angka, nama perusahaan, regulasi).
-- Maks 1 angka/statistik per slide. Maks 1 pertanyaan per post (kecuali hook/closing).
+- Bahasa Indonesia kasual, Gue/Lo.
+- Kalimat pendek. Satu ide per kalimat.
+- Zero emoji. No em-dash.
+- Pakai "baru aja" + timing detail ("jam 2 pagi", "3 hari sebelum deadline").
+- Text message test — kalau lo gak mau ngetik ke temen, rewrite.
+- Maks 1 angka per slide.
 
-## TASK — 6 SLIDES (tight, linear, proven format)
+## TASK — 6 SLIDES
 
 ### Slide 1 — Hook (maks 3 baris, <40 kata)
-WAJIB ikutin winning formula:
-- Line 1: "[Perusahaan/Orang] baru aja [tindakan konkret] [detail/timing]."
-- Line 2: "Ternyata?" ATAU "Kok bisa?" ATAU "Gimana ceritanya?"
-- Line 3: "[Fakta absurd/surprising — detail yang bikin orang share]"
-- WAJIB kena Viral Criteria #3 (nama besar) DAN #8 (absurd detail)
-- MAKS 3 baris, <40 kata
-- JANGAN mulai dari kesimpulan — bikin curiosity gap dulu
+WAJIB ikutin winning formula. Kena Viral Criteria #3 DAN #8. JANGAN mulai dari kesimpulan.
 
-### Slide 2-4 — Context/Story (maks 3 sentences/slide, <40 kata/slide)
-Satu beat per slide, build linearly dari hook. Tiap slide WAJIB kena minimal 1 Viral Criteria secara natural — jangan dipaksa, tapi teranyam dalam cerita.
+### Slide 2-4 — Context (maks 3 sentences/slide, <40 kata/slide)
+Satu beat per slide. Tiap slide kena minimal 1 Viral Criteria.
 
 ### Slide 5 — Take (maks 3 sentences, <40 kata)
-Bacaan lo. Pick ONE angle yang grounded di artikel. Harus trigger Viral Criteria #1 (pro/con) atau #7 (emotion). Hindari hot take generik ("ini gila tapi gak mengejutkan").
+Bacaan lo. Pick ONE angle grounded di artikel. Kena Criteria #1 atau #7.
 
 ### Slide 6 — Closing + CTA (maks 50 kata)
-Wrap up + ajak comment/save. Satu pertanyaan pendek yang balik ke hook. Source URL wajib di akhir. Kena Viral Criteria #5 (comedy/irony) kalau bisa.
+Wrap up + ajak comment. Satu pertanyaan balik ke hook. Source URL di akhir.
 
-## WORKED EXAMPLE
-
-Input: CNBC Indonesia. Bank Raya dapat penghargaan Best Bank 2026. Komitmen perluas inklusi keuangan digital. Pinjaman ke agen BRILink Rp7,25T dalam 3 bulan. Outstanding pinjaman Rp1,15T, naik 63%. 52 ribu agen. Plafon sampai Rp200jt. Tenor 3-30 hari.
-
-Output:
-{
-  "slide_1": "Bank Raya baru aja dapet penghargaan Best Bank 2026. Ternyata? Mereka pinjemin duit ke agen-agen kecil sampe Rp7,25T dalam 3 bulan.",
-  "slide_2": "Produknya namanya Pinang Dana Talangan. Buat agen BRILink atau Agen Gadai yang butuh modal cepet. Plafon sampe Rp200jt, cair dalam 15 menit.",
-  "slide_3": "Angkanya gila: outstanding pinjaman udah Rp1,15T, naik 63% dari tahun lalu. 52 ribu agen udah pake. Tenornya pendek: 3, 7, 14, atau 30 hari.",
-  "slide_4": "Ini beneran inklusi keuangan atau cuma cari untung dari yang gak punya akses? Di satu sisi, agen-agen kecil butuh modal. Di sisi lain, bunganya gak murah.",
-  "slide_5": "Yang bikin gue mikir: kalau agen kecil gagal bayar dalam 30 hari, siapa yang tanggung? Bank dapet penghargaan, tapi agen-agen ini yang nanggung resiko.",
-  "slide_6": "Lo sendiri gimana? Pernah ngalamin pinjaman cepet tapi malah bikin stres? Atau malah nolong? Cerita di komen. Sumber: https://bisnis.tempo.co/read/...",
-  "caption": "Bank Raya baru aja dapet Best Bank 2026. Tapi yang bikin greget: mereka pinjemin Rp7,25T ke agen kecil dalam 3 bulan.",
-  "hashtags": "#DramaKantor"
-}
-
-## OUTPUT FORMAT
+## OUTPUT
 Return ONLY valid JSON:
 {{"slide_1":"", "slide_2":"", "slide_3":"", "slide_4":"", "slide_5":"", "slide_6":"", "caption":"", "hashtags":""}}
-Caption: 1 punchy sentence. Zero emoji. Max 1 hashtag.
+Caption: 1 sentence. Zero emoji. Max 1 hashtag.
 
-## GROUNDING RULES (ALL SLIDES)
-Every fact must come from the article. Never invent quotes, fees, or incidents not confirmed in the source.
+## GROUNDING RULES
+Every fact must come from the article. Never invent quotes, stats, or incidents.
+1. No invented strategic intent.
+2. No exaggerated paraphrasing.
+3. No speculative consequences.
+4. Quotes = word-for-word from article.
+5. Rumor = say so explicitly.
 
-1. NO INVENTED TACTICAL REASONING. Do not attribute strategic intent unless article states it.
-2. NO EXAGGERATED PARAPHRASING. Preserve the uncertainty and tone of the original.
-3. NO SPECULATIVE CONSEQUENCES. Do not write "this means X will happen" unless article states it.
-4. QUOTES: If you include a quote, it must be word-for-word from article. If paraphrasing, use indirect speech.
-5. If it's a rumor/unconfirmed report, say so explicitly.
-
-## RULES (MANDATORY)
-1. No em-dash; use commas, periods, or new sentences.
-2. Jelaskan konteks perusahaan/regulasi kalau gak semua orang tau. Jangan asumsi pengetahuan teknis.
-3. Hindari frasa blog generik ("di dunia kerja saat ini", "semua orang bicara tentang").
-4. Maks 1 angka/stat per slide. Maks 1 pertanyaan per post (kecuali hook/closing).
-5. Zero "link in bio." Never fabricate quotes.
-6. Jangan sensationalize melebihi yang sumber dukung. Tone dramatis boleh, false urgency tidak.
+## RULES
+1. No em-dash.
+2. Jelaskan konteks kalau gak semua orang tau.
+3. Hindari frasa blog generik.
+4. Zero "link in bio." Never fabricate quotes.
+5. Tone dramatis boleh, false urgency tidak.
 
 ## BANNED PATTERNS
-Don't use: You won't believe... / Gak bakal percaya... / Ini mengubah segalanya / Kabar mengejutkan / Sources say (without specifying which) / Let that sink in / Say what you want, but... / Fakta yang disembunyikan / Yang tidak dikatakan siapa pun / Ini baru permulaan / Lo belum siap sama yang ini / Dunia kerja gak pernah se-drama ini
+You won't believe... / Gak bakal percaya... / Ini mengubah segalanya / Kabar mengejutkan / Sources say (unspecified) / Let that sink in / Fakta yang disembunyikan / Lo belum siap sama yang ini
 """
 
 def generate_slides(article_text, url, title="", source="", pattern="c"):
@@ -1038,18 +984,25 @@ def evaluator_check(slides, article_text, url):
     art_short = article_text[:3000]
 
     system = (
-        "You are a skeptical editor reviewing social media slides BEFORE publication. "
-        "Your job is to find problems, not praise. Be harsh. Look for:\n"
-        "1. FACTUAL ERRORS: claims not supported by the article\n"
-        "2. HALLUCINATION: invented stats, names, quotes\n"
-        "3. TONE ISSUES: clickbait that damages credibility, insensitive content\n"
-        "4. QUALITY: grammar errors, incoherent flow, too many slides\n"
-        "5. MISLEADING: headline says X but article says Y\n\n"
+        "You are a skeptical editor reviewing social media slides for @budakorporat_id — "
+        "a casual Indonesian workplace drama account on Threads. The voice is intentionally "
+        "informal (Gue/Lo), uses clickbait hooks, and sensationalizes workplace issues. "
+        "This is the BRAND, not a bug.\n\n"
+        "ONLY flag these as problems:\n"
+        "1. FACTUAL ERRORS: claims not supported by the article (numbers, events, quotes)\n"
+        "2. HALLUCINATION: invented stats, names, quotes that don't appear in the source\n"
+        "3. MISLEADING: says X but article says Y\n\n"
+        "DO NOT flag as problems:\n"
+        "- Informal tone, Gue/Lo language, casual style (this is intentional)\n"
+        "- Clickbait hooks or dramatic framing (this is the account's style)\n"
+        "- Questions like 'Lo gimana?' or 'Lo pernah gak?' (standard CTA pattern)\n"
+        "- Hashtags like #DramaKantor (brand hashtag)\n\n"
         'Respond in EXACTLY this JSON format:\n'
         '{"decision": "APPROVE|REVISE|REJECT", "reasons": ["reason1", "reason2"]}\n'
-        "APPROVE = post as-is. REVISE = has issues but fixable. REJECT = do not post."
+        "APPROVE = post as-is. REVISE = has issues but fixable. REJECT = do not post "
+        "(ONLY for factual errors or hallucinations that damage credibility)."
     )
-    user = f"ARTICLE (source):\n{art_short}\n\nSLIDES (to review):\n{slides_text}\n\nSource URL: {url}\n\nReview skeptically. Find problems."
+    user = f"ARTICLE (source):\n{art_short}\n\nSLIDES (to review):\n{slides_text}\n\nSource URL: {url}\n\nReview for factual accuracy only. Tone and style are intentional."
 
     try:
         import httpx
@@ -1087,11 +1040,22 @@ def post_to_threads(slides, image_url=None):
     GRAPH = GRAPH_API
 
     def create_container(text, reply_to_id=None, image_url=None):
+        # Normalize whitespace: collapse 3+ newlines to 2
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        # Strip markdown italic/bold markers
+        text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+        text = re.sub(r'(?<!\*)\*([^*\n]+)\*(?!\*)', r'\1', text)
+        # Insert \n\n between sentences (Threads renders \n as space, \n\n as break)
+        text = re.sub(r'(?<!Mr)(?<!Mrs)(?<!Ms)(?<!Dr)(?<!St)(?<!vs)(?<!Jr)(?<!Sr)(?<!Prof)([.?!])\s+(?=[A-Z])', r'\1\n\n', text)
+
         data = {"user_id": USER_ID, "text": text, "access_token": THREADS_TOKEN}
         if reply_to_id:
             data["reply_to_id"] = reply_to_id
         if image_url:
+            data["media_type"] = "IMAGE"
             data["image_url"] = image_url
+        else:
+            data["media_type"] = "TEXT"
         try:
             r = httpx.post(f"{GRAPH}/{USER_ID}/threads", data=data, timeout=30)
             if r.status_code == 200:
@@ -1264,71 +1228,76 @@ def main():
     # Source diversity cap (pressbox pattern)
     scored = _apply_source_diversity(scored)
 
-    best = scored[0]
-    log.info(f"  Best: {best['title'][:60]} (score={best['_score']}, workplace={best['_workplace_score']})")
-
     # Dynamic score gate (pressbox pattern)
     score_gate = 25 if len(scored) < 30 else 40
-    if best["_score"] < score_gate:
+    top_candidates = [t for t in scored if t["_score"] >= score_gate]
+    if not top_candidates:
+        best = scored[0]
         log.info(f"  Score {best['_score']} < {score_gate} — skipping")
         print(f"Skip — score {best['_score']} below threshold", flush=True)
         sys.exit(1)
 
-    # 3. Fetch article + quality gates
-    url = best.get("url", "")
-    log.info(f"  Fetching: {url}")
-    article_text, image_url = extract_article_text(url)
-    fetch_tries = 1
+    log.info(f"  {len(top_candidates)} candidates above gate {score_gate}")
 
-    while fetch_tries < len(scored[:5]):
-        passed, reason = _pass_quality_gates(article_text)
-        if passed:
-            break
-        log.info(f"  Article rejected: {reason} — trying next")
-        best = scored[fetch_tries]
-        url = best.get("url", "")
-        log.info(f"  Fetching next: {url}")
+    # ── Try up to 3 candidates: fetch → generate → ground → evaluate ──
+    MAX_ATTEMPTS = min(3, len(top_candidates))
+    best = slides = article_text = image_url = None
+    llm_time = 0
+
+    for attempt_idx in range(MAX_ATTEMPTS):
+        candidate = top_candidates[attempt_idx]
+        url = candidate.get("url", "")
+        log.info(f"  ── Attempt {attempt_idx+1}/{MAX_ATTEMPTS}: {candidate['title'][:50]} (score={candidate['_score']})")
+
+        # Fetch + quality gates
         article_text, image_url = extract_article_text(url)
-        fetch_tries += 1
+        passed, reason = _pass_quality_gates(article_text)
+        if not passed:
+            log.info(f"    Article rejected: {reason} — trying next")
+            continue
 
-    passed, reason = _pass_quality_gates(article_text)
-    if not passed:
-        log.error(f"All articles rejected: {reason}")
-        print(f"All articles rejected: {reason}", flush=True)
+        log.info(f"    Article: {len(article_text)} chars, image: {'yes' if image_url else 'no'}")
+
+        # Select viral pattern
+        pattern = _select_viral_pattern(candidate, article_text)
+
+        # Generate
+        t0 = time.time()
+        slides = generate_slides(article_text, url, title=candidate.get("title", ""), source=candidate.get("source", ""), pattern=pattern)
+        if not slides:
+            log.warning(f"    LLM generation failed — trying next")
+            continue
+        llm_time = time.time() - t0
+        log.info(f"    Generated {len(slides)} slides in {llm_time:.1f}s")
+
+        # Grounding check
+        slides_text = " ".join(s["content"] for s in slides)
+        warnings = grounding_check(slides_text, article_text)
+        hallucinated_names = [w for w in warnings if "HALLUCINATED_NAME" in w]
+        hallucinated_numbers = [w for w in warnings if "UNVERIFIED_NUMBER" in w]
+        if hallucinated_names:
+            log.warning(f"    Name warnings (soft): {'; '.join(hallucinated_names)}")
+        if hallucinated_numbers:
+            log.warning(f"    Number warnings (soft): {'; '.join(hallucinated_numbers)}")
+
+        # Evaluator
+        eval_decision, eval_reasons = evaluator_check(slides, article_text, url)
+        log.info(f"    Evaluator: {eval_decision} — {'; '.join(eval_reasons[:3])}")
+
+        if eval_decision == "REJECT":
+            log.warning(f"    Rejected — trying next candidate")
+            continue
+
+        # APPROVE or REVISE — use this one
+        best = candidate
+        break
+
+    if not best or not slides:
+        log.error(f"All {MAX_ATTEMPTS} candidates failed")
+        print(f"All {MAX_ATTEMPTS} candidates failed (quality/LLM/evaluator)", flush=True)
         sys.exit(1)
 
-    log.info(f"  Article: {len(article_text)} chars, image: {'yes' if image_url else 'no'}")
-
-    # 4. Select viral pattern (pressbox pattern)
-    pattern = _select_viral_pattern(best, article_text)
-
-    # 5. Generate
-    t0 = time.time()
-    slides = generate_slides(article_text, url, title=best.get("title", ""), source=best.get("source", ""), pattern=pattern)
-    if not slides:
-        log.error("LLM generation failed")
-        print("LLM generation failed", flush=True)
-        sys.exit(1)
-    llm_time = time.time() - t0
-    log.info(f"  Generated {len(slides)} slides in {llm_time:.1f}s")
-
-    # 6. Grounding check (pressbox parity: proper nouns + numbers)
-    slides_text = " ".join(s["content"] for s in slides)
-    warnings = grounding_check(slides_text, article_text)
-    hallucinated_names = [w for w in warnings if "HALLUCINATED_NAME" in w]
-    hallucinated_numbers = [w for w in warnings if "UNVERIFIED_NUMBER" in w]
-    if hallucinated_names:
-        log.warning(f"  Name warnings (soft): {'; '.join(hallucinated_names)}")
-    if hallucinated_numbers:
-        log.warning(f"  Number warnings (soft): {'; '.join(hallucinated_numbers)}")
-
-    # 7. Evaluator
-    eval_decision, eval_reasons = evaluator_check(slides, article_text, url)
-    log.info(f"  Evaluator: {eval_decision} — {'; '.join(eval_reasons[:3])}")
-    if eval_decision == "REJECT":
-        log.error(f"  Rejected: {'; '.join(eval_reasons)}")
-        print(f"Rejected: {'; '.join(eval_reasons[:2])}", flush=True)
-        sys.exit(1)
+    url = best.get("url", "")
 
     # 8. Preview
     for i, s in enumerate(slides):

@@ -80,7 +80,7 @@ Slide 6 must close with a natural open-ended question — goal is to bait replie
 ## 7. EXECUTION
 
 ### Slide 1 — HOOK
-- EXACTLY 2-3 sentences, 20-35 words. Tight, tidak lebih.
+- MAX 2 sentences, under 20 words. Tight, gak lebih.
 - Sentence 1 = stop-scroll hook: fakta PALING mengejutkan/provokatif dari artikel. Langsung pukul.
 - NO intro fluff. NO "Di era digital saat ini...". Straight to the shock.
 - CAPS untuk emphasis 1 kata doang.
@@ -95,7 +95,7 @@ Pilih salah satu hook pattern (variasi, JANGAN semua post pola sama):
 6. DATA DROP: "[Angka spesifik] orang [konteks]. Lo termasuk?"
 
 ### Slides 2-5 — BODY
-- EXACTLY 3 lines per slide (2-3 sentences, 1 per line, separated by \\n\\n). Jangan kurang — tight rhythm bikin reader scroll terus.
+- EXACTLY 3 lines per slide (2-3 sentences, 1 line each, separated by blank line). Don't use fewer — tight rhythm keeps readers scrolling.
 - 1 insight baru per slide, no filler, no repeat poin sebelumnya.
 - Paraphrase quotes dari artikel, jangan copy-paste kalimat asli.
 - Attribution: sebut sumber berita minimal 1x di salah satu slide (buat credibility).
@@ -435,9 +435,23 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
         # Trim
         text = text.strip()
         
-        # Char cap (500 per slide)
-        if len(text) > 500:
-            text = text[:497] + "..."
+        # Auto-trim body slides (2-5) to max 3 sentences — matches Pressbox
+        slide_num = int(key.split('_')[1]) if key.startswith('slide_') else 0
+        if slide_num >= 2 and slide_num <= 5:
+            n = _count_sentences(text)
+            if n > 3:
+                parts = re.split(r'(?<=[.!?])\s+', text.strip())
+                text = " ".join(parts[:3])
+                text = _add_whitespace(text)
+        
+        # Char cap (350 per slide — tighter than old 500, matches Pressbox density)
+        if len(text) > 350:
+            # Try trimming to 3 sentences first
+            parts = re.split(r'(?<=[.!?])\s+', text.strip())
+            text = " ".join(parts[:3])
+            text = _add_whitespace(text)
+            if len(text) > 350:
+                text = text[:347] + "..."
         
         slides[key] = text
     
