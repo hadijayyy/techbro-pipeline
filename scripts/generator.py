@@ -145,6 +145,15 @@ Rules:
 - Kutipan langsung (tanda kutip) HANYA boleh dipake kalau artikel memang mengutip seseorang
 - JANGAN nambahin analogi angka ("setara 10x Gojek") — analogi boleh soal SITUASI, bukan soal ANGKA
 
+[LOCAL CONTENT — WAJIB]
+Audience lo orang Indonesia. Konten harus RELATE sama mereka.
+- Kalau sebut buku → prioritas: Filosofi Teras, buku Tere Liye, Eka Kurniawan, Andrea Hirata, Dee Lestari. Boleh sebut buku asing TAPI harus yang orang Indo kenal (Atomic Habits, Rich Dad Poor Dad, The Subtle Art).
+- JANGAN rekomendasiin buku asing yang obscure (Your Pocket Therapist, Let Them Theory) — kecuali artikel emang nyebut.
+- Kalau sebut startup → Gojek, Tokopedia, Traveloka, Shopee, Grab. Bukan startup asing yang gak ada di Indo.
+- Kalau sebut influencer → Deddy Corbuzier, Raditya Dika, Jerome Polin, Arief Muhammad. Bukan influencer asing.
+- Pakai analogi lokal: budak korporat, THR, mudik, angkringan, warteg, grab bike, ojol.
+- 2/3 rekomendasi HARUS yang orang Indo tau. Maks 1 asing.
+
 [CONTENT RULES]
 - JANGAN generate konten promosi produk. Jika artikel tentang product launch, spesifikasi, harga, atau review — REJECT. Return {"error":"product_promo"}.
 - Konten yang VALID: AI tools (ChatGPT, Gemini, Claude, Midjourney), productivity tips, career advice, mental health, life hacks dengan sudut pandang AI.
@@ -389,7 +398,18 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
         
         # Strip hallucinated source title fragments (e.g. "the Renovation Decade]")
         text = re.sub(r'\bthe [A-Z][a-z]+ [A-Z][a-z]+\b', '', text)
-        
+
+        # Flag foreign book names that are obscure in Indonesia (not well-known)
+        FOREIGN_BOOKS = [
+            r'\byour pocket therapist\b', r'\blet them theory\b',
+            r'\bthe comfort crisis\b', r'\bdopamine nation\b',
+            r'\bfour thousand weeks\b', r'\bthe practice\b',
+            r'\bthink again\b', r'\batomized\b',
+        ]
+        for pat in FOREIGN_BOOKS:
+            if re.search(pat, text, re.IGNORECASE):
+                print(f"  [POSTPROCESS] ⚠️ Foreign book detected: {pat}")
+
         # Strip hallucinated URLs (source_url re-appended to CTA at the end)
         text = re.sub(r'https?://\S+', '', text).strip()
         
@@ -463,14 +483,14 @@ def evaluate_slides(slides: dict, title: str, body: str, score: int = 0) -> dict
     Skips evaluator for high-score posts (≥80) to save ~50s.
     Uses mistral-small-latest (cheap, different model than generator).
     """
-    # Skip evaluator for high-score posts
-    if score >= 80:
-        print(f"  [EVALUATOR] Skipped (score={score} ≥ 80)")
+    # Skip evaluator for very high-score posts (rare, only extreme consensus)
+    if score >= 100:
+        print(f"  [EVALUATOR] Skipped (score={score} ≥ 100)")
         return {"status": "APPROVE", "reason": "high_score_skip"}
     
     slide_text = "\n".join([f"Slide {i}: {slides.get(f'slide_{i}', '')}" for i in range(1, 7)])
     
-    evaluator_prompt = f"""You are a skeptical content reviewer for Threads posts. Review the following 6-slide carousel.
+    evaluator_prompt = f"""You are a skeptical content reviewer for Threads posts targeting Indonesian audience. Review the following 6-slide carousel.
 
 ARTICLE TITLE: {title}
 
@@ -480,22 +500,29 @@ GENERATED SLIDES:
 {slide_text}
 
 YOUR TASK:
-1. Check if ALL facts in the slides come from the article (no hallucination)
+1. **GROUNDING CHECK** — Every claim, fact, statistic, recommendation in the slides MUST come from the article. If the article doesn't mention a specific book/product/person, the slides MUST NOT invent it. "BEST SELLER" without a number in the article = REJECT.
 2. Check if the slides flow as a connected story (not 6 random facts)
 3. Check if Slide 1 hook is attention-grabbing (<20 words preferred)
 4. Check if Slide 6 has a clear CTA
 5. Check for banned patterns (filler words, generic phrases, overly corporate language)
+6. **LOCAL RELEVANCE** — For Indonesian audience: prefer local examples (Filosofi Teras, Tere Liye, Eka Kurniawan) over foreign books (Your Pocket Therapist, Let Them Theory). If recommending 3+ items, at least 2 MUST be locally known in Indonesia.
 
 APPROVAL CRITERIA:
-- APPROVE: Facts grounded, story flows, hook strong, no hallucination
-- REVISE: Minor issues (wording, flow) but content is salvageable
-- REJECT: Major hallucination, facts not in article, broken narrative
+- APPROVE: All facts grounded in article, story flows, hook strong, locally relevant
+- REVISE: Minor issues (wording, flow, 1 grounding gap) but content is salvageable
+- REJECT: Major hallucination, invented facts not in article, broken narrative, low local relevance (2/3+ recommendations are foreign/unknown)
+
+AUTO-REJECT TRIGGERS:
+- Inventing statistics ("BEST SELLER", "terlaris", "populer") without article data
+- Recommending 2+ books/products not mentioned in article
+- Generic advice with no source grounding
 
 Return JSON:
 {{
     "status": "APPROVE" or "REVISE" or "REJECT",
     "reason": "brief explanation",
     "issues": ["list of specific issues found"],
+    "grounding_score": 0-10 (how many claims are grounded in article),
     "revised_slides": null or {{"slide_1":"...",...}} if REVISE
 }}
 
@@ -525,15 +552,29 @@ Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT."""
             content = content.split("```")[1].split("```")[0].strip()
         
         result = json.loads(content)
-        
+
         status = result.get("status", "APPROVE")
         reason = result.get("reason", "")
-        
+        grounding_score = result.get("grounding_score", "N/A")
+        issues = result.get("issues", [])
+
         print(f"  [EVALUATOR] {status}: {reason[:100]}")
-        
+        if grounding_score != "N/A":
+            print(f"  [EVALUATOR] Grounding: {grounding_score}/10")
+        if issues:
+            print(f"  [EVALUATOR] Issues: {', '.join(issues[:3])}")
+
+        # Auto-REJECT if grounding_score < 5
+        if isinstance(grounding_score, (int, float)) and grounding_score < 5:
+            print(f"  [EVALUATOR] Auto-REJECT: grounding_score {grounding_score} < 5")
+            status = "REJECT"
+            reason = f"Low grounding ({grounding_score}/10): {reason}"
+
         return {
             "status": status,
             "reason": reason,
+            "grounding_score": grounding_score,
+            "issues": issues,
             "revised_slides": result.get("revised_slides")
         }
         
