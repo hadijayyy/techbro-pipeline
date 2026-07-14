@@ -1755,6 +1755,23 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
                 articles.append(r)
 
     print(f"  [GNEWS] {len(articles)} articles scraped with content")
+    
+    # 4b. Verify celebrity-tagged articles actually mention a celebrity
+    _CELEBRITY_NAMES = {
+        "bezos", "musk", "zuckerberg", "altman", "hormozi", "naval", "ravikant",
+        "ferriss", "vaynerchuk", "nadella", "pichai",
+        "dorsey", "systrom", "spiegel", "kalanick", "sama",
+        "jeff bezos", "elon musk", "mark zuckerberg", "sam altman",
+        "alex hormozi", "tim ferriss", "gary vaynerchuk", "tim cook",
+        "bill gates", "satya nadella", "sundar pichai", "steve jobs",
+        "jack dorsey", "kevin systrom",
+        "tesla", "spacex", "openai", "anthropic",
+    }
+    for art in articles:
+        if art.get("source") == "celebrity":
+            text = (art.get("title", "") + " " + art.get("body", "")[:500]).lower()
+            if not any(name in text for name in _CELEBRITY_NAMES):
+                art["source"] = "google_news"  # downgrade — no celebrity mentioned
     return articles
 
 

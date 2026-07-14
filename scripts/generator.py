@@ -21,6 +21,9 @@ BANNED_PHRASES = [
     r'\btahan dulu\b', r'\bcoba tebak\b', r'\bciyus\b', r'\bmiyap\b',
     r'\bmuka masam\b', r'\bngebet\b',
     r'\blink di bio\b',  # URL sudah ada di post, gak perlu sebut
+    # Fake personal story markers (fabricated attribution)
+    r'\bkampung gue\b', r'\bkantor gue\b', r'\btemen gue\b', r'\bibu gue\b',
+    r'\bayah gue\b', r'\bak gue\b', r'\bkakak gue\b',
 ]
 
 SYSTEM_PROMPT = """# RCTOE Framework v2 — Indonesian Self-Dev / Tech Edition
@@ -401,6 +404,9 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
         
         # Strip ALL single quotes (Threads gak render, mencegah broken artifacts)
         text = text.replace("'", "")
+        
+        # Strip emoji (Zero emoji policy — caption rules)
+        text = re.sub(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001F900-\U0001F9FF\U0001FA00-\U0001FA6F\U0001FA70-\U0001FAFF\U00002600-\U000026FF\U0000FE0F\U0000200D\U00002764\U0000FE0F]+', '', text)
         # Strip double quotes (dialogue)
         text = re.sub(r'"[^"]{20,}"', '', text)
         text = re.sub(r'"[^"]+[?!][^"]*"', '', text)
