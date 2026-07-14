@@ -1016,29 +1016,37 @@ def evaluator_check(slides, article_text, url):
     )
     user = f"ARTICLE (source):\n{art_short}\n\nSLIDES (to review):\n{slides_text}\n\nSource URL: {url}\n\nReview for factual accuracy only. Tone and style are intentional."
 
-    try:
-        import httpx
-        r = httpx.post(
-            "https://api.mistral.ai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
-            json={"model": "mistral-small-latest", "messages": [
-                {"role": "system", "content": system}, {"role": "user", "content": user}
-            ], "max_tokens": 500, "temperature": 0.1},
-            timeout=30
-        )
-        if r.status_code != 200:
-            return "APPROVE", [f"evaluator HTTP {r.status_code}"]
-        content = r.json()["choices"][0]["message"]["content"].strip()
-        candidate = re.sub(r"^```(?:json)?\s*", "", content)
-        candidate = re.sub(r"\s*```$", "", candidate)
-        data = json.loads(candidate)
-        decision = data.get("decision", "APPROVE").upper()
-        reasons = data.get("reasons", [])
-        if decision not in ("APPROVE", "REVISE", "REJECT"):
-            decision = "APPROVE"
-        return decision, reasons
-    except Exception as e:
-        return "APPROVE", [f"evaluator error: {e}"]
+    import time as _time
+    for attempt in range(1, 4):
+        try:
+            import httpx
+            r = httpx.post(
+                "https://api.mistral.ai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
+                json={"model": "mistral-small-latest", "messages": [
+                    {"role": "system", "content": system}, {"role": "user", "content": user}
+                ], "max_tokens": 500, "temperature": 0.1},
+                timeout=30
+            )
+            if r.status_code != 200:
+                if attempt < 3:
+                    _time.sleep(2 * attempt)
+                    continue
+                return "REJECT", [f"evaluator HTTP {r.status_code} (fail_safe)"]
+            content = r.json()["choices"][0]["message"]["content"].strip()
+            candidate = re.sub(r"^```(?:json)?\s*", "", content)
+            candidate = re.sub(r"\s*```$", "", candidate)
+            data = json.loads(candidate)
+            decision = data.get("decision", "APPROVE").upper()
+            reasons = data.get("reasons", [])
+            if decision not in ("APPROVE", "REVISE", "REJECT"):
+                decision = "APPROVE"
+            return decision, reasons
+        except Exception as e:
+            if attempt < 3:
+                _time.sleep(2 * attempt)
+                continue
+            return "REJECT", [f"evaluator error: {e} (fail_safe)"]
 
 # ── Thread Posting ──────────────────────────────────────────────────────────
 

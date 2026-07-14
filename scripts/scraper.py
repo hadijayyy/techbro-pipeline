@@ -87,6 +87,62 @@ def is_excluded(title: str, body: str = "") -> tuple[bool, str]:
     return False, ""
 
 
+# ─── Domain blacklist: pure entertainment / non-tech / non-indonesian ───
+
+BLOCKED_DOMAINS = [
+    # Pure entertainment — no tech/mindset angle
+    "yoursay.suara.com",   # hiburan / gosip seleb
+    "suara.com/entertainment",
+    "hollywoodreporter.com",
+    "variety.com",
+    "eonline.com",
+    "tmz.com",
+    "people.com",
+    "usmagazine.com",
+    "etonline.com",
+    "justjared.com",
+    "perezhilton.com",
+    "buzzfeed.com",        # too broad / lister
+    "boredpanda.com",      # visual listicles
+    # Non-Indonesian / non-tech news
+    "dailymail.co.uk",
+    "thesun.co.uk",
+    "mirror.co.uk",
+    "foxnews.com",         # US politics, bukan tech
+    "breitbart.com",
+    "huffpost.com",
+    # Pure sports — bukan self-dev
+    "espn.com",
+    "bleacherreport.com",
+    "sportsillustrated.com",
+    "goal.com",
+    # Gaming / esports — not self-dev
+    "ign.com",
+    "gamespot.com",
+    "polygon.com",
+    "kotaku.com",
+    # Gossip / paparazzi
+    "pinkvilla.com",
+    "bollywoodlife.com",
+    "koimoi.com",
+]
+
+_BLOCKED_DOMAIN_SET = set(BLOCKED_DOMAINS)
+
+
+def is_blocked_domain(url: str) -> tuple[bool, str]:
+    """Check if URL domain should be blocked.
+    Returns (blocked: bool, reason: str).
+    """
+    if not url:
+        return False, ""
+    url_l = url.lower()
+    for domain in _BLOCKED_DOMAIN_SET:
+        if domain in url_l:
+            return True, f"blocked domain: {domain}"
+    return False, ""
+
+
 def verify_body_quality(title: str, body: str) -> tuple[bool, str]:
     """Verify article body has sufficient content for generation.
     Returns (ok: bool, reason: str).
@@ -308,8 +364,9 @@ def detect_hot_topics(articles: list, window_hours: int = 4) -> dict:
     
     return hotness
 
-# Source names used by scrape_all_async — single of truth
-SOURCE_NAMES = ["google_news", "celebrity", "celebrity_id", "entrepreneur", "mindset", "tech", "career"]
+# Source names used by scrape_all_async — topic-based categories (Budakorporat model)
+SOURCE_NAMES = ["produktivitas", "startup_tech", "karir", "mindset_bisnis", "tech_bisnis",
+                "finance", "workplace", "skill_tech", "sidehustle", "habits", "founder", "mindset"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -567,6 +624,26 @@ WESTERN_CONCEPTS = [
     "credit score", "fico", "401k", "roth ira",
     "fraternity", "sorority", "ivy league",
     "black friday", "cyber monday",
+    # Hollywood celebrities — pure entertainment, bukan self-dev
+    "sydney sweeney", "zendaya", "tom holland", "timothée chalamet",
+    "kylie jenner", "kim kardashian", "taylor swift", "beyoncé",
+    "ariana grande", "selena gomez", "justin bieber", "the weeknd",
+    "rihanna", "lady gaga", "kanye west", "drake", "brad pitt",
+    "leonardo dicaprio", "tom cruise", "johnny depp", "angelina jolie",
+    "jennifer lawrence", "scarlett johansson", "chris hemsworth",
+    "margot robbie", "ryan gosling", "emma stone", "robert downey jr",
+    "dwayne johnson", "the rock", "vin diesel", "jason statham",
+    # Pure entertainment / Hollywood — not career/mindset
+    "hollywood", "box office", "netflix series", "marvel", "avengers",
+    "star wars", "game of thrones", "stranger things", "breaking bad",
+    "oscar award", "grammy award", "emmy award", "academy award",
+    "film festival", "movie premiere", "movie review",
+    "k-pop", "blackpink", "bts",
+    # US politics — not relevant for Indonesian audience
+    "donald trump", "joe biden", "democrat", "republican",
+    "white house", "congress", "senate",
+    # US sports — niche for Indonesian audience
+    "nfl", "nba", "mlb", "nhl", "nascar",
 ]
 _WESTERN_SET = {k.lower() for k in WESTERN_CONCEPTS}
 
@@ -610,7 +687,7 @@ def check_article_quality(body: str, source: str = "") -> str | None:
     """3-layer content quality filter (from pressbox). Returns rejection reason or None."""
     text = body.strip()
     # Layer 1: character count — 500 for Indonesian sources (paywalled/JS-heavy), 1000 for English
-    min_chars = 500 if source in ("mindset", "tech", "career", "entrepreneur", "celebrity_id", "google_news") else 1000
+    min_chars = 500 if source in SOURCE_NAMES else 1000
     if len(text) < min_chars:
         return f"too short ({len(text)} chars < {min_chars})"
     # Layer 2: word count (pressbox: 150)
@@ -639,6 +716,14 @@ def score_article(title: str, body: str, date=None, hot_boost: int = 0, analytic
     title_l = title.lower()
     body_l = body[:1500].lower()
     text = title_l + " " + body_l
+
+    # ── Component 0: Product launch / commercial filter (hard reject) ──
+    _PRODUCT_SIGNALS = ["resmi diluncurkan", "resmi rilis", "meluncurkan", "diluncurkan",
+                        "harga rp", "harga:", "spesifikasi", "pre-order", "preorder"]
+    _PRODUCT_CATS = ["earbuds", "headphone", "smartphone", "laptop", "tablet",
+                     "smartwatch", "tws", "charger", "powerbank", "kamera"]
+    if any(s in text for s in _PRODUCT_SIGNALS) and any(c in text for c in _PRODUCT_CATS):
+        return 0
 
     # ── Component 1: Keyword Match (3-tier, max 40) ──
     t1 = _unique_matches(title_l, _TIER1_SET) * 30 + _unique_matches(body_l, _TIER1_SET) * 10
@@ -675,15 +760,10 @@ def score_article(title: str, body: str, date=None, hot_boost: int = 0, analytic
     numbers = len(re.findall(r'\b\d+[.,]?\d*\b', title))
     data_score = 15 if numbers >= 2 else (7 if numbers >= 1 else 0)
 
-    # ── Component 5: Source Tier (10/7/5/0) ──
-    # Celebrity gets moderate boost, NOT dominant. Mindset/tech get equal weight.
-    source_score = 5
-    if source in ("celebrity", "celebrity_id", "athlete"):
-        source_score = 10  # moderate — don't let sports dominate
-    elif source in ("mindset", "tech", "career"):
-        source_score = 7   # actual self-dev content deserves fair chance
-    elif source == "entrepreneur":
-        source_score = 7
+    # ── Component 5: Source Tier (7/5/0) ──
+    # All topic categories are niche-aligned — equal weight (Budakorporat model)
+    # No celebrity feeds, no trending — everything is tightly-scoped topic query
+    source_score = 7 if source in SOURCE_NAMES else 5
 
     # ── Component 6: Audience Reach (max 20) ──
     reach_count = _unique_matches(text, _REACH_SET)
@@ -1547,78 +1627,29 @@ async def scrape_scott_young(client: httpx.AsyncClient) -> list[dict]:
 
 # ─── Main Scraper ────────────────────────────────────────────────
 
-# Google News RSS feeds for Indonesia (3 focused feeds + trending fetched dynamically)
-_GNEWS_FEEDS = [
-    # Global entrepreneurs & tech leaders (dominant — this is self-dev account, not sports)
-    ("https://news.google.com/rss/search?q=Bezos+OR+Musk+OR+Zuckerberg+OR+Altman+OR+Hormozi+OR+Naval+OR+Ferriss+OR+Vaynerchuk+OR+Jobs+OR+Gates+OR+Cook+OR+Nadella+OR+Pichai+OR+Dorsey+OR+Systrom&hl=en&gl=US&ceid=US:en", "celebrity"),
-    # Indonesian public figures — entrepreneurs, creators (NOT politics)
-    ("https://news.google.com/rss/search?q=Raffi+Ahmad+OR+Deddy+Corbuzier+OR+Jerome+Polin+OR+Arief+Muhammad+OR+Eva+Alicia+OR+William+Tanuwijaya+OR+Nadiem+Makarim+OR+Tokopedia+OR+Gojek+OR+Traveloka&hl=id&gl=ID&ceid=ID:id", "celebrity_id"),
-    # Entrepreneurs — startup, business journey
-    ("https://news.google.com/rss/search?q=pengusaha+OR+startup+OR+founder+OR+CEO+OR+bisnis+sukses+OR+modal+OR+investasi+OR+unicorn&hl=id&gl=ID&ceid=ID:id", "entrepreneur"),
-    # Self-improvement / mindset
-    ("https://news.google.com/rss/search?q=self+improvement+OR+mindset+OR+motivasi+OR+pengembangan+diri+OR+produktivitas+OR+kebiasaan+baik&hl=id&gl=ID&ceid=ID:id", "mindset"),
-    # Tech innovation / AI (non-political)
-    ("https://news.google.com/rss/search?q=inovasi+OR+teknologi+OR+AI+OR+startup+OR+digital+OR+aplikasi&hl=id&gl=ID&ceid=ID:id", "tech"),
-    # Career / professional development
-    ("https://news.google.com/rss/search?q=karier+OR+karir+OR+pekerjaan+OR+interview+OR+gaji+OR+promosi+OR+resign&hl=id&gl=ID&ceid=ID:id", "career"),
+# 12 tightly-scoped topic queries — upstream filtering (Budakorporat model)
+# No celebrity/person names. Every query targets the self-dev/tech niche directly.
+_TOPIC_QUERIES = [
+    ("produktivitas kerja mindset kebiasaan sukses Indonesia", "produktivitas"),
+    ("startup teknologi AI pendanaan founder Indonesia 2026", "startup_tech"),
+    ("resign karir gaji remote work generasi muda Indonesia", "karir"),
+    ("pola pikir pengusaha mental bisnis gagal pelajaran", "mindset_bisnis"),
+    ("teknologi digital transformasi UMKM bisnis Indonesia", "tech_bisnis"),
+    ("investasi keuangan pribadi anak muda Indonesia", "finance"),
+    ("quiet quitting burnout budaya kerja toxic Indonesia", "workplace"),
+    ("skill masa depan AI data programming karir 2026", "skill_tech"),
+    ("side hustle bisnis sampingan karyawan Indonesia", "sidehustle"),
+    ("disiplin diri habits rutinitas produktivitas pagi", "habits"),
+    ("CEO founder startup unicorn decacorn Indonesia Asia", "founder"),
+    ("self improvement growth mindset pengembangan diri Indonesia", "mindset"),
 ]
 
-async def _fetch_trending_queries(client: httpx.AsyncClient) -> list[str]:
-    """Fetch top trending search queries from Google Trends RSS (Indonesia)."""
-    try:
-        r = await client.get("https://trends.google.com/trending/rss?geo=ID", timeout=10)
-        if r.status_code != 200:
-            return []
-        soup = BeautifulSoup(r.text, "xml")
-        items = soup.find_all("item")
-        queries = []
-        for item in items[:10]:  # Top 10 trends
-            title = item.find("title")
-            if title:
-                queries.append(title.text.strip())
-        print(f"  [TRENDS] {len(queries)} trending queries from Google Trends")
-        return queries
-    except Exception as e:
-        print(f"  [TRENDS] Failed: {e}")
-        return []
+def _build_query_url(query: str) -> str:
+    """Build a Google News RSS URL from a natural-language topic query."""
+    import urllib.parse
+    encoded = urllib.parse.quote(query)
+    return f"https://news.google.com/rss/search?q={encoded}&hl=id&gl=ID&ceid=ID:id"
 
-async def _scrape_trending_articles(client: httpx.AsyncClient, queries: list[str]) -> list[dict]:
-    """Search Google News for articles matching trending queries, with self-dev angle."""
-    if not queries:
-        return []
-
-    # Add self-dev angle keywords to trending queries
-    angle_keywords = ["mindset", "disiplin", "mental", "kebiasaan", "sukses", "gagal", "resilien"]
-    all_articles = []
-
-    for query in queries[:5]:  # Top 5 trends only
-        # Search Google News for the trending topic + angle keyword
-        search_query = f"{query} {angle_keywords[hash(query) % len(angle_keywords)]}"
-        feed_url = f"https://news.google.com/rss/search?q={search_query.replace(' ', '+')}&hl=id&gl=ID&ceid=ID:id"
-        try:
-            r = await client.get(feed_url, timeout=10)
-            if r.status_code != 200:
-                continue
-            soup = BeautifulSoup(r.text, "xml")
-            items = soup.find_all("item")
-            for item in items[:3]:  # Top 3 per trend
-                title_el = item.find("title")
-                link_el = item.find("link")
-                if not title_el or not link_el:
-                    continue
-                all_articles.append({
-                    "title": title_el.text.strip(),
-                    "link": link_el.text.strip() if link_el.text else "",
-                    "source_name": "trending",
-                    "category": "trending",
-                    "date": item.find("pubDate").text if item.find("pubDate") else "",
-                    "is_trending": True,  # Flag for hybrid angle
-                })
-        except Exception:
-            continue
-
-    print(f"  [TRENDS] {len(all_articles)} articles from trending queries")
-    return all_articles
 
 # Generic body extraction — tries common selectors across Indonesian news sites
 _BODY_SELECTORS = [
@@ -1654,23 +1685,28 @@ def _extract_image(soup: BeautifulSoup) -> str:
 
 
 async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
-    """Scrape articles from Google News RSS (Indonesia).
-    Decodes Google News URLs to get actual article URLs, then scrapes content."""
+    """Scrape articles from Google News RSS (Indonesia) using tightly-scoped topic queries.
+    Decodes Google News URLs to get actual article URLs, then scrapes content.
+
+    Budakorporat model: 12 topic-based queries produce naturally niche-filtered results.
+    No celebrity feeds, no trending queries — upstream filtering eliminates noise at source.
+    """
     from googlenewsdecoder import new_decoderv1
     import asyncio as _aio
 
     articles = []
 
-    # 1. Fetch all RSS feeds (with fingerprint check)
+    # 1. Fetch all topic-based RSS feeds (with fingerprint check)
     fingerprints = _load_fingerprints()
     new_fingerprints = {}
     feed_urls = []
     feed_meta = []
-    for url, category in _GNEWS_FEEDS:
+    for query, category in _TOPIC_QUERIES:
+        url = _build_query_url(query)
         fp_key = category  # use category as fingerprint key
         feed_urls.append(url)
         feed_meta.append((fp_key, category))
-    
+
     feed_results = await asyncio.gather(*[
         client.get(url, timeout=15) for url in feed_urls
     ])
@@ -1690,7 +1726,7 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
             continue  # feed unchanged, skip
         if first_title:
             new_fingerprints[fp_key] = first_title
-        
+
         for item_match in re.finditer(r'<item>(.*?)</item>', resp.text, re.DOTALL):
             item_xml = item_match.group(1)
             title_m = re.search(r'<title>([^<]+)</title>', item_xml)
@@ -1715,18 +1751,10 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
             })
 
     print(f"  [GNEWS] {len(items)} items from {len(feed_results)} feeds" + (f" ({skipped_feeds} unchanged, skipped)" if skipped_feeds else ""))
-    
+
     # Save fingerprints
     fingerprints.update(new_fingerprints)
     _save_fingerprints(fingerprints)
-
-    # 2b. Also fetch trending articles from Google Trends
-    trending_queries = await _fetch_trending_queries(client)
-    trending_articles = await _scrape_trending_articles(client, trending_queries)
-    # Add trending articles directly (they have real URLs, no decode needed)
-    for ta in trending_articles:
-        items.append(ta)
-    print(f"  [GNEWS] Total items after trending: {len(items)}")
 
     # 3. Decode URLs in parallel (sync decoder, run in thread pool)
     #    Round-robin across feeds to ensure diversity (not just first feed)
@@ -1840,23 +1868,6 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
                 articles.append(r)
 
     print(f"  [GNEWS] {len(articles)} articles scraped with content")
-    
-    # 4b. Verify celebrity-tagged articles actually mention a celebrity
-    _CELEBRITY_NAMES = {
-        "bezos", "musk", "zuckerberg", "altman", "hormozi", "naval", "ravikant",
-        "ferriss", "vaynerchuk", "nadella", "pichai",
-        "dorsey", "systrom", "spiegel", "kalanick", "sama",
-        "jeff bezos", "elon musk", "mark zuckerberg", "sam altman",
-        "alex hormozi", "tim ferriss", "gary vaynerchuk", "tim cook",
-        "bill gates", "satya nadella", "sundar pichai", "steve jobs",
-        "jack dorsey", "kevin systrom",
-        "tesla", "spacex", "openai", "anthropic",
-    }
-    for art in articles:
-        if art.get("source") == "celebrity":
-            text = (art.get("title", "") + " " + art.get("body", "")[:500]).lower()
-            if not any(name in text for name in _CELEBRITY_NAMES):
-                art["source"] = "google_news"  # downgrade — no celebrity mentioned
     return articles
 
 

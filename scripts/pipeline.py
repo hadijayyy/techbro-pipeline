@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from scraper import scrape_all, detect_hot_topics, get_analytics_summary, compute_score_tuning, is_excluded, verify_body_quality, is_sensitive
+from scraper import scrape_all, detect_hot_topics, get_analytics_summary, compute_score_tuning, is_excluded, verify_body_quality, is_sensitive, is_blocked_domain
 from generator import generate_carousel, generate_narrative_post, generate_thread_chain, evaluate_slides, generate_ab_variants, _postprocess_slides
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed
 
@@ -147,24 +147,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
     if articles:
         print(f"  Found {len(articles)} articles")
 
-        # Source diversity: count recent celebrity posts to cap ratio (30% max)
-        recent_celeb = conn.execute("""
-            SELECT COUNT(*) FROM posts p
-            JOIN articles a ON p.article_id = a.id
-            WHERE p.status = 'posted'
-              AND a.source IN ('celebrity', 'celebrity_id')
-              AND p.created_at > datetime('now', '-48 hours')
-        """).fetchone()[0]
-        recent_total = conn.execute("""
-            SELECT COUNT(*) FROM posts WHERE status = 'posted'
-            AND created_at > datetime('now', '-48 hours')
-        """).fetchone()[0]
-        celeb_ratio = recent_celeb / max(recent_total, 1)
-        allow_celeb = celeb_ratio < 0.3
-        if not allow_celeb:
-            print(f"  [RATIO] Celebrity cap hit ({recent_celeb}/{recent_total} = {celeb_ratio:.0%}). Will skip celebrity articles.")
-
-        # Evaluator article fallback: try up to3 ranked articles before giving up
+        # Evaluator article fallback: try up to 3 ranked articles before giving up
         ARTICLES_TO_TRY = 3
         article_accepted = False
         for art_idx, art in enumerate(articles[:ARTICLES_TO_TRY]):
@@ -184,16 +167,16 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
             if skip:
                 continue
 
-            # Source diversity: skip celebrity if cap hit
-            a_src = dict(art)
-            if not allow_celeb and a_src.get('source', '') in ('celebrity', 'celebrity_id'):
-                print(f"  [RATIO] Skipping celebrity: {art['title'][:50]}...")
-                continue
-
             # Gossip/roundup/commercial filter
             excluded, excl_reason = is_excluded(art['title'], art.get('body', ''))
             if excluded:
                 print(f"  [FILTER] Excluded ({excl_reason}): {art['title'][:50]}...")
+                continue
+
+            # Domain blacklist (pure entertainment / non-niche)
+            blocked, block_reason = is_blocked_domain(art.get('url', ''))
+            if blocked:
+                print(f"  [FILTER] Blocked ({block_reason}): {art['title'][:50]}...")
                 continue
 
             # Sensitive content filter (violence, discrimination, etc)
@@ -233,24 +216,26 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                 continue
 
             # 2.5. Evaluator loop (independent LLM review)
-            eval_result = evaluate_slides(slides, a["title"], a["body"], art["score"])
+            # Thread chain already self-evaluates in generate_thread_chain(); skip duplicate
+            if format != "thread_chain":
+                eval_result = evaluate_slides(slides, a["title"], a["body"], art["score"])
 
-            if eval_result["status"] == "REJECT":
-                print(f"  [EVALUATOR] REJECTED: {eval_result['reason'][:100]}")
-                # Don't give up yet — try next ranked article
-                if art_idx < min(len(articles), ARTICLES_TO_TRY) - 1:
-                    print(f"  [EVALUATOR] Trying next ranked article...")
-                    mark_failed(conn, article_id)
-                    continue
-                else:
-                    mark_failed(conn, article_id)
-                    break  # exhausted all candidates
-            elif eval_result["status"] == "REVISE" and eval_result.get("revised_slides"):
-                print(f"  [EVALUATOR] REVISED: {eval_result['reason'][:100]}")
-                slides = eval_result["revised_slides"]
-                # Re-apply postprocessing to append source_url & enforce limits
-                source_url = a.get("url", "")
-                slides = _postprocess_slides(slides, source_url)
+                if eval_result["status"] == "REJECT":
+                    print(f"  [EVALUATOR] REJECTED: {eval_result['reason'][:100]}")
+                    # Don't give up yet — try next ranked article
+                    if art_idx < min(len(articles), ARTICLES_TO_TRY) - 1:
+                        print(f"  [EVALUATOR] Trying next ranked article...")
+                        mark_failed(conn, article_id)
+                        continue
+                    else:
+                        mark_failed(conn, article_id)
+                        break  # exhausted all candidates
+                elif eval_result["status"] == "REVISE" and eval_result.get("revised_slides"):
+                    print(f"  [EVALUATOR] REVISED: {eval_result['reason'][:100]}")
+                    slides = eval_result["revised_slides"]
+                    # Re-apply postprocessing to append source_url & enforce limits
+                    source_url = a.get("url", "")
+                    slides = _postprocess_slides(slides, source_url)
 
             # Handle different format structures
             if isinstance(slides, dict) and "_format" in slides:

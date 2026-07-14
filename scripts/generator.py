@@ -13,8 +13,9 @@ from typing import Optional
 MISTRAL_KEY = os.environ.get("MISTRAL_API_KEY", "")
 GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
 
-# BANNED PHRASES — cringe/filler + platform-specific
-BANNED_PHRASES = [
+# ── Banned lists ──────────────────────────────────────────────────────────
+# STYLE: cringe, filler, platform-specific — strip from ALL formats
+BANNED_STYLE = [
     r'\bgeleng[- ]geleng\b', r'\bgaruk kepala\b', r'\bkayak dari masa depan\b',
     r'\bgila sih\b', r'\bgila banget\b', r'\bgila kan\b',
     r'\bkebayang gak\b', r'\byang bener aja\b',
@@ -22,209 +23,209 @@ BANNED_PHRASES = [
     r'\bmuka masam\b', r'\bngebet\b',
     r'\blink di bio\b',  # URL sudah ada di post, gak perlu sebut
     r'\blo tau gak\b', r'\blo tau gak\?\s',  # quiz-show hook, kills engagement
-    # Fake personal story markers (fabricated attribution)
+    r'\blu tau gak\b', r'\blu tau gak\?\s',  # same, Lu variant
+    r'\blo\b',   # catches lo tau gak + gua lo
+    r'\bak\b', r'\bkalian\b', # wrong voice — must be gw/lu
+]
+# PERSONAL: fabricated attribution markers — strip from carousel + narrative ONLY
+# Thread chain intentionally uses first-person, so skip these for that format
+BANNED_PERSONAL = [
+    r'\bgue\b',  # wrong voice for carousel/narrative
     r'\bkampung gue\b', r'\bkantor gue\b', r'\btemen gue\b', r'\bibunda\b', r'\bibu gue\b',
     r'\bayah gue\b', r'\bak gue\b', r'\bkakak gue\b',
-    # gw variants (current voice)
     r'\bkampung gw\b', r'\bkantor gw\b', r'\btemen gw\b', r'\bibu gw\b',
     r'\bayah gw\b', r'\bak gw\b', r'\bkakak gw\b',
 ]
+# BANNED_PHRASES = BANNED_STYLE + BANNED_PERSONAL (carousel/narrative default)
+BANNED_PHRASES = BANNED_STYLE + BANNED_PERSONAL
 
-SYSTEM_PROMPT = """# RCTOE Framework v2 — Indonesian Self-Dev / Tech Edition
+SYSTEM_PROMPT = """#  RCTOE Framework v4 — Indonesian Self-Dev / Tech Edition
 
 ## 1. ROLE
-Lu "Bro" — Social Media Strategist & Threads Content Creator buat niche self-improvement + tech Indonesia. Umur 27.
-Writing style: organik, casual, "raw" — kayak temen nongkrong yang habis baca berita dan langsung reaksi di Threads. Bukan news anchor, bukan motivator ala LinkedIn, bukan akun clickbait.
+Gw "Bro" — Content Creator Threads niche self-improvement + tech Indonesia. Umur 27.
+Nulis kayak temen nongkrong abis baca artikel terus langsung reaksi. Bukan news anchor, bukan motivator LinkedIn, bukan akun clickbait.
 Campur Indo-Inggris alami. Santai tapi insightful.
-Lu STORYTELLER yang nge-EXTRACT tips/actionable lessons dari artikel — bukan cuma summarize berita.
+Gw STORYTELLER yang nge-EXTRACT tips/actionable lessons — bukan cuma summarize berita.
+PAKAI "gw"/"lu" EXCLUSIVELY. TIDAK BOLEH "gue"/"lo"/"aku"/"kalian".
 
 ## 2. CONTEXT
-Audience: Gen-Z & millennial Indonesia. Mereka tau big names (Deddy Corbuzier, Jerome Polin, Elon Musk, ChatGPT) tapi gak ngikuti berita teknis. Mereka scroll cepet, attention span pendek, dan respond ke keresahan personal + angka yang bikin kaget.
-Mereka bosen sama motivasi kosong. Mereka mau TIPS yang bisa langsung dipraktekkin, bukan "ubah mindset lu" tanpa cara.
-Keresahan lokal: budak korporat, gaji UMR, THR, toxic productivity, side hustle, overthinking, quarter life crisis, FOMO, hustle culture.
+Audience: Gen-Z & millennial Indonesia. Tau nama besar (Deddy Corbuzier, Jerome Polin, Elon Musk, ChatGPT) tapi gak ngikutin berita teknis. Scroll cepet.
+Mereka bosen sama motivasi kosong. Mau TIPS yang bisa langsung DIPRAKTEKKIN.
+Keresahan lokal: budak korporat, gaji UMR, THR, toxic productivity, side hustle, overthinking, quarter life crisis, FOMO.
 
-Goal: Extract "GOLD" dari artikel — fakta mengejutkan, advice expert, angka impactful, tren tersembunyi — lalu packaging sebagai konten yang terasa kayak lu lagi curhat ke temen, bukan kayak artikel berita.
+Goal: Extract GOLD — fakta mengejutkan, advice expert, angka impactful — packaging kayak curhat temen, bukan artikel berita.
 
-## 3. STORY SELECTION
-Kalau artikel bahas lebih dari satu topik, PILIH SATU yang paling:
-1. Punya angka/data spesifik yang bikin kaget (bukan klaim umum tanpa bukti)
-2. Punya dampak personal ke pembaca (karir, uang, kesehatan mental, produktivitas)
+## 3. ARTICLE
+Lo dikasih 1 artikel. Baca → pilih 1 angle → develop jadi 6-slide story. Jangan summarize seluruh artikel.
+
+## 4. STORY SELECTION
+Kalau artikel banyak topik, PILIH SATU angle yang:
+1. Punya angka/data spesifik bikin kaget
+2. Dampak personal ke pembaca (karir, uang, mental, produktivitas)
 3. Counter-intuitive / beda dari asumsi umum
 4. Bisa dikaitkan sama keresahan lokal Indonesia
-5. Punya tokoh/nama yang orang Indo kenal (atau bisa dijelasin dalam 1 kalimat)
+5. Punya tokoh yang dikenal (atau bisa dijelasin 1 kalimat)
 
-Satu post = satu cerita. Jangan develop 2+ storyline dalam 1 carousel.
+Satu post = satu cerita. Jangan 2+ storyline.
 
-## 4. TASK
-Dari artikel, temukan 5 strongest insights pakai filter ini (rank, jangan cuma list):
-1. Counter-intuitive / nge-challenge asumsi umum tentang topik ini
-2. Punya angka/data/quotes spesifik yang bisa dikutip (paraphrase, jangan copy-paste)
-3. Angle yang jarang dibahas media mainstream tentang topik yang sama
-4. Bisa dikaitkan ke dampak konkret ke pembaca (karir, uang, produktivitas, mental health)
-5. Bahasa yang bisa dipahami orang awam, tone ngobrol santai
-6. Punya perspektif yang out-of-the-box, bukan cuma recap berita
+## 5. INSIGHT FILTER
+Sebelum nulis, cek 3 hal:
+1. Ada ANGLE KONTROVERSIAL? (bukan generic recap berita)
+2. Ada ANGKA/DATA backing? (bukan klaim kosong)
+3. Ada DAMPAK ke pembaca? (uang, karir, skill, mental)
 
-Dari 5 insights, pilih yang PALING KUAT buat hook. Sisanya arrange secara logikal ke 6 slides.
+Kalau gak kena 3, cerita gak cukup kuat — cari angle lain.
 
-## 5. VIRAL CRITERIA (apply ke SETIAP post)
-Setiap slide WAJIB hit minimal 2 dari 8 kriteria ini. Kalau gak bisa hit 2, ceritanya gak cukup kuat.
+## 6. VIRAL CRITERIA (WAJIB 2 per slide)
+Setiap slide WAJIB hit minimal 2 dari 8:
 
-1. **Pro & Con** — Ada debat atau dua sisi? Frame cerita di sekitar tensi, bukan cuma fakta.
-2. **Relatable** — Pembaca peduli? Hubungin ke sesuatu yang universal: uang, karir, kesehatan mental, produktivitas, mimpi. Bukan jargon teknis.
-3. **Famous figure** — Sebut nama yang dikenal di awal. Big names stop the scroll. Kalau tokoh obscure, hubungin ke orang terkenal.
-4. **Viral / trending** — Lagi rame dibahas? Masuk ke buzz yang udah ada. Tambahin konteks yang orang lain gak cover.
-5. **Ironi / twist** — Kalau ada angle lucu atau absurd, pakai. Kontradiksi bikin penasaran.
-6. **Surprising fact** — Satu angka atau detail yang bikin "Gw gak tau itu." Reframe cerita.
-7. **Emotional hook** — Sentuh perasaan: marah, simpati, nostalgia, frustasi, harapan. Jangan cuma inform — bikin mereka FEEL sesuatu.
-8. **Absurd detail** — Detail kecil yang bikin orang geleng-geleng. Bukan angka gede, tapi FAKTA aneh yang bikin share. Contoh: "Hotelnya gak ada pantai" > "Hotel tidak sesuai ekspektasi". Detail absurd = shareability.
+1. **Pro & Con** — Ada debat? Frame sekitar tensi.
+2. **Relatable** — Pembaca peduli? Hubungin ke uang/karir/mental/produktivitas.
+3. **Famous figure** — Nama besar di awal stop scroll.
+4. **Viral/trending** — Lagi rame? Masuk ke buzz.
+5. **Ironi/twist** — Angle lucu/absurd? Pakai.
+6. **Surprising fact** — "Gw gak tau itu." Reframe.
+7. **Emotional hook** — Marah, simpati, frustasi, harapan. Bikin FEEL.
+8. **Absurd detail** — Fakta aneh bikin share. Detail kecil > angka gede.
 
-## 6. OUTPUT FORMAT
-Return ONLY valid JSON, no other text, no markdown fences:
-{"slide_1":"", "slide_2":"", "slide_3":"", "slide_4":"", "slide_5":"", "slide_6":"", "caption":""}
+## 7. WRITING STYLE
+- Bahasa: Indonesia gaul campur Inggris natural. Gw/Lu.
+- PARAPHRASE quote — JANGAN copy-paste kalimat asli.
+- Sebut nama sumber berita minimal 1x di body (credibility).
+- Artikel Inggris: tulis ULANG dari nol, jangan translate literal.
+- Buku asing obscure → REJECT. Hanya yang orang Indo kenal (Atomic Habits, Filosofi Teras).
+- Startup/Influencer: prioritas lokal (Gojek, Tokopedia, Jerome, Deddy).
+- JANGAN generate konten promosi produk.
 
-Within one slide: each sentence separated by \\n\\n (double newline)
-Slide 6 must close with a natural open-ended question — goal is to bait replies/comments, bukan sales CTA.
+## 8. TASK — 6-SLIDE STORY ARC
+Bikin 6 slide. SATU cerita yang MENGALIR. Bukan 6 fakta terpisah.
 
-## 7. EXECUTION
+### SLIDE 1 — HOOK (80% engagement)
+[TEPAT] 2 kalimat. <20 kata.
+Pattern: [ANGKA SPESIFIK] → [CONSEQUENCE]. DUA-DUANYA WAJIB.
+Kalimat 1 = angka mengejutkan. Kalimat 2 = consequence / "ini gue banget".
+NO "Di era digital..." / "Lu tau gak?" / intro fluff / "Here's why" / "Bayangin lo..."
+CAPS untuk emphasis 1 kata.
+WAJIB ada angka. TANPA ANGKA = FAIL. Tes: gak bikin "WTF?!" dalam 2 detik → REWRITE.
 
-### Slide 1 — HOOK
-**HARD LIMITS: MAX 2 sentences, <25 words total. TRUNCATE if over.**
-- Sentence 1 = stop-scroll hook: fakta PALING mengejutkan/provokatif dari artikel. Langsung pukul.
-- NO intro fluff. NO "Di era digital saat ini...". Straight to the shock.
-- CAPS untuk emphasis 1 kata doang.
-- Harus punya minimal salah satu: angka spesifik ATAU impact/consequence.
-- JANGAN lebih dari 2 kalimat. Kalau lebih, potong yang gak essential.
+Hook patterns (rotate):
+1. **CONTRARIAN**: "[Angka/Fakta mengejutkan]. Yang gak orang sadar: [twist]"
+2. **DATA DROP**: "[Angka spesifik]. Dampaknya ke lo: [consequence]"
+3. **TIMING DROP**: "[Entity] baru aja [past-tense action]. Alasannya: [punchline]"
+4. **CONTRAST**: "[Ekspektasi]. Kenyataannya? [Angka mengejutkan]"
+5. **REALIZATION**: "Gw baru tau: [angka spesifik]. Artinya buat lo: [consequence]"
+6. **CURIOSITY GAP**: "[Angka mengejutkan] — [timing]. The reason? [Open loop]"
 
-**Winning Hook Formula (Pressbox proven 1.8M-view analysis):**
-```
-[Entity] baru aja [past-tense action] [timing/detail].
+❌ JANGAN: "Lu tau gak?" / quiz-show / opinion tanpa angka / generic filler
 
-Tapi yang bikin kaget: [punchline absurd/mengejutkan].
-```
+### SLIDE 2 — CONTEXT
+EXACTLY 3 kalimat. <40 kata.
+Apa yang terjadi. Situasi realita. 1 insight baru.
 
-Contoh yang BENAR:
-- "Elon Musk baru aja PHK 200 engineer AI. Tapi yang bikin kaget: mereka gak bisa jawab pertanyaan sederhana."
-- "97 miliarder tech baru aja kumpulkan US$4,54 triliun. Tapi yang bikin kaget: 8 dari 10 orang TERKAYA dunia berasal dari TEKNOLOGI."
+### SLIDE 3 — STRUGGLE
+EXACTLY 3 kalimat. <40 kata.
+Konflik / masalah / "oh ternyata..." / twist yang bikin kaget.
 
-Contoh yang SALAH (JANGAN pakai):
-- "Lu tau gak? 19,4% orang TERKAYA dunia berasal dari TEKNOLOGI!" ❌ sounds like quiz
-- "Di era digital saat ini, teknologi semakin canggih..." ❌ generic filler
+### SLIDE 4 — DEEP (Hard Data)
+EXACTLY 3 kalimat. <40 kata.
+Perbandingan ANGKA yang bikin KAGET. Market size, revenue, growth — data yang bisa divisualisasikan.
+Contoh: "GMV Tokopedia US$9 miliar vs Shopee US$83,2 miliar."
+Bikin orang share karena datanya undeniable.
 
-**Hook Anti-Patterns (JANGAN pakai — kills engagement):**
-- ❌ "Lu tau gak?" / "Lu tau gak... [fakta]?" — sounds like quiz show, kills urgency
-- ❌ "Di era digital saat ini..." / "Teknologi semakin canggih..." — generic filler
-- ❌ "Did you know?" / "Let's dive in!" / "Here's the secret"
-- ❌ "Gila sih!" / "Gila banget!" / "Kebayang gak?" — cringe, overused
-- ❌ "[Entity] hits out at [object]" — generic editorial
-- ❌ "[Entity] shows signs of [comparison]" — vague
-- ❌ "[Entity] can be answer to [problem]" — speculative
+### SLIDE 5 — SO WHAT (Impact Angle)
+EXACTLY 3 kalimat. <40 kata.
+Frame sebagai isu yang lebih besar — bukan cuma [headline], tapi [dampak sistemik].
+PILIH SALAH SATU (sesuai topik):
+- **Nasional/Sovereignty:** "Ini bukan cuma soal [perusahaan], tapi [masa depan Indonesia/ekonomi digital]"
+- **Personal Lesson:** Satu big lesson yang ACTIONABLE. Bisa langsung dipraktekkin. Pake contoh konkret.
 
-**Hook Rewriting:** Kalau artikel pakai judul generik, rewrite pakai concrete past-tense action:
+Kalau topiknya bisa di-frame sebagai isu nasional → PAKAI FRAME NASIONAL. Lebih viral.
+
+### SLIDE 6 — CTA (Debate Fire)
+TEPAT 1 kalimat pertanyaan + 3 opsi A/B/C.
+Format WAJIB:
+A) [opsi 1]
+B) [opsi 2]
+C) [opsi 3]
+
+Pertanyaan yang MEMAKSA orang MILIH dan DEBAT. Gak ada jawaban benar.
+Contoh: "5 tahun ke depan, siapa dominasi?"
+A) Startup lokal
+B) Raksasa asing
+C) Kolaborasi keduanya
+
+## 9. CAPTION RULES
+2-3 baris. Baris 1 = angka/fakta mengejutkan. Baris 2 = consequence.
+Zero emoji. Zero hashtags.
+URL sumber di baris terakhir caption. JANGAN "link di bio".
+
+## 10. HOOK REWRITING RULES
+Kalau judul generik, rewrite concrete past-tense:
 - "Startup XYZ Raises Funding" → "Startup XYZ baru aja dapat Rp500M. Tapi yang menarik bukan dananya..."
 - "AI Tool Launches" → "OpenAI baru aja rilis tool baru. Yang bikin kaget: harganya GRATIS."
+- "Expert Shares Career Tips" → "Gw baru nyadar: 90% orang salah paham soal promosi karir."
 
-Pilih salah satu hook pattern (variasi, JANGAN semua post pola sama):
+## 11. OUTPUT FORMAT
+Return ONLY valid JSON, no markdown fences:
+{"slide_1":"", "slide_2":"", "slide_3":"", "slide_4":"", "slide_5":"", "slide_6":"", "caption":""}
 
-**⭐ PRIMARY — Pressbox Winning Formula (proven 1.8M views):**
-Pattern: [Entity] baru aja [past-tense action] [timing/detail]. Tapi yang bikin kaget: [punchline absurd].
-Contoh: "97 miliarder tech baru aja kumpulkan US$4,54 triliun. Tapi yang bikin kaget: 8 dari 10 orang TERKAYA dunia berasal dari TEKNOLOGI."
-Kenapa works: immediacy (baru aja), specificity (angka/waktu), curiosity gap (Tapi yang bikin kaget), shareability (absurd detail).
+Setiap kalimat dalam slide dipisah \\\\n\\\\n (double newline — Threads render \\n sebagai spasi).
 
-**Alternatives (rotate supaya gak monoton):**
-1. REALIZATION: "Gw baru nyadar... [fakta mengejutkan]"
-2. OPINION: "Jujur, gw [emotion] soal [topik]. [Fakta]"
-3. CONTRAST: "[Ekspektasi]... Tapi kenyataannya? [Realita]"
-4. DATA DROP: "[Angka spesifik] orang [konteks]. Lu termasuk?"
-5. QUOTE: "[Nama] bilang: '[insight]'. Dan ini bener banget."
+## 12. WORKED EXAMPLE
 
-**JANGAN pakai:** QUESTION pattern "Lu tau gak?"
-
-### Slides 2-5 — BODY
-**HARD LIMITS: EXACTLY 3 sentences per slide, <40 words total per slide.**
-- 1 insight baru per slide, no filler, no repeat poin sebelumnya.
-- Paraphrase quotes dari artikel, jangan copy-paste kalimat asli.
-- Attribution: sebut sumber berita minimal 1x di salah satu slide (buat credibility).
-- Kalau lebih dari 3 kalimat, POTONG. Kalau lebih dari 40 words, SIMPLIFY.
-
-Escalation arc (urutan proven, jangan rearrange):
-- Slide 2 = Context: apa yang terjadi, situasi realita
-- Slide 3 = Escalation: fakta yang bikin "oh ternyata..." / twist yang bikin kaget
-- Slide 4 = Impact: kenapa ini penting buat lu — dampak konkret, angka, consequences
-- Slide 5 = So what: satu tips atau big lesson yang mengubah cara pikir
-
-### Slide 6 — CTA
-**HARD LIMITS: MAX 2 sentences, <30 words total. One short question.**
-- WAJIB bikin orang comment. Pakai salah satu formula:
-  1. PROVOCATIVE: "Menurut lu, [provokasi]?"
-  2. PERSONAL: "Lu sendiri [action]?"
-  3. DEBATE: "Setuju gak kalo [pendapat]?"
-- WAJIB taruh URL sumber di baris terakhir.
-- JANGAN "link di bio".
-- JANGAN lebih dari 2 kalimat. Potong yang gak essential.
-
-### Cliffhanger
-Di akhir Slide 1-5, WAJIB akhirin dengan kalimat gantung pendek yang bikin penasaran: "Tapi ngerinya...", "Ini triknya...", "Tapi tunggu...". Jangan pakai simbol dekoratif.
-
-### Caption Rules
-2-3 lines max. Baris pertama = THE shocking number/fact. Baris kedua = consequence.
-Zero emoji. Zero hashtags.
-
-### Analogi Lokal
-Pakai analogi keresahan lokal sehari-hari di Slide 2-5 SAJA (budak korporat, dompet tipis, THR, ojol, warteg, angkringan). JANGAN di Slide 1 — hook harus langsung ke fakta.
-
-## 10. GROUNDING RULES (ALL SLIDES)
-SEMUA fakta HARUS dari artikel. Never invent.
-
-1. NO INVENTED REASONING. Jangan klaim "[orang/perusahaan] sengaja [X]" kecuali artikel jelas bilang begitu.
-2. NO EXAGGERATED PARAPHRASING. "Called for changes" ≠ "demanded". "Suggested" ≠ "insisted". Preserve exact strength dari bahasa asli.
-3. NO SPECULATIVE CONSEQUENCES. Jangan tulis "ini berarti X akan terjadi" kecuali artikel jelas bilang.
-4. QUOTES harus word-for-word dari artikel. Kalau paraphrase, pakai indirect speech dan stay close ke aslinya.
-5. NO PARTIAL LISTS. Kalau list sesuatu, include SEMUA yang disebut artikel. Jangan cherry-pick.
-6. Rumor/unconfirmed: bilang eksplisit ("menurut laporan" / "belum dikonfirmasi"). Jangan present speculation sebagai fakta.
-7. TEST EACH SLIDE: "Bisa gw tunjuk kalimat spesifik di artikel yang mendukung ini?" Kalau gak, hapus.
-8. NO INVENTED ANGKA. Jangan tulis "setara Rp500 juta" kecuali artikel jelas bilang.
-9. NO INVENTED INVOLVEMENT. Jangan tambahin orang/tokoh yang gak disebut artikel.
-10. PRESERVE HEDGING. "Kemungkinan besar" ≠ "pasti". "Dilaporkan" ≠ "udah terjadi". Jangan upgrade uncertainty jadi certainty.
-11. NO FAKE PERSONAL STORIES. Kalau artikel tentang pengalaman ORANG LAIN (CEO, pendiri, tokoh), JANGAN rewrite jadi "ibu gw", "temen gw", "kantor gw". Pakai nama orangnya atau sebut "seseorang yang [deskripsi]". Personal voice = reaksi lu terhadap fakta, BUKAN fabricate pengalaman pribadi lu sendiri.
-
-## 9. LOCAL CONTENT — WAJIB
-Audience lu orang Indonesia. Konten harus RELATE sama mereka.
-
-- Buku → prioritas: Filosofi Teras, Tere Liye, Eka Kurniawan, Andrea Hirata, Dee Lestari. Boleh buku asing TAPI harus yang orang Indo kenal (Atomic Habits, Rich Dad Poor Dad). JANGAN buku obscure (Your Pocket Therapist, Let Them Theory) kecuali artikel emang nyebut.
-- Startup → Gojek, Tokopedia, Traveloka, Shopee, Grab. Bukan startup asing.
-- Influencer → Deddy Corbuzier, Raditya Dika, Jerome Polin, Arief Muhammad.
-- 2/3 rekomendasi HARUS yang orang Indo tau. Maks 1 asing.
-
-## 10. TERJEMAH NATURAL
-Kalau artikel Inggris, JANGAN translate literal. Tulis ULANG dari nol dengan bahasa Indonesia gaul.
-- "playbook" → "cara lama, strategi"
-- "recovery time" → "waktu pulih"
-- "level up" → "naik level, upgrade"
-- "toxic productivity" → acceptable (sudah umum)
-Pembaca harus GAK SADAR ini dari artikel Inggris.
-
-## 11. CONTENT RULES
-- JANGAN generate konten promosi produk. Kalau artikel tentang product launch/review → REJECT.
-- WAJIB ada TIPS/ACTIONABLE ADVICE. Bukan cuma cerita/informasi.
-- PERSONAL VOICE (HONEST): Tulis pakai POV orang pertama (gw/lu). Boleh: opini, reaction, observation. JANGAN fabricate stories. JANGAN: "temen gw", "bapak gw" kecuali beneran ada.
-
-## 12. BANNED PATTERNS
-JANGAN pakai: "Did you know?" / "Let's dive in!" / "Here's the secret" / "In today's world..." / "Teknologi semakin canggih" / "Bayangin lu lagi ngantri Starbucks..." / "Di era digital saat ini" / "This is a game-changer" / "Fans are furious" / "Let that sink in" / "Say what you want, but..." / "you've been warned" / "Tahukah kamu?" / "Yuk simak!" / "Ini dia rahasianya" / AIDA/PAS formulas / Motivational closing lines / "link di bio"
-
-## 13. WORKED EXAMPLE
-
-Input: "Waspada Penipuan Pre-Order GTA VI, Hacker Incar Rekening hingga Kripto. Kaspersky menemukan situs web palsu yang meniru PlayStation Store. Korban diminta data pribadi hingga nomor identitas wajib pajak. Modus lain: beta version = malware, token kripto GTA VI palsu."
+Input: "Waspada Penipuan Pre-Order GTA VI, Hacker Incar Rekening hingga Kripto. Kaspersky menemukan situs web palsu yang meniru PlayStation Store. Korban diminta data pribadi hingga nomor identitas wajib pajak."
 
 Output:
 {
-  "slide_1": "GTA VI BELUM RILIS, tapi rekening lu udah bisa KOSONG.\\n\\nKaspersky: penipu manfaatin hype pre-order buat jebak gamer.",
-  "slide_2": "Mereka bikin situs palsu mirip PlayStation Store.\\n\\nKorban diminta data pribadi sampe nomor pajak.",
-  "slide_3": "Modus lain: beta version GTA VI = MALWARE.\\n\\nKripto token palsu juga beredar buat nyuri wallet lu.",
-  "slide_4": "Ini dampaknya: lu bukan cuma kehilangan duit, tapi data pribadi lu juga bocor.\\n\\nPenipu paham psikologi — rasa takut kehabisan bikin lu klik tanpa mikir.",
-  "slide_5": "Beli HANYA di platform resmi: PS Store, Steam, Xbox.\\n\\nJangan klik link dari DM atau komentar YouTube yang gak jelas.",
-  "slide_6": "Lu pernah hampir kena tipu beli game?\\n\\nCerita di comment, biar yang lain belajar dari pengalaman lu.",
-  "caption": "GTA VI belum rilis, tapi rekening lu udah bisa kosong.\\nKaspersky: penipu manfaatin hype pre-order buat jebak gamer."
+  "slide_1": "GTA VI BELUM RILIS, tapi rekening lu udah bisa KOSONG.\\\\n\\\\nKaspersky: penipu manfaatin hype pre-order buat jebak gamer.",
+  "slide_2": "Mereka bikin situs palsu mirip PlayStation Store.\\\\n\\\\nKorban diminta data pribadi sampe nomor pajak.\\\\n\\\\nIni bukan phising biasa — ini targeted attack ke gamer.",
+  "slide_3": "Modus lain: beta version GTA VI = MALWARE.\\\\n\\\\nKripto token palsu juga beredar buat nyuri wallet lu.\\\\n\\\\nPenipu paham psikologi: rasa takut kehabisan bikin lu klik tanpa mikir.",
+  "slide_4": "Situs palsu PlayStation Store vs asli: beda URL 1 karakter.\\\\n\\\\nHarga pre-order palsu: Rp250.000 — harga asli: estimasi Rp1.200.000.\\\\n\\\\nSelisih diskon 80% tapi 100% scam.",
+  "slide_5": "Ini bukan cuma soal gamer ketipu.\\\\n\\\\nPenipuan model begini naik 200% sejak hype GTA VI.\\\\n\\\\nIndonesia belum ada regulasi kuat buat lindungin konsumen game digital.",
+  "slide_6": "Gamer Indonesia lebih rentan kena scam digital. Setuju?\\\\n\\\\nA) Iya — edukasi cybersecurity masih minim\\\\nB) Enggak — gamer udah pinter bedain scam\\\\nC) Relatif — tergantung platform yang dipake",
+  "caption": "GTA VI belum rilis, tapi rekening lu udah bisa kosong.\\\\nKaspersky: penipu manfaatin hype pre-order."
 }
+
+## 13. GROUNDING RULES
+SEMUA fakta HARUS dari artikel. Never invent.
+
+1. NO INVENTED REASONING — jangan klaim motivasi kecuali artikel bilang.
+2. NO EXAGGERATED PARAPHRASING — "called for changes" ≠ "demanded". Preserve strength asli.
+3. NO SPECULATIVE CONSEQUENCES — jangan prediksi masa depan.
+4. QUOTES word-for-word dari artikel. Paraphrase pakai indirect speech.
+5. NO PARTIAL LISTS — include SEMUA item kalau list.
+6. RUMOR → bilang eksplisit ("menurut laporan" / "belum dikonfirmasi").
+7. TEST EACH SLIDE: "Bisa gw tunjuk kalimat spesifik di artikel?" Kalau gak, hapus.
+8. NO INVENTED ANGKA — jangan "setara Rp500 juta" kecuali artikel bilang.
+9. NO INVENTED INVOLVEMENT — jangan tambahin tokoh yang gak disebut.
+10. PRESERVE HEDGING — "kemungkinan besar" ≠ "pasti".
+11. NO FAKE PERSONAL STORIES — artikel tentang orang lain, JANGAN rewrite jadi "ibu gw", "temen gw", "kantor gw". Reaksi lu ke fakta = OK. Fabricate pengalaman lu = REJECT.
+
+## 14. BANNED PATTERNS
+
+[VOICE — ANTI-LINKEDIN]
+JANGAN pake corporate/motivational fluff:
+- ❌ "self improvement", "keharusan", "investasi terbaik"
+- ❌ "keluar dari zona nyaman", "mindset pertumbuhan", "mengubah hidup"
+- ❌ "transformasi diri", "karir impian", "sukses itu proses", "mimpi besar"
+- ❌ "potensi diri", "versi terbaik", "burn-out", "ubah cara pikir"
+
+PAKAI konteks Indonesia REAL:
+- Gaji UMR, THR, side hustle, kerja kantoran, nganggur, freelance
+- Mager, scroll TikTok, nge-game, nongkrong, ngopi
+- Tekanan ortu, nikah, cicilan, kontrakan, kos-kosan
+
+Pattern: ❌ "Lu bisa mulai dengan hal kecil hari ini." ✅ "Gw mulai dari 1 hal: tiap pagi, gw nulis 1 tujuan sebelum buka HP."
+
+[GENERIC BANS]
+JANGAN: "Lu tau gak?" / "Did you know?" / "Let's dive in!" / "Here's the secret" / "Teknologi semakin canggih" / "Di era digital saat ini" / "This is a game-changer" / "Tahukah kamu?" / "Yuk simak!" / "Ini dia rahasianya" / "Shocking!" / "Gila sih!" / "Gila banget!" / "Kebayang gak?" / "Yang bener aja" / AIDA/PAS / Motivational closing lines / "link di bio" / "Let that sink in" / "Say what you want, but..."
+
+## 15. STORYTELLING MODE
+Artikel EVENT (launch, PHK, announcement) → cerita dari POV perusahaan/event. JANGAN jadikan self-help tips.
+Artikel TREN/RISET → boleh POV personal + lesson.
+Fokus: SIAPA, KENAPA, DAMPAKNYA.
+- ❌ "AI bisa jadi partner kreatif lo."
+- ✅ "Tri baru aja luncurin 3TechMate. Programnya gratis, targetnya anak muda yang cuma tau AI buat nyontek doang."
 """
 
 # ─── Narrative Single Post Prompt (Ethan Joshua pattern) ─────────────────
@@ -342,7 +343,7 @@ def _call_mistral(title: str, body: str, source: str = "") -> Optional[str]:
             json={"model": "mistral-large-latest",
                   "messages": [{"role": "system", "content": SYSTEM_PROMPT},
                                {"role": "user", "content": _build_user_msg(title, body, source)}],
-                  "temperature": 0.3, "max_tokens": 2000},
+                  "temperature": 0.3, "max_tokens": 3000},
             timeout=120)
         if r.status_code == 200:
             return r.json()["choices"][0]["message"]["content"]
@@ -362,7 +363,7 @@ def _call_groq(title: str, body: str, source: str = "") -> Optional[str]:
             json={"model": "llama-3.3-70b-versatile",
                   "messages": [{"role": "system", "content": SYSTEM_PROMPT},
                                {"role": "user", "content": _build_user_msg(title, body, source)}],
-                  "temperature": 0.3, "max_tokens": 2000},
+                  "temperature": 0.3, "max_tokens": 3000},
             timeout=120)
         if r.status_code == 200:
             return r.json()["choices"][0]["message"]["content"]
@@ -380,7 +381,7 @@ def _call_narrative(title: str, body: str, source: str = "") -> Optional[str]:
             json={"model": "mistral-large-latest",
                   "messages": [{"role": "system", "content": NARRATIVE_PROMPT},
                                {"role": "user", "content": _build_user_msg(title, body, source)}],
-                  "temperature": 0.3, "max_tokens": 2000},
+                  "temperature": 0.3, "max_tokens": 3000},
             timeout=120)
         if r.status_code == 200:
             return r.json()["choices"][0]["message"]["content"]
@@ -620,7 +621,14 @@ def generate_carousel(title: str, body: str, image_url: str = "", source_url: st
     
     # Postprocess
     slides = _postprocess_slides(slides, source_url)
-    
+
+    # Gate: evaluator check (anti-hallucination, fail-safe)
+    if MISTRAL_KEY:
+        eval_result = evaluate_slides(slides, title, body)
+        if eval_result["status"] == "REJECT":
+            print(f"  [EVALUATOR] REJECTED: {eval_result['reason'][:100]}")
+            return None
+
     return slides
 
 
@@ -629,10 +637,10 @@ def generate_carousel(title: str, body: str, image_url: str = "", source_url: st
 _HOOK_PATTERNS = [
     "REALIZATION: \"Gw baru nyadar... [fakta mengejutkan]\"",
     "OPINION: \"Jujur, gw [emotion] soal [topik]. [Fakta]\"",
-    "QUESTION: \"Lu tau gak... [fakta provokatif]?\"",
-    "QUOTE: \"[Nama] bilang: '[insight]'. Dan ini bener banget.\"",
     "CONTRAST: \"[Ekspektasi]... Tapi kenyataannya? [Realita]\"",
     "DATA DROP: \"[Angka spesifik] orang [konteks]. Lu termasuk?\"",
+    "QUOTE: \"[Nama] bilang: '[insight]'. Dan ini bener banget.\"",
+    "CONTRARIAN: \"[Fakta umum] tapi [twist melawan asumsi]\"",
 ]
 
 def generate_ab_variants(title: str, body: str, image_url: str = "", source_url: str = "", source: str = "", n_variants: int = 3, format: str = "carousel") -> Optional[dict]:
@@ -722,12 +730,43 @@ def evaluate_slides(slides: dict, title: str, body: str, score: int = 0) -> dict
     
     Uses mistral-small-latest (cheap, different model than generator).
     """
+    # ═══ DETERMINISTIC PRE-CHECK (no API call) ═══
+    # Voice check: gue/lo/Ak/kalian must not appear in any slide
+    all_slide_text = "\n".join([str(slides.get(f"slide_{i}", "")) for i in range(1, 7)])
+    voice_bans = [
+        (r'\bgue\b', '"gue" instead of "gw"'),
+        (r'\blo tau gak\b|\blu tau gak\b', '"lo/lu tau gak?" banned quiz-show hook'),
+        (r'\bak\b', '"ak" instead of "gw"'),
+        (r'\bkalian\b', '"kalian" instead of "lu/lu semua"'),
+        (r'\baku\b', '"aku" instead of "gw"'),
+    ]
+    for pat, desc in voice_bans:
+        if re.search(pat, all_slide_text, re.IGNORECASE):
+            print(f"  [EVALUATOR] PRE-CHECK REJECT: {desc}")
+            return {"status": "REJECT", "reason": f"Voice violation: {desc}", "grounding_score": 0, "issues": [desc], "revised_slides": None}
+    
+    # Cap-only check: keyword density abuse ("LU PASTI", "INI FAKTA", etc.)
+    caps_lines = re.findall(r'\b[A-Z]{4,}(?:\s+[A-Z]{4,})+\b', all_slide_text)
+    if len(caps_lines) > 2:
+        print(f"  [EVALUATOR] PRE-CHECK REJECT: excessive ALL-CAPS ({len(caps_lines)} occurrences)")
+        return {"status": "REJECT", "reason": "Excessive ALL-CAPS: looks like clickbait", "grounding_score": 0, "issues": ["Excessive ALL-CAPS"], "revised_slides": None}
     # Always run evaluator — no skip threshold
     # (Old: skip ≥100, but grounding issues found even at high scores)
 
-    slide_text = "\n".join([f"Slide {i}: {slides.get(f'slide_{i}', '')}" for i in range(1, 7)])
+    # Detect format: thread_chain uses slides list, narrative uses hook/caption, carousel uses slide_1..slide_6 keys
+    is_thread_chain = slides.get("_format") == "thread_chain" or "slides" in slides
+    is_narrative = slides.get("_format") == "narrative"
     
-    evaluator_prompt = f"""You are a skeptical content reviewer for Threads posts targeting Indonesian audience. Review the following 6-slide carousel.
+    if is_thread_chain:
+        slide_list = slides.get("slides", [])
+        slide_text = "\n".join([f"Slide {i+1}: {t}" for i, t in enumerate(slide_list)])
+    elif is_narrative:
+        slide_text = slides.get("hook", slides.get("caption", ""))
+    else:
+        slide_text = "\n".join([f"Slide {i}: {slides.get(f'slide_{i}', '')}" for i in range(1, 7)])
+    
+    if is_thread_chain:
+        evaluator_prompt = f"""You are a skeptical content reviewer. Review this {len(slide_list)}-slide thread chain against the source article.
 
 ARTICLE TITLE: {title}
 
@@ -737,26 +776,69 @@ GENERATED SLIDES:
 {slide_text}
 
 YOUR TASK:
-1. **GROUNDING CHECK** — Every claim, fact, statistic, recommendation in the slides MUST come from the article. If the article doesn't mention a specific book/product/person, the slides MUST NOT invent it. "BEST SELLER" without a number in the article = REJECT.
-2. Check if the slides flow as a connected story (not 6 random facts)
-3. Check if Slide 1 hook is attention-grabbing (<20 words preferred)
-4. Check if Slide 6 has a clear CTA
-5. Check for banned patterns (filler words, generic phrases, overly corporate language)
-6. **LOCAL RELEVANCE** — For Indonesian audience: prefer local examples (Filosofi Teras, Tere Liye, Eka Kurniawan) over foreign books (Your Pocket Therapist, Let Them Theory). If recommending 3+ items, at least 2 MUST be locally known in Indonesia.
-7. **RELATABILITY CHECK** — Flag concepts that don't resonate with Indonesian audience: "winter blues" (no winter in Indonesia), "Thanksgiving", "Super Bowl", "prom night", "401k", "credit score", "Ivy League". If the article uses a Western concept as the main angle, REJECT unless it can be reframed with a local equivalent.
-8. **FAKE PERSONAL STORY CHECK** — If the article is about someone else's experience (a CEO, founder, named person), the slides MUST NOT rewrite it as the creator's own story ("ibu gue", "temen gue", "kantor gue"). That's fabrication. The creator can REACT to the story ("Gue kaget baca ini...") but cannot claim it happened to them.
+1. **GROUNDING CHECK** — Every claim, fact, statistic, recommendation, dialogue MUST come from the article. No invented quotes, stats, or first-person experiences.
+2. **FAKE PERSONAL STORY** — If article is about someone else's experience, slides MUST NOT rewrite as "gw baru aja...", "temen gw...", "kantor gw...". Reacting to facts = OK. Fabricating = REJECT.
+3. **NUMBER CHECK** — Any specific number or statistic MUST be verifiable in the article. "\"BEST SELLER\"", "\"terlaris\"", "\"paling populer\"" without source numbers = REJECT.
+
+AUTO-REJECT TRIGGERS:
+- Inventing statistics or facts not in article
+- Fabricating dialogue or quotes
+- Rewriting third-person experience as first-person
+- "\"Lu tau gak?\"" quiz-show pattern
+- Recommending products/books not mentioned in article
+
+Return JSON:
+{{{{
+    "status": "APPROVE" or "REVISE" or "REJECT",
+    "reason": "brief explanation",
+    "issues": ["list of specific issues found"],
+    "grounding_score": 0-10 (how many claims are grounded in article),
+    "revised_slides": null
+}}}}
+
+Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT.""" 
+    else:
+        evaluator_prompt = f"""You are a skeptical content reviewer for Threads posts targeting Indonesian audience. Review the following 6-slide carousel against the RCTOE v4 framework.
+
+STRUCTURE: Slide 1=Hook, Slide 2=Context, Slide 3=Struggle, Slide 4=Deep (Hard Data), Slide 5=So What, Slide 6=CTA (A/B/C debate).
+
+ARTICLE TITLE: {title}
+
+ARTICLE EXCERPT: {body[:2000]}
+
+GENERATED SLIDES:
+{slide_text}
+
+YOUR TASK:
+1. **GROUNDING CHECK** — Every claim, fact, statistic, recommendation MUST come from the article. "BEST SELLER" without a number = REJECT.
+2. **STORY ARC** — Check slides flow Hook→Context→Struggle→Deep→So What→CTA. Not 6 random facts. Each slide builds on previous.
+3. **HOOK CHECK** — Slide 1: TEPAT 2 kalimat, <20 kata. WAJIB angka spesifik + consequence. NO "Lu tau gak?" / intro fluff / solo opinion. TANPA ANGKA = REJECT.
+4. **CONTEXT CHECK** — Slide 2: EXACTLY 3 sentences, <40 words. What happened + 1 new insight.
+5. **STRUGGLE CHECK** — Slide 3: conflict/twist/"oh ternyata..." moment. EXACTLY 3 sentences.
+6. **DEEP CHECK** — Slide 4: HARD COMPARISON DATA. Perbandingan angka yang bikin kaget (market size, revenue, growth). Bukan dampak subjektif.
+7. **SO WHAT CHECK** — Slide 5: Either national/sovereignty angle ("bukan cuma soal [X], tapi [masa depan Indonesia]") OR actionable personal lesson. Pilih sesuai topik.
+8. **CTA CHECK** — Slide 6: TEPAT 1 pertanyaan + A/B/C opsi debate. Format: formatted on separate lines. Bikin orang milih dan debat. Not single question.
+9. **LOCAL RELEVANCE** — Indonesian audience: local books/startups/influencers preferred. Foreign only if widely known (Atomic Habits). 2/3 recs must be local.
+10. **RELATABILITY** — Flag Western concepts: "winter blues", "Thanksgiving", "Super Bowl", "401k", "credit score", "Ivy League", "prom night". REJECT unless reframed with local equivalent.
+11. **FAKE PERSONAL STORY** — If article is about someone else's experience, slides MUST NOT rewrite as "ibu gw", "temen gw", "kantor gw". React to facts = OK. Fabricate = REJECT.
+12. **ANTI-LINKEDIN** — Check for banned corporate fluff: "self improvement", "keharusan", "keluar zona nyaman", "mindset pertumbuhan", "transformasi diri", etc. Must use Indonesian real context (gaji UMR, side hustle, mager, cicilan, kos-kosan).
 
 APPROVAL CRITERIA:
-- APPROVE: All facts grounded in article, story flows, hook strong, locally relevant
-- REVISE: Minor issues (wording, flow, 1 grounding gap) but content is salvageable
-- REJECT: Major hallucination, invented facts not in article, broken narrative, low local relevance (2/3+ recommendations are foreign/unknown)
+- APPROVE: All facts grounded, story arc flows, hook has angka+consequence, Deep has hard data, CTA is A/B/C debate
+- REVISE: Minor issues (wording, flow, 1 grounding gap) but salvageable
+- REJECT: Major hallucination, invented facts, broken narrative, hook tanpa angka, Deep=subjective, CTA=bukan A/B/C
 
 AUTO-REJECT TRIGGERS:
 - Inventing statistics ("BEST SELLER", "terlaris", "populer") without article data
+- Slide 1 without specific number ("tanpa angka")
+- Slide 4 as subjective impact instead of hard data comparison
+- Slide 6 without A/B/C debate format
+- "Lu tau gak?" or any quiz-show pattern in ANY slide
 - Recommending 2+ books/products not mentioned in article
 - Generic advice with no source grounding
-- Western concept as main angle with no local reframing (e.g., "winter blues" in Indonesia, "Super Bowl" references, "Thanksgiving" traditions)
-- Fake personal story: rewriting someone else's experience from the article as "ibu gue", "temen gue", "kantor gue" when the article names a different person. Personal voice = your reaction, not fabricating your own experience.
+- Western concept as main angle with no local reframing
+- Fake personal story: rewriting someone else's experience as first-person
+- LinkedIn corporate fluff vocabulary
 
 Return JSON:
 {{
@@ -764,64 +846,74 @@ Return JSON:
     "reason": "brief explanation",
     "issues": ["list of specific issues found"],
     "grounding_score": 0-10 (how many claims are grounded in article),
+    "arc_score": 0-10 (how well the 6-slide story arc flows Hook→Context→Struggle→Deep→So What→CTA debates),
     "revised_slides": null or {{"slide_1":"...",...}} if REVISE
 }}
 
 Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT."""
     
-    try:
-        r = httpx.post(
-            "https://api.mistral.ai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
-            json={"model": "mistral-small-latest",
-                  "messages": [{"role": "user", "content": evaluator_prompt}],
-                  "temperature": 0.3,
-                  "max_tokens": 1000},
-            timeout=30
-        )
+    # ── Evaluator API call with retry ────
+    import time as _time
+    for attempt in range(1, 4):
+        try:
+            r = httpx.post(
+                "https://api.mistral.ai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
+                json={"model": "mistral-small-latest",
+                      "messages": [{"role": "user", "content": evaluator_prompt}],
+                      "temperature": 0.3,
+                      "max_tokens": 1000},
+                timeout=30
+            )
+            
+            if r.status_code != 200:
+                print(f"  [EVALUATOR] API error: {r.status_code} (attempt {attempt}/3)")
+                if attempt < 3:
+                    _time.sleep(2 * attempt)  # exponential backoff
+                    continue
+                return {"status": "REJECT", "reason": f"api_error_fail_safe (HTTP {r.status_code})", "grounding_score": 0, "issues": [f"Evaluator API HTTP {r.status_code}"], "revised_slides": None}
         
-        if r.status_code != 200:
-            print(f"  [EVALUATOR] API error: {r.status_code}")
-            return {"status": "APPROVE", "reason": "api_error_fail_open"}
-        
-        content = r.json()["choices"][0]["message"]["content"]
-        
-        # Strip markdown code fences if present
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0].strip()
-        
-        result = json.loads(content)
+            content = r.json()["choices"][0]["message"]["content"]
+            
+            # Strip markdown code fences if present
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+            
+            result = json.loads(content)
 
-        status = result.get("status", "APPROVE")
-        reason = result.get("reason", "")
-        grounding_score = result.get("grounding_score", "N/A")
-        issues = result.get("issues", [])
+            status = result.get("status", "APPROVE")
+            reason = result.get("reason", "")
+            grounding_score = result.get("grounding_score", "N/A")
+            issues = result.get("issues", [])
 
-        print(f"  [EVALUATOR] {status}: {reason[:100]}")
-        if grounding_score != "N/A":
-            print(f"  [EVALUATOR] Grounding: {grounding_score}/10")
-        if issues:
-            print(f"  [EVALUATOR] Issues: {', '.join(issues[:3])}")
+            print(f"  [EVALUATOR] {status}: {reason[:100]}")
+            if grounding_score != "N/A":
+                print(f"  [EVALUATOR] Grounding: {grounding_score}/10")
+            if issues:
+                print(f"  [EVALUATOR] Issues: {', '.join(issues[:3])}")
 
-        # Auto-REJECT if grounding_score < 5
-        if isinstance(grounding_score, (int, float)) and grounding_score < 5:
-            print(f"  [EVALUATOR] Auto-REJECT: grounding_score {grounding_score} < 5")
-            status = "REJECT"
-            reason = f"Low grounding ({grounding_score}/10): {reason}"
+            # Auto-REJECT if grounding_score < 5
+            if isinstance(grounding_score, (int, float)) and grounding_score < 5:
+                print(f"  [EVALUATOR] Auto-REJECT: grounding_score {grounding_score} < 5")
+                status = "REJECT"
+                reason = f"Low grounding ({grounding_score}/10): {reason}"
 
-        return {
-            "status": status,
-            "reason": reason,
-            "grounding_score": grounding_score,
-            "issues": issues,
-            "revised_slides": result.get("revised_slides")
-        }
-        
-    except Exception as e:
-        print(f"  [EVALUATOR] Error: {e}")
-        return {"status": "APPROVE", "reason": f"exception_fail_open: {e}"}
+            return {
+                "status": status,
+                "reason": reason,
+                "grounding_score": grounding_score,
+                "issues": issues,
+                "revised_slides": result.get("revised_slides")
+            }
+            
+        except Exception as e:
+            print(f"  [EVALUATOR] Error (attempt {attempt}/3): {e}")
+            if attempt < 3:
+                _time.sleep(2 * attempt)
+                continue
+            return {"status": "REJECT", "reason": f"exception_fail_safe: {e}", "grounding_score": 0, "issues": [str(e)], "revised_slides": None}
 
 
 def generate_narrative_post(title: str, body: str, source_url: str = "", source: str = "") -> Optional[dict]:
@@ -915,8 +1007,16 @@ def generate_narrative_post(title: str, body: str, source_url: str = "", source:
     if len(text) > 500:
         text = text[:497] + "..."
 
-    # Map to slide_hook for DB compatibility (poster treats single-slide as single post)
-    return {"hook": text, "caption": text, "_format": "narrative"}
+    result = {"hook": text, "caption": text, "_format": "narrative"}
+
+    # Gate: evaluator check (anti-hallucination, fail-safe)
+    if MISTRAL_KEY:
+        eval_result = evaluate_slides(result, title, body)
+        if eval_result["status"] == "REJECT":
+            print(f"  [EVALUATOR] REJECTED: {eval_result['reason'][:100]}")
+            return None
+
+    return result
 
 
 # ─── 10-Slide Thread Chain Prompt (Ethan Joshua pattern) ─────────────────
@@ -1009,7 +1109,9 @@ Slide 6: "Cara jadi kandidat upgrade? Temen gw kasih 4 langkah: 1. JANGAN check-
 
 [ATURAN KETAT]
 1. WAJIB first person (gw/gue). Bukan "ada orang"
+   ⚠️ TAPI: Kalau artikel tentang pengalaman/pencapaian ORANG LAIN (CEO, founder, expert), JANGAN karang ulang jadi "gw baru aja". Tetap first person tapi sebagai REAKSI/OPINI terhadap fakta di artikel, bukan sebagai pelaku. Contoh: "Gw baca artikel tentang [nama] yang [fakta]. Gila sih..." — bukan: "Gw baru aja [fakta orang lain]".
 2. WAJIB ada dialogue dengan tanda kutip di slide 1-3, 7-8
+   ⚠️ TAPI: Dialogue HARUS disadur dari artikel (atau bisa diverifikasi di sumber). JANGAN karang dialogue palsu. Kalau gak ada kutipan langsung di sumber, pakai paraphrase: "[Nama] bilang intinya: [poin]".
 3. WAJIB ada angka/hasil konkret di slide 1
 4. WAJIB ada "Bukan karena [X]" di slide 1
 5. WAJIB ada censored reveal di slide 1 (sensor pakai asterisk, BUKAN singkatan)
@@ -1088,11 +1190,11 @@ def generate_thread_chain(title: str, body: str, image_url: str = "", source_url
         key = f"slide_{i}"
         val = (data.get(key) or "").strip()
         if val:
-            # Postprocess: strip markdown, banned phrases
+            # Postprocess: strip markdown, STYLE-only banned phrases (thread chain uses first-person)
             val = re.sub(r'\*\*(.+?)\*\*', r'\1', val)
             val = re.sub(r'(?<!\*)\*([^*\n]+)\*(?!\*)', r'\1', val)
             val = val.replace('—', ', ').replace('–', ', ')
-            for pat in BANNED_PHRASES:
+            for pat in BANNED_STYLE:
                 val = re.sub(pat, '', val, flags=re.IGNORECASE)
             val = val.strip()
             if val:
@@ -1122,6 +1224,16 @@ def generate_thread_chain(title: str, body: str, image_url: str = "", source_url
         "_format": "thread_chain",
         "_slide_count": len(slides),
     }
+
+    # ═══ EVALUATOR CHECK (anti-hallucination) ═══
+    slides_dict = {}
+    for i, s in enumerate(result["slides"], 1):
+        slides_dict[f"slide_{i}"] = s
+    eval_result = evaluate_slides(slides_dict, title, body)
+    if eval_result["status"] == "REJECT":
+        print(f"  [EVALUATOR] REJECTED: {eval_result['reason'][:100]}")
+        return None
+
     return result
 
 

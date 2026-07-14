@@ -107,43 +107,42 @@ test("postproc_whitespace", test_whitespace)
 
 def test_em_dash():
     from generator import _postprocess_slides
-    s = {"hook":"Ini test — dengan em dash. Oke ya.","setup":"S.","twist":"T.","deep":"D.","sowhat":"SW.","cta":"C."}
-    p = _postprocess_slides(s, "")
-    assert "—" not in p["hook"], f"Em dash remains: {p['hook']}"
+    s = {"slide_1":"Ini test — dengan em dash. Oke ya.","slide_2":"S.","slide_3":"T.","slide_4":"D.","slide_5":"SW.","slide_6":"C."}
+    p = _postprocess_slides(s)
+    assert "—" not in p["slide_1"], f"Em dash remains: {p['slide_1']}"
 test("postproc_em_dash", test_em_dash)
 
 def test_banned_phrases():
     from generator import _postprocess_slides
-    s = {"hook":"Bayangin geleng-geleng lo. Ini serius. Tahan dulu bro.","setup":"S.","twist":"T.","deep":"D.","sowhat":"SW.","cta":"C."}
-    p = _postprocess_slides(s, "")
-    assert "geleng" not in p["hook"].lower(), f"geleng remains: {p['hook']}"
-    assert "tahan dulu" not in p["twist"].lower(), f"tahan dulu remains: {p['twist']}"
+    s = {"slide_1":"Bayangin geleng-geleng lo. Ini serius. Tahan dulu bro.","slide_2":"S.","slide_3":"T.","slide_4":"D.","slide_5":"SW.","slide_6":"C."}
+    p = _postprocess_slides(s)
+    assert "geleng" not in p["slide_1"].lower(), f"geleng remains: {p['slide_1']}"
 test("postproc_banned", test_banned_phrases)
 
 def test_url_strip():
     from generator import _postprocess_slides
-    s = {"hook":"Check https://fake.com ya. Penting banget.","setup":"S.","twist":"T.","deep":"D.","sowhat":"SW.","cta":"C."}
-    p = _postprocess_slides(s, "")
-    assert "https://" not in p["hook"], f"URL remains in hook: {p['hook']}"
+    s = {"slide_1":"Check https://fake.com ya. Penting banget.","slide_2":"S.","slide_3":"T.","slide_4":"D.","slide_5":"SW.","slide_6":"C."}
+    p = _postprocess_slides(s)
+    assert "https://" not in p["slide_1"], f"URL remains in hook: {p['slide_1']}"
 test("postproc_url_strip", test_url_strip)
 
 def test_source_url_in_cta():
     from generator import _postprocess_slides
-    s = {"hook":"H.","setup":"S.","twist":"T.","deep":"D.","sowhat":"SW.","cta":"Pilih mana?"}
+    s = {"slide_1":"H.","slide_2":"S.","slide_3":"T.","slide_4":"D.","slide_5":"SW.","slide_6":"Pilih mana?"}
     p = _postprocess_slides(s, "https://source.com/artikel")
-    assert "source.com" in p["cta"], f"Source URL missing from CTA: {p['cta']}"
+    assert "source.com" in p["slide_6"], f"Source URL missing from CTA: {p['slide_6']}"
 test("postproc_source_url", test_source_url_in_cta)
 
 def test_fake_quote_strip():
     from generator import _postprocess_slides
     # Single quotes stripped (chars removed, content kept) — Threads gak render
-    s = {"hook":"H.","setup":"S.","twist":"T.","deep":"Ini kata mereka: 'dialog panjang'.","sowhat":"SW.","cta":"C."}
-    p = _postprocess_slides(s, "")
-    assert "'" not in p["deep"], f"Single quote remains: {p['deep']}"
+    s = {"slide_1":"H.","slide_2":"S.","slide_3":"T.","slide_4":"Ini kata mereka: 'dialog panjang'.","slide_5":"SW.","slide_6":"C."}
+    p = _postprocess_slides(s)
+    assert "'" not in p["slide_4"], f"Single quote remains: {p['slide_4']}"
     # Double quotes long (20+ chars) stripped entirely
-    s2 = {"hook":"H.","setup":"S.","twist":"T.","deep":"Kata mereka: \"ini dialog imajiner yang sangat panjang dan harus dihapus\".","sowhat":"SW.","cta":"C."}
-    p2 = _postprocess_slides(s2, "")
-    assert "imajiner" not in p2["deep"], f"Fake quote remains: {p2['deep']}"
+    s2 = {"slide_1":"H.","slide_2":"S.","slide_3":"T.","slide_4":"Kata mereka: \"ini dialog imajiner yang sangat panjang dan harus dihapus\".","slide_5":"SW.","slide_6":"C."}
+    p2 = _postprocess_slides(s2)
+    assert "imajiner" not in p2["slide_4"], f"Fake quote remains: {p2['slide_4']}"
 test("postproc_fake_quotes", test_fake_quote_strip)
 
 
@@ -160,12 +159,12 @@ def test_mistral_api():
 test("generator_mistral_call", test_mistral_api)
 
 def test_parse_slides():
-    from generator import _parse_slides
+    from generator import _parse_json
     raw = '{"slide_1":"hook text here for testing","slide_2":"setup text","slide_3":"twist text","slide_4":"deep text","slide_5":"sowhat text","slide_6":"cta text","caption":"cap","hashtags":"#tag"}'
-    slides = _parse_slides(raw)
+    slides = _parse_json(raw)
     assert slides is not None, "Parse returned None"
-    assert "hook" in slides, f"Missing hook key: {slides.keys()}"
-    assert slides["hook"] == "hook text here for testing"
+    assert "slide_1" in slides, f"Missing slide_1 key: {slides.keys()}"
+    assert slides["slide_1"] == "hook text here for testing"
 test("generator_parse", test_parse_slides)
 
 def test_full_generate():
@@ -176,11 +175,11 @@ def test_full_generate():
         "", "https://example.com/test")
     assert slides is not None, "generate_carousel returned None"
     assert slides.pop("_provider", "") in ("mistral", "groq"), "Unknown provider"
-    for k in ["hook","setup","twist","deep","sowhat","cta"]:
+    for k in ["slide_1","slide_2","slide_3","slide_4","slide_5","slide_6"]:
         assert k in slides, f"Missing key: {k}"
         assert len(slides[k]) > 10, f"{k} too short: {len(slides[k])}"
-    assert "example.com" in slides["cta"], f"Source URL missing from CTA"
-    print(f"    (hook: {len(slides['hook'].split())} words)")
+    assert "example.com" in slides["slide_6"], f"Source URL missing from CTA"
+    print(f"    (slide_1: {len(slides['slide_1'].split())} words)")
 test("generator_full", test_full_generate)
 
 
@@ -196,11 +195,18 @@ def test_poster_imports():
 test("poster_imports", test_poster_imports)
 
 def test_image_inline():
-    """Image validation logic — just verify the code pattern exists in poster.py."""
-    import inspect, poster
-    src = inspect.getsource(poster._post_container)
-    assert "content-type" in src or "image/" in src, "No image validation in _post_container"
-    assert "image_url" in src, "No image_url param in _post_container"
+    """Image validation logic — now in shared threads_poster (poster.py delegates)."""
+    from pathlib import Path
+    import sys
+    _save = sys.path.copy()
+    sys.path.insert(0, str(Path.home() / ".hermes" / "scripts"))
+    import inspect
+    from threads_poster import ThreadsPoster
+    sys.path = _save
+    src = inspect.getsource(ThreadsPoster._create_container)
+    assert "image_url" in src, "No image_url param in _create_container"
+    assert "image_fallback" in src, "No image_fallback in _create_container"
+    assert "IMAGE" in src, "No IMAGE media_type in _create_container"
 test("poster_image_validation", test_image_inline)
 
 
