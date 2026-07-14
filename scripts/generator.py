@@ -474,17 +474,48 @@ _NUM_RE = re.compile(
     r'|\d+[\d.,]*\s*(?:%|persen|persennya)'    # percentages
     r'|\d+[\d.,]*\s*(?:x|kali|lipat)'          # multipliers
     r'|\d+[\d.,]*\s*(?:juta|miliar|triliun|ribu)' # Indonesian large numbers
-    r'|\b\d{4,}\b)'                             # 4+ digit standalone numbers
+    r'|\b\d{2,}\b)'                             # standalone 2+ digit numbers
 )
 
-_CAP_RE = re.compile(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b')
+_CAP_RE = re.compile(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b')
 _COMMON_CAPS = {
+    # English
     'Slide', 'The', 'This', 'That', 'What', 'When', 'Where', 'How', 'Why',
     'But', 'And', 'For', 'Not', 'You', 'Your', 'Its', 'Our', 'Their',
     'Here', 'There', 'Then', 'Now', 'Still', 'Also', 'Just', 'Even',
+    'Can', 'Will', 'May', 'Let', 'Get', 'Got', 'Has', 'Had', 'Was',
+    'Are', 'Were', 'Been', 'Being', 'Does', 'Did', 'Could', 'Would',
+    'Should', 'Might', 'Must', 'All', 'Any', 'Each', 'Every', 'Both',
+    'Few', 'More', 'Most', 'Other', 'Some', 'Such', 'Than', 'Too',
+    'Very', 'Own', 'Same', 'Only', 'After', 'Before', 'Between',
+    'Under', 'Over', 'Into', 'Through', 'About', 'Against', 'Among',
+    # Indonesian
     'Apa', 'Ini', 'Itu', 'Kalau', 'Karena', 'Tapi', 'Maka', 'Jadi',
     'Bukan', 'Sudah', 'Belum', 'Masih', 'Hanya', 'Setiap', 'Semua',
     'Pertama', 'Kedua', 'Ketiga', 'Menurut', 'Selain', 'Tanpa',
+    'Cara', 'Yang', 'Dengan', 'Dari', 'Ke', 'Di', 'Pada', 'Untuk',
+    'Atau', 'Serta', 'Namun', 'Meski', 'Walaupun', 'Sebelum', 'Sesudah',
+    'Setelah', 'Ketika', 'Saat', 'Hingga', 'Sampai', 'Lalu', 'Kemudian',
+    'Aman', 'Rentan', 'Gak', 'Gagal', 'Jumlah', 'Update', 'Beli',
+    'Pasrah', 'Pilih', 'Mau', 'Bisa', 'Bakal', 'Perlu', 'Harus',
+    'Coba', 'Kasih', 'Langsung', 'Biar', 'Supaya', 'Agar',
+    'Jangan', 'Dulu', 'Lagi', 'Saja', 'Aja', 'Kok', 'Lah', 'Deh',
+    'Dong', 'Sih', 'Nih', 'Tuh', 'Nah', 'Wah', 'Adoh', 'Eh',
+    'Oleh', 'Antara', 'Melalui', 'Terhadap', 'Mengenai', 'Tentang',
+    'Data', 'Hasil', 'Fakta', 'Masalah', 'Solusi', 'Contoh',
+    'Alasan', 'Dampak', 'Resiko', 'Manfaat', 'Tujuan', 'Proses',
+    # CTA patterns
+    'A)', 'B)', 'C)', 'Option',
+    # Countries/regions (local relevance is intentional)
+    'Indonesia', 'Jakarta', 'Asia', 'Amerika', 'Eropa', 'China',
+    'Amerika', 'Serikat', 'Inggris', 'Jepang', 'Korea', 'India',
+    'Singapura', 'Malaysia', 'Thailand', 'Vietnam', 'Filipina',
+    # Common tech entities
+    'Google', 'Apple', 'Microsoft', 'Amazon', 'Meta', 'Facebook',
+    'Twitter', 'Instagram', 'TikTok', 'YouTube', 'Netflix',
+    'OpenAI', 'ChatGPT', 'Claude', 'Copilot', 'Gemini',
+    'Gojek', 'Grab', 'Tokopedia', 'Shopee', 'Traveloka',
+    'Bukalapap', 'Blibli', 'BRI', 'BCA', 'Mandiri',
 }
 
 
@@ -507,6 +538,9 @@ def _verify_against_source(slides: dict, article_text: str, title: str = "") -> 
         if not text:
             continue
 
+        # Strip URLs before checking (avoid URL path number false positives)
+        text = re.sub(r'https?://\S+', '', text).strip()
+
         # ── Check numbers ──
         for match in _NUM_RE.finditer(text):
             num = match.group().strip()
@@ -517,7 +551,7 @@ def _verify_against_source(slides: dict, article_text: str, title: str = "") -> 
             if not digits or len(digits) < 2:
                 continue
             # Allow year numbers and common small numbers
-            if int(digits) in {2024, 2025, 2026, 100, 10, 5}:
+            if int(digits) in {2024, 2025, 2026}:
                 continue
             if digits not in art_digits:
                 violations.append({
@@ -866,10 +900,11 @@ def evaluate_slides(slides: dict, title: str, body: str, score: int = 0) -> dict
             return {"status": "REJECT", "reason": f"Voice violation: {desc}", "grounding_score": 0, "issues": [desc], "revised_slides": None}
     
     # Cap-only check: keyword density abuse ("LU PASTI", "INI FAKTA", etc.)
-    caps_lines = re.findall(r'\b[A-Z]{4,}(?:\s+[A-Z]{4,})+\b', all_slide_text)
-    if len(caps_lines) > 2:
-        print(f"  [EVALUATOR] PRE-CHECK REJECT: excessive ALL-CAPS ({len(caps_lines)} occurrences)")
-        return {"status": "REJECT", "reason": "Excessive ALL-CAPS: looks like clickbait", "grounding_score": 0, "issues": ["Excessive ALL-CAPS"], "revised_slides": None}
+    # Count INDIVIDUAL all-caps words (4+ chars), not sequences
+    caps_words = re.findall(r'\b[A-Z]{4,}\b', all_slide_text)
+    if len(caps_words) > 6:
+        print(f"  [EVALUATOR] PRE-CHECK REJECT: excessive ALL-CAPS ({len(caps_words)} words: {caps_words[:5]})")
+        return {"status": "REJECT", "reason": f"Excessive ALL-CAPS: {len(caps_words)} words", "grounding_score": 0, "issues": [f"{len(caps_words)} ALL-CAPS words"], "revised_slides": None}
     # Always run evaluator — no skip threshold
     # (Old: skip ≥100, but grounding issues found even at high scores)
 
@@ -908,13 +943,13 @@ AUTO-REJECT TRIGGERS:
 - Recommending products/books not mentioned in article
 
 Return JSON:
-{{{{{{{
+{{
     "status": "APPROVE" or "REVISE" or "REJECT",
     "reason": "brief explanation",
     "issues": ["list of specific issues found"],
     "grounding_score": 0-10 (how many claims are grounded in article),
     "revised_slides": null
-}}}}}}}
+}}
 
 Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT.""" 
     elif is_narrative:
@@ -946,13 +981,13 @@ AUTO-REJECT TRIGGERS:
 - Post shorter than 200 characters (too thin)
 
 Return JSON:
-{{{
+{{
     "status": "APPROVE" or "REVISE" or "REJECT",
     "reason": "brief explanation",
     "issues": ["list of specific issues found"],
     "grounding_score": 0-10 (how many claims are grounded in article),
     "revised_slides": null or {{"hook": "revised text"}} if REVISE
-}}}
+}}
 
 Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT."""
     else:
