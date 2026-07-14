@@ -176,9 +176,9 @@ def get_metrics(post_id: str) -> Optional[dict]:
         return None
     try:
         r = httpx.get(
-            f"{GRAPH}/{post_id}",
+            f"{GRAPH}/{post_id}/insights",
             params={
-                "fields": "permalink,like_count,reply_count,share_count,views",
+                "metric": "views,likes,replies,reposts,quotes",
                 "access_token": TOKEN,
             },
             timeout=15,
@@ -186,12 +186,19 @@ def get_metrics(post_id: str) -> Optional[dict]:
         if r.status_code != 200:
             return None
         d = r.json()
+        metrics = {}
+        for item in d.get("data", []):
+            name = item.get("name")
+            value = item.get("values", [{}])[0].get("value", 0)
+            metrics[name] = value
+        if not metrics:
+            return None
         return {
-            "views": d.get("views", 0),
-            "likes": d.get("like_count", 0),
-            "replies": d.get("reply_count", 0),
-            "shares": d.get("share_count", 0),
-            "permalink": d.get("permalink", ""),
+            "views": metrics.get("views", 0),
+            "likes": metrics.get("likes", 0),
+            "replies": metrics.get("replies", 0),
+            "shares": metrics.get("reposts", 0) + metrics.get("quotes", 0),
+            "permalink": "",
         }
     except Exception:
         return None
@@ -200,14 +207,13 @@ def get_metrics(post_id: str) -> Optional[dict]:
 def pull_engagement(conn, max_per_run: int = 10) -> int:
     """Pull metrics for posts >12h old that haven't been tracked yet. Returns count updated."""
     import time as _time
-    cutoff = _time.time() - 43200  # 12 hours
+    cutoff = _time.time() - 3600  # 1 hour — aggressive pull
     
     rows = conn.execute("""
         SELECT id, thread_post_id, posted_at 
         FROM posts 
         WHERE status='posted' 
-          AND thread_post_id IS NOT NULL 
-          AND (views IS NULL OR views = 0)
+          AND thread_post_id IS NOT NULL
         ORDER BY id DESC
         LIMIT 50
     """).fetchall()
@@ -229,6 +235,10 @@ def pull_engagement(conn, max_per_run: int = 10) -> int:
         metrics = get_metrics(row['thread_post_id'])
         processed += 1
         if metrics:
+            conn.execute("""
+                INSERT OR REPLACE INTO performance (post_id, likes, replies, reposts, views)
+                VALUES (?, ?, ?, ?, ?)
+            """, (row['id'], metrics['likes'], metrics['replies'], metrics['shares'], metrics['views']))
             conn.execute("""
                 UPDATE posts SET views=?, likes=?, replies=?, shares=?
                 WHERE id=?
