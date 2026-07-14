@@ -64,9 +64,9 @@ log.addHandler(_handler)
 DRY_RUN = "--dry-run" in sys.argv
 USER_ID = "27516379201355016"  # @budakorporat_id
 MAX_CHARS = 480  # Threads per-slide limit
-COOLDOWN_MINUTES = 60  # 1 hour (matches hourly cron)
+COOLDOWN_MINUTES = 30
 SCORE_GATE = 25  # dynamic: naik ke 40 kalau topics >= 30 (pressbox pattern)
-ARTICLE_MIN_CHARS = 1000
+ARTICLE_MIN_CHARS = 500
 ARTICLE_MIN_WORDS = 150
 ARTICLE_MIN_SENTENCES = 8
 MAX_PER_SOURCE_RATIO = 0.5  # max 50% of ranked pool from one source
@@ -721,6 +721,18 @@ def extract_article_text(url):
     else:
         text = soup.get_text(separator=" ", strip=True)[:5000]
 
+    # Fallback: trafilatura for short articles
+    if len(text.strip()) < 500:
+        try:
+            import trafilatura
+            downloaded = trafilatura.fetch_url(url)
+            if downloaded:
+                extracted = trafilatura.extract(downloaded)
+                if extracted and len(extracted) > len(text):
+                    text = extracted
+        except Exception:
+            pass
+
     image_url = ""
     for pat in [r'<meta[^>]+property="og:image"[^>]+content="([^"]+)"',
                 r'<meta[^>]+content="([^"]+)"[^>]+property="og:image"',
@@ -813,7 +825,7 @@ Satu beat per slide. Tiap slide kena minimal 1 Viral Criteria.
 Bacaan lo. Pick ONE angle grounded di artikel. Kena Criteria #1 atau #7.
 
 ### Slide 6 — Closing + CTA (maks 50 kata)
-Wrap up + ajak comment. Satu pertanyaan balik ke hook. Source URL di akhir.
+Wrap up + ajak comment. Satu pertanyaan balik ke hook. JANGAN tulis source URL di slide ini.
 
 ## OUTPUT
 Return ONLY valid JSON:
@@ -1030,7 +1042,7 @@ def evaluator_check(slides, article_text, url):
 
 # ── Thread Posting ──────────────────────────────────────────────────────────
 
-def post_to_threads(slides, image_url=None):
+def post_to_threads(slides, image_url=None, url=None):
     """Post slides as chained thread to @budakorporat_id."""
     if not THREADS_TOKEN:
         log.error("No THREADS_ACCESS_TOKEN")
@@ -1082,6 +1094,15 @@ def post_to_threads(slides, image_url=None):
 
     for i, slide in enumerate(slides):
         text = slide["content"]
+
+        # Append caption + source URL to last slide
+        if i == len(slides) - 1:
+            caption = slides[0].get("caption", "").strip()
+            if caption:
+                text = f"{text}\n\n{caption}"
+            if url:
+                text = f"{text}\n\nSumber: {url}"
+
         log.info(f"  Slide {i+1}/{len(slides)}: {text[:60]}...")
 
         img = image_url if (i == 0 and image_url) else None
@@ -1155,9 +1176,9 @@ def main():
 
         # Base score
         ws = _workplace_relevance(title, desc)
-        if ws < 5:
-            continue  # hard filter: must have SOME workplace relevance
         s = t.get("score", 5) + ws
+        if ws == 0:
+            s -= 15  # heavy penalty for zero workplace relevance (soft filter)
 
         # Analytics-driven boost (pressbox pattern)
         hook = _classify_hook(tl)
@@ -1242,7 +1263,7 @@ def main():
     log.info(f"  {len(top_candidates)} candidates above gate {score_gate}")
 
     # ── Try up to 3 candidates: fetch → generate → ground → evaluate ──
-    MAX_ATTEMPTS = min(3, len(top_candidates))
+    MAX_ATTEMPTS = min(8, len(top_candidates))
     best = slides = article_text = image_url = None
     llm_time = 0
 
@@ -1318,7 +1339,7 @@ def main():
         return
 
     # Post
-    results = post_to_threads(slides, image_url)
+    results = post_to_threads(slides, image_url, url=url)
     if not results:
         log.error("Post failed")
         print("Post failed", flush=True)

@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from scraper import scrape_all, detect_hot_topics
+from scraper import scrape_all, detect_hot_topics, get_analytics_summary, compute_score_tuning, is_excluded, verify_body_quality, is_sensitive
 from generator import generate_carousel, generate_narrative_post, generate_thread_chain, evaluate_slides, generate_ab_variants
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed
 
@@ -84,8 +84,18 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
     # 1.5. Hot topic detection (Union-Find clustering)
     if articles:
         hotness = detect_hot_topics(articles)
+        
+        # 1.6. Analytics feedback loop (one-way, from engagement data)
+        analytics = get_analytics_summary(conn)
+        tuning = compute_score_tuning(conn)
+        if analytics["hook_boosts"] or analytics["topic_boosts"]:
+            print(f"  [ANALYTICS] Hook boosts: {analytics['hook_boosts']}")
+            print(f"  [ANALYTICS] Topic boosts: {analytics['topic_boosts']}")
+        if tuning.get("active"):
+            print(f"  [TUNING] Keyword×{tuning['keyword_multiplier']}, sources: {list(tuning['source_multipliers'].keys())}")
+        
         if hotness:
-            # Re-score articles with hot boost
+            # Re-score articles with hot boost + analytics feedback
             from scraper import score_article
             for art in articles:
                 url = art.get("url", "")
@@ -96,7 +106,27 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                         hot_boost = 25
                     elif score >= 1.5:
                         hot_boost = 15
-                art["score"] = score_article(art["title"], art.get("body", ""), art.get("date"), hot_boost=hot_boost, source=art.get("source", ""))
+                
+                # Analytics boost: hook pattern + source performance
+                analytics_boost = 0
+                src = art.get("source", "")
+                if src in analytics.get("topic_boosts", {}):
+                    analytics_boost += analytics["topic_boosts"][src]
+                
+                art["score"] = score_article(
+                    art["title"], art.get("body", ""), art.get("date"),
+                    hot_boost=hot_boost, analytics_boost=analytics_boost,
+                    source=src
+                )
+                
+                # Score auto-tuning: apply learned multipliers
+                if tuning.get("active"):
+                    mult = tuning.get("keyword_multiplier", 1.0)
+                    if mult != 1.0:
+                        art["score"] = int(art["score"] * mult)
+                    src_mult = tuning.get("source_multipliers", {}).get(src, 1.0)
+                    if src_mult != 1.0:
+                        art["score"] = int(art["score"] * src_mult)
             
             # Re-sort by score
             articles.sort(key=lambda x: x["score"], reverse=True)
@@ -104,10 +134,15 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
     # Trim to requested top_n
     articles = articles[:top_n]
 
-    # Get already-posted/staged article titles for dedup
+    # Get already-posted/staged article titles for dedup (72h window only — permanent accumulation breaks Jaccard)
     posted_titles = [row['title'] for row in conn.execute(
-        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id"
+        "SELECT a.title FROM posts p JOIN articles a ON p.article_id=a.id "
+        "WHERE p.created_at > datetime('now', '-72 hours') AND p.status IN ('posted', 'staged')"
     ).fetchall()]
+    # URL dedup stays permanent (prevent exact re-post)
+    posted_urls = set(row['url'] for row in conn.execute(
+        "SELECT a.url FROM posts p JOIN articles a ON p.article_id=a.id WHERE p.status='posted'"
+    ).fetchall())
 
     if articles:
         print(f"  Found {len(articles)} articles")
@@ -129,10 +164,17 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
         if not allow_celeb:
             print(f"  [RATIO] Celebrity cap hit ({recent_celeb}/{recent_total} = {celeb_ratio:.0%}). Will skip celebrity articles.")
 
-        for art in articles:
+        # Evaluator article fallback: try up to3 ranked articles before giving up
+        ARTICLES_TO_TRY = 3
+        article_accepted = False
+        for art_idx, art in enumerate(articles[:ARTICLES_TO_TRY]):
             print(f"\n  [{art['source']}] score={art['score']} | {art['title'][:60]}...")
 
-            # Dedup: skip if already posted/staged (title similarity)
+            # URL dedup (permanent — prevent exact re-post)
+            if art.get("url", "") in posted_urls:
+                print(f"  [DEDUP] Exact URL already posted: {art['title'][:50]}...")
+                continue
+            # Title dedup (72h window — Jaccard similarity)
             skip = False
             for pt in posted_titles:
                 if _title_overlap(art['title'], pt) > 0.35:
@@ -148,13 +190,31 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                 print(f"  [RATIO] Skipping celebrity: {art['title'][:50]}...")
                 continue
 
+            # Gossip/roundup/commercial filter
+            excluded, excl_reason = is_excluded(art['title'], art.get('body', ''))
+            if excluded:
+                print(f"  [FILTER] Excluded ({excl_reason}): {art['title'][:50]}...")
+                continue
+
+            # Sensitive content filter (violence, discrimination, etc)
+            if is_sensitive(art['title'], art.get('body', '')):
+                print(f"  [FILTER] Sensitive content: {art['title'][:50]}...")
+                continue
+
+            # Body quality verification
+            body_ok, body_reason = verify_body_quality(art['title'], art.get('body', ''))
+            if not body_ok:
+                print(f"  [FILTER] Body quality fail ({body_reason}): {art['title'][:50]}...")
+                continue
+
             # 2. Upsert article to DB
             article_id = upsert_article(conn, art)
             print(f"  Article #{article_id} saved to DB")
 
             if dry_run:
                 print("  [DRY RUN] Skipping generation")
-                continue
+                article_accepted = True
+                break
 
             # 3. Generate content (format-aware)
             a = dict(art)  # sqlite3.Row → dict for .get()
@@ -165,36 +225,38 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
             elif format == "thread_chain":
                 slides = generate_thread_chain(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
             else:
-                # A/B testing: generate 3 hook variants, pick best
+                # A/B testing: generate 3 hook variants, pick best (carousel only)
                 slides = generate_ab_variants(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""), n_variants=3)
             if not slides:
                 print("  ERROR: LM generation failed")
                 mark_failed(conn, article_id)
                 continue
-            
+
             # 2.5. Evaluator loop (independent LLM review)
             eval_result = evaluate_slides(slides, a["title"], a["body"], art["score"])
-            
+
             if eval_result["status"] == "REJECT":
                 print(f"  [EVALUATOR] REJECTED: {eval_result['reason'][:100]}")
-                mark_failed(conn, article_id)
-                continue
+                # Don't give up yet — try next ranked article
+                if art_idx < min(len(articles), ARTICLES_TO_TRY) - 1:
+                    print(f"  [EVALUATOR] Trying next ranked article...")
+                    mark_failed(conn, article_id)
+                    continue
+                else:
+                    mark_failed(conn, article_id)
+                    break  # exhausted all candidates
             elif eval_result["status"] == "REVISE" and eval_result.get("revised_slides"):
                 print(f"  [EVALUATOR] REVISED: {eval_result['reason'][:100]}")
                 slides = eval_result["revised_slides"]
-            
+
             # Handle different format structures
             if isinstance(slides, dict) and "_format" in slides:
                 fmt = slides["_format"]
                 if fmt == "narrative":
-                    # Narrative: single post, only slide_hook filled
                     stage_post(conn, article_id, {"hook": slides.get("hook", ""), "setup": "", "twist": "", "deep": "", "sowhat": "", "cta": ""}, slides.get("caption", ""), slides.get("hashtags", ""))
-                    staged_this_run = True
                 elif fmt == "thread_chain":
-                    # Thread chain: 10 slides, store all in caption for posting
                     slide_list = slides.get("slides", [])
                     caption = "\n---\n".join(slide_list)
-                    # Map first 6 slides to DB columns
                     stage_post(conn, article_id, {
                         "hook": slide_list[0] if slide_list else "",
                         "setup": slide_list[1] if len(slide_list) > 1 else "",
@@ -203,18 +265,15 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                         "sowhat": slide_list[4] if len(slide_list) > 4 else "",
                         "cta": slide_list[5] if len(slide_list) > 5 else "",
                     }, caption, slides.get("hashtags", ""))
-                    staged_this_run = True
                 else:
-                    # Carousel: 6 slides — pass original dict to stage_post
                     stage_post(conn, article_id, slides,
                         slides.get("caption", ""), slides.get("hashtags", ""))
-                    staged_this_run = True
             else:
-                # Legacy carousel format (dict with slide_1..slide_6) — pass directly
                 stage_post(conn, article_id, slides,
                     slides.get("caption", ""), slides.get("hashtags", ""))
-                staged_this_run = True
-            break  # one article per run
+            staged_this_run = True
+            article_accepted = True
+            break  # one post per run
     else:
         print("  No fresh articles from scraper.")
 

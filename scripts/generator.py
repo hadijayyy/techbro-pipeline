@@ -63,7 +63,7 @@ Dari artikel, temukan 5 strongest insights pakai filter ini (rank, jangan cuma l
 Dari 5 insights, pilih yang PALING KUAT buat hook. Sisanya arrange secara logikal ke 6 slides.
 
 ## 5. VIRAL CRITERIA (apply ke SETIAP post)
-Setiap slide WAJIB hit minimal 2 dari 7 kriteria ini. Kalau gak bisa hit 2, ceritanya gak cukup kuat.
+Setiap slide WAJIB hit minimal 2 dari 8 kriteria ini. Kalau gak bisa hit 2, ceritanya gak cukup kuat.
 
 1. **Pro & Con** — Ada debat atau dua sisi? Frame cerita di sekitar tensi, bukan cuma fakta.
 2. **Relatable** — Pembaca peduli? Hubungin ke sesuatu yang universal: uang, karir, kesehatan mental, produktivitas, mimpi. Bukan jargon teknis.
@@ -72,6 +72,7 @@ Setiap slide WAJIB hit minimal 2 dari 7 kriteria ini. Kalau gak bisa hit 2, ceri
 5. **Ironi / twist** — Kalau ada angle lucu atau absurd, pakai. Kontradiksi bikin penasaran.
 6. **Surprising fact** — Satu angka atau detail yang bikin "Gue gak tau itu." Reframe cerita.
 7. **Emotional hook** — Sentuh perasaan: marah, simpati, nostalgia, frustasi, harapan. Jangan cuma inform — bikin mereka FEEL sesuatu.
+8. **Absurd detail** — Detail kecil yang bikin orang geleng-geleng. Bukan angka gede, tapi FAKTA aneh yang bikin share. Contoh: "Hotelnya gak ada pantai" > "Hotel tidak sesuai ekspektasi". Detail absurd = shareability.
 
 ## 6. OUTPUT FORMAT
 Return ONLY valid JSON, no other text, no markdown fences:
@@ -88,6 +89,22 @@ Slide 6 must close with a natural open-ended question — goal is to bait replie
 - NO intro fluff. NO "Di era digital saat ini...". Straight to the shock.
 - CAPS untuk emphasis 1 kata doang.
 - Harus punya minimal salah satu: angka spesifik ATAU impact/consequence.
+
+**Winning Hook Formula (proven dari 1.8M view analysis):**
+Pattern: [Entity] baru aja [past-tense action] [timing/detail].
+Alasannya? [Punchline absurd/mengejutkan].
+Contoh: "Elon Musk baru aja PHK 200 engineer AI. Alasannya? Mereka gak bisa jawab pertanyaan sederhana."
+
+**Hook Anti-Patterns (JANGAN pakai — kills engagement):**
+- ❌ "[Entity] hits out at [object]" — generic editorial
+- ❌ "[Entity] shows signs of [comparison]" — vague
+- ❌ "[Entity] can be answer to [problem]" — speculative
+- ❌ "Did you know?" / "Let's dive in!" / "Here's the secret"
+- ❌ "Di era digital saat ini..." / "Teknologi semakin canggih..."
+
+**Hook Rewriting:** Kalau artikel pakai judul generik, rewrite pakai concrete past-tense action:
+- "Startup XYZ Raises Funding" → "Startup XYZ baru aja dapat Rp500M. Tapi yang menarik bukan dananya..."
+- "AI Tool Launches" → "OpenAI baru aja rilis tool baru. Yang bikin kaget: harganya GRATIS."
 
 Pilih salah satu hook pattern (variasi, JANGAN semua post pola sama):
 1. REALIZATION: "Gue baru nyadar... [fakta mengejutkan]"
@@ -329,6 +346,45 @@ def _call_groq(title: str, body: str, source: str = "") -> Optional[str]:
         print(f"Groq exception: {e}")
     return None
 
+def _call_narrative(title: str, body: str, source: str = "") -> Optional[str]:
+    """Call Mistral with narrative prompt."""
+    try:
+        r = httpx.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
+            json={"model": "mistral-large-latest",
+                  "messages": [{"role": "system", "content": NARRATIVE_PROMPT},
+                               {"role": "user", "content": _build_user_msg(title, body, source)}],
+                  "temperature": 0.3, "max_tokens": 2000},
+            timeout=120)
+        if r.status_code == 200:
+            return r.json()["choices"][0]["message"]["content"]
+        print(f"Mistral error (narrative): {r.status_code}")
+    except Exception as e:
+        print(f"Mistral exception (narrative): {e}")
+    return None
+
+def _call_thread_chain(title: str, body: str, image_url: str = "", source: str = "") -> Optional[str]:
+    """Call Mistral with thread chain prompt."""
+    try:
+        user_msg = _build_user_msg(title, body, source)
+        if image_url:
+            user_msg += f"\n\nArticle image: {image_url}"
+        r = httpx.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
+            json={"model": "mistral-large-latest",
+                  "messages": [{"role": "system", "content": THREAD_CHAIN_PROMPT},
+                               {"role": "user", "content": user_msg}],
+                  "temperature": 0.3, "max_tokens": 4000},
+            timeout=120)
+        if r.status_code == 200:
+            return r.json()["choices"][0]["message"]["content"]
+        print(f"Mistral error (thread_chain): {r.status_code}")
+    except Exception as e:
+        print(f"Mistral exception (thread_chain): {e}")
+    return None
+
 def _parse_json(raw: str) -> Optional[dict]:
     """Parse JSON from LLM output, handling markdown fences and malformed JSON."""
     if not raw:
@@ -514,12 +570,20 @@ _HOOK_PATTERNS = [
     "DATA DROP: \"[Angka spesifik] orang [konteks]. Lo termasuk?\"",
 ]
 
-def generate_ab_variants(title: str, body: str, image_url: str = "", source_url: str = "", source: str = "", n_variants: int = 3) -> Optional[dict]:
-    """Generate n_variants carousels with different hook patterns, pick best by hook quality."""
+def generate_ab_variants(title: str, body: str, image_url: str = "", source_url: str = "", source: str = "", n_variants: int = 3, format: str = "carousel") -> Optional[dict]:
+    """Generate n_variants with different hook patterns, pick best by hook quality.
+    
+    format: "carousel" (6-slide), "narrative" (single post), "thread_chain" (10-slide)
+    """
     import random
     
     if not MISTRAL_KEY:
-        return generate_carousel(title, body, image_url, source_url, source)
+        if format == "narrative":
+            return generate_narrative_post(title, body, source_url, source)
+        elif format == "thread_chain":
+            return generate_thread_chain(title, body, image_url, source_url, source)
+        else:
+            return generate_carousel(title, body, image_url, source_url, source)
     
     # Pick n random hook patterns
     patterns = random.sample(_HOOK_PATTERNS, min(n_variants, len(_HOOK_PATTERNS)))
@@ -531,8 +595,14 @@ def generate_ab_variants(title: str, body: str, image_url: str = "", source_url:
         # Build modified prompt with specific hook instruction
         hook_instruction = f"\n\n[A/B OVERRIDE] For Slide 1 (Hook), use THIS pattern: {pattern}"
         
-        # Generate with modified body (append hook instruction)
-        raw = _call_mistral(title, body + hook_instruction, source)
+        # Generate with format-appropriate function
+        if format == "narrative":
+            raw = _call_narrative(title, body + hook_instruction, source)
+        elif format == "thread_chain":
+            raw = _call_thread_chain(title, body + hook_instruction, image_url, source)
+        else:
+            raw = _call_mistral(title, body + hook_instruction, source)
+        
         if not raw:
             continue
         
@@ -543,7 +613,7 @@ def generate_ab_variants(title: str, body: str, image_url: str = "", source_url:
         slides = _postprocess_slides(slides, source_url)
         
         # Score hook quality (simple heuristic)
-        hook = slides.get("slide_1", "")
+        hook = slides.get("slide_1", "") or slides.get("hook", "") or ""
         hook_score = 0
         # Has number/specific data
         if re.search(r'\d', hook):
@@ -566,7 +636,12 @@ def generate_ab_variants(title: str, body: str, image_url: str = "", source_url:
     
     if not variants:
         print("  [A/B] All variants failed, falling back to single generation")
-        return generate_carousel(title, body, image_url, source_url, source)
+        if format == "narrative":
+            return generate_narrative_post(title, body, source_url, source)
+        elif format == "thread_chain":
+            return generate_thread_chain(title, body, image_url, source_url, source)
+        else:
+            return generate_carousel(title, body, image_url, source_url, source)
     
     # Pick best variant
     best_score, best_slides = max(variants, key=lambda x: x[0])

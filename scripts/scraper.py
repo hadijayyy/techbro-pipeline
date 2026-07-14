@@ -20,6 +20,91 @@ TOP_N = 1
 # Source fingerprints — skip unchanged RSS feeds
 FINGERPRINTS_PATH = Path.home() / ".hermes" / "techbro" / "source-fingerprints.json"
 
+# Gossip/roundup filter — articles that are inherently thin on facts
+_GOSSIP_KEYWORDS = [
+    "gossip roundup", "paper talk", "transfer gossip", "rumour mill",
+    "weekly roundup", "tips minggu ini", "berita minggu ini", "rekap berita",
+    "yang trending minggu", " highlight", "rekap", "roundup",
+]
+
+# Commercial filter — shopping/deals content
+_COMMERCIAL_KEYWORDS = [
+    "snap up", "buy now", "% off", "discount", "checkout", "cart",
+    "amazon deal", "ebay deal", "best deal", "daily deal",
+]
+
+# Sensitive content — exact match
+_SENSITIVE_EXACT = [
+    "breasts", "boobs", "topless", "nude", "naked", "rape", "sexual assault",
+    "pedophilia", "child abuse", "charged with", "convicted of", "guilty of",
+    "domestic violence", "racist", "racism", "racial abuse", "hate crime",
+    "genocide", "ethnic cleansing", "terrorism",
+]
+
+# Sensitive content — wildcard (fnmatch) for obfuscated violence terms
+# Use word-boundary-like patterns to avoid false positives on Indonesian words
+_SENSITIVE_WILDCARD = [
+    "killed", "killing", "killer",  # exact violence terms, not wildcard
+    "death", "deaths", "dead",      # exact death terms
+    "murder", "murdered", "murderer",
+    "stabbing", "stabbed",
+    "bombing", "bombed",
+    "terrorist", "terrorism",
+]
+
+def is_sensitive(title: str, body: str = "") -> bool:
+    """Check if article contains sensitive content (violence, discrimination, etc).
+    Uses exact match for known terms.
+    """
+    text = (title + " " + body[:1000]).lower()
+    
+    # Exact match
+    for term in _SENSITIVE_EXACT:
+        if term in text:
+            return True
+    
+    # Direct term match (no wildcard — avoids Indonesian false positives)
+    for term in _SENSITIVE_WILDCARD:
+        if term in text:
+            return True
+    
+    return False
+
+def is_excluded(title: str, body: str = "") -> tuple[bool, str]:
+    """Check if article should be excluded (gossip, commercial, etc).
+    Returns (excluded: bool, reason: str).
+    """
+    text = (title + " " + body[:500]).lower()
+    
+    for kw in _GOSSIP_KEYWORDS:
+        if kw in text:
+            return True, f"gossip: {kw}"
+    
+    for kw in _COMMERCIAL_KEYWORDS:
+        if kw in text:
+            return True, f"commercial: {kw}"
+    
+    return False, ""
+
+
+def verify_body_quality(title: str, body: str) -> tuple[bool, str]:
+    """Verify article body has sufficient content for generation.
+    Returns (ok: bool, reason: str).
+    """
+    if len(body.strip()) < 500:
+        return False, f"body too short ({len(body.strip())} chars < 500)"
+    
+    words = body.split()
+    if len(words) < 100:
+        return False, f"body too few words ({len(words)} < 100)"
+    
+    # Check for real content signals (not just boilerplate)
+    sentences = [s.strip() for s in re.split(r'[.!?]+', body) if len(s.strip()) > 20]
+    if len(sentences) < 3:
+        return False, f"body too few sentences ({len(sentences)} < 3)"
+    
+    return True, ""
+
 def _load_fingerprints() -> dict:
     if not FINGERPRINTS_PATH.exists():
         return {}
@@ -1851,6 +1936,128 @@ async def scrape_all_async(top_n: int = TOP_N) -> list[dict]:
 
 def scrape_all(top_n: int = TOP_N) -> list[dict]:
     return asyncio.run(scrape_all_async(top_n))
+
+
+def get_analytics_summary(conn) -> dict:
+    """One-way analytics feedback: classify hooks/topics, compute boosts.
+    
+    Returns: {
+        "hook_boosts": {pattern: boost},  # top 2 hooks get +15, worst -20
+        "topic_boosts": {source: boost},  # best 2 sources get +10, worst -10
+        "hot_topics": [str],              # trending keywords from recent posts
+    }
+    Requires 10+ posts with engagement metrics (views > 0).
+    """
+    result = {"hook_boosts": {}, "topic_boosts": {}, "hot_topics": []}
+    
+    # Need at least 10 posts with views
+    posts = conn.execute("""
+        SELECT p.hook_pattern, p.views, p.likes, p.shares, a.source, a.title
+        FROM posts p JOIN articles a ON p.article_id = a.id
+        WHERE p.status = 'posted' AND p.views > 0
+        ORDER BY p.posted_at DESC
+        LIMIT 50
+    """).fetchall()
+    
+    if len(posts) < 10:
+        return result
+    
+    # --- Hook pattern performance ---
+    hook_perf = {}  # pattern → [engagement_scores]
+    for p in posts:
+        pat = dict(p).get("hook_pattern", "") or "unknown"
+        views = dict(p).get("views", 0) or 0
+        likes = dict(p).get("likes", 0) or 0
+        shares = dict(p).get("shares", 0) or 0
+        eng = views + likes * 10 + shares * 20  # weighted engagement
+        hook_perf.setdefault(pat, []).append(eng)
+    
+    if hook_perf:
+        hook_avgs = {k: sum(v)/len(v) for k, v in hook_perf.items()}
+        sorted_hooks = sorted(hook_avgs.items(), key=lambda x: -x[1])
+        if len(sorted_hooks) >= 2:
+            result["hook_boosts"][sorted_hooks[0][0]] = +15
+            result["hook_boosts"][sorted_hooks[1][0]] = +10
+            result["hook_boosts"][sorted_hooks[-1][0]] = -20
+    
+    # --- Source performance ---
+    source_perf = {}  # source → [engagement_scores]
+    for p in posts:
+        src = dict(p).get("source", "") or "unknown"
+        views = dict(p).get("views", 0) or 0
+        likes = dict(p).get("likes", 0) or 0
+        eng = views + likes * 10
+        source_perf.setdefault(src, []).append(eng)
+    
+    if len(source_perf) >= 3:
+        source_avgs = {k: sum(v)/len(v) for k, v in source_perf.items()}
+        sorted_sources = sorted(source_avgs.items(), key=lambda x: -x[1])
+        result["topic_boosts"][sorted_sources[0][0]] = +10
+        result["topic_boosts"][sorted_sources[-1][0]] = -10
+    
+    return result
+
+
+def compute_score_tuning(conn) -> dict:
+    """Learn from engagement data to adjust scoring. Needs 20+ posts.
+    
+    Returns: {"keyword_multiplier": float, "source_multipliers": {src: float}, "active": bool}
+    Multipliers clamped [0.7, 1.5]. Saved to ~/.hermes/techbro/score-tuning.json.
+    """
+    import json as _json
+    from pathlib import Path
+    
+    tuning_file = Path.home() / ".hermes" / "techbro" / "score-tuning.json"
+    default = {"keyword_multiplier": 1.0, "source_multipliers": {}, "active": False}
+    
+    posts = conn.execute("""
+        SELECT p.views, p.likes, a.source, a.score
+        FROM posts p JOIN articles a ON p.article_id = a.id
+        WHERE p.status = 'posted' AND p.views > 0
+        ORDER BY p.posted_at DESC
+        LIMIT 100
+    """).fetchall()
+    
+    if len(posts) < 20:
+        return default
+    
+    engagements = [dict(p).get("views", 0) + dict(p).get("likes", 0) * 10 for p in posts]
+    median_eng = sorted(engagements)[len(engagements) // 2]
+    
+    high = [(dict(p)["source"], dict(p)["score"]) for p, e in zip(posts, engagements) if e >= median_eng * 1.3]
+    low = [(dict(p)["source"], dict(p)["score"]) for p, e in zip(posts, engagements) if e < median_eng * 0.7]
+    
+    if len(high) < 3 or len(low) < 3:
+        return default
+    
+    # Keyword multiplier: if high-performers have higher scores → keywords work
+    avg_high_score = sum(s for _, s in high) / len(high)
+    avg_low_score = sum(s for _, s in low) / len(low)
+    keyword_mult = max(0.7, min(1.5, 1.0 + (avg_high_score - avg_low_score) / 100))
+    
+    # Source multipliers
+    source_mults = {}
+    src_eng = {}
+    for p in posts:
+        src = dict(p)["source"]
+        eng = dict(p)["views"] + dict(p)["likes"] * 10
+        src_eng.setdefault(src, []).append(eng)
+    if len(src_eng) >= 3:
+        global_avg = sum(sum(v)/len(v) for v in src_eng.values()) / len(src_eng)
+        for src, engs in src_eng.items():
+            src_avg = sum(engs) / len(engs)
+            mult = max(0.7, min(1.5, src_avg / max(global_avg, 1)))
+            source_mults[src] = round(mult, 2)
+    
+    result = {
+        "keyword_multiplier": round(keyword_mult, 2),
+        "source_multipliers": source_mults,
+        "active": True,
+    }
+    
+    tuning_file.parent.mkdir(parents=True, exist_ok=True)
+    tuning_file.write_text(_json.dumps(result, indent=2))
+    return result
 
 
 if __name__ == "__main__":
