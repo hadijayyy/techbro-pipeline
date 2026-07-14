@@ -486,7 +486,6 @@ PENALTY = [
     "unboxing", "hands-on", "review:", "buying guide", "gift guide",
     "coupon", "discount", "earbuds", "earphone", "headphone", "smartphone review",
     "battery life test", "benchmark score",
-    "zodiak", "horoscope", "gossip", "celebrity",
     # Low-relatability for Indonesian audience
     "wall street", "silicon valley", "us election", "senate", "congress",
     "eu regulation", "gdpr", "dma", "ftc",
@@ -507,6 +506,9 @@ EXCLUDE = [
     "roblox", "minecraft", "gacha", "gameplay", "let's play",
     "taylor swift", "travis kelce", "wedding", "married", "concert", "tour", "album",
     "election", "parliament", "war", "sanctions",
+    "zodiak", "horoscope", "ramalan", "astrologi", "gossip", "celebrity",
+    "relationship advice", "hubungan", "pasangan", "pacar", "jodoh",
+    "skincare", "makeup", "fashion", "ootd", "diet", "detox",
     # Product launches / self-promo from blog sources
     "we're launching", "i've been building", "introducing purpose",
     "meet purpose", "sign up for purpose", "try purpose",
@@ -539,7 +541,6 @@ EXCLUDE = [
     "pre-order", "bisa pre order", "bocoran spesifikasi", "spesifikasi bocor",
     # App launches without educational value
     "app launch", "app release", "new app", "app baru",
-    "fitur baru", "feature update", "update terbaru", "versi baru",
     "software update", "firmware update", "pembaruan",
     "technical paper", "whitepaper", "rfc", "specification",
     "changelog", "release notes", "patch notes",

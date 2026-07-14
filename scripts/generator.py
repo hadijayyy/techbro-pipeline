@@ -193,13 +193,41 @@ SEMUA fakta HARUS dari artikel. Never invent.
 2. NO EXAGGERATED PARAPHRASING — "called for changes" ≠ "demanded". Preserve strength asli.
 3. NO SPECULATIVE CONSEQUENCES — jangan prediksi masa depan.
 4. QUOTES word-for-word dari artikel. Paraphrase pakai indirect speech.
-5. NO PARTIAL LISTS — include SEMUA item kalau list.
+5. NO PARTIAL LISTS — include SEMUA item kalau list. Kalau gak muat, tulis "dan lainnya".
 6. RUMOR → bilang eksplisit ("menurut laporan" / "belum dikonfirmasi").
 7. TEST EACH SLIDE: "Bisa gw tunjuk kalimat spesifik di artikel?" Kalau gak, hapus.
 8. NO INVENTED ANGKA — jangan "setara Rp500 juta" kecuali artikel bilang.
 9. NO INVENTED INVOLVEMENT — jangan tambahin tokoh yang gak disebut.
 10. PRESERVE HEDGING — "kemungkinan besar" ≠ "pasti".
 11. NO FAKE PERSONAL STORIES — artikel tentang orang lain, JANGAN rewrite jadi "ibu gw", "temen gw", "kantor gw". Reaksi lu ke fakta = OK. Fabricate pengalaman lu = REJECT.
+
+## 13b. FORBIDDEN HALLUCINATION PATTERNS (from Pressbox)
+JANGAN tulis pola kayak gini — ini tanda LLM ngarang:
+
+[CONDITIONAL WORDS — banned di SEMUA slide]
+- ❌ "would have", "could have", "might have"
+- ❌ "berisiko", "berpotensi", "ancaman" (kalau artikel gak sebut)
+- ❌ "seharusnya", "mustinya", "kalau saja"
+
+[SPECULATIVE EXTRAPOLATION — banned]
+- ❌ Prediksi dampak yang gak ada di artikel: "pemain bakal kelelahan sebelum turun minum"
+- ❌ Prediksi emosi: "mereka pasti marah", "tim pasti kaget"
+- ❌ Prediksi konsekuensi: "ini bakal bikin mereka kalah", "akibatnya mereka terdegradasi"
+Rule: Nyebut fakta ≠ prediksi dampak. "Altitude 2.240m" OK. "Pemain bakal ngos-ngosan" = REJECT kalau gak di artikel.
+
+[OVERSIZED PARAPHRASE — banned]
+- ❌ "called for" → "demanded" (escalate)
+- ❌ "suggested" → "insisted" (escalate)
+- ❌ "a little bit ahead" → "far ahead" (exaggerate)
+Rule: Preserve EXACT kekuatan bahasa asli. Lembut = tetap lembut.
+
+[SLIDE 4 DEEPEN — extra strict, highest hallucination risk]
+Slide 4 HARUS pakai data/konteks dari artikel. JANGAN ngarang konsekuensi.
+- ❌ "down to ten men" kalau gak ada kartu merah
+- ❌ "rampant on the counter" kalau artikel gak deskripsiin
+- ❌ "risked more than a red card" — invented hypothetical
+- ❌ "would have left them chasing shadows" — conditional invention
+Kalau artikel gak jelasin akibat dari suatu kejadian, Slide 4 deskripsiin MOMEN itu sendiri (apa yang terjadi, bukan apa akibatnya).
 
 ## 14. BANNED PATTERNS
 
@@ -729,6 +757,13 @@ def generate_carousel(title: str, body: str, image_url: str = "", source_url: st
         print(f"  Raw output: {raw[:500]}")
         return None
     
+    # ── Validate: all 6 slides must exist and be non-empty ──
+    required = ['slide_1', 'slide_2', 'slide_3', 'slide_4', 'slide_5', 'slide_6']
+    missing = [k for k in required if not slides.get(k, '').strip()]
+    if missing:
+        print(f"  REJECT: missing slides: {missing}")
+        return None
+    
     # Postprocess
     slides = _postprocess_slides(slides, source_url)
 
@@ -807,6 +842,14 @@ def generate_ab_variants(title: str, body: str, image_url: str = "", source_url:
         slides = _parse_json(raw)
         if not slides:
             continue
+        
+        # ── Validate: all 6 slides must exist ──
+        if format == "carousel":
+            required = ['slide_1', 'slide_2', 'slide_3', 'slide_4', 'slide_5', 'slide_6']
+            missing = [k for k in required if not slides.get(k, '').strip()]
+            if missing:
+                print(f"    REJECT: missing slides: {missing}")
+                continue
         
         slides = _postprocess_slides(slides, source_url)
         
@@ -1016,6 +1059,10 @@ YOUR TASK:
 10. **RELATABILITY** — Flag Western concepts: "winter blues", "Thanksgiving", "Super Bowl", "401k", "credit score", "Ivy League", "prom night". REJECT unless reframed with local equivalent.
 11. **FAKE PERSONAL STORY** — If article is about someone else's experience, slides MUST NOT rewrite as "ibu gw", "temen gw", "kantor gw". React to facts = OK. Fabricate = REJECT.
 12. **ANTI-LINKEDIN** — Check for banned corporate fluff: "self improvement", "keharusan", "keluar zona nyaman", "mindset pertumbuhan", "transformasi diri", etc. Must use Indonesian real context (gaji UMR, side hustle, mager, cicilan, kos-kosan).
+13. **SPECULATIVE EXTRAPOLATION** — Does any slide predict consequences, emotions, or outcomes NOT explicitly stated in the article? "Altitude 2.240m" ≠ "players will gasp for air". Mentioning X ≠ predicting Y. Flag any prediction beyond literal text.
+14. **OVERSIZED PARAPHRASE** — Does any slide ESCALATE language strength? "called for" → "demanded"? "suggested" → "insisted"? "a little bit" → "far"? Compare verb/adjective intensity between slide and source. Flag if stronger.
+15. **PARTIAL LISTS** — Does any slide present a SUBSET as complete list? If article lists 5 names and slide shows 3 as "the lineup", flag it. Must include ALL or write "among others".
+16. **META-RULE** — For EACH slide, can you point to the EXACT sentence in the article? If claim requires inference beyond literal text, flag it.
 
 APPROVAL CRITERIA:
 - APPROVE: All facts grounded, story arc flows, hook has angka+consequence, Deep has hard data, CTA is A/B/C debate
@@ -1033,6 +1080,9 @@ AUTO-REJECT TRIGGERS:
 - Western concept as main angle with no local reframing
 - Fake personal story: rewriting someone else's experience as first-person
 - LinkedIn corporate fluff vocabulary
+- Speculative extrapolation: predicting consequences not in article
+- Oversized paraphrase: escalating soft language to strong
+- Partial lists: presenting subset as complete list
 
 Return JSON:
 {{
