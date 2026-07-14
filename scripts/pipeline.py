@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from scraper import scrape_all, detect_hot_topics, get_analytics_summary, compute_score_tuning, is_excluded, verify_body_quality, is_sensitive
-from generator import generate_carousel, generate_narrative_post, generate_thread_chain, evaluate_slides, generate_ab_variants
+from generator import generate_carousel, generate_narrative_post, generate_thread_chain, evaluate_slides, generate_ab_variants, _postprocess_slides
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed
 
 TOP_N = 1  # articles per run
@@ -248,6 +248,9 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
             elif eval_result["status"] == "REVISE" and eval_result.get("revised_slides"):
                 print(f"  [EVALUATOR] REVISED: {eval_result['reason'][:100]}")
                 slides = eval_result["revised_slides"]
+                # Re-apply postprocessing to append source_url & enforce limits
+                source_url = a.get("url", "")
+                slides = _postprocess_slides(slides, source_url)
 
             # Handle different format structures
             if isinstance(slides, dict) and "_format" in slides:
