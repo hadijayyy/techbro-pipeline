@@ -145,6 +145,25 @@ def test_fake_quote_strip():
     assert "imajiner" not in p2["slide_4"], f"Fake quote remains: {p2['slide_4']}"
 test("postproc_fake_quotes", test_fake_quote_strip)
 
+def test_factcheck():
+    from generator import _verify_against_source
+    # Ungrounded numbers should be flagged
+    slides = {"slide_1": "OpenAI rilis model yang gantiin 80% kerja. Funding Rp 500 miliar.",
+              "slide_2": "", "slide_3": "", "slide_4": "", "slide_5": "", "slide_6": ""}
+    v = _verify_against_source(slides, "OpenAI merilis model AI baru untuk startup.")
+    assert len(v) >= 2, f"Expected 2+ violations, got {len(v)}"
+    # Grounded numbers should pass clean
+    slides2 = {"slide_1": "AI gantiin 80% kerja analyst.", "slide_2": "", "slide_3": "",
+               "slide_4": "", "slide_5": "", "slide_6": ""}
+    v2 = _verify_against_source(slides2, "Model AI baru bisa gantiin 80% kerja analyst.")
+    assert len(v2) == 0, f"Expected 0 violations for grounded, got {len(v2)}"
+    # Entity not in article should flag
+    slides3 = {"slide_1": "Elon Musk bilang Tesla bangun pabrik.", "slide_2": "", "slide_3": "",
+               "slide_4": "", "slide_5": "", "slide_6": ""}
+    v3 = _verify_against_source(slides3, "CEO Tesla mengumumkan rencana ekspansi.")
+    assert any(x['type'] == 'entity' for x in v3), f"Expected entity violation"
+test("factcheck_verify", test_factcheck)
+
 
 # === 4. generator.py API ===
 print("\n4. GENERATOR.PY — Mistral API")

@@ -457,6 +457,7 @@ def _parse_json(raw: str) -> Optional[dict]:
 def _count_sentences(text: str):
     return len([s for s in re.split(r'(?<=[.!?])\s+', text.strip()) if len(s.strip()) > 5])
 
+
 def _add_whitespace(text: str) -> str:
     """Split into sentences and join with blank lines between each."""
     sentences = re.split(r'(?<=[.!?])\s+', text.strip())
@@ -464,6 +465,80 @@ def _add_whitespace(text: str) -> str:
     if len(sentences) <= 1:
         return text
     return "\n\n".join(sentences)
+
+
+# ── Deterministic fact-check: cross-reference slides against source article ──
+
+_NUM_RE = re.compile(
+    r'(?:(?:Rp|IDR|USD|\$)\s?\d[\d.,]*\b'     # currency: Rp500, $1.2M
+    r'|\d+[\d.,]*\s*(?:%|persen|persennya)'    # percentages
+    r'|\d+[\d.,]*\s*(?:x|kali|lipat)'          # multipliers
+    r'|\d+[\d.,]*\s*(?:juta|miliar|triliun|ribu)' # Indonesian large numbers
+    r'|\b\d{4,}\b)'                             # 4+ digit standalone numbers
+)
+
+_CAP_RE = re.compile(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})\b')
+_COMMON_CAPS = {
+    'Slide', 'The', 'This', 'That', 'What', 'When', 'Where', 'How', 'Why',
+    'But', 'And', 'For', 'Not', 'You', 'Your', 'Its', 'Our', 'Their',
+    'Here', 'There', 'Then', 'Now', 'Still', 'Also', 'Just', 'Even',
+    'Apa', 'Ini', 'Itu', 'Kalau', 'Karena', 'Tapi', 'Maka', 'Jadi',
+    'Bukan', 'Sudah', 'Belum', 'Masih', 'Hanya', 'Setiap', 'Semua',
+    'Pertama', 'Kedua', 'Ketiga', 'Menurut', 'Selain', 'Tanpa',
+}
+
+
+def _verify_against_source(slides: dict, article_text: str, title: str = "") -> list:
+    """Deterministic fact-check: extract numbers + named entities from slides,
+    verify each exists in the source article.
+
+    Returns list of violations: [{slide, type, value, found}]
+    """
+    if not article_text:
+        return []
+
+    art_lower = article_text.lower()
+    art_digits = re.sub(r'[^\d]', '', art_lower)  # digits-only for number matching
+
+    violations = []
+
+    for key in ['slide_1', 'slide_2', 'slide_3', 'slide_4', 'slide_5', 'slide_6']:
+        text = slides.get(key, '')
+        if not text:
+            continue
+
+        # ── Check numbers ──
+        for match in _NUM_RE.finditer(text):
+            num = match.group().strip()
+            digit_core = re.search(r'[\d.,]+', num)
+            if not digit_core:
+                continue
+            digits = re.sub(r'[^\d]', '', digit_core.group())
+            if not digits or len(digits) < 2:
+                continue
+            # Allow year numbers and common small numbers
+            if int(digits) in {2024, 2025, 2026, 100, 10, 5}:
+                continue
+            if digits not in art_digits:
+                violations.append({
+                    'slide': key, 'type': 'number',
+                    'value': num, 'found': False
+                })
+
+        # ── Check named entities ──
+        for match in _CAP_RE.finditer(text):
+            entity = match.group(1)
+            if entity in _COMMON_CAPS:
+                continue
+            if entity.lower() not in art_lower:
+                if title and entity.lower() in title.lower():
+                    continue
+                violations.append({
+                    'slide': key, 'type': 'entity',
+                    'value': entity, 'found': False
+                })
+
+    return violations
 
 def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
     """Post-process all slides: strip markdown, banned phrases, hallucinations."""
@@ -622,6 +697,21 @@ def generate_carousel(title: str, body: str, image_url: str = "", source_url: st
     # Postprocess
     slides = _postprocess_slides(slides, source_url)
 
+    # ── Layer 5: Deterministic fact-check against source ──
+    violations = _verify_against_source(slides, body, title)
+    if violations:
+        num_violations = [v for v in violations if v['type'] == 'number']
+        ent_violations = [v for v in violations if v['type'] == 'entity']
+        for v in violations[:5]:  # log max 5
+            print(f"  [FACT-CHECK] ⚠️ {v['slide']}: {v['type']} '{v['value']}' not in source")
+        # Hard reject if 3+ ungrounded numbers (likely hallucinated stats)
+        if len(num_violations) >= 3:
+            print(f"  [FACT-CHECK] REJECT: {len(num_violations)} ungrounded numbers")
+            return None
+        # Warn but allow if only entities (could be general knowledge)
+        if len(violations) >= 5:
+            print(f"  [FACT-CHECK] WARN: {len(violations)} total violations (passing to evaluator)")
+
     # Gate: evaluator check (anti-hallucination, fail-safe)
     if MISTRAL_KEY:
         eval_result = evaluate_slides(slides, title, body)
@@ -716,10 +806,31 @@ def generate_ab_variants(title: str, body: str, image_url: str = "", source_url:
         else:
             return generate_carousel(title, body, image_url, source_url, source)
     
-    # Pick best variant
-    best_score, best_slides = max(variants, key=lambda x: x[0])
-    print(f"  [A/B] Winner: hook_score={best_score} from {len(variants)} variants")
-    return best_slides
+    # Pick best variant by hook_score, but evaluate for hallucination
+    # Try candidates in descending hook_score order until one passes
+    variants.sort(key=lambda x: x[0], reverse=True)
+    for rank, (score, slides) in enumerate(variants, 1):
+        print(f"  [A/B] Candidate #{rank}: hook_score={score}")
+
+        # Evaluator gate
+        if MISTRAL_KEY:
+            eval_result = evaluate_slides(slides, title, body)
+            if eval_result["status"] == "REJECT":
+                print(f"  [A/B] REJECTED candidate #{rank}: {eval_result['reason'][:80]}")
+                continue
+            print(f"  [A/B] APPROVED candidate #{rank}")
+
+        print(f"  [A/B] Winner: hook_score={score} from {len(variants)} variants")
+        return slides
+
+    # All candidates failed evaluation — fall back to single generation (self-evaluates)
+    print(f"  [A/B] All {len(variants)} variants rejected, falling back to single generation")
+    if format == "narrative":
+        return generate_narrative_post(title, body, source_url, source)
+    elif format == "thread_chain":
+        return generate_thread_chain(title, body, image_url, source_url, source)
+    else:
+        return generate_carousel(title, body, image_url, source_url, source)
 
 
 def evaluate_slides(slides: dict, title: str, body: str, score: int = 0) -> dict:
@@ -731,8 +842,17 @@ def evaluate_slides(slides: dict, title: str, body: str, score: int = 0) -> dict
     Uses mistral-small-latest (cheap, different model than generator).
     """
     # ═══ DETERMINISTIC PRE-CHECK (no API call) ═══
-    # Voice check: gue/lo/Ak/kalian must not appear in any slide
-    all_slide_text = "\n".join([str(slides.get(f"slide_{i}", "")) for i in range(1, 7)])
+    # Detect format early for pre-check text extraction
+    is_thread_chain = slides.get("_format") == "thread_chain" or "slides" in slides
+    is_narrative = slides.get("_format") == "narrative"
+
+    if is_thread_chain:
+        slide_list = slides.get("slides", [])
+        all_slide_text = "\n".join(slide_list)
+    elif is_narrative:
+        all_slide_text = slides.get("hook", slides.get("caption", ""))
+    else:
+        all_slide_text = "\n".join([str(slides.get(f"slide_{i}", "")) for i in range(1, 7)])
     voice_bans = [
         (r'\bgue\b', '"gue" instead of "gw"'),
         (r'\blo tau gak\b|\blu tau gak\b', '"lo/lu tau gak?" banned quiz-show hook'),
@@ -788,15 +908,53 @@ AUTO-REJECT TRIGGERS:
 - Recommending products/books not mentioned in article
 
 Return JSON:
-{{{{
+{{{{{{{
     "status": "APPROVE" or "REVISE" or "REJECT",
     "reason": "brief explanation",
     "issues": ["list of specific issues found"],
     "grounding_score": 0-10 (how many claims are grounded in article),
     "revised_slides": null
-}}}}
+}}}}}}}
 
 Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT.""" 
+    elif is_narrative:
+        evaluator_prompt = f"""You are a skeptical content reviewer for Indonesian Threads posts. Review this SINGLE narrative post against the source article.
+
+ARTICLE TITLE: {title}
+
+ARTICLE EXCERPT: {body[:2000]}
+
+GENERATED POST:
+{slide_text}
+
+YOUR TASK:
+1. **GROUNDING CHECK** — Every claim, fact, statistic MUST come from the article. No invented numbers, quotes, or recommendations.
+2. **NUMBER CHECK** — Any specific number MUST be verifiable in the article. "BEST SELLER", "terlaris", "populer" without source numbers = REJECT.
+3. **FAKE PERSONAL STORY** — If article is about someone else (CEO, founder, expert), post MUST NOT rewrite as "gw baru aja...", "temen gw...", "kantor gw...". The "Bro" persona can REACT to facts ("gw kaget pas baca..."), but cannot FABRICATE first-person experience of someone else's story.
+4. **DIALOGUE CHECK** — Any dialogue/quote in the post MUST come from the article. Invented conversations = REJECT.
+5. **VOICE CHECK** — Must use gw/lu consistently. No gue/lo/aku/kalian.
+6. **STRUCTURE CHECK** — Narrative = single flowing story. Must have: hook with angka → context → twist/insight → lesson → open loop. Not just summarizing article.
+7. **LOCAL RELEVANCE** — Foreign concepts must be reframed for Indonesian audience (gaji UMR, side hustle, kos-kosan, cicilan).
+
+AUTO-REJECT TRIGGERS:
+- Inventing statistics or facts not in article
+- Fabricating dialogue or quotes not in article
+- Rewriting third-person experience as first-person
+- "Lu tau gak?" quiz-show pattern
+- Recommending products/books not mentioned in article
+- Generic advice with no source grounding
+- Post shorter than 200 characters (too thin)
+
+Return JSON:
+{{{
+    "status": "APPROVE" or "REVISE" or "REJECT",
+    "reason": "brief explanation",
+    "issues": ["list of specific issues found"],
+    "grounding_score": 0-10 (how many claims are grounded in article),
+    "revised_slides": null or {{"hook": "revised text"}} if REVISE
+}}}
+
+Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT."""
     else:
         evaluator_prompt = f"""You are a skeptical content reviewer for Threads posts targeting Indonesian audience. Review the following 6-slide carousel against the RCTOE v4 framework.
 
@@ -1008,6 +1166,16 @@ def generate_narrative_post(title: str, body: str, source_url: str = "", source:
         text = text[:497] + "..."
 
     result = {"hook": text, "caption": text, "_format": "narrative"}
+
+    # ── Layer 5: Deterministic fact-check against source ──
+    violations = _verify_against_source({"slide_1": text}, body, title)
+    if violations:
+        for v in violations[:5]:
+            print(f"  [FACT-CHECK] ⚠️ {v['type']} '{v['value']}' not in source")
+        num_v = [v for v in violations if v['type'] == 'number']
+        if len(num_v) >= 3:
+            print(f"  [FACT-CHECK] REJECT: {len(num_v)} ungrounded numbers in narrative")
+            return None
 
     # Gate: evaluator check (anti-hallucination, fail-safe)
     if MISTRAL_KEY:
@@ -1225,10 +1393,20 @@ def generate_thread_chain(title: str, body: str, image_url: str = "", source_url
         "_slide_count": len(slides),
     }
 
-    # ═══ EVALUATOR CHECK (anti-hallucination) ═══
+    # ── Layer 5: Deterministic fact-check against source ──
     slides_dict = {}
     for i, s in enumerate(result["slides"], 1):
         slides_dict[f"slide_{i}"] = s
+    violations = _verify_against_source(slides_dict, body, title)
+    if violations:
+        for v in violations[:5]:
+            print(f"  [FACT-CHECK] ⚠️ {v['slide']} {v['type']} '{v['value']}' not in source")
+        num_v = [v for v in violations if v['type'] == 'number']
+        if len(num_v) >= 3:
+            print(f"  [FACT-CHECK] REJECT: {len(num_v)} ungrounded numbers in thread chain")
+            return None
+
+    # ═══ EVALUATOR CHECK (anti-hallucination) ═══
     eval_result = evaluate_slides(slides_dict, title, body)
     if eval_result["status"] == "REJECT":
         print(f"  [EVALUATOR] REJECTED: {eval_result['reason'][:100]}")
