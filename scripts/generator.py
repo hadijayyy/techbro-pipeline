@@ -499,6 +499,7 @@ _COMMON_CAPS = {
     'Aman', 'Rentan', 'Gak', 'Gagal', 'Jumlah', 'Update', 'Beli',
     'Pasrah', 'Pilih', 'Mau', 'Bisa', 'Bakal', 'Perlu', 'Harus',
     'Coba', 'Kasih', 'Langsung', 'Biar', 'Supaya', 'Agar',
+    'Caranya', 'Kata', 'Wajar', 'Post', 'Tulis', 'Cukup', 'Bayangin', 'Gimana',
     'Jangan', 'Dulu', 'Lagi', 'Saja', 'Aja', 'Kok', 'Lah', 'Deh',
     'Dong', 'Sih', 'Nih', 'Tuh', 'Nah', 'Wah', 'Adoh', 'Eh',
     'Oleh', 'Antara', 'Melalui', 'Terhadap', 'Mengenai', 'Tentang',
