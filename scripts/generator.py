@@ -85,11 +85,12 @@ Slide 6 must close with a natural open-ended question — goal is to bait replie
 ## 7. EXECUTION
 
 ### Slide 1 — HOOK
-- MAX 2 sentences, under 20 words. Tight, gak lebih.
+**HARD LIMITS: MAX 2 sentences, <25 words total. TRUNCATE if over.**
 - Sentence 1 = stop-scroll hook: fakta PALING mengejutkan/provokatif dari artikel. Langsung pukul.
 - NO intro fluff. NO "Di era digital saat ini...". Straight to the shock.
 - CAPS untuk emphasis 1 kata doang.
 - Harus punya minimal salah satu: angka spesifik ATAU impact/consequence.
+- JANGAN lebih dari 2 kalimat. Kalau lebih, potong yang gak essential.
 
 **Winning Hook Formula (Pressbox proven 1.8M-view analysis):**
 ```
@@ -136,10 +137,11 @@ Kenapa works: immediacy (baru aja), specificity (angka/waktu), curiosity gap (Ta
 **JANGAN pakai:** QUESTION pattern "Lo tau gak?" — kills engagement, sounds like quiz show.
 
 ### Slides 2-5 — BODY
-- EXACTLY 3 lines per slide (2-3 sentences, 1 line each, separated by blank line). Don't use fewer — tight rhythm keeps readers scrolling.
+**HARD LIMITS: EXACTLY 3 sentences per slide, <40 words total per slide.**
 - 1 insight baru per slide, no filler, no repeat poin sebelumnya.
 - Paraphrase quotes dari artikel, jangan copy-paste kalimat asli.
 - Attribution: sebut sumber berita minimal 1x di salah satu slide (buat credibility).
+- Kalau lebih dari 3 kalimat, POTONG. Kalau lebih dari 40 words, SIMPLIFY.
 
 Escalation arc (urutan proven, jangan rearrange):
 - Slide 2 = Context: apa yang terjadi, situasi realita
@@ -148,15 +150,14 @@ Escalation arc (urutan proven, jangan rearrange):
 - Slide 5 = So what: satu tips atau big lesson yang mengubah cara pikir
 
 ### Slide 6 — CTA
-- 2-3 sentences, 20-35 kata.
+**HARD LIMITS: MAX 2 sentences, <30 words total. One short question.**
 - WAJIB bikin orang comment. Pakai salah satu formula:
-  1. PROVOCATIVE: "Menurut lo, [provokasi]? Atau [alternatif]?"
-  2. PERSONAL: "Lo sendiri [action]? Cerita di comment."
-  3. DEBATE: "Setuju gak kalo [pendapat kontroversial]?"
-  4. RANKING: "Mana yang lebih penting: [A] atau [B]?"
-  5. CHALLENGE: "Coba deh [action] selama seminggu. Kabarin hasilnya."
+  1. PROVOCATIVE: "Menurut lo, [provokasi]?"
+  2. PERSONAL: "Lo sendiri [action]?"
+  3. DEBATE: "Setuju gak kalo [pendapat]?"
 - WAJIB taruh URL sumber di baris terakhir.
 - JANGAN "link di bio".
+- JANGAN lebih dari 2 kalimat. Potong yang gak essential.
 
 ### Cliffhanger
 Di akhir Slide 1-5, WAJIB akhirin dengan kalimat gantung pendek yang bikin penasaran: "Tapi ngerinya...", "Ini triknya...", "Tapi tunggu...". Jangan pakai simbol dekoratif.
@@ -510,6 +511,44 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
         text = re.sub(r'[Ss]etara\s+duit[^.]*\.?\s*', '', text)
         text = re.sub(r'atau\s+bayar\s+gaji[^.]*\.?\s*', '', text)
         
+        # ENFORCE SLIDE LENGTH LIMITS (Pressbox style)
+        if key in ('slide_1',):
+            # Hook: MAX 2 sentences, <25 words
+            sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+            if len(sentences) > 2:
+                text = ' '.join(sentences[:2])
+                print(f"  [POSTPROCESS] Hook truncated to 2 sentences")
+            words = text.split()
+            if len(words) > 25:
+                text = ' '.join(words[:25])
+                if not text.endswith(('.', '!', '?')):
+                    text += '...'
+                print(f"  [POSTPROCESS] Hook truncated to 25 words")
+        elif key in ('slide_2', 'slide_3', 'slide_4', 'slide_5'):
+            # Body: MAX 3 sentences, <40 words
+            sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+            if len(sentences) > 3:
+                text = ' '.join(sentences[:3])
+                print(f"  [POSTPROCESS] {key} truncated to 3 sentences")
+            words = text.split()
+            if len(words) > 40:
+                text = ' '.join(words[:40])
+                if not text.endswith(('.', '!', '?')):
+                    text += '...'
+                print(f"  [POSTPROCESS] {key} truncated to 40 words")
+        elif key == 'slide_6':
+            # CTA: MAX 2 sentences, <30 words
+            sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+            if len(sentences) > 2:
+                text = ' '.join(sentences[:2])
+                print(f"  [POSTPROCESS] CTA truncated to 2 sentences")
+            words = text.split()
+            if len(words) > 30:
+                text = ' '.join(words[:30])
+                if not text.endswith(('.', '!', '?')):
+                    text += '...'
+                print(f"  [POSTPROCESS] CTA truncated to 30 words")
+        
         # Strip placeholders
         text = re.sub(r'\[.*?\]', '', text)
         
@@ -546,8 +585,10 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
     # Check hook word count
     hook = slides.get('slide_1', '')
     word_count = len(hook.split())
-    if word_count < 30:
-        print(f"[WARN] Hook too short ({word_count} words), need 30+")
+    if word_count < 15:
+        print(f"[WARN] Hook too short ({word_count} words), need 15+")
+    elif word_count > 25:
+        print(f"[WARN] Hook too long ({word_count} words), should be <25")
     
     return slides
 
