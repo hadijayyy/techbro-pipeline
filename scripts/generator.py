@@ -21,8 +21,9 @@ BANNED_PHRASES = [
     r'\btahan dulu\b', r'\bcoba tebak\b', r'\bciyus\b', r'\bmiyap\b',
     r'\bmuka masam\b', r'\bngebet\b',
     r'\blink di bio\b',  # URL sudah ada di post, gak perlu sebut
+    r'\blo tau gak\b', r'\blo tau gak\?\s',  # quiz-show hook, kills engagement
     # Fake personal story markers (fabricated attribution)
-    r'\bkampung gue\b', r'\bkantor gue\b', r'\btemen gue\b', r'\bibu gue\b',
+    r'\bkampung gue\b', r'\bkantor gue\b', r'\btemen gue\b', r'\bibunda\b', r'\bibu gue\b',
     r'\bayah gue\b', r'\bak gue\b', r'\bkakak gue\b',
 ]
 
@@ -90,29 +91,49 @@ Slide 6 must close with a natural open-ended question — goal is to bait replie
 - CAPS untuk emphasis 1 kata doang.
 - Harus punya minimal salah satu: angka spesifik ATAU impact/consequence.
 
-**Winning Hook Formula (proven dari 1.8M view analysis):**
-Pattern: [Entity] baru aja [past-tense action] [timing/detail].
-Alasannya? [Punchline absurd/mengejutkan].
-Contoh: "Elon Musk baru aja PHK 200 engineer AI. Alasannya? Mereka gak bisa jawab pertanyaan sederhana."
+**Winning Hook Formula (Pressbox proven 1.8M-view analysis):**
+```
+[Entity] baru aja [past-tense action] [timing/detail].
+
+Tapi yang bikin kaget: [punchline absurd/mengejutkan].
+```
+
+Contoh yang BENAR:
+- "Elon Musk baru aja PHK 200 engineer AI. Tapi yang bikin kaget: mereka gak bisa jawab pertanyaan sederhana."
+- "97 miliarder tech baru aja kumpulkan US$4,54 triliun. Tapi yang bikin kaget: 8 dari 10 orang TERKAYA dunia berasal dari TEKNOLOGI."
+
+Contoh yang SALAH (JANGAN pakai):
+- "Lo tau gak? 19,4% orang TERKAYA dunia berasal dari TEKNOLOGI!" ❌ sounds like quiz
+- "Di era digital saat ini, teknologi semakin canggih..." ❌ generic filler
 
 **Hook Anti-Patterns (JANGAN pakai — kills engagement):**
+- ❌ "Lo tau gak?" / "Lo tau gak... [fakta]?" — sounds like quiz show, kills urgency
+- ❌ "Di era digital saat ini..." / "Teknologi semakin canggih..." — generic filler
+- ❌ "Did you know?" / "Let's dive in!" / "Here's the secret"
+- ❌ "Gila sih!" / "Gila banget!" / "Kebayang gak?" — cringe, overused
 - ❌ "[Entity] hits out at [object]" — generic editorial
 - ❌ "[Entity] shows signs of [comparison]" — vague
 - ❌ "[Entity] can be answer to [problem]" — speculative
-- ❌ "Did you know?" / "Let's dive in!" / "Here's the secret"
-- ❌ "Di era digital saat ini..." / "Teknologi semakin canggih..."
 
 **Hook Rewriting:** Kalau artikel pakai judul generik, rewrite pakai concrete past-tense action:
 - "Startup XYZ Raises Funding" → "Startup XYZ baru aja dapat Rp500M. Tapi yang menarik bukan dananya..."
 - "AI Tool Launches" → "OpenAI baru aja rilis tool baru. Yang bikin kaget: harganya GRATIS."
 
 Pilih salah satu hook pattern (variasi, JANGAN semua post pola sama):
+
+**⭐ PRIMARY — Pressbox Winning Formula (proven 1.8M views):**
+Pattern: [Entity] baru aja [past-tense action] [timing/detail]. Tapi yang bikin kaget: [punchline absurd].
+Contoh: "97 miliarder tech baru aja kumpulkan US$4,54 triliun. Tapi yang bikin kaget: 8 dari 10 orang TERKAYA dunia berasal dari TEKNOLOGI."
+Kenapa works: immediacy (baru aja), specificity (angka/waktu), curiosity gap (Tapi yang bikin kaget), shareability (absurd detail).
+
+**Alternatives (rotate supaya gak monoton):**
 1. REALIZATION: "Gue baru nyadar... [fakta mengejutkan]"
 2. OPINION: "Jujur, gue [emotion] soal [topik]. [Fakta]"
-3. QUESTION: "Lo tau gak... [fakta provokatif]?"
-4. QUOTE: "[Nama] bilang: '[insight]'. Dan ini bener banget."
-5. CONTRAST: "[Ekspektasi]... Tapi kenyataannya? [Realita]"
-6. DATA DROP: "[Angka spesifik] orang [konteks]. Lo termasuk?"
+3. CONTRAST: "[Ekspektasi]... Tapi kenyataannya? [Realita]"
+4. DATA DROP: "[Angka spesifik] orang [konteks]. Lo termasuk?"
+5. QUOTE: "[Nama] bilang: '[insight]'. Dan ini bener banget."
+
+**JANGAN pakai:** QUESTION pattern "Lo tau gak?" — kills engagement, sounds like quiz show.
 
 ### Slides 2-5 — BODY
 - EXACTLY 3 lines per slide (2-3 sentences, 1 line each, separated by blank line). Don't use fewer — tight rhythm keeps readers scrolling.
