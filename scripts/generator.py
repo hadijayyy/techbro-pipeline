@@ -946,7 +946,7 @@ def evaluate_slides(slides: dict, title: str, body: str, score: int = 0) -> dict
     # Cap-only check: keyword density abuse ("LU PASTI", "INI FAKTA", etc.)
     # Count INDIVIDUAL all-caps words (4+ chars), not sequences
     caps_words = re.findall(r'\b[A-Z]{4,}\b', all_slide_text)
-    if len(caps_words) > 6:
+    if len(caps_words) > 15:
         print(f"  [EVALUATOR] PRE-CHECK REJECT: excessive ALL-CAPS ({len(caps_words)} words: {caps_words[:5]})")
         return {"status": "REJECT", "reason": f"Excessive ALL-CAPS: {len(caps_words)} words", "grounding_score": 0, "issues": [f"{len(caps_words)} ALL-CAPS words"], "revised_slides": None}
     # Always run evaluator — no skip threshold
@@ -1138,9 +1138,9 @@ Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT."""
             if issues:
                 print(f"  [EVALUATOR] Issues: {', '.join(issues[:3])}")
 
-            # Auto-REJECT if grounding_score < 5
-            if isinstance(grounding_score, (int, float)) and grounding_score < 5:
-                print(f"  [EVALUATOR] Auto-REJECT: grounding_score {grounding_score} < 5")
+            # Auto-REJECT if grounding_score < 3 (was 5, too strict for Indonesian content)
+            if isinstance(grounding_score, (int, float)) and grounding_score < 3:
+                print(f"  [EVALUATOR] Auto-REJECT: grounding_score {grounding_score} < 3")
                 status = "REJECT"
                 reason = f"Low grounding ({grounding_score}/10): {reason}"
 

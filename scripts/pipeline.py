@@ -274,7 +274,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
             WHERE a.id NOT IN (SELECT article_id FROM posts WHERE status != 'failed')
             ORDER BY a.score DESC
             LIMIT ?
-        """, (top_n,)).fetchall()
+        """, (max(top_n, 5),)).fetchall()
 
         if unposted:
             for art in unposted:
