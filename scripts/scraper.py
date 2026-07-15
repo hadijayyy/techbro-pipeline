@@ -655,6 +655,37 @@ _CAT_FINANCE = {"investasi", "investing", "keuangan", "finansial", "tabungan", "
 _CAT_HABITS = {"kebiasaan", "habits", "rutinitas", "routine", "disiplin", "discipline", "produktif", "productive"}
 _CAT_FIGURES = {"ceo", "founder", "entrepreneur", "pengusaha", "startup", "atlet", "athlete"}
 
+# ── Human interest signals: relatable stories, struggles, real people ──
+HUMAN_INTEREST = [
+    # Personal stories / first-person impact
+    "kisah", "cerita", "pengalaman", "seorang", "hidup", "kehidupan",
+    "pekerja", "karyawan", "buruh", "ibuk", "ibu-ibu", "anak muda",
+    "mahasiswa", "fresh graduate", "lulusan",
+    # Struggle & resilience
+    "berjuang", "bangkit", "jatuh", "gagal", "sukses", "perjuangan",
+    "gagal terus", "selama ini", "berhenti", "mulai dari nol",
+    "kerja keras", "usaha", "perubahan hidup",
+    # Relatable financial context
+    "gaji", "umr", "upah", "cicilan", "kos-kosan", "kontrakan",
+    "kpr", "tagihan", "bulanan", "pas-pasan", "hemat", "irit",
+    # Relatable work context
+    "lembur", "overtime", "bos", "atasan", "rekan kerja", "team",
+    "wfh", "remote", "side hustle", "sampingan", "freelance",
+    # Emotional hooks
+    "nyesel", "menyesal", "kaget", "terkejut", "terealisasi",
+    "baru nyadar", "baru sadar", "baru tahu", "selama ini salah",
+    "ternyata selama ini", "nggak nyangka", "ga nyangka",
+    # English equivalents
+    "story", "struggle", "journey", "lesson", "experience",
+    "regret", "realization", "epiphany", "wake-up call",
+]
+_HUMAN_INTEREST_SET = {k.lower() for k in HUMAN_INTEREST}
+
+# ─── Source Tier classification (for granular source scoring) ─────
+_SOURCE_TIER_1 = {"finance", "mindset_bisnis", "founder"}  # premium self-dev
+_SOURCE_TIER_2 = {"produktivitas", "habits", "karir", "sidehustle"}  # strong self-dev
+_SOURCE_TIER_3 = {"startup_tech", "tech_bisnis", "skill_tech", "workplace"}  # moderate
+
 # ─── Stemming (simple suffix stripper for Jaccard dedup) ───────
 
 _STEM_SUFFIXES = ("ing", "tion", "sion", "ment", "ness", "able", "ible",
@@ -761,10 +792,16 @@ def score_article(title: str, body: str, date=None, hot_boost: int = 0, analytic
     numbers = len(re.findall(r'\b\d+[.,]?\d*\b', title))
     data_score = 15 if numbers >= 2 else (7 if numbers >= 1 else 0)
 
-    # ── Component 5: Source Tier (7/5/0) ──
-    # All topic categories are niche-aligned — equal weight (Budakorporat model)
-    # No celebrity feeds, no trending — everything is tightly-scoped topic query
-    source_score = 7 if source in SOURCE_NAMES else 5
+    # ── Component 5: Source Tier (10/8/6/3) ──
+    # Premium self-dev sources get highest base, then strong, then moderate, then unknown
+    if source in _SOURCE_TIER_1:
+        source_score = 10
+    elif source in _SOURCE_TIER_2:
+        source_score = 8
+    elif source in _SOURCE_TIER_3:
+        source_score = 6
+    else:
+        source_score = 3  # unknown / misc
 
     # ── Component 6: Audience Reach (max 20) ──
     reach_count = _unique_matches(text, _REACH_SET)
@@ -797,10 +834,15 @@ def score_article(title: str, body: str, date=None, hot_boost: int = 0, analytic
     # ── Component 13: Density bonus (+20 if title has 2+ TIER1) ──
     density = 20 if _unique_matches(title_l, _TIER1_SET) >= 2 else 0
 
+    # ── Component 14: Human Interest boost (max 15) ──
+    hi_title = _unique_matches(title_l, _HUMAN_INTEREST_SET) * 5
+    hi_body = _unique_matches(body_l, _HUMAN_INTEREST_SET) * 2
+    human_interest = min(hi_title + hi_body, 15)
+
     # ── Sum ──
     s = (keyword_score + cat_score + recency + data_score + source_score +
          reach_score + drama_score + paradox + niche_penalty + western_penalty + hot_boost +
-         peak + analytics_boost + density)
+         peak + analytics_boost + density + human_interest)
 
     # ── Soft cap: diminishing returns above 100 ──
     if s > 100:

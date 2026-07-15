@@ -584,6 +584,25 @@ def _add_whitespace(text: str) -> str:
     return "\n\n".join(sentences)
 
 
+def _regex_fallback(text: str) -> str:
+    """Safety net: fix whitespace regex edge cases missed by _add_whitespace."""
+    # 1. Collapse multiple spaces (but keep \n\n)
+    text = re.sub(r'[ \t]+', ' ', text)
+    # 2. Space before punctuation: remove
+    text = re.sub(r'\s+([.,!?;:])', r'\1', text)
+    # 3. Missing space AFTER punctuation followed by letter
+    text = re.sub(r'([.!?])([A-Za-z0-9"(])', r'\1 \2', text)
+    # 4. Missing space AFTER comma/semicolon/colon followed by letter
+    text = re.sub(r'([,;:])([A-Za-z0-9"(])', r'\1 \2', text)
+    # 5. Ensure last sentence ends with punctuation
+    stripped = text.rstrip()
+    if stripped and stripped[-1] not in ('.', '!', '?'):
+        text = stripped + '.'
+    else:
+        text = stripped
+    return text
+
+
 def _enforce_hook_lucifer(text: str) -> str:
     """Ensure slide_1 has "Kenapa?" curiosity gap — Pressbox style.
     
@@ -858,7 +877,10 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
             text = _add_whitespace(text)
             if len(text) > 350:
                 text = text[:347] + "..."
-        
+
+        # Final regex safety net (whitespace edge cases)
+        text = _regex_fallback(text)
+
         slides[key] = text
     
     # Re-append source_url to slide_6 (CTA)
@@ -875,8 +897,15 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
     
     return slides
 
-def generate_carousel(title: str, body: str, image_url: str = "", source_url: str = "", source: str = "") -> Optional[dict]:
-    """Generate 6-slide carousel via LLM, with postprocessing."""
+def generate_carousel(title: str, body: str, image_url: str = "", source_url: str = "", source: str = "", correction_hint: str = "") -> Optional[dict]:
+    """Generate 6-slide carousel via LLM, with postprocessing.
+    
+    correction_hint: if set, append [CORRECTION] block to body for retry with feedback.
+    """
+    # Append correction feedback if retrying
+    if correction_hint:
+        body = body + "\n\n[CORRECTION FEEDBACK — previous version was REJECTED]\n" + correction_hint + "\nFix these issues. Keep the same article angle. Output valid JSON with all 6 slides.\n[/CORRECTION FEEDBACK]"
+
     raw = None
 
     # Tier 1: Local 9router (no rate limits)
@@ -939,13 +968,6 @@ def generate_carousel(title: str, body: str, image_url: str = "", source_url: st
         else:
             print(f"  [FACT-CHECK] Minor: {len(violations)} violations across {total_affected}/6 slides")
 
-    # Gate: evaluator check (anti-hallucination, fail-safe)
-    if MISTRAL_KEY:
-        eval_result = evaluate_slides(slides, title, body)
-        if eval_result["status"] == "REJECT":
-            print(f"  [EVALUATOR] REJECTED: {eval_result['reason'][:100]}")
-            return None
-
     return slides
 
 
@@ -960,12 +982,91 @@ _HOOK_PATTERNS = [
     "CONTRARIAN: \"[Fakta umum] tapi [twist melawan asumsi]\"",
 ]
 
-def generate_ab_variants(title: str, body: str, image_url: str = "", source_url: str = "", source: str = "", n_variants: int = 3, format: str = "carousel") -> Optional[dict]:
-    """Generate n_variants with different hook patterns, pick best by hook quality.
+def _select_hook_patterns(title: str, body: str, n: int = 3) -> list[str]:
+    """Score which hook patterns fit the article best, return top n.
     
-    format: "carousel" (6-slide), "narrative" (single post), "thread_chain" (10-slide)
+    Each pattern gets scored by keyword/trigger matching in the article text.
+    Falls back to random when no triggers match.
+    """
+    import re
+    text = (title + " " + body).lower()
+
+    # Trigger words per pattern
+    triggers = {
+        "REALIZATION": [
+            r'\bternyata\b', r'\bpadahal\b', r'\bsebenarnya\b', r'\bmengejutkan\b',
+            r'\bfakta\b', r'\bmitos\b', r'\brahasia\b', r'\btersembunyi\b',
+            r'\bbaru.tahu\b', r'\bbaru.sadar\b', r'\bbelum.banyak\b',
+            r'\bsurvei\s+menunjukkan\b', r'\bsurvei\s+mengungkap\b',
+        ],
+        "OPINION": [
+            r'\bkontroversial\b', r'\bdebat\b', r'\bpro.kontra\b',
+            r'\bmenurut\b', r'\bpendapat\b', r'\bopini\b', r'\bviral\b', r'\btrending\b',
+            r'\bperspektif\b', r'\bsudut.pandang\b', r'\bpandangan\b',
+            r'\bperdebatan\b', r'\bmemantik\b', r'\bramai\b',
+        ],
+        "CONTRAST": [
+            r'\bperbandingan\b', r'\bvs\b', r'\bvs\.\b', r'\bsebelum\b', r'\bsesudah\b',
+            r'\bdulu\b', r'\bsekarang\b', r'\blebih.bai[kt]\b', r'\bperubahan\b',
+            r'\bberbeda\b', r'\btransisi\b', r'\bdaripada\b',
+            r'\bdulu.vs\b', r'\bsekarang.vs\b', r'\bbefore.after\b',
+            r'\bperbandingan\b',
+        ],
+        "DATA DROP": [
+            r'\b\d+[\.\,]?\d*%\b', r'\bdata\b', r'\briset\b', r'\bsurvei\b',
+            r'\bpenelitian\b', r'\bstatistik\b', r'\bjumlah\b', r'\bangk[aoe]\b',
+            r'\bpersen\b', r'\bkuesioner\b', r'\bsampling\b', r'\bresponden\b',
+            r'\bpuluh\b', r'\bratus\b', r'\bribu\b', r'\bjuta\b', r'\bmilyar\b',
+            r'\brating\b', r'\bpeningkatan\b', r'\bpenurunan\b',
+        ],
+        "QUOTE": [
+            r'\bkata\b', r'\bucap\b', r'\bbilang\b', r'\bmengatak[ae]n\b',
+            r'\b"menurut\b', r'\bungkap\b', r'\bpernyataan\b',
+            r'\bdikutip\b', r'\bsambut\b', r'\btuturnya\b',
+            r'\bu[aai]cap\b', r'\btegas\b', r'\btambah\b',
+        ],
+        "CONTRARIAN": [
+            r'\blawan.ar[au]s\b', r'\bbertentangan\b', r'\bsalah.kaprah\b',
+            r'\bpadahal.selama.ini\b', r'\bmitos\b',
+            r'\bkebanyakan.or[ae]ng\b', r'\bsebaliknya\b',
+            r'\bbelum.tentu\b', r'\bjustru\b', r'\bjangan.salah\b',
+            r'\bsudah.terbukti\b',
+        ],
+    }
+
+    scores = {}
+    for pattern in _HOOK_PATTERNS:
+        name = pattern.split(":")[0]
+        score = 0
+        for pat in triggers.get(name, []):
+            score += len(re.findall(pat, text))
+        scores[pattern] = score
+
+    # Sort by score descending
+    ranked = sorted(scores.items(), key=lambda x: -x[1])
+
+    # Pick top n; if fewer scored >0, fill with remaining patterns
+    selected = [p for p, s in ranked if s > 0]
+    if len(selected) < n:
+        remaining = [p for p, s in ranked if s == 0 and p not in selected]
+        # Deterministic tiebreak: use position in _HOOK_PATTERNS
+        remaining.sort(key=lambda p: _HOOK_PATTERNS.index(p))
+        selected.extend(remaining[:n - len(selected)])
+
+    result = selected[:n]
+    print(f"  [HOOK SELECT] Chosen: {[p.split(':')[0] for p in result]} | scores: {[(p.split(':')[0], s) for p, s in ranked]}")
+    return result
+
+def generate_ab_variants(title: str, body: str, image_url: str = "", source_url: str = "", source: str = "", n_variants: int = 3, format: str = "carousel", correction_hint: str = "") -> Optional[dict]:
+    """Generate n_variants with different hook patterns, pick best by hook score.
+    
+    correction_hint: if set, append [CORRECTION] block to body for retry with feedback.
     """
     import random
+    
+    # Append correction feedback if retrying
+    if correction_hint:
+        body = body + "\n\n[CORRECTION FEEDBACK — previous version was REJECTED]\n" + correction_hint + "\nFix these issues. Keep the same article angle. Output valid JSON with all 6 slides.\n[/CORRECTION FEEDBACK]"
     
     if not MISTRAL_KEY:
         if format == "narrative":
@@ -973,10 +1074,10 @@ def generate_ab_variants(title: str, body: str, image_url: str = "", source_url:
         elif format == "thread_chain":
             return generate_thread_chain(title, body, image_url, source_url, source)
         else:
-            return generate_carousel(title, body, image_url, source_url, source)
+            return generate_carousel(title, body, image_url, source_url, source, correction_hint)
     
-    # Pick n random hook patterns
-    patterns = random.sample(_HOOK_PATTERNS, min(n_variants, len(_HOOK_PATTERNS)))
+    # Pick n best-matching hook patterns (article-aware, not random)
+    patterns = _select_hook_patterns(title, body, n=n_variants)
     
     variants = []
     for i, pattern in enumerate(patterns, 1):
@@ -1041,31 +1142,11 @@ def generate_ab_variants(title: str, body: str, image_url: str = "", source_url:
         else:
             return generate_carousel(title, body, image_url, source_url, source)
     
-    # Pick best variant by hook_score, but evaluate for hallucination
-    # Try candidates in descending hook_score order until one passes
+    # Pick best variant by hook_score (no evaluator here — pipeline handles it)
     variants.sort(key=lambda x: x[0], reverse=True)
-    for rank, (score, slides) in enumerate(variants, 1):
-        print(f"  [A/B] Candidate #{rank}: hook_score={score}")
-
-        # Evaluator gate
-        if MISTRAL_KEY:
-            eval_result = evaluate_slides(slides, title, body)
-            if eval_result["status"] == "REJECT":
-                print(f"  [A/B] REJECTED candidate #{rank}: {eval_result['reason'][:80]}")
-                continue
-            print(f"  [A/B] APPROVED candidate #{rank}")
-
-        print(f"  [A/B] Winner: hook_score={score} from {len(variants)} variants")
-        return slides
-
-    # All candidates failed evaluation — fall back to single generation (self-evaluates)
-    print(f"  [A/B] All {len(variants)} variants rejected, falling back to single generation")
-    if format == "narrative":
-        return generate_narrative_post(title, body, source_url, source)
-    elif format == "thread_chain":
-        return generate_thread_chain(title, body, image_url, source_url, source)
-    else:
-        return generate_carousel(title, body, image_url, source_url, source)
+    best_score, best_slides = variants[0]
+    print(f"  [A/B] Winner: hook_score={best_score} from {len(variants)} variants → returning to pipeline for evaluation/retry")
+    return best_slides
 
 
 def evaluate_slides(slides: dict, title: str, body: str, score: int = 0) -> dict:
@@ -1109,6 +1190,46 @@ def evaluate_slides(slides: dict, title: str, body: str, score: int = 0) -> dict
     # Always run evaluator — no skip threshold
     # (Old: skip ≥100, but grounding issues found even at high scores)
 
+    # ═══ GROUNDING VALIDATOR — deterministic proper noun + number extraction ═══
+    article_text = (title + " " + body).lower()
+    slide_text_lower = all_slide_text.lower()
+
+    # Extract key numbers + percentages from article
+    article_numbers = set(re.findall(r'\b\d+[\.\,]?\d*%?\b', article_text))
+    # Filter: keep only meaningful numbers (1+ digits, optionally with %)
+    article_key_numbers = {n for n in article_numbers if len(n) >= 2 or '%' in n}
+
+    # Extract proper nouns / capitalized terms from article title
+    # Words starting with capital in title (likely entities)
+    title_words = re.findall(r'\b[A-Z][a-z]{2,}\b', title)
+    # Known Indonesian entity prefixes (non-exhaustive)
+    article_entities = set(w.lower() for w in title_words if len(w) > 2)
+
+    # Check how many key numbers appear in slides
+    numbers_in_slides = set(re.findall(r'\b\d+[\.\,]?\d*%?\b', slide_text_lower))
+    missing_numbers = article_key_numbers - numbers_in_slides
+    
+    # Check entity mention in slides
+    entity_hits = sum(1 for e in article_entities if e in slide_text_lower)
+    entity_ratio = entity_hits / max(len(article_entities), 1)
+
+    # Build grounding hint for evaluator prompt
+    grounding_hints = []
+    if missing_numbers:
+        grounding_hints.append(f"MISSING NUMBERS from article: {', '.join(sorted(missing_numbers)[:5])}")
+    if entity_ratio < 0.3 and len(article_entities) > 2:
+        grounding_hints.append(f"Low entity mention ({entity_hits}/{len(article_entities)} key terms found in slides)")
+    if entity_ratio < 0.2 and len(article_entities) > 1:
+        # Hard flag — article names not reflected in slides
+        grounding_hints.append("HARD CHECK: Article mentions specific names/entities not reflected in slides. Verify all entities appear.")
+
+    # Print grounding summary
+    if grounding_hints:
+        print(f"  [GROUNDING] {entity_hits}/{len(article_entities)} entities found | {len(missing_numbers)} numbers missing from article")
+    else:
+        print(f"  [GROUNDING] {entity_hits}/{len(article_entities)} entities found — OK")
+        print(f"  [GROUNDING] Numbers check: {len(article_key_numbers)-len(missing_numbers)}/{len(article_key_numbers)} in slides")
+
     # Detect format: thread_chain uses slides list, narrative uses hook/caption, carousel uses slide_1..slide_6 keys
     is_thread_chain = slides.get("_format") == "thread_chain" or "slides" in slides
     is_narrative = slides.get("_format") == "narrative"
@@ -1121,6 +1242,7 @@ def evaluate_slides(slides: dict, title: str, body: str, score: int = 0) -> dict
     else:
         slide_text = "\n".join([f"Slide {i}: {slides.get(f'slide_{i}', '')}" for i in range(1, 7)])
     
+    # Determine format and extract slide text (already done above before grounding validator)
     if is_thread_chain:
         evaluator_prompt = f"""You are a skeptical content reviewer. Review this {len(slide_list)}-slide thread chain against the source article.
 
@@ -1130,6 +1252,9 @@ ARTICLE EXCERPT: {body[:2000]}
 
 GENERATED SLIDES:
 {slide_text}
+
+GROUNDING VALIDATION — deterministic checks:
+{'  - ' + chr(10)+'  - '.join(grounding_hints) if grounding_hints else '  All key entities and numbers from article appear to be referenced.'}
 
 YOUR TASK:
 1. **GROUNDING CHECK** — Every claim, fact, statistic, recommendation, dialogue MUST come from the article. No invented quotes, stats, or first-person experiences.
@@ -1162,6 +1287,9 @@ ARTICLE EXCERPT: {body[:2000]}
 
 GENERATED POST:
 {slide_text}
+
+GROUNDING VALIDATION — deterministic checks:
+{'  - ' + chr(10)+'  - '.join(grounding_hints) if grounding_hints else '  All key entities and numbers from article appear to be referenced.'}
 
 YOUR TASK:
 1. **GROUNDING CHECK** — Every claim, fact, statistic MUST come from the article. No invented numbers, quotes, or recommendations.
@@ -1202,6 +1330,9 @@ ARTICLE EXCERPT: {body[:2000]}
 
 GENERATED SLIDES:
 {slide_text}
+
+GROUNDING VALIDATION — deterministic checks:
+{'  - ' + chr(10)+'  - '.join(grounding_hints) if grounding_hints else '  All key entities and numbers from article appear to be referenced.'}
 
 YOUR TASK:
 1. **GROUNDING CHECK** — Every claim, fact, statistic, recommendation MUST come from the article. "BEST SELLER" without a number = REJECT.

@@ -215,27 +215,60 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                 mark_failed(conn, article_id)
                 continue
 
-            # 2.5. Evaluator loop (independent LLM review)
-            # Thread chain already self-evaluates in generate_thread_chain(); skip duplicate
+            # 2.5. Evaluator loop with retry
             if format != "thread_chain":
-                eval_result = evaluate_slides(slides, a["title"], a["body"], art["score"])
+                # Retry: max 3 attempts with correction feedback
+                current_hint = ""
+                approved_slides = None
+                for retry_idx in range(1, 4):
+                    if retry_idx > 1:
+                        print(f"  [RETRY #{retry_idx}] Regenerating with correction feedback...")
+                        a = dict(art)  # refresh after continue
+                        if format == "narrative":
+                            slides = generate_narrative_post(a["title"], a["body"], a.get("url", ""), a.get("source", ""))
+                            if not slides:
+                                break
+                        elif format == "thread_chain":
+                            slides = generate_thread_chain(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
+                        else:
+                            slides = generate_ab_variants(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""), n_variants=3, correction_hint=current_hint)
+                            if not slides:
+                                # Fallback: single gen without A/B
+                                slides = generate_carousel(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""), correction_hint=current_hint)
 
-                if eval_result["status"] == "REJECT":
-                    print(f"  [EVALUATOR] REJECTED: {eval_result['reason'][:100]}")
-                    # Don't give up yet — try next ranked article
+                    if not slides:
+                        print(f"  [RETRY #{retry_idx}] Generation failed, breaking retry loop")
+                        break
+
+                    eval_result = evaluate_slides(slides, a["title"], a["body"], art["score"])
+
+                    if eval_result["status"] == "APPROVE":
+                        approved_slides = slides
+                        print(f"  [EVALUATOR] APPROVED (attempt {retry_idx}/3)")
+                        break
+                    elif eval_result["status"] == "REVISE" and eval_result.get("revised_slides"):
+                        approved_slides = eval_result["revised_slides"]
+                        print(f"  [EVALUATOR] REVISED (attempt {retry_idx}/3): {eval_result['reason'][:100]}")
+                        # Re-apply postprocessing
+                        source_url = a.get("url", "")
+                        approved_slides = _postprocess_slides(approved_slides, source_url)
+                        break
+                    else:  # REJECT
+                        current_hint = eval_result.get("reason", "Unknown issues")
+                        print(f"  [EVALUATOR] REJECTED (attempt {retry_idx}/3): {current_hint[:120]}")
+                        if retry_idx == 3:
+                            print(f"  [EVALUATOR] All 3 retries exhausted for this article")
+
+                if approved_slides is None:
+                    print(f"  Failed to generate acceptable post")
+                    mark_failed(conn, article_id)
                     if art_idx < min(len(articles), ARTICLES_TO_TRY) - 1:
-                        print(f"  [EVALUATOR] Trying next ranked article...")
-                        mark_failed(conn, article_id)
+                        print(f"  Trying next ranked article...")
                         continue
                     else:
-                        mark_failed(conn, article_id)
-                        break  # exhausted all candidates
-                elif eval_result["status"] == "REVISE" and eval_result.get("revised_slides"):
-                    print(f"  [EVALUATOR] REVISED: {eval_result['reason'][:100]}")
-                    slides = eval_result["revised_slides"]
-                    # Re-apply postprocessing to append source_url & enforce limits
-                    source_url = a.get("url", "")
-                    slides = _postprocess_slides(slides, source_url)
+                        break  # exhausted all articles
+
+                slides = approved_slides
 
             # Handle different format structures
             if isinstance(slides, dict) and "_format" in slides:
@@ -298,6 +331,43 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                     print("  ERROR: LM generation failed")
                     mark_failed(conn, art["id"])
                     continue
+
+                # Evaluator retry loop (DB fallback)
+                if format != "thread_chain":
+                    current_hint = ""
+                    approved_slides = None
+                    for retry_idx in range(1, 4):
+                        if retry_idx > 1:
+                            print(f"  [DB RETRY #{retry_idx}] Regenerating with correction feedback...")
+                            a = dict(art)
+                            if format == "narrative":
+                                slides = generate_narrative_post(a["title"], a["body"], a.get("url", ""), a.get("source", ""))
+                            else:
+                                slides = generate_carousel(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""), correction_hint=current_hint)
+                            if not slides:
+                                break
+
+                        eval_result = evaluate_slides(slides, a["title"], a["body"], a.get("score", 0))
+                        if eval_result["status"] == "APPROVE":
+                            approved_slides = slides
+                            print(f"  [EVALUATOR] APPROVED (attempt {retry_idx}/3)")
+                            break
+                        elif eval_result["status"] == "REVISE" and eval_result.get("revised_slides"):
+                            approved_slides = eval_result["revised_slides"]
+                            print(f"  [EVALUATOR] REVISED (attempt {retry_idx}/3)")
+                            source_url = a.get("url", "")
+                            approved_slides = _postprocess_slides(approved_slides, source_url)
+                            break
+                        else:
+                            current_hint = eval_result.get("reason", "Unknown issues")
+                            print(f"  [EVALUATOR] REJECTED (attempt {retry_idx}/3): {current_hint[:120]}")
+
+                    if approved_slides is None:
+                        print(f"  [EVALUATOR] All 3 retries exhausted, skipping article")
+                        mark_failed(conn, art["id"])
+                        continue
+
+                    slides = approved_slides
 
                 # Handle different format structures
                 if isinstance(slides, dict) and "_format" in slides:
