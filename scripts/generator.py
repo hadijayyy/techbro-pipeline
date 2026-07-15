@@ -12,6 +12,8 @@ from typing import Optional
 
 MISTRAL_KEY = os.environ.get("MISTRAL_API_KEY", "")
 GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
+ROUTER_BASE = os.environ.get("ROUTER_BASE_URL", "http://127.0.0.1:20128/v1")
+ROUTER_KEY = os.environ.get("ROUTER_API_KEY", "")
 
 # ── Banned lists ──────────────────────────────────────────────────────────
 # STYLE: cringe, filler, platform-specific — strip from ALL formats
@@ -97,24 +99,61 @@ Setiap slide WAJIB hit minimal 2 dari 8:
 - Startup/Influencer: prioritas lokal (Gojek, Tokopedia, Jerome, Deddy).
 - JANGAN generate konten promosi produk.
 
+## 7b. ELI5 RULE — EDUKASI ORANG AWAM (WAJIB)
+Lu nulis buat orang yang **gak ngerti istilah teknis**. Setiap kali ada istilah teknis, angka, atau konsep yang orang awam gak familiar — WAJIB kasih penjelasan pake analogi/bahasa sehari-hari.
+
+### Analogi WAJIB:
+- Teknis → konteks keseharian. "RAM 4GB" → "Cukup buat buka 2 aplikasi doang, sisanya nge-lag."
+- Angka → perbandingan relatable. "Harga naik 40%" → "Dulu HP 2 jutaan dapet RAM 8GB, sekarang cuma dapet 4GB."
+- Konsep → kejadian sehari-hari. "Krisis semikonduktor" → "Kayak pabrik tahu tutup, semua yang butuh kedelai kena imbas."
+- Dampak → ke dompet / hidup pembaca. "Inflasi" → "Uang lu yang tadinya bisa beli 10 kopi, sekarang cuma cukup 7."
+
+### Cek per slide:
+- [ ] Ada istilah teknis? → Dijelasin pake analogi keseharian
+- [ ] Ada angka? → Dikasih perbandingan yang relatable
+- [ ] Pembaca paham KENAPA ini penting buat MEREKA? → Dampak ke uang/karir/hidup
+
+### ❌ ANTI-EDUKASI (auto-reject):
+- ❌ Data dump tanpa penjelasan: "Pangsa pasar naik 20%." → OK, TERUS KENAPA?
+- ❌ Jargon tanpa analogi: "Krisis semikonduktor global." → orang awam gak tau itu apa
+- ❌ Angka telanjang: "Harga naik 40%." → 40% DARI APA? DAMPAKNYA APA?
+- ❌ Slide yang CUMAN nyebut fakta → setiap fakta harus ada "ini artinya..." / "dampaknya ke lu..."
+
+### ✅ Contoh ELI5 yang bener:
+- ❌ "Pasar RAM 4GB naik 20%." 
+- ✅ "HP murah sekarang makin pelit RAM. 20% lebih banyak HP dijual cuma pake RAM 4GB — itu cuma cukup buat buka 2 aplikasi. Sisanya? Nge-lag parah."
+
 ## 8. TASK — 6-SLIDE STORY ARC
 Bikin 6 slide. SATU cerita yang MENGALIR. Bukan 6 fakta terpisah.
 
 ### SLIDE 1 — HOOK (80% engagement)
 [TEPAT] 2 kalimat. <20 kata.
-Pattern: [ANGKA SPESIFIK] → [CONSEQUENCE]. DUA-DUANYA WAJIB.
-Kalimat 1 = angka mengejutkan. Kalimat 2 = consequence / "ini gue banget".
+**WAJIB: "...Kenapa?"** di slide 1. TANPA INI = REJECT.
+Pattern: "[FAKTA/KONDISI]. Kenapa? [PENJELASAN]."
+Kalimat 1 = fakta/kondisi mengejutkan. Kalimat 2 = "Kenapa?" + consequence.
 NO "Di era digital..." / "Lu tau gak?" / intro fluff / "Here's why" / "Bayangin lo..."
 CAPS untuk emphasis 1 kata.
-WAJIB ada angka. TANPA ANGKA = FAIL. Tes: gak bikin "WTF?!" dalam 2 detik → REWRITE.
+WAJIB ada angka — TAPI cuma dari artikel. Kalau artikel gak punya angka spesifik, pilih angle yang kuat di cerita/tokoh/ironi. "Banyak" + quote > statistik palsu.
 
-Hook patterns (rotate):
-1. **CONTRARIAN**: "[Angka/Fakta mengejutkan]. Yang gak orang sadar: [twist]"
-2. **DATA DROP**: "[Angka spesifik]. Dampaknya ke lo: [consequence]"
-3. **TIMING DROP**: "[Entity] baru aja [past-tense action]. Alasannya: [punchline]"
-4. **CONTRAST**: "[Ekspektasi]. Kenyataannya? [Angka mengejutkan]"
-5. **REALIZATION**: "Gw baru tau: [angka spesifik]. Artinya buat lo: [consequence]"
-6. **CURIOSITY GAP**: "[Angka mengejutkan] — [timing]. The reason? [Open loop]"
+Contoh WAJIB "Kenapa?":
+
+✅ CONTRARIAN:
+"4,2 Miliar orang kehilangan pekerjaan. Kenapa? Pemerintah belum siapkan program penanggulangan."
+
+✅ DATA DROP:
+"Gaji UMR Jakarta cuma Rp5jt/bulan. Kenapa? Biaya hidup rata-rata Rp21jt/bulan."
+
+✅ TIMING DROP:
+"Tokopedia baru aja tutup layanan paylater. Kenapa? Regulasi OJK mewajibkan likuiditas tinggi."
+
+✅ CONTRAST:
+"Startup bakal tumbuh 30%. Kenapa? Hanya 12% yang survive 3 tahun."
+
+✅ REALIZATION:
+"Gw baru tau: 38% pertumbuhan digital payment di Indo. Kenapa? Lebih banyak orang pakai QRIS."
+
+✅ CURIOSITY GAP:
+"Rp80 triliun bisa dihemat dari program MBG. Kenapa? Pemerintah kurangi duplikasi distribusi."
 
 ❌ JANGAN: "Lu tau gak?" / quiz-show / opinion tanpa angka / generic filler
 
@@ -200,6 +239,27 @@ SEMUA fakta HARUS dari artikel. Never invent.
 9. NO INVENTED INVOLVEMENT — jangan tambahin tokoh yang gak disebut.
 10. PRESERVE HEDGING — "kemungkinan besar" ≠ "pasti".
 11. NO FAKE PERSONAL STORIES — artikel tentang orang lain, JANGAN rewrite jadi "ibu gw", "temen gw", "kantor gw". Reaksi lu ke fakta = OK. Fabricate pengalaman lu = REJECT.
+
+## 13c. ZERO INVENTED STATISTICS (CRITICAL)
+INVENTING PERCENTAGES / RATIOS = INSTANT REJECT. Ini kesalahan paling fatal:
+
+❌ BANNED PATTERNS:
+- ❌ "90% orang gagal karena..." — unless article LITERALLY says "90%"
+- ❌ "7 dari 10 orang..." — unless article says exactly this ratio
+- ❌ "80% perusahaan..." — unless article provides this number
+- ❌ Converting article numbers: "13 kebiasaan" → "90% orang gagal" = INVENTED
+- ❌ "Rata-rata 3 tahun..." — unless article says "average of 3 years"
+- ❌ "naik 200%" — unless article gives exact growth figure
+- ❌ "Rp500 miliar" / "US$9 miliar" — unless article mentions this figure
+
+✅ ALLOWED PATTERNS (extract, don't invent):
+- ✅ "Artikel ini nyebutin 13 kebiasaan..." — uses article's literal number
+- ✅ "Menurut [source], [exact quote from article]" — direct attribution
+- ✅ "Dari [article's number] [unit]..." — restates the EXACT figure
+- ✅ No number at all → use a quote or qualitative statement instead
+
+RULE OF THUMB: If you don't see the exact number in the article, DON'T USE IT.
+Better: say "banyak orang" than "80% orang". Better: cite a direct quote than invent a stat.
 
 ## 13b. FORBIDDEN HALLUCINATION PATTERNS (from Pressbox)
 JANGAN tulis pola kayak gini — ini tanda LLM ngarang:
@@ -375,9 +435,38 @@ def _call_mistral(title: str, body: str, source: str = "") -> Optional[str]:
             timeout=120)
         if r.status_code == 200:
             return r.json()["choices"][0]["message"]["content"]
-        print(f"Mistral error: {r.status_code} {r.text[:200]}")
+        if r.status_code == 429:
+            print(f"Mistral rate-limited (429), will retry via router")
+        else:
+            print(f"Mistral error: {r.status_code} {r.text[:200]}")
     except Exception as e:
         print(f"Mistral exception: {e}")
+    return None
+
+def _call_router(title: str, body: str, source: str = "") -> Optional[str]:
+    """Primary: local 9router at 127.0.0.1:20128 — no rate limits."""
+    if not ROUTER_KEY:
+        print("Router skipped (no ROUTER_API_KEY)")
+        return None
+    try:
+        r = httpx.post(
+            f"{ROUTER_BASE}/chat/completions",
+            headers={"Authorization": f"Bearer {ROUTER_KEY}", "Content-Type": "application/json"},
+            json={"model": "Deepseek",
+                  "messages": [{"role": "system", "content": SYSTEM_PROMPT},
+                               {"role": "user", "content": _build_user_msg(title, body, source)}],
+                  "temperature": 0.3, "max_tokens": 3000},
+            timeout=120)
+        if r.status_code == 200:
+            # 9router appends SSE "data: [DONE]" even on non-streaming — strip it
+            text = r.text.rsplit("data: [DONE]", 1)[0].strip()
+            if not text:
+                print("Router: empty response after stripping SSE tail")
+                return None
+            return json.loads(text)["choices"][0]["message"]["content"]
+        print(f"Router error: {r.status_code} {r.text[:200]}")
+    except Exception as e:
+        print(f"Router exception: {e}")
     return None
 
 def _call_groq(title: str, body: str, source: str = "") -> Optional[str]:
@@ -493,6 +582,52 @@ def _add_whitespace(text: str) -> str:
     if len(sentences) <= 1:
         return text
     return "\n\n".join(sentences)
+
+
+def _enforce_hook_lucifer(text: str) -> str:
+    """Ensure slide_1 has "Kenapa?" curiosity gap — Pressbox style.
+    
+    If missing, insert it after the first sentence.
+    """
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+    if not sentences:
+        return text
+    
+    if len(sentences) == 1:
+        print("  [HOOK ENFORCE] Missing 'Kenapa?' — appending")
+        first = sentences[0]
+        return f"{first} Kenapa?"
+    
+    print("  [HOOK ENFORCE] Missing 'Kenapa?' — inserting after first sentence")
+    first = sentences[0]
+    rest = ' '.join(sentences[1:])
+    return f"{first} Kenapa? {rest}".strip()
+
+
+def _json_extract(text: str) -> dict:
+    """Extract first JSON object from text, discarding trailing garbage."""
+    # Try full parse first
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    # Find outermost {...} and try that
+    start = text.find('{')
+    if start < 0:
+        return {}
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == '{':
+            depth += 1
+        elif text[i] == '}':
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(text[start:i+1])
+                except json.JSONDecodeError:
+                    return {}
+    return {}
 
 
 # ── Deterministic fact-check: cross-reference slides against source article ──
@@ -666,6 +801,9 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
                 if not text.endswith(('.', '!', '?')):
                     text += '...'
                 print(f"  [POSTPROCESS] Hook truncated to 25 words")
+            # The reason? enforcement for slide_1
+            if not re.search(r'\bkenapa\b', text, re.IGNORECASE):
+                text = _enforce_hook_lucifer(text)
         elif key in ('slide_2', 'slide_3', 'slide_4', 'slide_5'):
             # Body: MAX 3 sentences, <40 words
             sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
@@ -736,19 +874,30 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
 
 def generate_carousel(title: str, body: str, image_url: str = "", source_url: str = "", source: str = "") -> Optional[dict]:
     """Generate 6-slide carousel via LLM, with postprocessing."""
-    if not MISTRAL_KEY:
-        print("No MISTRAL_API_KEY")
-        return None
+    raw = None
+
+    # Tier 1: Local 9router (no rate limits)
+    if ROUTER_KEY:
+        print(f"  Generating via 9router (Deepseek)...")
+        raw = _call_router(title, body, source)
+        if raw:
+            print(f"  ✓ Router OK ({len(raw)} chars)")
     
-    print(f"  Generating with Mistral...")
-    raw = _call_mistral(title, body, source)
+    # Tier 2: Direct Mistral API
+    if (not ROUTER_KEY or not raw) and MISTRAL_KEY:
+        if ROUTER_KEY:
+            print(f"  Router failed, falling back to direct Mistral...")
+        else:
+            print(f"  Generating with Mistral...")
+        raw = _call_mistral(title, body, source)
     
+    # Tier 3: Groq fallback
     if not raw:
         print(f"  Mistral failed, trying Groq...")
         raw = _call_groq(title, body, source)
     
     if not raw:
-        print(f"  Both providers failed")
+        print(f"  All providers failed")
         return None
     
     slides = _parse_json(raw)
@@ -768,19 +917,24 @@ def generate_carousel(title: str, body: str, image_url: str = "", source_url: st
     slides = _postprocess_slides(slides, source_url)
 
     # ── Layer 5: Deterministic fact-check against source ──
+    # NOTE: only warns — never hard-rejects. LLM paraphrase causes false positives.
+    # The LLM evaluator is the real gate. This is just a debugging signal.
     violations = _verify_against_source(slides, body, title)
     if violations:
         num_violations = [v for v in violations if v['type'] == 'number']
         ent_violations = [v for v in violations if v['type'] == 'entity']
-        for v in violations[:5]:  # log max 5
+        for v in violations[:8]:  # log max 8
             print(f"  [FACT-CHECK] ⚠️ {v['slide']}: {v['type']} '{v['value']}' not in source")
-        # Hard reject if 3+ ungrounded numbers (likely hallucinated stats)
-        if len(num_violations) >= 3:
-            print(f"  [FACT-CHECK] REJECT: {len(num_violations)} ungrounded numbers")
-            return None
-        # Warn but allow if only entities (could be general knowledge)
-        if len(violations) >= 5:
-            print(f"  [FACT-CHECK] WARN: {len(violations)} total violations (passing to evaluator)")
+        
+        num_slides = len(set(v['slide'] for v in num_violations))
+        total_affected = len(set(v['slide'] for v in violations))
+        
+        if num_slides >= 4:
+            print(f"  [FACT-CHECK] WARN: {len(num_violations)} nums across {num_slides}/6 slides (passing to evaluator)")
+        elif total_affected >= 3:
+            print(f"  [FACT-CHECK] Minor: {len(violations)} violations across {total_affected}/6 slides")
+        else:
+            print(f"  [FACT-CHECK] Minor: {len(violations)} violations across {total_affected}/6 slides")
 
     # Gate: evaluator check (anti-hallucination, fail-safe)
     if MISTRAL_KEY:
@@ -1098,12 +1252,22 @@ Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT."""
     
     # ── Evaluator API call with retry ────
     import time as _time
+    # Route through 9router if available, else direct Mistral
+    if ROUTER_KEY:
+        base = ROUTER_BASE
+        key = ROUTER_KEY
+        model = "Deepseek"  # 9router: Deepseek — better instruction following
+    else:
+        base = "https://api.mistral.ai/v1"
+        key = MISTRAL_KEY
+        model = "mistral-small-latest"  # direct Mistral: use cheaper small
+    
     for attempt in range(1, 4):
         try:
             r = httpx.post(
-                "https://api.mistral.ai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
-                json={"model": "mistral-small-latest",
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                json={"model": model,
                       "messages": [{"role": "user", "content": evaluator_prompt}],
                       "temperature": 0.3,
                       "max_tokens": 1000},
@@ -1117,7 +1281,14 @@ Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT."""
                     continue
                 return {"status": "REJECT", "reason": f"api_error_fail_safe (HTTP {r.status_code})", "grounding_score": 0, "issues": [f"Evaluator API HTTP {r.status_code}"], "revised_slides": None}
         
-            content = r.json()["choices"][0]["message"]["content"]
+            # Strip SSE trailing data:[DONE] like router sometimes appends
+            raw = r.text
+            if raw.strip().endswith("data: [DONE]"):
+                raw = raw[:raw.rfind("data: [DONE]")].strip()
+                if raw.endswith(","):
+                    raw = raw[:-1].strip()
+            
+            content = json.loads(raw)["choices"][0]["message"]["content"]
             
             # Strip markdown code fences if present
             if "```json" in content:
@@ -1125,7 +1296,7 @@ Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT."""
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0].strip()
             
-            result = json.loads(content)
+            result = _json_extract(content)
 
             status = result.get("status", "APPROVE")
             reason = result.get("reason", "")

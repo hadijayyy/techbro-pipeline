@@ -4,16 +4,28 @@ set -euo pipefail
 cd /home/ubuntu/techbro
 mkdir -p logs
 
+# Posting window: 07:00‑23:00 WIB (UTC+7)
+# Get current hour in WIB
+CURRENT_HOUR=$(TZ='Asia/Jakarta' date +%H)
+# Strip leading zero to avoid bash octal interpretation
+CURRENT_HOUR=$((10#$CURRENT_HOUR))
+if (( CURRENT_HOUR < 7 || CURRENT_HOUR > 23 )); then
+    LOG="logs/pipeline-$(date +%Y%m%d-%H%M%S).log"
+    echo "$(TZ='Asia/Jakarta' date '+%H:%M WIB %d %b %Y') — outside posting window ($CURRENT_HOUR). Skip run." >> "$LOG"
+    exit 0
+fi
+
 # Kill stuck pipeline from previous run (older than 10 min)
 OLD_PID=$(cat .pipeline.pid 2>/dev/null || echo "")
 if [ -n "$OLD_PID" ] && kill -0 "$OLD_PID" 2>/dev/null; then
     AGE=$(($(date +%s) - $(stat -c %Y .pipeline.pid 2>/dev/null || echo 0)))
     if [ "$AGE" -gt 600 ]; then
-        echo "[WRAPPER] Killing stale pipeline (PID $OLD_PID, age ${age}s)"
+        echo "[WRAPPER] Killing stale pipeline (PID $OLD_PID, age ${AGE}s)"
         kill -9 "$OLD_PID" 2>/dev/null || true
         rm -f .pipeline.lock
     fi
 fi
+
 echo $$ > .pipeline.pid
 
 # Load API keys
@@ -84,9 +96,9 @@ if staged:
         print(f'  #{s["id"]}: {hook}')
 else:
     print('⏳ Nothing staged')
-
 print()
 print('Next: top of next hour')
 PYEOF
 
 exit $EXIT_CODE
+
