@@ -601,7 +601,10 @@ def _enforce_hook_lucifer(text: str) -> str:
     print("  [HOOK ENFORCE] Missing 'Kenapa?' — inserting after first sentence")
     first = sentences[0]
     rest = ' '.join(sentences[1:])
-    return f"{first} Kenapa? {rest}".strip()
+    text = f"{first} Kenapa? {rest}".strip()
+    # Dedup jika LLM somehow masih include "Kenapa?" di rest
+    text = re.sub(r'\bKenapa\?\s+Kenapa\?', 'Kenapa?', text, flags=re.IGNORECASE)
+    return text
 
 
 def _json_extract(text: str) -> dict:

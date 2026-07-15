@@ -205,7 +205,7 @@ def post_from_db(limit: int = 1, dry_run: bool = False) -> None:
         created = post.get("created_at", "")
         if created:
             try:
-                age = datetime.now() - datetime.fromisoformat(created)
+                age = datetime.now(datetime.UTC) - datetime.fromisoformat(created)
                 if age > timedelta(hours=4):
                     print(f"  [STALE] #{post['id']} staged {age} ago, marking failed")
                     mark_failed(conn, post["id"])
