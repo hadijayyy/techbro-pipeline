@@ -8,7 +8,10 @@ import os
 import re
 import json
 import httpx
+from dotenv import load_dotenv
 from typing import Optional
+
+load_dotenv()
 
 MISTRAL_KEY = os.environ.get("MISTRAL_API_KEY", "")
 GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
