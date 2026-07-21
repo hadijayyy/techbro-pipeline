@@ -282,8 +282,13 @@ Create exactly six posts with one narrative arc:
 
 post_1 — Hook
 - Maximum 150 characters including spaces.
-- One or two sentences.
-- State the tension, surprising contrast, or sharp question immediately.
+- One or two sentences, never three.
+- REQUIRED: counter-intuitive claim, surprising statistic, or contrast that challenges common belief.
+- FORBIDDEN: soft rhetorical questions like "Pernah...?" / "Kalian pernah...?" / "Pernah nggak...?" unless the question itself contains a surprising contradiction.
+- Bad: "Pernah ngerasa stuck di antara dua opsi?" → too soft, reader can say "Iya" and skip.
+- Good: "Singa gagal 7 dari 10 buruan. Capung? 95% sukses. Gimana caranya?" → contrast + number + curiosity gap.
+- Good: "Stuck milih menu warteg 10 menit. Tapi keputusan nikah? Cuma 2 detik. Ironis." → contrast-driven, no soft opener.
+- Good: "Ngomong sendiri bukan tanda gila. Itu cara otak lo ngatur pikiran." → bold claim, no question needed.
 - No greeting, background setup, clickbait, or unsupported number.
 
 post_2 — Concrete scenario
