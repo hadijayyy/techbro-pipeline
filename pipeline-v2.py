@@ -321,20 +321,16 @@ Default: **"lo"** — langsung ngomong ke audiens. Narator gak pake "gue".
 Semua dari sudut pandang "lo/kita". Gak boleh ngarang cerita tentang diri Ryan Hadi.
 
 ## [MUST] 6-SLIDE STRUCTURE
-WAJIB: 4 poin. S1 = title + poin 1. S2 = poin 2. S3 = poin 3. S4 = poin 4.
-S5 & S6 BUKAN poin list — S5 = insight, S6 = solusi.
+WAJIB: S1 = title doang. S2-S5 = 4 poin (tanpa nomor). S6 = solusi.
 
 | Slide | Fungsi | Max chars | WAJIB jawab |
 |-------|--------|-----------|-------------|
-| S1 | Title + Poin 1 | 300 | Judul list + poin pertama. WAJIB: judul muncul dulu sebagai baris pertama, baru poin 1. Contoh: '4 Tanda Lo Kena Lifestyle Creep\n1. Tagihan kartu kredit lo naik 2x lipat...' Minimal 1 angka konkret. |
-| S2 | Poin 2 | 350 | Lanjutan list. Header + penjelasan 2-4 kalimat. |
-| S3 | Poin 3 | 350 | Lanjutan list. Header + penjelasan 2-4 kalimat. |
-| S4 | Poin 4 | 350 | Lanjutan list. Header + penjelasan 2-4 kalimat. |
-| S5 | Insight/Konteks | 350 | Kenapa ini penting, data/observasi tambahan, atau hubungan antar poin. BUKAN poin numbered. |
-| S6 | Solusi + CTA | 60 kata | Langkah konkret yg bisa langsung dilakukan. Bisa include link. BUKAN poin list. |
-
-WAJIB: 6 slide. GAK BOLEH kurang. S1 title+poin1. S2=poin2. S3=poin3. S4=poin4. S5=insight. S6=solusi.
-POIN: nomor urut HARUS 1-4 (jangan lompat). Tiap poin WAJIB punya konten.
+| S1 | Title | 200 | Judul list aja. Contoh: '4 Kebiasaan Sehari-hari Lo yang Sebenarnya Bukan Normal'. BUKAN poin. Minimal 1 angka konkret. |
+| S2 | Poin 1 | 350 | Poin pertama. Header + penjelasan 2-4 kalimat. JANGAN mulai dgn angka (1., Tanda 1., dll). Langsung judul poin. |
+| S3 | Poin 2 | 350 | Poin kedua. Header + penjelasan 2-4 kalimat. |
+| S4 | Poin 3 | 350 | Poin ketiga. |
+| S5 | Poin 4 | 350 | Poin keempat. |
+| S6 | Solusi + CTA | 60 kata | Langkah konkret. Bisa include link. |
 
 ## [MUST] ANTI-HALLUCINATION — BACA BAIK-BAIK
 DILARANG KERAS menyebut:
@@ -354,15 +350,14 @@ Kalo gak yakin faktanya → tulis sbg OPINION. JANGAN paksa jadi FACT.
 FACT cuma common knowledge biologi/fisiologi dasar — itu pun jangan bikin angka-angkaan atau label riset.
 
 ## [COULD] FORMAT PER POIN
-- Header: "Tanda X. [Judul]" atau "[Angka]. [Judul]"
-- Tiap poin = header langsung diikuti penjelasan. JANGAN pisah baris antara header & penjelasan pertama.
+- Tiap poin = header langsung diikuti penjelasan. JANGAN pisah baris.
+- Header tulis sebagai judul poin, tanpa angka atau prefix.
 - Contoh BENAR:
-  Poin 1: Cepet laper padahal baru makan — Gula bikin insulin lo melonjak trus anjlok drastis (sugar crash). Akibatnya otak lo dapet sinyal palsu kalau lo butuh energi lagi.
-  (Header + penjelasan dalam 1 paragraf, bukan baris terpisah)
+  Nge-scroll media sambil makan — Otak lo divided attention pas makan. Lo makan lebih banyak tanpa sadar karena sinyal kenyang telat sampe ke otak.
 - CONTOH SALAH (JANGAN):
-  Poin 1. Cepet laper  ← header doang
-  (baris kosong)         ← jangan ada baris kosong antara header & isi
-  Penjelasan...         ← terpisah
+  1. Nge-scroll media sambil makan  ← jangan pake angka
+  (baris kosong)                     ← jangan ada baris kosong
+  Penjelasan...                      ← terpisah
 - Penjelasan: 2-4 kalimat padat per poin. Langsung ke inti.
 - Fakta > cerita. Istilah teknis OK, jelasin singkat kalo perlu.
 
@@ -412,20 +407,16 @@ Default: **"lo"** — frontal, kayak temen yg ngompolin lo.
 LARANGAN: Jangan pake "gue" sebagai narator. Narator WAJIB "lo". Dialog internal pembaca juga "lo". LLM bukan Ryan Hadi.
 
 ## [MUST] 6-SLIDE STRUCTURE
-WAJIB: 4 poin. S1 = title + poin 1. S2 = poin 2. S3 = poin 3. S4 = poin 4.
-S5 & S6 BUKAN poin list — S5 = ironi/dampak, S6 = solusi.
+WAJIB: S1 = title doang. S2-S5 = 4 poin (tanpa nomor). S6 = solusi.
 
 | Slide | Fungsi | Max chars | WAJIB jawab |
 |-------|--------|-----------|-------------|
-| S1 | Title + Poin 1 | 300 | Judul list + attitude + poin pertama. WAJIB: judul muncul dulu sebagai baris pertama, baru poin 1. Contoh: '4 Tanda Lo Kena Lifestyle Creep\n1. Tagihan kartu kredit lo naik 2x lipat...' Minimal 1 angka konkret. |
-| S2 | Poin 2 | 350 | Lanjutan list. Header + penjelasan 2-4 kalimat. |
-| S3 | Poin 3 | 350 | Lanjutan. |
-| S4 | Poin 4 | 350 | Lanjutan. |
-| S5 | Ironi/Dampak | 350 | Kenapa ini bahaya, atau ironi dari situasi ini. "Yang rugi siapa?" BUKAN poin numbered. |
-| S6 | Solusi + CTA | 60 kata | Langkah konkret yg bisa langsung. "Kalo lo mau [X], stop [Y]. Mulai [Z]." Bisa include link. BUKAN poin list. |
-
-WAJIB: 6 slide. GAK BOLEH kurang. S1 title+poin1. S2=poin2. S3=poin3. S4=poin4. S5=ironi. S6=solusi.
-POIN: nomor urut HARUS 1-4 (jangan lompat). Tiap poin WAJIB punya konten.
+| S1 | Title | 200 | Judul list + attitude. Contoh: '4 Tanda Lo Terlalu Abstrak'. BUKAN poin. Minimal 1 angka konkret. |
+| S2 | Poin 1 | 350 | Poin pertama. Header + penjelasan 2-4 kalimat. JANGAN mulai dgn angka. Langsung judul poin. |
+| S3 | Poin 2 | 350 | Poin kedua. Header + penjelasan 2-4 kalimat. |
+| S4 | Poin 3 | 350 | Poin ketiga. |
+| S5 | Poin 4 | 350 | Poin keempat. |
+| S6 | Solusi + CTA | 60 kata | Langkah konkret. "Kalo lo mau [X], stop [Y]. Mulai [Z]." Bisa include link. |
 
 ## [MUST] ANTI-HALLUCINATION — BACA BAIK-BAIK
 DILARANG KERAS menyebut:
@@ -445,14 +436,14 @@ Kalo gak yakin faktanya → tulis sbg OPINION. JANGAN paksa jadi FACT.
 FACT cuma common knowledge biologi/fisiologi dasar — itu pun jangan bikin angka-angkaan atau label riset.
 
 ## [COULD] FORMAT PER POIN
-- Header: "Tanda X. [Judul]" atau "[Angka]. [Judul]" atau "Mitos X: [Judul]"
-- Tiap poin = header langsung diikuti penjelasan. JANGAN pisah baris antara header & penjelasan pertama.
+- Tiap poin = header langsung diikuti penjelasan. JANGAN pisah baris.
+- Header tulis sebagai judul poin, tanpa angka atau prefix.
 - Contoh BENAR:
-  Poin 1: Cepet laper padahal baru makan — Gula bikin insulin lo melonjak trus anjlok. Akibatnya otak lo dapet sinyal palsu kalau lo butuh energi lagi.
+  Nge-scroll media sambil makan — Otak lo divided attention pas makan. Lo makan lebih banyak tanpa sadar.
 - CONTOH SALAH (JANGAN):
-  Poin 1. Cepet laper  ← header doang
-  (baris kosong)         ← jangan ada baris kosong
-  Penjelasan...         ← terpisah
+  1. Nge-scroll media sambil makan  ← jangan pake angka
+  (baris kosong)                     ← jangan ada baris kosong
+  Penjelasan...                      ← terpisah
 
 ## [SHOULD] WRITING STYLE
 - Bahasa Indonesia. Pake "lo". Zero emoji. No hashtags.
