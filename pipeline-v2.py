@@ -23,6 +23,7 @@ log.addHandler(_h)
 DRY_RUN = "--dry-run" in sys.argv
 MAX_CHARS = 495
 GRAPH = "https://graph.threads.net/v1.0"
+RECENT_WINDOW = 5  # number of past posts to track for repetition avoidance
 
 ENV = {}
 for env_path in [HOME / ".hermes" / ".env", BASE_DIR / ".env"]:
@@ -169,6 +170,43 @@ def _convert_pov(text):
             part = re.sub(r'\bGua\b', 'Gw', part)
             parts[i] = part
     return ''.join(parts)
+
+
+def _extract_recent_content(slides, angle="", claims=None):
+    """Extract recent content fingerprints from generated slides for repetition tracking."""
+    recent = {"openings": [], "ctas": [], "analogies": [], "characters": [], "local_details": [], "angles": []}
+    if angle:
+        recent["angles"] = [angle]
+    for s in slides:
+        content = s.get("content", "")
+        title = s.get("title", "")
+        if title == "S1":
+            recent["openings"] = [content[:120]]
+        if title == "S6":
+            recent["ctas"] = [content[:120]]
+        for keyword in ["kayak", "seperti ", "ibarat"]:
+            if keyword in content.lower():
+                for sentence in content.replace(";", ".").split("."):
+                    if keyword in sentence.lower():
+                        recent["analogies"].append(sentence.strip()[:80])
+                        break
+    for key in recent:
+        recent[key] = list(dict.fromkeys(recent[key]))[:3]
+    return recent
+
+
+def merge_recent_content(data, new_recent):
+    """Slide new recent content into data, keeping sliding window of RECENT_WINDOW items."""
+    recent = data.setdefault("recent_content", {
+        "openings": [], "ctas": [], "analogies": [], "characters": [], "local_details": [], "angles": []
+    })
+    for key in ["openings", "ctas", "analogies", "characters", "local_details", "angles"]:
+        existing = recent.get(key, [])
+        new_items = new_recent.get(key, [])
+        combined = [x for x in new_items if x not in existing] + existing
+        recent[key] = combined[:RECENT_WINDOW]
+    return data
+
 
 # ══════════════════════════════════════════════
 #   GENERATOR — SYSTEM PROMPT (from document)
@@ -397,7 +435,7 @@ def load_data():
     try:
         return json.loads(POSTED_FILE.read_text())
     except (FileNotFoundError, json.JSONDecodeError):
-        return {"topics": [], "_bucket_counts": {}, "_hook_type_counts": {}, "_formula_counts": {}}
+        return {"topics": [], "recent_content": {"openings": [], "ctas": [], "analogies": [], "characters": [], "local_details": [], "angles": []}}
 
 def save_data(data):
     POSTED_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
@@ -579,7 +617,20 @@ def generate_thread(seed, mode="OPINION", **kwargs):
             valid, violations = deterministic_validate(data)
             if not valid:
                 log.warning(f"  Validation: {violations}")
-                if attempt < 3:
+                # Try revision first before fresh regenerate
+                if attempt == 1:
+                    input_data = {"mode": mode, "seed": seed, "recent": kwargs.get("recent", {})}
+                    revised = revise_output(content_raw, violations, input_data)
+                    if revised:
+                        rev_valid, rev_violations = deterministic_validate(revised)
+                        if rev_valid:
+                            log.info("  Revision loop — accepted")
+                            data = revised
+                            valid = True
+                        else:
+                            log.warning(f"  Revision failed: {rev_violations}")
+                
+                if not valid and attempt < 3:
                     time.sleep(1)
                     continue
             
@@ -629,7 +680,140 @@ def generate_thread(seed, mode="OPINION", **kwargs):
     return None
 
 # ══════════════════════════════════════════════
-#   SEMANTIC VALIDATOR
+#   REVISION LOOP
+# ══════════════════════════════════════════════
+
+REVISION_PROMPT = """Your job: fix the generated output below so it passes validation.
+
+Original input and the failing JSON are provided. The deterministic validation errors are listed. Fix ONLY what caused the violations; keep everything else identical.
+
+Rules:
+1. If the error is a character limit (e.g. "post_1: 164 chars exceeds limit 150"), truncate or rephrase concisely while keeping the same meaning.
+2. If the error is a prohibited word, replace it with a natural equivalent.
+3. If the error is an invalid pronoun ("lo" instead of "kalian"), change ONLY the pronoun.
+4. Change as little as possible. Do not rewrite the entire output.
+5. Return valid JSON only — same schema as the original output.
+6. Do not add Markdown fences or commentary."""
+
+def revise_output(output_text, violations, input_data):
+    """Send original failed output + errors to LLM for targeted fix."""
+    if not LLM_KEY:
+        return None
+    
+    system = REVISION_PROMPT
+    user = f"""<original_input>
+{json.dumps(input_data, indent=2, ensure_ascii=False)}
+</original_input>
+
+<generated_output>
+{output_text}
+</generated_output>
+
+<validation_errors>
+{json.dumps(violations, indent=2)}
+</validation_errors>
+
+Fix the generated output to pass validation. Return valid JSON only."""
+
+    try:
+        r = httpx.post(
+            f"{LLM_BASE}/chat/completions",
+            headers={"Authorization": f"Bearer {LLM_KEY}", "Content-Type": "application/json"},
+            json={
+                "model": "mistral-large-latest",
+                "messages": [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user}
+                ],
+                "max_tokens": 2500,
+                "temperature": 0.3
+            },
+            timeout=60
+        )
+        if r.status_code != 200:
+            return None
+        
+        raw = r.text.strip()
+        content = r.json()["choices"][0]["message"]["content"].strip()
+        content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+        content = re.sub(r"^```(?:json)?\\s*", "", content)
+        content = re.sub(r"\\s*```$", "", content)
+        data = json.loads(content)
+        return data
+    except Exception:
+        return None
+
+# ══════════════════════════════════════════════
+#   SEMANTIC VALIDATOR + RECENT CONTENT EXTRACTOR
+# ══════════════════════════════════════════════
+
+LOCAL_KEYWORDS = ["KRL", "warteg", "indomie", "angkot", "ojol", "kosan",
+    "nasi Padang", "pasar", "stasiun", "terminal", "gang", "kontrakan",
+    "kampus", "kopi", "Indomaret", "Alfamart", "MRT", "gojek", "grab",
+    "Jakarta", "Bandung", "Jogja", "Surabaya"]
+
+def _extract_elements(slides, angle):
+    """Extract structural elements from generated slides for repetition prevention."""
+    if not slides:
+        return {"openings": [], "ctas": [], "analogies": [], "characters": [], "local_details": [], "angles": []}
+    
+    s1 = slides[0]["content"] if len(slides) > 0 else ""
+    s6 = slides[-1]["content"] if len(slides) > 0 else ""
+    all_text = " ".join(s["content"] for s in slides)
+    
+    # Opening: first meaningful sentence of S1
+    opening = s1.split(".")[0].strip() if s1 else ""
+    opening = re.sub(r"[‘’'\"!?…,]", "", opening).strip().lower()
+    opening = opening[:80]
+    
+    # CTA: last sentence of S6 (after "kalian bisa", "coba", "mulai")
+    s6_sentences = [s.strip() for s in re.split(r'[.!?\n]', s6) if s.strip()]
+    cta = s6_sentences[-1] if s6_sentences else ""
+    cta = re.sub(r"[‘’'\"…]", "", cta).strip().lower()
+    cta = cta[:80]
+    
+    # Analogies: sentences containing analogy markers
+    analogies = []
+    for s in slides:
+        for sent in re.split(r'[.!?\n]', s["content"]):
+            if any(m in sent.lower() for m in ["kayak", "seperti", "ibarat", "bagai", "laksana", "mirip", "sama kayak"]):
+                cleaned = sent.strip()[:100]
+                if len(cleaned) > 15 and cleaned not in analogies:
+                    analogies.append(cleaned)
+    
+    # Characters: "si [proper noun]" patterns
+    chars = list(set(re.findall(r'\bsi\s+[A-Z][a-z]+', all_text)))
+    
+    # Local details
+    found_locals = [kw for kw in LOCAL_KEYWORDS if kw.lower() in all_text.lower()]
+    
+    return {
+        "openings": [opening] if opening else [],
+        "ctas": [cta] if cta else [],
+        "analogies": analogies,
+        "characters": chars,
+        "local_details": found_locals,
+        "angles": [angle] if angle else []
+    }
+
+def _update_recent(data, elements):
+    """Append elements to recent_content, keep last 5."""
+    recent = data.setdefault("recent_content", {
+        "openings": [], "ctas": [], "analogies": [],
+        "characters": [], "local_details": [], "angles": []
+    })
+    for key in ("openings", "ctas", "analogies", "characters", "local_details", "angles"):
+        recent.setdefault(key, [])
+        for item in elements.get(key, []):
+            if item and item not in recent[key]:
+                recent[key].append(item)
+        recent[key] = recent[key][-5:]  # keep last 5
+    
+    # Trim empty items
+    for key in ("openings", "ctas", "analogies", "characters", "local_details", "angles"):
+        recent[key] = [x for x in recent[key] if x]
+    
+    data["recent_content"] = recent
 # ══════════════════════════════════════════════
 
 SEMANTIC_VALIDATOR = """You are a strict semantic reviewer for a six-post Threads chain written for @ryanhadiii.
@@ -812,12 +996,18 @@ def main():
     seed = _clean_seed(seed_raw)
     log.info(f"Seed: {seed}")
     
+    # Load recent_content for repetition prevention
+    recent_content = data.get("recent_content", {
+        "openings": [], "ctas": [], "analogies": [],
+        "characters": [], "local_details": [], "angles": []
+    })
+    
     # Generate
     mode = "OPINION"  # default; FACT mode uses --fact flag
     if "--fact" in sys.argv:
         mode = "FACT"
     
-    result = generate_thread(seed, mode=mode)
+    result = generate_thread(seed, mode=mode, recent=recent_content)
     if result is None:
         log.error("Generation failed")
         sys.exit(1)
@@ -838,6 +1028,10 @@ def main():
         print(f"Angle: {angle}")
     if claims:
         print(f"Claims: {', '.join(claims)}")
+    
+    # Extract structural elements to prevent repetition
+    elements = _extract_elements(slides, angle)
+    _update_recent(data, elements)
     
     if not DRY_RUN:
         log.info("Posting...")
