@@ -282,7 +282,7 @@ Ini bukan ChatGPT. Tulisan manusia:
 4. **Kata isian natural**: sesekali "ya gitulah", "ntahlah", "pokoknya gitu".
 5. **Slide gak 100% tegas**: S4 bisa udah nyentuh S5. S5 bisa udah ngasih solusi. Gapapa.
 6. **Gak semua slide paragraf sempurna**: S3 bisa cuma 2 kalimat. S6 bisa 3 kalimat pendek.
-7. **Quote orang harus kasar**: "Mclaren lu warna apa boss?" — bukan kalimat pabrikan.
+7. **Quote orang harus kasar**: "Mclaren lu warna apa boss?" — bukan kalimat pabrikan. 1-2 kutipan per thread.
 8. **Gak over-explain**: tinggalin misteri dikit.
 
 Detail spesifik Indo wajib dipake:
@@ -290,9 +290,6 @@ Detail spesifik Indo wajib dipake:
 - Tempat: KRL, angkot, pasar, gang sempit, kosan 3x3, warung kopi
 - Aktivitas: begadang karena FOMO, meeting Zoom background blur, ngecas HP sambil main game
 - Tokoh: si Budi (temen), Mbak Indah (kost), Mas RT, ojol langganan, si Andi, si Dian
-
-## [MUST] DIALOG & QUOTES
-1-2 kutipan per thread. Harus kedengeran kayak omongan orang beneran.
 
 ## [MUST] ANTI-HALLUCINATION
 DILARANG KERAS:
@@ -313,11 +310,15 @@ BOLEH:
 Kalo gak yakin → OPINION.
 
 ## [COULD] CLAIM LABEL
+- OPINION = pandangan personal, tanpa klaim fakta
+- EXPERIENCE = pengamatan pribadi, jangan digeneralisasi
+- ADVICE = saran praktis, hindari janji hasil
 Kasih label di claims_used: "OPINION: ...", "EXPERIENCE: ...", "ADVICE: ..."
 
 ## [COULD] STYLE
-- Bahasa Indonesia informal
+- Bahasa Indonesia informal. Dialogis, kayak ngobrol. Bukan ceramah.
 - Zero emoji. No hashtags.
+- Kalimat pendek, tajam. Tapi kadang boleh ada yg panjang dikit.
 - CTA gak seragam: kadang "Mulai aja", kadang "Coba minggu ini", kadang "Gak usah ribet."
 
 ## [COULD] OUTPUT
@@ -376,13 +377,16 @@ def generate_slides(seed_topic):
                 if text and len(text) >= 10:
                     text = text.replace("\u2014", " - ").replace("\u2013", " - ")
                     text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
-                    # S1: max 300 char (min 3 kalimat)
-                    if i == 1 and len(text) > 300:
-                        text = text[:300].rsplit('.', 1)[0] + '.'
-                    # S2-S5: max 350 char (min 3 kalimat)
-                    if i in (2, 3, 4, 5) and len(text) > 350:
+                    # S1: max 150 char (1 kalimat hook)
+                    if i == 1 and len(text) > 150:
+                        text = text[:150].rsplit('.', 1)[0] + '.'
+                    # S2-S4: max 350 char
+                    if i in (2, 3, 4) and len(text) > 350:
                         text = text[:350].rsplit('.', 1)[0] + '.'
-                    # S6: max 350 char (60 kata ~ min 3 kalimat)
+                    # S5: max 350 char
+                    if i == 5 and len(text) > 350:
+                        text = text[:350].rsplit('.', 1)[0] + '.'
+                    # S6: max 350 char (60 kata closing)
                     if i == 6 and len(text) > 350:
                         text = text[:350].rsplit('.', 1)[0] + '.'
                     if len(text) > MAX_CHARS:
