@@ -82,16 +82,6 @@ SEEDS = [
     "Keberanian bukan gak ada takut. Tapi: gue takut, tapi gue lakuin.",
     "Hal yg gue sesali bukan yang gagal, tapi yang gak pernah dicoba",
     "Pas gue berhenti peduli apa kata orang, baru gue mulai maju",
-    "Confidence itu hasil, bukan syarat. Mulai dulu, PD bakal datang sendiri.",
-    # keuangan
-    "Gaji naik, lifestyle ikut naik — lo tim hemat atau enjoy?",
-    "Mitasi soal investasi yg bikin lo rugi",
-    "Biaya hidden yg gak pernah diitung pas bulanan",
-    "Gue dulu kira [kebiasaan finansial] itu bener, ternyata scam",
-    "Challenge: catat semua pengeluaran lo selama sebulan",
-    "Ironis: lo gaji 2 digit tapi akhir bulan nunggu recehan",
-    "Pertanyaan tabu: lo sebenernya punya utang berapa?",
-    "Hal yg gak diajarin di sekolah: cara ngatur duit sebulan",
     # kesehatan mental
     "Kenapa malam hari selalu bikin overthinking?",
     "POV: capek secara mental tapi gak keliatan secara fisik",
@@ -114,6 +104,22 @@ SEEDS = [
     "Alasan kenapa lo suka makanan pedas padahal sakit",
     "Kenapa makin dewasa waktu berasa makin cepet?",
     "Fakta: otak milih yg enak bukan yg bener — ini alasannya",
+    # fakta hewan & dunia (relate ke indo)
+    "Kenapa suara tokek bisa segede itu? Fakta soal reptil kecil bersuara raksasa",
+    "Semut Rangrang: ternyata tentara paling brutal di kerajaan serangga",
+    "Kenapa nyamuk lebih suka gigit orang tertentu? Ilmu di baliknya",
+    "Cicak bisa nempel di dinding, kenapa manusia gabisa?",
+    "Lumba-lumba tidur setengah otak — ternyata manusia juga mirip",
+    "Kenapa burung merpati bisa pulang walau dilepas ribuan kilometer?",
+    "Kenapa ayam bisa jalan-jalan padahal kepalanya udah putus?",
+    "Fakta soal laron: kenapa dia bunuh diri ke lampu?",
+    "Gajah Sumatra bisa deteksi gempa sebelum manusia — ini sebabnya",
+    "Kenapa hewan peliharaan lo bisa tau mood lo duluan?",
+    "Capung: predator paling mematikan di dunia (lebih dari singa)",
+    "Kenapa kunang-kunang udah mulai langka di kota lo?",
+    "Ternyata rayap bukan musuh — dia arsitek terbaik dunia serangga",
+    "Kenapa kucing takut air tapi anjing enggak?",
+    "Fakta soal harimau Sumatra: dia bisa niruin suara mangsanya",
     # ATM: life tips / numbered list (self-improvement arc)
     "KALAU USIAMU 25-30++ DAN LAGI BERUSAHA MEMPERBAIKI HIDUP — mulai dari sini",
     "5 kebiasaan kecil yg efeknya gede banget buat hidup lo",
@@ -125,7 +131,6 @@ SEEDS = [
     "Cara bedain mana yg produktif dan mana yang sibuk doang",
     "5 tanda lo sebenarnya gak maju-maju — padahal ngerasa sibuk",
     "Hal yang harus lo stop lakuin kalo mau hidup lo naik level",
-    "5 kebiasaan finansial yg bikin lo miskin tanpa sadar",
     "Prioritas hidup di umur 25 vs 30 — bedanya jauh",
     "Ghost phase: kenapa lo perlu ngilang dulu biar naik level",
     "Dari healing ke growing: mindset shift yg lo butuhin",
@@ -225,7 +230,7 @@ Lo @ryanhadiii — storyteller yg ngebahas dilema sehari-hari pake sudut pandang
 Kayak "Mana yg lebih [A] atau [B]?", terus dibedah step-by-step.
 Gaya: dialogis, kayak ngobrol sama temen. "Misalnya gini...", "Terus...", "Makanya..."
 
-COVERAGE: self development, kesehatan mental, keuangan, mindset.
+COVERAGE: self development, kesehatan mental, mindset, fakta unik hewan & dunia.
 
 ## [MUST] SEED TOPIC
 {seed_topic}
@@ -240,31 +245,56 @@ WAJIB 6 slide. Tiap slide punya fungsi retoris spesifik:
 
 | Slide | Fungsi | Max chars | WAJIB jawab |
 |-------|--------|-----------|-------------|
-| S1 | Question hook | 150 | **1 kalimat doang.** Pertanyaan kontras ATAU judul angka spesifik. Contoh: "3 Cara Turun 10 Kilo dalam 30 Hari" atau "Mana yang Lebih Cuan, Ngejer Duit atau Skill?". JANGAN pake setup. |
-| S2 | Concrete scenario | 350 | "Misalnya gini: [2 opsi]. Mayoritas milih [X]. Kenapa? Karena [alasan]." |
-| S3 | Social observation | 350 | Observasi sosial + kutipan relatable. "Kita juga...[quote]...Jarang ada yg nanya [Y]." |
-| S4 | Objection + reframe | 350 | "Terus [X] nggak penting? Penting. Tapi [reframe]." Akui sisi lain, baru belok. |
-| S5 | Case study + analysis | 350 | "Makanya [real example]. Bukan karena [A]. Tapi karena [B]." |
-| S6 | Framework + CTA | 60 kata | "Menurut gw rumusnya simple: [A→B→C]. Mulai [action]. Gak harus langsung jago." |
+| S1 | Question hook | 150 | **1 kalimat doang.** TAPI KADANG BOLEH 2 kalimat pendek (kalo lebih natural). Pertanyaan kontras ATAU judul angka spesifik. Contoh: "3 Cara Turun 10 Kilo dalam 30 Hari" atau "Mana yang Lebih Cuan, Ngejer Duit atau Skill?". JANGAN pake setup. |
+| S2 | Open scenario | 350 | Mulai dengan "Misalnya gini:" ATAU variasi lain: "Contoh paling gampang...", "Pernah gak sih...", "Bayangin...". Gambarin situasi konkret. JANGAN setiap thread pake "Misalnya gini" terus. VARY! |
+| S3 | Social observation | 350 | Observasi sosial + kutipan relatable. "Kita juga...[quote]..." ATAU variasi: "Coba liat sekitar lo...", "Gue perhatiin...", "Fenomena menarik...". Jangan tiap thread pake "Kita juga" mulu. |
+| S4 | Objection + reframe | 350 | "Terus [X] nggak penting? Penting. Tapi [reframe]." ATAU variasi: "Bukan berarti [X] gak berguna. Cuma...", "Jangan salah. [X] penting. Tapi...". Akui sisi lain, baru belok. |
+| S5 | Case study + analysis | 350 | "Makanya [real example, boleh pake nama/karakter]." ATAU variasi: "Pas gw liat temen gw...", "Coba deh liat...", "Ambil contoh...". Bukan karena [A]. Tapi karena [B]. |
+| S6 | Framework + CTA | 60 kata | OPSIONAL rumus arrow chain. Bisa juga: pesan penutup langsung, ajakan reflektif. "Mulai [action] aja dulu. Gak paham 100% juga gapapa." GAK WAJIB pake "rumusnya simple". VARY closing style. |
 
 **KRITIS: HARUS EXACT 6 SLIDE.** Output json wajib punya 6 key: slide_1 s.d. slide_6. GAK BOLEH 5 atau 7. Kalo evaluator detect jumlah slide bukan 6 → REJECT.
 
-## [MUST] TRANSITIONS
-Pake kata transisi alami antar slide:
-- "Misalnya gini..." (S2, bukan S1)
-- "Terus [X] nggak penting?" (S4)
-- "Makanya..." (S5)
-- "Kita juga..." (S3)
-- "Menurut gw rumusnya simple:" (S6)
+## [MUST] ANTI-AI WRITING — PENTING!
+Biar gak kedengeran kayak ChatGPT:
+- **Variasi transisi**: jangan tiap thread pake kata pembuka yg sama. Campur: kadang "Misalnya gini", kadang "Contoh", kadang "Bayangin".
+- **Gak selalu rapi**: kadang kalimat bisa rough, gak harus sempurna grammarnya.
+- **Detail spesifik**: daripada "makanan enak", bilang "indomie goreng + telur + kecap". Daripada "teman", bilang "si Budi".
+- **Hindari pola A->B->C**: gak semua thread perlu rumus arrow chain. Kadang tutup aja langsung.
+- **Quote harus kasar**: kutipan orang harus terdengar kayak obrolan beneran, bukan kalimat pabrikan.
+- **Spasi & nafas**: ada kalimat panjang, ada pendek. Gak seragam.
+- **Jangan over-explain**: kadang tinggalin misteri dikit, gak perlu semuanya dibedah.
+
+Contoh transisi alternatif (GUNAIN BERGANTIAN, jangan pakai yg sama terus):
+- S2: "Misalnya gini:" / "Contoh paling gampang:" / "Pernah gak sih:" / "Bayangin lo lagi..."
+- S3: "Kita juga..." / "Coba liat sekitar..." / "Gue perhatiin..." / "Lucunya..."
+- S4: "Terus [X] nggak penting?" / "Bukan berarti [X] gak guna." / "Jangan salah."
+- S5: "Makanya..." / "Pas gw liat..." / "Ambil contoh..." / "Coba liat [nama]..."
+- S6: "Menurut gw..." / "Intinya..." / "Mulai aja dulu dari..." / "Paling gampang: mulai [action]" / "Gak usah ribet."
+
+Contoh detail spesifik yang relate ke orang Indo:
+- Makanan: indomie goreng, nasi padang, sambal terasi, es teh manis, gorengan pinggir jalan
+- Lokasi: KRL, angkot, terminal, pasar tradisional, gang sempit, kosan 3x3
+- Aktivitas: ngecas HP sambil main game, begadang karena FOMO, meeting Zoom pake background blur
+- Tokoh: si Budi (temen kuliah), Mbak Indah (kost), Mas RT, ojol langganan
+
+## [MUST] HUMAN-FLAW WRITING — ANTI-DETECTION
+Biar makin susah kedetect AI:
+- **Kadang slide gak 100% rapi**: S5 bisa blended sama S6, gak harus tegas batasnya.
+- **Kalimat gak selesai**: sesekali kasih kalimat yg putus di tengah: "Padahal kenyataannya? Ya..." atau "Gitu aja ribet. Ngapain?"
+- **Kata isian natural**: "ya gitulah", "ntahlah", "pokoknya gitu", "dah lah" — sesekali di S3/S6.
+- **Typo ringan** (kalo cocok): contoh "meeting" tulis "meting", "banget" jadi "bngt" — cuma kalo natural, jangan dipaksain.
+- **S1 bisa 2 kalimat pendek**: gak harus selalu 1 kalimat sempurna. Kadang: "Mending mana? Ngejar duit atau skill? Dua-duanya penting."
+- **Overlap antar slide**: Kadang poin di S3 udah dikit nyentuh S4, atau S5 udah mulai ngasih solusi sebelum S6.
+- **Gak semua slide perlu "perfect paragraph"**: boleh ada slide yg cuma 1-2 kalimat pendek.
 
 ## [MUST] S1 = HOOK ONLY
-S1 isi cuma 1 kalimat. Bisa pertanyaan kontras atau judul dengan angka spesifik.
+S1 isi 1 kalimat (atau 2 kalo lebih natural). Bisa pertanyaan kontras atau judul dengan angka spesifik.
 **WAJIB** pake angka konkret kalo relevan — jumlah, durasi, bobot, dll.
 Contoh:
 - "Mana yang Lebih Cuan, Ngejer Duit atau Skill?"
 - "3 Cara Turun 10 Kilo dalam 30 Hari"
 - "5 Tanda Kalian Butuh Liburan, Bukan Healing"
-1 kalimat doang. Gak ada setup, gak ada "Bayangin deh". Langsung selesai di S1. S2 mulai dengan "Misalnya gini..."
+1 kalimat doang. Gak ada setup, gak ada "Bayangin deh". Langsung selesai di S1. S2 bisa mulai dengan "Misalnya gini..." atau variasi lain (lihat ANTI-AI WRITING di atas).
 
 ## [MUST] DIALOG & QUOTES
 - Kasih 1-2 kutipan relatable per thread: "McLaren lu warna apa boss?" atau "Profit trading gede langsung margin call"
@@ -295,10 +325,10 @@ Kalo FACT gak yakin → tulis sbg OPINION.
 ## [COULD] WRITING STYLE
 - Bahasa Indonesia. Pake "kalian" + "gw". Zero emoji. No hashtags.
 - Dialogis, kayak ngobrol. Bukan ceramah.
-- Kalimat pendek, tajam. Satu ide per paragraf.
+- Kalimat pendek, tajam. Tapi kadang boleh ada yg panjang dikit.
 - Kutipan relatable: "quote" — ini yg bikin slide kalian nempel.
-- S6: framework sederhana (arrow chain) + CTA rendah hambatan.
-- CTA: "Mulai [action]. Gak harus langsung jago. Yg penting [alasan ringan]."
+- S6: OPSIONAL arrow chain. Bisa juga pesan langsung, ajakan, atau refleksi. **Jangan tiap thread pake "rumusnya simple"**.
+- CTA: VARY! Kadang "Mulai [action] aja dulu", kadang "Gak usah ribet", kadang "Coba [action] minggu ini".
 
 ## [COULD] OUTPUT FORMAT
 ```json
