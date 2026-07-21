@@ -5,14 +5,14 @@ Run: python3 scripts/pipeline.py [--top N] [--dry-run]
 """
 import sys
 import time
-import argparse
 from pathlib import Path
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 sys.path.insert(0, str(Path(__file__).parent))
-
 from scraper import scrape_all, detect_hot_topics, get_analytics_summary, compute_score_tuning, is_excluded, verify_body_quality, is_sensitive, is_blocked_domain
-from generator import generate_carousel, generate_narrative_post, generate_thread_chain, evaluate_slides, generate_ab_variants, _postprocess_slides
 from db import get_db, upsert_article, stage_post, get_stats, mark_failed
+from generator import generate_carousel, evaluate_slides, generate_ab_variants, generate_winning_carousel, _postprocess_slides
 
 TOP_N = 1  # articles per run
 
@@ -49,7 +49,7 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
     """Run pipeline.
     
     Args:
-        format: "carousel" (6-slide), "narrative" (single post), "thread_chain" (10-slide), or "auto" (alternate)
+        format: "carousel" (6-slide), "winning" (checklist), or "auto" (alternate)
     """
     t0 = time.time()
     conn = get_db()
@@ -68,13 +68,9 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
         conn.close()
         return
 
-    # Auto format: alternate between thread_chain and narrative
+    # Auto format: default to winning
     if format == "auto":
-        recent = conn.execute(
-            "SELECT caption FROM posts WHERE status='posted' ORDER BY id DESC LIMIT 3"
-        ).fetchall()
-        # Default carousel (6 slides). Alternate with narrative every 3rd post.
-        format = "carousel"
+        format = "winning"
         print(f"  [AUTO FORMAT] Using: {format}")
 
     # 1. Scrape + score
@@ -201,12 +197,10 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
 
             # 3. Generate content (format-aware)
             a = dict(art)  # sqlite3.Row → dict for .get()
-            gen_label = "narrative post" if format == "narrative" else "thread chain" if format == "thread_chain" else "carousel"
+            gen_label = "winning carousel" if format == "winning" else "carousel"
             print(f"  [2/3] Generating {gen_label} via LM...")
-            if format == "narrative":
-                slides = generate_narrative_post(a["title"], a["body"], a.get("url", ""), a.get("source", ""))
-            elif format == "thread_chain":
-                slides = generate_thread_chain(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
+            if format == "winning":
+                slides = generate_winning_carousel(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
             else:
                 # A/B testing: generate 3 hook variants, pick best (carousel only)
                 slides = generate_ab_variants(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""), n_variants=3)
@@ -215,8 +209,8 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                 mark_failed(conn, article_id)
                 continue
 
-            # 2.5. Evaluator loop with retry
-            if format != "thread_chain":
+            # Evaluator loop with retry (winning & carousel still evaluated)
+            if format == "carousel":
                 # Retry: max 3 attempts with correction feedback
                 current_hint = ""
                 approved_slides = None
@@ -224,17 +218,10 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                     if retry_idx > 1:
                         print(f"  [RETRY #{retry_idx}] Regenerating with correction feedback...")
                         a = dict(art)  # refresh after continue
-                        if format == "narrative":
-                            slides = generate_narrative_post(a["title"], a["body"], a.get("url", ""), a.get("source", ""))
-                            if not slides:
-                                break
-                        elif format == "thread_chain":
-                            slides = generate_thread_chain(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
-                        else:
-                            slides = generate_ab_variants(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""), n_variants=3, correction_hint=current_hint)
-                            if not slides:
-                                # Fallback: single gen without A/B
-                                slides = generate_carousel(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""), correction_hint=current_hint)
+                        slides = generate_ab_variants(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""), n_variants=3, correction_hint=current_hint)
+                    if not slides:
+                        # Fallback: single gen without A/B
+                        slides = generate_carousel(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""), correction_hint=current_hint)
 
                     if not slides:
                         print(f"  [RETRY #{retry_idx}] Generation failed, breaking retry loop")
@@ -270,25 +257,10 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
 
                 slides = approved_slides
 
-            # Handle different format structures
+            # Handle format structures
             if isinstance(slides, dict) and "_format" in slides:
-                fmt = slides["_format"]
-                if fmt == "narrative":
-                    stage_post(conn, article_id, {"hook": slides.get("hook", ""), "setup": "", "twist": "", "deep": "", "sowhat": "", "cta": ""}, slides.get("caption", ""), slides.get("hashtags", ""))
-                elif fmt == "thread_chain":
-                    slide_list = slides.get("slides", [])
-                    caption = "\n---\n".join(slide_list)
-                    stage_post(conn, article_id, {
-                        "hook": slide_list[0] if slide_list else "",
-                        "setup": slide_list[1] if len(slide_list) > 1 else "",
-                        "twist": slide_list[2] if len(slide_list) > 2 else "",
-                        "deep": slide_list[3] if len(slide_list) > 3 else "",
-                        "sowhat": slide_list[4] if len(slide_list) > 4 else "",
-                        "cta": slide_list[5] if len(slide_list) > 5 else "",
-                    }, caption, slides.get("hashtags", ""))
-                else:
-                    stage_post(conn, article_id, slides,
-                        slides.get("caption", ""), slides.get("hashtags", ""))
+                stage_post(conn, article_id, slides,
+                    slides.get("caption", ""), slides.get("hashtags", ""))
             else:
                 stage_post(conn, article_id, slides,
                     slides.get("caption", ""), slides.get("hashtags", ""))
@@ -319,12 +291,10 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
 
                 # sqlite3.Row doesn't have .get(), use dict()
                 a = dict(art)
-                gen_label = "narrative post" if format == "narrative" else "thread chain" if format == "thread_chain" else "carousel"
+                gen_label = "winning carousel" if format == "winning" else "carousel"
                 print(f"  [2/3] Generating {gen_label} via LM...")
-                if format == "narrative":
-                    slides = generate_narrative_post(a["title"], a["body"], a.get("url", ""), a.get("source", ""))
-                elif format == "thread_chain":
-                    slides = generate_thread_chain(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
+                if format == "winning":
+                    slides = generate_winning_carousel(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
                 else:
                     slides = generate_carousel(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""))
                 if not slides:
@@ -332,18 +302,15 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
                     mark_failed(conn, art["id"])
                     continue
 
-                # Evaluator retry loop (DB fallback)
-                if format != "thread_chain":
+                # Evaluator retry loop — carousel only
+                if format == "carousel":
                     current_hint = ""
                     approved_slides = None
                     for retry_idx in range(1, 4):
                         if retry_idx > 1:
                             print(f"  [DB RETRY #{retry_idx}] Regenerating with correction feedback...")
                             a = dict(art)
-                            if format == "narrative":
-                                slides = generate_narrative_post(a["title"], a["body"], a.get("url", ""), a.get("source", ""))
-                            else:
-                                slides = generate_carousel(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""), correction_hint=current_hint)
+                            slides = generate_carousel(a["title"], a["body"], a.get("image", ""), a.get("url", ""), a.get("source", ""), correction_hint=current_hint)
                             if not slides:
                                 break
 
@@ -369,28 +336,11 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
 
                     slides = approved_slides
 
-                # Handle different format structures
+                # Handle format structures
                 if isinstance(slides, dict) and "_format" in slides:
-                    fmt = slides["_format"]
-                    if fmt == "narrative":
-                        stage_post(conn, art["id"], {"hook": slides.get("hook", ""), "setup": "", "twist": "", "deep": "", "sowhat": "", "cta": ""}, slides.get("caption", ""), slides.get("hashtags", ""))
-                        staged_this_run = True
-                    elif fmt == "thread_chain":
-                        slide_list = slides.get("slides", [])
-                        caption = "\n---\n".join(slide_list)
-                        stage_post(conn, art["id"], {
-                            "hook": slide_list[0] if slide_list else "",
-                            "setup": slide_list[1] if len(slide_list) > 1 else "",
-                            "twist": slide_list[2] if len(slide_list) > 2 else "",
-                            "deep": slide_list[3] if len(slide_list) > 3 else "",
-                            "sowhat": slide_list[4] if len(slide_list) > 4 else "",
-                            "cta": slide_list[5] if len(slide_list) > 5 else "",
-                        }, caption, slides.get("hashtags", ""))
-                        staged_this_run = True
-                    else:
-                        stage_post(conn, art["id"], slides,
-                            slides.get("caption", ""), slides.get("hashtags", ""))
-                        staged_this_run = True
+                    stage_post(conn, art["id"], slides,
+                        slides.get("caption", ""), slides.get("hashtags", ""))
+                    staged_this_run = True
                 else:
                     stage_post(conn, art["id"], slides,
                         slides.get("caption", ""), slides.get("hashtags", ""))
@@ -402,10 +352,14 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
     stats = get_stats(conn)
     elapsed = time.time() - t0
     
-    # Pull engagement metrics for posts >12h old
+    # Pull engagement metrics for posts >12h old (silent — library prints noise)
     try:
         from poster import pull_engagement
-        updated = pull_engagement(conn)
+        import contextlib, os
+        devnull = open(os.devnull, 'w')
+        with contextlib.redirect_stderr(devnull), contextlib.redirect_stdout(devnull) if False else contextlib.nullcontext():
+            pass
+            updated = pull_engagement(conn)
         if updated:
             print(f"📊 Engagement: updated metrics for {updated} posts")
     except Exception as e:
@@ -443,10 +397,12 @@ def run(top_n: int = TOP_N, dry_run: bool = False, format: str = "auto"):
     conn.close()
 
 if __name__ == "__main__":
+    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--top", type=int, default=TOP_N)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--format", choices=["carousel", "narrative", "thread_chain", "auto"], default="carousel",
-                        help="Content format: carousel (6-slide, default), narrative (single post), thread_chain (10-slide), auto (alternate)")
+    parser.add_argument("--format", choices=["carousel", "winning", "auto"], default="winning",
+                        help="Content format: carousel (6-slide), winning (checklist), or auto")
+    parser.add_argument("--jitter", type=float, default=0.0, help=argparse.SUPPRESS)
     args = parser.parse_args()
     run(args.top, args.dry_run, args.format)

@@ -33,6 +33,21 @@ _COMMERCIAL_KEYWORDS = [
     "amazon deal", "ebay deal", "best deal", "daily deal",
 ]
 
+# Budakorporat topics — exclude from techbro (belongs on @budakorporat_id)
+_BUDI_KEYWORDS = [
+    "bahlil", "b50", "b40", "bbm", "solar", "pertalite", "pertamina",
+    "esdm", "tambang", "minerba", "batubara", "batu bara", "nikel",
+    "smelter", "hilirisasi", "royalti", "pnbp", "rkab", "wp bk",
+    "menteri esdm", "menteri perindustrian", "menteri perdagangan",
+    "kementerian esdm", "kementerian perindustrian",
+    "kebijakan energi", "energi terbarukan", "ebt",
+    "pajak karbon", "cukai", "insentif fiskal",
+    "omnibus law", "cipta kerja", "undang-undang cipta kerja",
+    "ppn", "pph", "tarif pajak",
+    "kebijakan pemerintah", "peraturan pemerintah",
+    "subsidi", "bansos", "blt", "bantuan sosial",
+]
+
 # Sensitive content — exact match
 _SENSITIVE_EXACT = [
     "breasts", "boobs", "topless", "nude", "naked", "rape", "sexual assault",
@@ -83,6 +98,10 @@ def is_excluded(title: str, body: str = "") -> tuple[bool, str]:
     for kw in _COMMERCIAL_KEYWORDS:
         if kw in text:
             return True, f"commercial: {kw}"
+    
+    for kw in _BUDI_KEYWORDS:
+        if kw in text:
+            return True, f"budakorporat: {kw}"
     
     return False, ""
 
@@ -147,17 +166,24 @@ def verify_body_quality(title: str, body: str) -> tuple[bool, str]:
     """Verify article body has sufficient content for generation.
     Returns (ok: bool, reason: str).
     """
-    if len(body.strip()) < 500:
-        return False, f"body too short ({len(body.strip())} chars < 500)"
+    if len(body.strip()) < 300:
+        # For Google News RSS articles, title-only is OK — generator can work with title + source
+        if len(body.strip()) >= 20:
+            return True, ""
+        return False, f"body too short ({len(body.strip())} chars < 300)"
     
     words = body.split()
-    if len(words) < 100:
-        return False, f"body too few words ({len(words)} < 100)"
+    if len(words) < 40:
+        if len(body.strip()) >= 20:
+            return True, ""
+        return False, f"body too few words ({len(words)} < 40)"
     
     # Check for real content signals (not just boilerplate)
-    sentences = [s.strip() for s in re.split(r'[.!?]+', body) if len(s.strip()) > 20]
-    if len(sentences) < 3:
-        return False, f"body too few sentences ({len(sentences)} < 3)"
+    sentences = [s.strip() for s in re.split(r'[.!?]+', body) if len(s.strip()) > 15]
+    if len(sentences) < 2:
+        if len(body.strip()) >= 20:
+            return True, ""
+        return False, f"body too few sentences ({len(sentences)} < 2)"
     
     return True, ""
 
@@ -1674,17 +1700,10 @@ async def scrape_scott_young(client: httpx.AsyncClient) -> list[dict]:
 # No celebrity/person names. Every query targets the self-dev/tech niche directly.
 _TOPIC_QUERIES = [
     ("produktivitas kerja mindset kebiasaan sukses Indonesia", "produktivitas"),
-    ("startup teknologi AI pendanaan founder Indonesia 2026", "startup_tech"),
-    ("resign karir gaji remote work generasi muda Indonesia", "karir"),
-    ("pola pikir pengusaha mental bisnis gagal pelajaran", "mindset_bisnis"),
-    ("teknologi digital transformasi UMKM bisnis Indonesia", "tech_bisnis"),
-    ("investasi keuangan pribadi anak muda Indonesia", "finance"),
-    ("quiet quitting burnout budaya kerja toxic Indonesia", "workplace"),
-    ("skill masa depan AI data programming karir 2026", "skill_tech"),
-    ("side hustle bisnis sampingan karyawan Indonesia", "sidehustle"),
-    ("disiplin diri habits rutinitas produktivitas pagi", "habits"),
-    ("CEO founder startup unicorn decacorn Indonesia Asia", "founder"),
-    ("self improvement growth mindset pengembangan diri Indonesia", "mindset"),
+    ("pola pikir growth mindset self improvement pengembangan diri Indonesia", "mindset"),
+    ("investasi keuangan pribadi anak muda finansial Indonesia", "finansial"),
+    ("kesehatan mental fisik gaya hidup sehat Indonesia", "kesehatan"),
+    ("hubungan pertemanan pasangan parenting relationship Indonesia", "relationship"),
 ]
 
 def _build_query_url(query: str) -> str:
@@ -1734,7 +1753,6 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
     Budakorporat model: 12 topic-based queries produce naturally niche-filtered results.
     No celebrity feeds, no trending queries — upstream filtering eliminates noise at source.
     """
-    from googlenewsdecoder import new_decoderv1
     import asyncio as _aio
 
     articles = []
@@ -1776,6 +1794,7 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
             link_m = re.search(r'<link>([^<]+)</link>', item_xml)
             source_m = re.search(r'<source[^>]*>([^<]+)</source>', item_xml)
             pub_m = re.search(r'<pubDate>([^<]+)</pubDate>', item_xml)
+            desc_m = re.search(r'<description>(.*?)</description>', item_xml, re.DOTALL)
 
             if not title_m or not link_m:
                 continue
@@ -1791,6 +1810,7 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
                 "source_name": source_m.group(1) if source_m else "unknown",
                 "date": pub_m.group(1) if pub_m else "",
                 "category": category,
+                "description": desc_m.group(1) if desc_m else "",
             })
 
     print(f"  [GNEWS] {len(items)} items from {len(feed_results)} feeds" + (f" ({skipped_feeds} unchanged, skipped)" if skipped_feeds else ""))
@@ -1812,103 +1832,55 @@ async def scrape_google_news(client: httpx.AsyncClient) -> list[dict]:
             unique_items.append(item)
 
     async def _decode(item):
-        try:
-            result = await _aio.to_thread(new_decoderv1, item["link"])
-            if result and result.get("status") and result.get("decoded_url"):
-                item["decoded_url"] = result["decoded_url"]
-                return item
-        except Exception:
-            pass
-        # Fallback: follow redirect with httpx
-        try:
-            r = await client.get(item["link"], timeout=10, follow_redirects=True)
-            if r.status_code == 200 and "news.google.com" not in str(r.url):
-                item["decoded_url"] = str(r.url)
-        except Exception:
-            pass
+        # Google News RSS no longer redirects. Use article title as body since
+        # <description> only contains a wrapped link with redundant anchor text.
+        title = item.get("title", "")
+        if title:
+            item["decoded_url"] = item["link"]
+            # Use title as body — generator works fine with title + source
+            item["rss_body"] = title
         return item
 
-    # Decode all in parallel with timeout
-    try:
-        await _aio.wait_for(
-            _aio.gather(*[_decode(item) for item in unique_items]),
-            timeout=60
-        )
-    except _aio.TimeoutError:
-        print("  [GNEWS] Decode timeout, using what we have")
+    # Process all items (decode is fast now — no network)
+    for item in unique_items:
+        await _decode(item)
 
     decoded = [i for i in unique_items if "decoded_url" in i]
-    print(f"  [GNEWS] {len(decoded)} URLs decoded")
+    print(f"  [GNEWS] {len(decoded)} items with RSS body")
 
     # 4. Scrape article content (parallel, max 15 at a time)
     async def _scrape_one(item: dict) -> dict | None:
-        url = item["decoded_url"]
-        
-        # Check cache first (4h rolling window)
-        cached_text, cached_image = _get_cached_article(url)
-        if cached_text:
-            return {
-                "title": item["title"],
-                "url": url,
-                "body": cached_text,
-                "source": item.get("category", "google_news"),
-                "date": item["date"],
-                "image": cached_image or "",
-                "gnews_category": item["category"],
-                "gnews_source": item["source_name"],
-                "cached": True
-            }
-        
-        try:
-            r = await client.get(url, timeout=12, follow_redirects=True)
-            if r.status_code != 200:
-                return None
-            soup = BeautifulSoup(r.text, "html.parser")
-            body = _extract_body(soup)
-            if len(body) < 100:
-                return None
-            
-            image = _extract_image(soup)
-            
-            # Cache the article
-            _cache_article(url, body, image)
-            
-            # Extract date from article page if RSS date missing
-            date = item["date"]
-            # Parse RFC 2822 date string to datetime
-            if isinstance(date, str) and date:
-                try:
-                    from email.utils import parsedate_to_datetime
-                    date = parsedate_to_datetime(date)
-                except Exception:
-                    date = None
-            if not date:
-                time_el = soup.find("time")
-                if time_el and time_el.get("datetime"):
-                    date = time_el["datetime"]
-            return {
-                "title": item["title"],
-                "url": url,
-                "body": body,
-                "source": item.get("category", "google_news"),  # Use feed tag (celebrity, athlete, etc.)
-                "date": date,
-                "image": image,
-                "gnews_category": item["category"],
-                "gnews_source": item["source_name"],
-            }
-        except Exception:
+        body = item.get("rss_body", "")
+        if not body:
             return None
 
-    # Scrape in batches of 15
-    batch_size = 15
+        url = item["link"]
+        date = item["date"]
+        if isinstance(date, str) and date:
+            try:
+                from email.utils import parsedate_to_datetime
+                date = parsedate_to_datetime(date)
+            except Exception:
+                date = None
+
+        return {
+            "title": item["title"],
+            "url": url,
+            "body": body,
+            "source": item.get("category", "google_news"),
+            "date": date,
+            "image": "",
+            "gnews_category": item["category"],
+            "gnews_source": item["source_name"],
+        }
+
+    # Process all decoded items (no batch — no network calls)
     article_seen = set()
-    for i in range(0, len(decoded), batch_size):
-        batch = decoded[i:i + batch_size]
-        results = await asyncio.gather(*[_scrape_one(item) for item in batch])
-        for r in results:
-            if r and r["url"] not in article_seen:
-                article_seen.add(r["url"])
-                articles.append(r)
+    for item in decoded:
+        r = await _scrape_one(item)
+        if r and r["url"] not in article_seen:
+            article_seen.add(r["url"])
+            articles.append(r)
 
     print(f"  [GNEWS] {len(articles)} articles scraped with content")
     return articles

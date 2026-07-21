@@ -2,7 +2,7 @@
 
 Content automation pipeline for [@ryanhadiii](https://www.threads.com/@ryanhadiii) — "1% Better" personal branding on Threads.
 
-Scrapes articles → scores by relevance → generates 6-slide carousel via LLM (9router/Deepseek → Mistral → Groq) → evaluator review with retry → posts to Threads. Fully automated, runs hourly via cron.
+Scrapes articles → scores by relevance → generates content (winning/carousel) via LLM → posts to Threads.
 
 ## Architecture
 
@@ -23,15 +23,15 @@ Scrapes articles → scores by relevance → generates 6-slide carousel via LLM 
 
 ## Pipeline Flow
 
-1. **Scrape** — 6 Google News RSS feeds (mindset, tech, career, entrepreneur, celebrity ID/global) + 10 Google Trends queries. 50 articles scraped, shuffled for diversity.
+1. **Scrape** — 5 Google News RSS feeds (produktivitas, mindset, finansial, kesehatan, relationship). 50 articles scraped, shuffled for diversity.
 
 2. **Hot Topic Detection** — Union-Find clustering by entity overlap. 30+ known entities (Indonesian + international names, companies). 4h rolling cache sees 80-120 articles vs 20 per run. Boost: +25 (3+ sources) or +15 (2 sources).
 
 3. **Score** — 17-component scoring (Pressbox-adapted): keyword match (3-tier), category, recency, data/konkret, source tier (10/8/6/3), audience reach, drama signal, paradox bonus, niche penalty, western penalty, hot topic bonus, peak-hour, analytics boost, density bonus, **human interest**. Soft cap: diminishing returns above 100.
 
-4. **Generate** — 3-provider fallback chain: 9router/Deepseek (no rate limits) → Mistral Large → Groq. Generator produces 6-slide carousel with **hook pattern selection** (controversy/curiosity/paradox/detail+emotion) chosen dynamically from article analysis. Slides: Hook → Setup → Twist → Deep → So What → CTA. Voice: casual Indonesian ("lu/gw"), anti-LinkedIn.
+4. **Generate** — Winning format (ATM: 4 tanda + solusi + CTA) via 9router/Deepseek. Carousel fallback (Hook → Setup → Twist → Deep → So What → CTA). Voice: casual Indonesian ("lu/gw"), anti-LinkedIn.
 
-5. **Evaluate** — Independent LLM review checks hallucination, story arc flow, hook quality, grounding (fact vs speculation). Scoring pattern: accept ≥7/10, revise <7, reject <5 with automatic retry (max 3x with error feedback). Skipped for score ≥80 (saves 50s). Fails open on error.
+5. **Evaluate** — Independent LLM review (carousel only). Winning format skips evaluator. Scoring: accept ≥7/10, revise <7, reject <5 with max 3 retry.
 
 6. **Post** — Carousel posted as thread chain. Slide 1 = root, slides 2-6 = replies. 20 posts/day limit + dynamic daily limit based on engagement analytics.
 
@@ -39,10 +39,10 @@ Scrapes articles → scores by relevance → generates 6-slide carousel via LLM 
 
 - **Voice**: Casual Indonesian ("lu/gw"), empathetic, blunt, anti-corporate, anti-LinkedIn
 - **Framework**: RCTOE v2 (Role, Context, Task, Output, Execution)
-- **Format**: 6-slide carousel (Hook → Context → Escalation → Tips → Big Lesson → CTA)
+- **Format**: 6-slide (Hook → Setup → Twist → Deep → So What → CTA). Winning (ATM): 4 tanda + solusi + CTA
 - **Viral criteria**: 7 criteria per slide (Pro&Con, Relatable, Famous Figure, Trending, Ironi, Surprising Fact, Emotional Hook)
 - **Hook patterns**: controversy, curiosity, paradox, data drop, quote, realization, contrast — auto-selected from article analysis
-- **Sources**: 4 source tiers — premium (founder, finance, mindset_bisnis), strong (karir, habits, produktivitas, sidehustle), moderate (workplace, startup_tech, tech_bisnis, skill_tech), unknown
+- **Sources**: 5 topic feeds — produktivitas, mindset, finansial, kesehatan, relationship
 - **Celebrity cap**: 30% max per 48h window
 - **Daily limit**: 20 posts/day, auto-adjusted from engagement
 - **Banned patterns**: 84+ (cringe phrases, generic hooks, hallucinated facts, foreign book references)

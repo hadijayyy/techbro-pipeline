@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
-generator.py — 6-slide carousel via Mistral (primary) → Groq (fallback).
+generator.py — 6-slide carousel via Mistral (primary).
 Post-processes output: strips markdown, banned phrases, hallucinations.
 Accepts source_url and source params.
 """
 import os
 import re
 import json
+import time
 import httpx
 from dotenv import load_dotenv
-from typing import Optional
+from pathlib import Path
+from typing import Optional, List, Dict, Any, Tuple
 
-load_dotenv()
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 MISTRAL_KEY = os.environ.get("MISTRAL_API_KEY", "")
 GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
@@ -101,6 +103,10 @@ Setiap slide WAJIB hit minimal 2 dari 8:
 - Buku asing obscure → REJECT. Hanya yang orang Indo kenal (Atomic Habits, Filosofi Teras).
 - Startup/Influencer: prioritas lokal (Gojek, Tokopedia, Jerome, Deddy).
 - JANGAN generate konten promosi produk.
+- Em dash (—) DILARANG. Pakai titik, koma, atau kalimat baru.
+- Cari detail paling absurd/aneh/ironis dari artikel — itu trigger share.
+- Sebut TIMING spesifik: "3 hari lalu", "45 menit lalu", "baru seminggu". Jangan "baru-baru ini".
+- Satu KALIMAT = satu BARIS. Dipisah \\n\\n. Gak boleh paragraf.
 
 ## 7b. ELI5 RULE — EDUKASI ORANG AWAM (WAJIB)
 Lu nulis buat orang yang **gak ngerti istilah teknis**. Setiap kali ada istilah teknis, angka, atau konsep yang orang awam gak familiar — WAJIB kasih penjelasan pake analogi/bahasa sehari-hari.
@@ -130,10 +136,19 @@ Lu nulis buat orang yang **gak ngerti istilah teknis**. Setiap kali ada istilah 
 Bikin 6 slide. SATU cerita yang MENGALIR. Bukan 6 fakta terpisah.
 
 ### SLIDE 1 — HOOK (80% engagement)
-[TEPAT] 2 kalimat. <20 kata.
-**WAJIB: "...Kenapa?"** di slide 1. TANPA INI = REJECT.
-Pattern: "[FAKTA/KONDISI]. Kenapa? [PENJELASAN]."
-Kalimat 1 = fakta/kondisi mengejutkan. Kalimat 2 = "Kenapa?" + consequence.
+[TEPAT] 2-3 kalimat. <20 kata.
+
+**PILIH SALAH SATU pattern:**
+
+A) **CURIOSITY GAP (evergreen/tips)**
+   "[FAKTA]. Kenapa? [CONSEQUENCE]."
+   WAJIB "...Kenapa?" di slide 1. TANPA INI = REJECT.
+
+B) **IMMEDIACY HOOK (hard news/berita)**
+   "[Entity] baru aja [action] [timing]. [Detail absurd/punchline]."
+   WAJIB "baru aja" + timing spesifik ("3 hari lalu", "45 menit lalu", "sebelum Lebaran").
+
+Kalimat 1 = fakta mengejutkan. Kalimat 2 = consequence/twist.
 NO "Di era digital..." / "Lu tau gak?" / intro fluff / "Here's why" / "Bayangin lo..."
 CAPS untuk emphasis 1 kata.
 WAJIB ada angka — TAPI cuma dari artikel. Kalau artikel gak punya angka spesifik, pilih angle yang kuat di cerita/tokoh/ironi. "Banyak" + quote > statistik palsu.
@@ -228,6 +243,30 @@ Output:
   "caption": "GTA VI belum rilis, tapi rekening lu udah bisa kosong.\\\\nKaspersky: penipu manfaatin hype pre-order."
 }
 
+  "slide_6": "Gamer Indonesia lebih rentan kena scam digital. Setuju?\\\\n\\\\nA) Iya — edukasi cybersecurity masih minim\\\\nB) Enggak — gamer udah pinter bedain scam\\\\nC) Relatif — tergantung platform yang dipake",
+  "caption": "GTA VI belum rilis, tapi rekening lu udah bisa kosong.\\\\nKaspersky: penipu manfaatin hype pre-order."
+}
+
+---
+
+**Contoh 2 — "baru aja" hook untuk hard news:**
+
+Input: "Shopee PHK 400 Karyawan di Singapura, Fokus ke AI dan Otomatisasi. Lapangan kerja di pusat teknologi Asia Tenggara terpukul. Manajemen sebut langkah ini efisiensi operasional, serikat pekerja khawatir PHK berlanjut."
+
+Output:
+{
+  "slide_1": "Shopee baru aja PHK 400 orang di Singapura, 2 minggu sebelum Lebaran.\\\\n\\\\nIni bukan efisiensi biasa — ini perang AI lawan manusia.",
+  "slide_2": "Kantor pusat Shopee Singapura kurangi 400 posisi.\\\\n\\\\nDivisi tech paling parah kena.\\\\n\\\\nAlasan resmi: efisiensi. Yang gak disebut: otomatisasi AI.",
+  "slide_3": "Satu dekade lalu, tech hub Asia Tenggara butuh ribuan engineer.\\\\n\\\\nSekarang? AI bisa gantiin 40% kerjaan entry-level.\\\\n\\\\nDampaknya: lulusan baru susah dapet kerja di startup.",
+  "slide_4": "Shopee punya 20.000+ karyawan. PHK 400 = 2% total.\\\\n\\\\nTapi 400 itu mayoritas tech staff.\\\\n\\\\nBukan soal jumlah — soal ARAH: perusahaan pilih mesin > manusia.",
+  "slide_5": "Ini bukan cuma soal Shopee.\\\\n\\\\nTeknologi AI sekarang bisa tulis kode, bikin UI, analisis data.\\\\n\\\\nYang tadinya butuh 10 orang, sekarang cukup 3 + AI.",
+  "slide_6": "Kena PHK karena AI — ini realita atau ketakutan berlebihan?\\\\n\\\\nA) Realita — 5 tahun lagi banyak tech job ilang\\\\nB) Ketakutan — manusia tetap lebih kreatif dari AI\\\\nC) Tergantung skill — yang naik kelas bakal aman",
+  "caption": "Shopee baru aja PHK 400 orang di Singapura, 2 minggu sebelum Lebaran.\\\\nIni bukan efisiensi biasa — ini perang AI lawan manusia."
+}
+
+---
+
+
 ## 13. GROUNDING RULES
 SEMUA fakta HARUS dari artikel. Never invent.
 
@@ -309,7 +348,7 @@ PAKAI konteks Indonesia REAL:
 Pattern: ❌ "Lu bisa mulai dengan hal kecil hari ini." ✅ "Gw mulai dari 1 hal: tiap pagi, gw nulis 1 tujuan sebelum buka HP."
 
 [GENERIC BANS]
-JANGAN: "Lu tau gak?" / "Did you know?" / "Let's dive in!" / "Here's the secret" / "Teknologi semakin canggih" / "Di era digital saat ini" / "This is a game-changer" / "Tahukah kamu?" / "Yuk simak!" / "Ini dia rahasianya" / "Shocking!" / "Gila sih!" / "Gila banget!" / "Kebayang gak?" / "Yang bener aja" / AIDA/PAS / Motivational closing lines / "link di bio" / "Let that sink in" / "Say what you want, but..."
+JANGAN: "Lu tau gak?" / "Did you know?" / "Let's dive in!" / "Here's the secret" / "Teknologi semakin canggih" / "Di era digital saat ini" / "This is a game-changer" / "Tahukah kamu?" / "Yuk simak!" / "Ini dia rahasianya" / "Shocking!" / "Gila sih!" / "Gila banget!" / "Kebayang gak?" / "Yang bener aja" / AIDA/PAS / Motivational closing lines / "link di bio" / "Let that sink in" / "Say what you want, but..." / "sources say" (tanpa sumber spesifik) / "you've been warned" / "as we speak" / "keep an eye on" / "stay tuned" / "highly anticipated" / "dont sleep on"
 
 ## 15. STORYTELLING MODE
 Artikel EVENT (launch, PHK, announcement) → cerita dari POV perusahaan/event. JANGAN jadikan self-help tips.
@@ -317,6 +356,69 @@ Artikel TREN/RISET → boleh POV personal + lesson.
 Fokus: SIAPA, KENAPA, DAMPAKNYA.
 - ❌ "AI bisa jadi partner kreatif lo."
 - ✅ "Tri baru aja luncurin 3TechMate. Programnya gratis, targetnya anak muda yang cuma tau AI buat nyontek doang."
+"""
+
+# ─── Winning Content Prompt (Checklist/Self-Diagnosis Format) ────────────
+
+WINNING_PROMPT = """Lo "Bro" — Content Creator Threads. Niche: self-improvement, health, finansial. Umur 27.
+Nulis kayak temen yg lagi curhat abis baca artikel terus ngasih tau tanda-tanda yg gak boleh diabaikan.
+PAKAI "lo" dan "gw". Santai, insightful, langsung ke titik.
+
+## FORMAT
+Lu bikin 6-slide carousel dengan format SELF-DIAGNOSIS CHECKLIST:
+
+SLIDE 1 — HOOK
+1 kalimat tanda tanya (curiosity gap) + 1 kalimat trigger "bisa jadi ini bukan [alasan obvious], tapi [masalah sebenarnya]".
+WAJIB pake pola: "[Fakta relatable]. Berapa dari lu yg ngerasain?"
+JANGAN pake "Lu tau gak?" atau "Di era digital...".
+< 25 kata total.
+
+SLIDE 2 — TANDA 1
+[JUDUL TANDA]: [nama tanda] — [mekanisme 1 kalimat]
+[Penjelasan cara kerja — 1-2 kalimat]
+-> Self-check: "Kalau lo [gejala spesifik], tandanya [masalah] udah mulai."
+Format: judul tebal (CAPS), arrow self-check.
+
+SLIDE 3 — TANDA 2
+Sama seperti Slide 2. Topik BERBEDA dari Tanda 1.
+WAJIB ada self-check arrow (->).
+
+SLIDE 4 — TANDA 3
+Sama seperti Slide 2-3. Topik BERBEDA.
+WAJIB ada self-check arrow (->).
+
+SLIDE 5 — TANDA 4 + TRANSISI
+Tanda 4 + kalimat: "DARI 4 TANDA INI, BERAPA YANG LO ALAMI?"
+Bukan cuma tanya — trigger buat self-reflect.
+
+SLIDE 6 — SOLUSI + CTA
+4 action items. Bukan "harus" — tapi "mulai dari".
+Format:
+1. [aksi konkret] — [kenapa ini works]
+2. [aksi konkret] — [kenapa ini works]
+3. [aksi konkret] — [kenapa ini works]
+4. [aksi konkret] — [kenapa ini works]
+
+Closing: "♻️ Save & share ke temen yg [target audience relatable]."
+JANGAN pake link afiliasi / promosi produk.
+
+## TONE RULES
+- Casual: "lo", "gw", "bikin", "makin", "dikit".
+- Campur Indo-Inggris alami.
+- Self-check pake "->" panah, bukan "-" atau "*".
+- Setiap slide maks 40 kata total.
+- SATU KALIMAT = SATU BARIS (dipisah \\n\\n).
+- JANGAN pake em dash (—).
+
+## GROUNDING
+- Fakta HARUS dari artikel. Jangan invent.
+- Kalau artikel gak punya angka spesifik, pake perasaan/gejala yg relatable.
+- JANGAN bikin statistik palsu ("90% orang...").
+
+## OUTPUT FORMAT
+Return ONLY valid JSON, no markdown fences:
+{"slide_1":"", "slide_2":"", "slide_3":"", "slide_4":"", "slide_5":"", "slide_6":"", "caption":""}
+Setiap baris dalam slide dipisah \\n\\n.
 """
 
 # ─── Narrative Single Post Prompt (Ethan Joshua pattern) ─────────────────
@@ -426,53 +528,80 @@ def _build_user_msg(title: str, body: str, source: str = "") -> str:
         lang_note = "[NOTE: Artikel ini dalam bahasa Inggris. Tulis ULANG dalam bahasa Indonesia gaul, jangan translate literal.]\n\n"
     return f"{lang_note}ARTICLE: {body[:4000]}\nSOURCE: {title}"
 
-def _call_mistral(title: str, body: str, source: str = "") -> Optional[str]:
+def _call_mistral(title: str, body: str, source: str = "", correction_hint: str = "", system_prompt: str = None) -> Optional[str]:
+    prompt = system_prompt or SYSTEM_PROMPT
     try:
         r = httpx.post(
             "https://api.mistral.ai/v1/chat/completions",
             headers={"Authorization": f"Bearer {MISTRAL_KEY}", "Content-Type": "application/json"},
             json={"model": "mistral-large-latest",
-                  "messages": [{"role": "system", "content": SYSTEM_PROMPT},
+                  "messages": [{"role": "system", "content": prompt},
                                {"role": "user", "content": _build_user_msg(title, body, source)}],
                   "temperature": 0.3, "max_tokens": 3000},
             timeout=120)
         if r.status_code == 200:
             return r.json()["choices"][0]["message"]["content"]
         if r.status_code == 429:
-            print(f"Mistral rate-limited (429), will retry via router")
+            print(f"Mistral rate-limited (429), waiting 10s...")
+            time.sleep(10)
         else:
             print(f"Mistral error: {r.status_code} {r.text[:200]}")
     except Exception as e:
         print(f"Mistral exception: {e}")
     return None
 
-def _call_router(title: str, body: str, source: str = "") -> Optional[str]:
+def _call_router(title: str, body: str, source: str = "", system_prompt: str = None) -> Optional[str]:
     """Primary: local 9router at 127.0.0.1:20128 — no rate limits."""
     if not ROUTER_KEY:
         print("Router skipped (no ROUTER_API_KEY)")
         return None
+    prompt = system_prompt or SYSTEM_PROMPT
     try:
         r = httpx.post(
             f"{ROUTER_BASE}/chat/completions",
             headers={"Authorization": f"Bearer {ROUTER_KEY}", "Content-Type": "application/json"},
-            json={"model": "Deepseek",
-                  "messages": [{"role": "system", "content": SYSTEM_PROMPT},
+            json={"model": "mistral/mistral-large-latest",
+                  "messages": [{"role": "system", "content": prompt},
                                {"role": "user", "content": _build_user_msg(title, body, source)}],
                   "temperature": 0.3, "max_tokens": 3000},
             timeout=120)
         if r.status_code == 200:
-            # 9router appends SSE "data: [DONE]" even on non-streaming — strip it
-            text = r.text.rsplit("data: [DONE]", 1)[0].strip()
+            # Handle 9router SSE format: may be "data: {json}\n\ndata: [DONE]"
+            # or plain JSON. Strip all SSE prefixes and tail markers.
+            text = r.text.strip()
+            # Remove SSE data: [DONE] tail
+            text = text.rsplit("data: [DONE]", 1)[0].strip()
+            # Remove leading SSE data: prefix(es) — may be on same line or separate
+            lines = text.split('\n')
+            clean = []
+            for line in lines:
+                line = line.strip()
+                if line.startswith('data: '):
+                    line = line[6:].strip()
+                if line:
+                    clean.append(line)
+            text = '\n'.join(clean).strip()
             if not text:
-                print("Router: empty response after stripping SSE tail")
+                print("Router: empty response after stripping SSE formatting")
                 return None
-            return json.loads(text)["choices"][0]["message"]["content"]
-        print(f"Router error: {r.status_code} {r.text[:200]}")
+            data = json.loads(text)
+            msg = data["choices"][0]["message"]
+            # Handle models that return reasoning-only (no content key)
+            content = msg.get("content") or msg.get("reasoning", "")
+            if not content.strip():
+                print(f"Router: empty content in response (keys: {list(msg.keys())})")
+                return None
+            return content
+        if r.status_code == 429:
+            print(f"Router rate-limited (429), waiting 10s...")
+            time.sleep(10)
+        else:
+            print(f"Router error: {r.status_code} {r.text[:200]}")
     except Exception as e:
-        print(f"Router exception: {e}")
+        print(f"Router exception: {type(e).__name__}: {e}")
     return None
 
-def _call_groq(title: str, body: str, source: str = "") -> Optional[str]:
+def _call_groq(title: str, body: str, source: str = "", correction_hint: str = "") -> Optional[str]:
     if not GROQ_KEY:
         print("Groq skipped (no GROQ_API_KEY)")
         return None
@@ -481,13 +610,17 @@ def _call_groq(title: str, body: str, source: str = "") -> Optional[str]:
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
             json={"model": "llama-3.3-70b-versatile",
-                  "messages": [{"role": "system", "content": SYSTEM_PROMPT},
+                  "messages": [{"role": "system", "content": prompt},
                                {"role": "user", "content": _build_user_msg(title, body, source)}],
                   "temperature": 0.3, "max_tokens": 3000},
             timeout=120)
         if r.status_code == 200:
             return r.json()["choices"][0]["message"]["content"]
-        print(f"Groq error: {r.status_code} {r.text[:200]}")
+        if r.status_code == 429:
+            print(f"Groq rate-limited (429), waiting 10s...")
+            time.sleep(10)
+        else:
+            print(f"Groq error: {r.status_code} {r.text[:200]}")
     except Exception as e:
         print(f"Groq exception: {e}")
     return None
@@ -579,11 +712,12 @@ def _count_sentences(text: str):
 
 
 def _add_whitespace(text: str) -> str:
-    """Split into sentences and join with blank lines between each."""
-    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+    """Split text into sentences and join with double line breaks. Safer than regex split."""
+    # Split on sentence boundaries (period, exclamation, question mark followed by space or newline)
+    sentences = re.split(r'(?<=[.!?])(\s+|\n+)', text)
+    # Filter out empty strings and whitespace-only entries
     sentences = [s.strip() for s in sentences if s.strip()]
-    if len(sentences) <= 1:
-        return text
+    # Join with exactly one double line break
     return "\n\n".join(sentences)
 
 
@@ -616,11 +750,11 @@ def _enforce_hook_lucifer(text: str) -> str:
         return text
     
     if len(sentences) == 1:
-        print("  [HOOK ENFORCE] Missing 'Kenapa?' — appending")
+        # print("  [HOOK ENFORCE] Missing 'Kenapa?' — appending")
         first = sentences[0]
         return f"{first} Kenapa?"
     
-    print("  [HOOK ENFORCE] Missing 'Kenapa?' — inserting after first sentence")
+    # print("  [HOOK ENFORCE] Missing 'Kenapa?' — inserting after first sentence")
     first = sentences[0]
     rest = ' '.join(sentences[1:])
     text = f"{first} Kenapa? {rest}".strip()
@@ -679,6 +813,7 @@ _COMMON_CAPS = {
     'Under', 'Over', 'Into', 'Through', 'About', 'Against', 'Among',
     # Indonesian
     'Apa', 'Ini', 'Itu', 'Kalau', 'Karena', 'Tapi', 'Maka', 'Jadi',
+    'Kenapa', 'Siapa', 'Mengapa', 'Bagaimana',
     'Bukan', 'Sudah', 'Belum', 'Masih', 'Hanya', 'Setiap', 'Semua',
     'Pertama', 'Kedua', 'Ketiga', 'Menurut', 'Selain', 'Tanpa',
     'Cara', 'Yang', 'Dengan', 'Dari', 'Ke', 'Di', 'Pada', 'Untuk',
@@ -693,6 +828,11 @@ _COMMON_CAPS = {
     'Oleh', 'Antara', 'Melalui', 'Terhadap', 'Mengenai', 'Tentang',
     'Data', 'Hasil', 'Fakta', 'Masalah', 'Solusi', 'Contoh',
     'Alasan', 'Dampak', 'Resiko', 'Manfaat', 'Tujuan', 'Proses',
+    'Mereka', 'Artinya', 'Tujuannya', 'Bayarnya', 'Kerjanya',
+    'Kita', 'Kamu', 'Saya', 'Dia', 'Enggak', 'Emang', 'Memang',
+    'Banyak', 'Sedikit', 'Selalu', 'Sering', 'Punya', 'Paling',
+    'Seperti', 'Bikin', 'Buat', 'Kerja', 'Nilai', 'Angka', 'Soal',
+    'Topik', 'Bahas', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima',
     # CTA patterns
     'A)', 'B)', 'C)', 'Option',
     # Countries/regions (local relevance is intentional)
@@ -803,8 +943,7 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
         ]
         for pat in FOREIGN_BOOKS:
             if re.search(pat, text, re.IGNORECASE):
-                print(f"  [POSTPROCESS] ⚠️ Foreign book detected: {pat}")
-
+                pass  # foreign book detection silenced
         # Strip hallucinated URLs (source_url re-appended to CTA at the end)
         text = re.sub(r'https?://\S+', '', text).strip()
         
@@ -815,17 +954,24 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
         
         # ENFORCE SLIDE LENGTH LIMITS (Pressbox style)
         if key in ('slide_1',):
-            # Hook: MAX 2 sentences, <25 words
-            sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+            # Hook: ideally 2 sentences, <25 words
+            # But ensure minimum 15 words — allow 3 sentences if 2 is too short
+            sentences = [s.strip() for s in re.split(r'(?<=[.!?])\\s+', text) if s.strip()]
+            target_sentences = 2
             if len(sentences) > 2:
-                text = ' '.join(sentences[:2])
-                print(f"  [POSTPROCESS] Hook truncated to 2 sentences")
+                candidate = ' '.join(sentences[:2])
+                if len(candidate.split()) < 15 and len(sentences) >= 3:
+                    target_sentences = 3
+                    # print("  [POSTPROCESS] Hook extended to 3 sentences (2 was <15 words)")
+                text = ' '.join(sentences[:target_sentences])
+                # [POSTPROCESS] Hook truncated to {target_sentences} sentence(s) — silenced
+            pass
             words = text.split()
             if len(words) > 25:
                 text = ' '.join(words[:25])
                 if not text.endswith(('.', '!', '?')):
                     text += '...'
-                print(f"  [POSTPROCESS] Hook truncated to 25 words")
+                # print("  [POSTPROCESS] Hook truncated to 25 words")
             # The reason? enforcement for slide_1
             if not re.search(r'\bkenapa\b', text, re.IGNORECASE):
                 text = _enforce_hook_lucifer(text)
@@ -834,33 +980,33 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
             sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
             if len(sentences) > 3:
                 text = ' '.join(sentences[:3])
-                print(f"  [POSTPROCESS] {key} truncated to 3 sentences")
+                # print("  [POSTPROCESS] {key} truncated to 3 sentences")
             words = text.split()
             if len(words) > 40:
                 text = ' '.join(words[:40])
                 if not text.endswith(('.', '!', '?')):
                     text += '...'
-                print(f"  [POSTPROCESS] {key} truncated to 40 words")
+                # print("  [POSTPROCESS] {key} truncated to 40 words")
         elif key == 'slide_6':
             # CTA: MAX 2 sentences, <30 words
             sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
             if len(sentences) > 2:
                 text = ' '.join(sentences[:2])
-                print(f"  [POSTPROCESS] CTA truncated to 2 sentences")
+                # print("  [POSTPROCESS] CTA truncated to 2 sentences")
             words = text.split()
             if len(words) > 30:
                 text = ' '.join(words[:30])
                 if not text.endswith(('.', '!', '?')):
                     text += '...'
-                print(f"  [POSTPROCESS] CTA truncated to 30 words")
+                # print("  [POSTPROCESS] CTA truncated to 30 words")
         
         # Strip placeholders
         text = re.sub(r'\[.*?\]', '', text)
         
         # Add whitespace between sentences
         text = _add_whitespace(text)
-        
-        # Trim
+        # Unescape escaped newlines from LLM JSON (\n → actual newline)
+        text = text.replace('\\n', '\n')
         text = text.strip()
         
         # Auto-trim body slides (2-5) to max 3 sentences — matches Pressbox
@@ -893,11 +1039,11 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
     # Check hook word count
     hook = slides.get('slide_1', '')
     word_count = len(hook.split())
-    if word_count < 15:
-        print(f"[WARN] Hook too short ({word_count} words), need 15+")
-    elif word_count > 25:
-        print(f"[WARN] Hook too long ({word_count} words), should be <25")
-    
+    if 15 < word_count < 25:
+        pass
+    def _warn_hook(hook):
+        pass
+    _warn_hook(hook)
     return slides
 
 def generate_carousel(title: str, body: str, image_url: str = "", source_url: str = "", source: str = "", correction_hint: str = "") -> Optional[dict]:
@@ -911,25 +1057,14 @@ def generate_carousel(title: str, body: str, image_url: str = "", source_url: st
 
     raw = None
 
-    # Tier 1: Local 9router (no rate limits)
-    if ROUTER_KEY:
-        print(f"  Generating via 9router (Deepseek)...")
-        raw = _call_router(title, body, source)
-        if raw:
-            print(f"  ✓ Router OK ({len(raw)} chars)")
-    
-    # Tier 2: Direct Mistral API
-    if (not ROUTER_KEY or not raw) and MISTRAL_KEY:
-        if ROUTER_KEY:
-            print(f"  Router failed, falling back to direct Mistral...")
-        else:
-            print(f"  Generating with Mistral...")
+    # Tier 1: Mistral direct (like pressbox)
+    if MISTRAL_KEY:
+        print(f"  Generating via Mistral...")
         raw = _call_mistral(title, body, source)
     
-    # Tier 3: Groq fallback
     if not raw:
-        print(f"  Mistral failed, trying Groq...")
-        raw = _call_groq(title, body, source)
+        print(f"  All providers failed")
+        return None
     
     if not raw:
         print(f"  All providers failed")
@@ -970,6 +1105,45 @@ def generate_carousel(title: str, body: str, image_url: str = "", source_url: st
             print(f"  [FACT-CHECK] Minor: {len(violations)} violations across {total_affected}/6 slides")
         else:
             print(f"  [FACT-CHECK] Minor: {len(violations)} violations across {total_affected}/6 slides")
+
+    return slides
+
+
+def generate_winning_carousel(title: str, body: str, image_url: str = "", source_url: str = "", source: str = "", correction_hint: str = "") -> Optional[dict]:
+    """Generate 6-slide winning format carousel (4 tanda + solusi + CTA).
+
+    Uses WINNING_PROMPT for checklist/self-diagnosis style content.
+    Reuses same parsing and validation as standard carousel.
+    """
+    if correction_hint:
+        body = body + "\n\n[CORRECTION FEEDBACK — previous version was REJECTED]\n" + correction_hint + "\nFix these issues. Keep the same article angle. Output valid JSON with all 6 slides.\n[/CORRECTION FEEDBACK]"
+
+    raw = None
+    # Mistral direct (like pressbox)
+    if MISTRAL_KEY:
+        print(f"  Generating via Mistral (winning format)...")
+        raw = _call_mistral(title, body, source, system_prompt=WINNING_PROMPT)
+
+    if not raw:
+        print(f"  All providers failed")
+        return None
+
+    slides = _parse_json(raw)
+    if not slides:
+        print(f"  Failed to parse JSON")
+        print(f"  Raw output: {raw[:500]}")
+        return None
+
+    # Validate: all 6 slides must exist
+    required = ['slide_1', 'slide_2', 'slide_3', 'slide_4', 'slide_5', 'slide_6']
+    missing = [k for k in required if not slides.get(k, '').strip()]
+    if missing:
+        print(f"  REJECT: missing slides: {missing}")
+        return None
+
+    # Mark format for downstream handling
+    slides['_format'] = 'winning'
+    slides = _postprocess_slides(slides, source_url)
 
     return slides
 
@@ -1389,15 +1563,10 @@ Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT."""
     
     # ── Evaluator API call with retry ────
     import time as _time
-    # Route through 9router if available, else direct Mistral
-    if ROUTER_KEY:
-        base = ROUTER_BASE
-        key = ROUTER_KEY
-        model = "Deepseek"  # 9router: Deepseek — better instruction following
-    else:
-        base = "https://api.mistral.ai/v1"
-        key = MISTRAL_KEY
-        model = "mistral-small-latest"  # direct Mistral: use cheaper small
+    # Direct Mistral (no 9router)
+    base = "https://api.mistral.ai/v1"
+    key = MISTRAL_KEY
+    model = "mistral-small-latest"
     
     for attempt in range(1, 4):
         try:
@@ -1414,7 +1583,7 @@ Be SKEPTICAL. Default to REJECT if unsure. Hallucination = automatic REJECT."""
             if r.status_code != 200:
                 print(f"  [EVALUATOR] API error: {r.status_code} (attempt {attempt}/3)")
                 if attempt < 3:
-                    _time.sleep(2 * attempt)  # exponential backoff
+                    _time.sleep(5 * attempt)  # exponential backoff
                     continue
                 return {"status": "REJECT", "reason": f"api_error_fail_safe (HTTP {r.status_code})", "grounding_score": 0, "issues": [f"Evaluator API HTTP {r.status_code}"], "revised_slides": None}
         

@@ -192,7 +192,7 @@ def pull_engagement(conn, max_per_run: int = 10) -> int:
 def post_from_db(limit: int = 1, dry_run: bool = False) -> None:
     """Post staged posts from pipeline.db."""
     from db import get_db, get_staged_posts, mark_posted, mark_failed
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     conn = get_db()
     staged = get_staged_posts(conn, limit)
@@ -205,7 +205,7 @@ def post_from_db(limit: int = 1, dry_run: bool = False) -> None:
         created = post.get("created_at", "")
         if created:
             try:
-                age = datetime.now(datetime.UTC) - datetime.fromisoformat(created)
+                age = datetime.now(timezone.utc) - datetime.fromisoformat(created).replace(tzinfo=timezone.utc)
                 if age > timedelta(hours=4):
                     print(f"  [STALE] #{post['id']} staged {age} ago, marking failed")
                     mark_failed(conn, post["id"])
