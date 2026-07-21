@@ -161,17 +161,21 @@ def _clean_seed(s):
     return s.strip()
 
 def _convert_pov(text):
-    """Convert lo→kalian di generated slides. Skip quotes (tanda kutip) biar dialog natural."""
+    """Normalize POV di generated slides. Skip quotes (tanda kutip) biar dialog natural."""
     import re
-    # Replace lo/kamu/anda with kalian outside of quotes
     parts = re.split(r'("[^"]*"|\'[^\']*\')', text)
     for i, part in enumerate(parts):
         if i % 2 == 0:  # outside quotes
-            # Skip "lu" (different slang, keep it)
+            # Convert lo/kamu/anda → kalian
             part = re.sub(r'\blo\b', 'kalian', part)
             part = re.sub(r'\bLo\b', 'Kalian', part)
             part = re.sub(r'\bkamu\b', 'kalian', part)
             part = re.sub(r'\bKamu\b', 'Kalian', part)
+            # Normalize gue → gw (konsisten)
+            part = re.sub(r'\bgue\b', 'gw', part)
+            part = re.sub(r'\bGue\b', 'Gw', part)
+            part = re.sub(r'\bgua\b', 'gw', part)
+            part = re.sub(r'\bGua\b', 'Gw', part)
             parts[i] = part
     return ''.join(parts)
 
