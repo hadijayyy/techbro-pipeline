@@ -48,7 +48,7 @@ PROHIBITED = [
     "self love", "healing journey", "inner child",
 ]
 
-# ── Seed pool — TOP 3 categories: fakta unik otak, fakta hewan, daily life ──
+# ── Seed pool — 4 categories: fakta unik otak, tubuh manusia, hewan, daily life ──
 SEEDS = [
     # Fakta unik (otak / tidur / memori)
     "Otak manusia lebih gampang inget hal negatif — ini mekanisme survival",
@@ -79,6 +79,17 @@ SEEDS = [
     "Ternyata rayap bukan musuh — dia arsitek terbaik dunia serangga",
     "Kenapa kucing takut air tapi anjing enggak?",
     "Fakta soal harimau Sumatra: dia bisa niruin suara mangsanya",
+    # Fakta tubuh manusia (di luar otak)
+    "Kenapa kita menguap — dan kenapa nular secara nggak sadar",
+    "Kenapa jari keriput pas di air: bukan karena basah, ini mekanisme survival",
+    "Kenapa cegukan susah dihentiin dan tiba-tiba ilang sendiri",
+    "Kenapa kita punya sidik jari: bukan cuma buat KTP",
+    "Alasan kenapa ada tangan dominan — kanan vs kidal",
+    "Bulu kuduk merinding: ternyata pesan dari otak purba",
+    "Kenapa kuping kita terus tumbuh seumur hidup?",
+    "Kenapa tubuh kita demam — bukan penyakit, tapi senjata",
+    "Fakta soal nafsu: kenapa lapar juga ngaruh ke emosi dan keputusan",
+    "Kenapa tubuh gatal di tempat yang susah dijangkau pas lagi sepi",
     # Daily life observasi / self-dev
     "Kenapa malam hari selalu bikin overthinking?",
     "POV: capek secara mental tapi gak keliatan secara fisik",
