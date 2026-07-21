@@ -739,30 +739,49 @@ def post_to_threads(slides):
         try:
             r = httpx.post(f"{GRAPH}/{USER_ID}/threads", data=data, timeout=15)
             return r.json().get("id") if r.status_code == 200 else None
-        except httpx.RequestError:
+        except (httpx.RequestError, json.JSONDecodeError, KeyError) as e:
+            log.error(f"  Create container fail: {e}")
             return None
 
+    # Flow: create → publish → get published ID → create next with reply_to
     ids = []
-    for s in slides:
-        rid = create_container(s["content"], ids[-1] if ids else None)
-        if not rid:
+    parent_publish_id = None
+    first_publish_id = None
+    
+    for i, s in enumerate(slides):
+        # 1. Create container
+        container_id = create_container(s["content"], parent_publish_id)
+        if not container_id:
             log.error(f"  Failed to create container for {s['title']}")
             return None, ids
-        ids.append(rid)
         time.sleep(1.5)
-
-    media_id = ids[0]
-    first_post_id = None
-    for cid in ids:
+        
+        # 2. Publish immediately
         try:
-            r = httpx.post(f"{GRAPH}/{media_id}/threads_publish", data={"access_token": THREADS_TOKEN, "media_id": cid}, timeout=15)
-            if r.status_code == 200:
-                if not first_post_id:
-                    first_post_id = r.json().get("id")
-        except httpx.RequestError:
-            pass
+            r = httpx.post(
+                f"{GRAPH}/{USER_ID}/threads_publish",
+                data={"access_token": THREADS_TOKEN, "creation_id": container_id},
+                timeout=15
+            )
+            if r.status_code != 200:
+                log.error(f"  Publish failed for {s['title']}: {r.text[:200]}")
+                return None, ids
+            publish_data = r.json()
+            publish_id = publish_data.get("id") or publish_data.get("media_id")
+            if not publish_id:
+                log.error(f"  No id in publish response: {publish_data}")
+                return None, ids
+            if first_publish_id is None:
+                first_publish_id = publish_id
+            ids.append(container_id)
+            parent_publish_id = publish_id  # next post replies to this published post
+        except (httpx.RequestError, json.JSONDecodeError, KeyError) as e:
+            log.error(f"  Publish error for {s['title']}: {e}")
+            return None, ids
         time.sleep(1.5)
-    return media_id, first_post_id
+    
+    media_id = ids[0] if ids else None
+    return media_id, first_publish_id
 
 # ══════════════════════════════════════════════
 #   MAIN
