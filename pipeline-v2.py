@@ -236,9 +236,12 @@ COVERAGE: self development, kesehatan mental, mindset, fakta unik hewan & dunia.
 {seed_topic}
 
 ## [MUST] POV
-- **Narator: "gw"** — wajar. "Menurut gw...", "Gw liat..."
-- **Audiens: "kalian"** — efek ke banyak orang. Ngomong langsung ke pembaca jamak.
-Dialog internal pembaca pake "kalian".
+DILARANG KERAS pake "lo" di narrator! Aturan:
+- **Narator: "gw"** — wajar. "Menurut gw...", "Gw liat...", identitas penulis.
+- **Audiens: "kalian"** — efek ke banyak orang. "Kalian pernah...", "Coba kalian...".
+- **Dialog internal pembaca**: pake "kalian" atau pake "lo" di dalam *quote* orang lain. Contoh: "Eh, lo nonton Drakor itu belom?"
+- **Quote orang lain**: boleh pake "lo" karena itu karakter ngomong. Contoh: 'si Budi bilang, "Lo kerja di mana?"'
+- PENTING: narrator jangan pake "lo". Hanya orang lain (dalam quote) yg boleh.
 
 ## [MUST] 6-SLIDE STRUCTURE — RHETORICAL ARC
 WAJIB 6 slide. Tiap slide punya fungsi retoris spesifik:
