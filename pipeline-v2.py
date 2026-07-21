@@ -48,7 +48,7 @@ PROHIBITED = [
     "self love", "healing journey", "inner child",
 ]
 
-# ── Seed pool — 4 categories: fakta unik otak, tubuh manusia, hewan, daily life ──
+# ── Seed pool — 3 categories: otak, hewan, tubuh manusia ──
 SEEDS = [
     # Fakta unik (otak / tidur / memori)
     "Otak manusia lebih gampang inget hal negatif — ini mekanisme survival",
@@ -71,6 +71,11 @@ SEEDS = [
     "Merasa diamati pas sendirian? Otak lo nge-scan ancaman tanpa sadar",
     "Kenapa lo langsung ngerasa lebih baik pas cuci muka pas stres",
     "Otak cuma 2% dari badan tapi makan 20% energi harian lo",
+    "Kenapa kita gak bisa geli diri sendiri? Jawabannya ada di otak kecil",
+    "Earworm: kenapa lagu stuck di kepala dan susah banget dihilangin",
+    "Kenapa bau bisa langsung ngingetin memori spesifik dari masa kecil",
+    "Kenapa badan tiba-tiba kejang pas mau tidur — hypnic jerk",
+    "Placebo effect: kenapa gula doang bisa ngurangin rasa sakit lo",
     # Fakta hewan & dunia (Indonesia)
     "Kenapa suara tokek bisa segede itu? Fakta soal reptil kecil bersuara raksasa",
     "Semut Rangrang: ternyata tentara paling brutal di kerajaan serangga",
@@ -97,6 +102,11 @@ SEEDS = [
     "Bintang laut: mulut di bagian bawah dan bisa regenerasi tubuh",
     "Burung hantu bisa muter kepala 270 derajat. Ini mekanisme di baliknya",
     "Siput lambat bukan kelemahan — itu strategi survival yang brilian",
+    "Cumi-cumi bisa edit gen di tubuhnya sendiri — ini cara kerjanya",
+    "Kenapa kucing suka ngasih hadiah tikus mati ke pemiliknya?",
+    "Hiu: bisa deteksi setetes darah dalam 100 liter air",
+    "Kenapa burung tidur sambil berdiri dan gak pernah jatuh",
+    "Paus — yang sering lo panggil 'ikan paus' ternyata mamalia dan dulunya jalan di darat",
     # Fakta tubuh manusia (di luar otak)
     "Kenapa kita menguap — dan kenapa nular secara nggak sadar",
     "Kenapa jari keriput pas di air: bukan karena basah, ini mekanisme survival",
@@ -118,6 +128,11 @@ SEEDS = [
     "Kenapa rambut kepala bisa panjang tapi alis dan bulu badan cuma pendek?",
     "Lidah — peta rasa tradisional yang diajarin di sekolah ternyata udah usang",
     "Kenapa badan bisa ngerasa panas pas malu — blushing effect",
+    "Keringat gak bau — bakteri di kulit lo yang bikin bau",
+    "Kenapa gak bisa nahan kentut waktu tidur? Otot rileks total",
+    "Kenapa beberapa orang buta warna — gak cuma hitam putih",
+    "Jantung gak berhenti meski lo gak sadar — gimana cara passive survival",
+    "Kenapa ada orang yang gak bisa digigit nyamuk — faktor genetik",
 ]
 
 def _pick_seed(data):
