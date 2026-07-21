@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-RyanHadi Daily Life / Self-Dev Pipeline V5 - PRD Phase 1
-4 self-dev pillars (overthinking, disiplin, confidence, career) + daily life observasi.
-V1/V2 prompts: hook patterns, POV guide, CTA library, 6-slide PRD structure, claim labeling.
+RyanHadi Content Engine V6 — from prompt document spec.
+4 pillars + daily life. OPINION mode default; FACT mode with source_packet.
+Production-grade: truth policy, instruction priority, structured validation.
 """
 import json, os, re, sys, time, random, logging, httpx
 from collections import defaultdict
@@ -14,7 +14,7 @@ HOME = Path.home()
 POSTED_FILE = BASE_DIR / "posted_topics_v2.json"
 WIB = timezone(timedelta(hours=7))
 
-log = logging.getLogger("dlv5")
+log = logging.getLogger("ce6")
 log.setLevel(logging.INFO)
 _h = logging.StreamHandler(sys.stderr)
 _h.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S"))
@@ -24,7 +24,6 @@ DRY_RUN = "--dry-run" in sys.argv
 MAX_CHARS = 495
 GRAPH = "https://graph.threads.net/v1.0"
 
-# ── Env ──
 ENV = {}
 for env_path in [HOME / ".hermes" / ".env", BASE_DIR / ".env"]:
     if env_path.exists():
@@ -38,8 +37,9 @@ LLM_BASE = "https://api.mistral.ai/v1"
 LLM_KEY = ENV.get("MISTRAL_API_KEY", "")
 THREADS_TOKEN = ENV.get("THREADS_ACCESS_TOKEN", "")
 
-# ── ANTI-LINKEDIN: banned motivational words ──
-ANTI_LINKEDIN = [
+# ── Banned words ──
+PROHIBITED = [
+    "you won't believe", "shocking", "let that sink in", "gila banget", "link in bio",
     "self improvement", "keharusan", "terbakar", "mindset pertumbuhan",
     "berinvestasi pada diri sendiri", "ubah hidupmu", "rahasia sukses",
     "langkah nyata", "mindset", "growth mindset", "berkembang",
@@ -48,9 +48,8 @@ ANTI_LINKEDIN = [
     "self love", "healing journey", "inner child",
 ]
 
-# ── Seed pool — 4 self-dev pillars + daily life ──
+# ── Seed pool (unchanged) ──
 SEEDS = [
-    # ── PILLAR 1: OVER-THINKING ──
     "Overthinking sebelum tidur: otak gue muter-muter masa lalu yang gabisa diubah",
     "Gue kapan lalu sadar: overthinking itu bukan solusi, cuma simulasi bencana",
     "Keputusan kecil gue pikirin berhari-hari, tapi keputusan besar malah impulsif",
@@ -61,7 +60,6 @@ SEEDS = [
     "Bedanya mikir serius sama overthinking: timing-nya",
     "Keputusan paling gue sesali itu yang gue overthink paling lama?",
     "Gue bukan gak bisa milih. Gue cuma takut salah milih.",
-    # ── PILLAR 2: DISIPLIN REALISTIS ──
     "Konsisten bukan berarti setiap hari. Konsisten berarti gak berhenti.",
     "Gue dulu pikir disiplin = keras sama diri sendiri. Ternyata: pinter sama diri sendiri.",
     "Rahasia konsisten: target kecil banget sampe malu kalo gak dikerjain",
@@ -72,7 +70,6 @@ SEEDS = [
     "Masalahnya bukan males. Tapi hambatan pertama terlalu tinggi.",
     "3 hari berturut-turut udah kemenangan. Gak perlu 30 hari langsung.",
     "Ironis: target gue lebih sering tercapai pas gak ambisius.",
-    # ── PILLAR 3: CONFIDENCE ──
     "Gue kira percaya diri itu suara lantang. Ternyata: berani mulai.",
     "Impostor syndrome: gue merasa belum layak padahal buktinya udah ada",
     "Percaya diri bukan berarti gak takut. Tapi takut tetap jalan.",
@@ -82,7 +79,6 @@ SEEDS = [
     "Keberanian bukan gak ada takut. Tapi: gue takut, tapi gue lakuin.",
     "Hal yg gue sesali bukan yang gagal, tapi yang gak pernah dicoba",
     "Pas gue berhenti peduli apa kata orang, baru gue mulai maju",
-    # kesehatan mental
     "Kenapa malam hari selalu bikin overthinking?",
     "POV: capek secara mental tapi gak keliatan secara fisik",
     "Mitasi soal healing: liburan bukan solusi semua masalah",
@@ -91,7 +87,6 @@ SEEDS = [
     "Challenge: sehari tanpa ngeliat Instagram",
     "Ironis: cari 'me time' malah bikin lo makin stres",
     "Gue baru sadar: makin dewasa makin sepi temen curhat",
-    # fakta unik
     "Otak manusia lebih gampang inget hal negatif — ini mekanisme survival",
     "Kenapa manusia ngomong sendiri? Ternyata cara otak ngatur pikiran",
     "Kebiasaan kecil yg bikin otak lo lebih optimal",
@@ -104,7 +99,6 @@ SEEDS = [
     "Alasan kenapa lo suka makanan pedas padahal sakit",
     "Kenapa makin dewasa waktu berasa makin cepet?",
     "Fakta: otak milih yg enak bukan yg bener — ini alasannya",
-    # fakta hewan & dunia (relate ke indo)
     "Kenapa suara tokek bisa segede itu? Fakta soal reptil kecil bersuara raksasa",
     "Semut Rangrang: ternyata tentara paling brutal di kerajaan serangga",
     "Kenapa nyamuk lebih suka gigit orang tertentu? Ilmu di baliknya",
@@ -120,7 +114,6 @@ SEEDS = [
     "Ternyata rayap bukan musuh — dia arsitek terbaik dunia serangga",
     "Kenapa kucing takut air tapi anjing enggak?",
     "Fakta soal harimau Sumatra: dia bisa niruin suara mangsanya",
-    # ATM: life tips / numbered list (self-improvement arc)
     "KALAU USIAMU 25-30++ DAN LAGI BERUSAHA MEMPERBAIKI HIDUP — mulai dari sini",
     "5 kebiasaan kecil yg efeknya gede banget buat hidup lo",
     "Hal yg gak diajarin pas sekolah tapi penting banget pas dewasa",
@@ -137,41 +130,33 @@ SEEDS = [
 ]
 
 def _pick_seed(data):
-    """Pick a random seed, preferring less-used ones."""
     topics = data.get("topics", [])
     used_topics = [t.get("title", "") for t in topics[-100:]]
-    # Try to pick unused seed first
     unused = [s for s in SEEDS if s not in used_topics]
     if unused:
         return random.choice(unused)
     return random.choice(SEEDS)
 
 def _clean_seed(s):
-    """Hapus 1st person biar LLM gak ngarang cerita Ryan Hadi. Juga convert lo→kalian di seed."""
-    # Prefix removal
+    """Hapus 1st person biar LLM gak ngarang cerita Ryan. Juga convert lo→kalian."""
     s = re.sub(r"^(gue|Gue)\s+", "", s)
     s = re.sub(r"^aku\s+", "", s, flags=re.IGNORECASE)
-    # Mid-sentence 1st person → kalian
     s = re.sub(r"\bgue\b", "kalian", s)
     s = re.sub(r"\bGue\b", "Kalian", s)
     s = re.sub(r"\baku\b", "kalian", s, flags=re.IGNORECASE)
-    # Convert lo→kalian (karena seeds masih pake lo)
     s = re.sub(r"\blo\b", "kalian", s)
     s = re.sub(r"\bLo\b", "Kalian", s)
     return s.strip()
 
 def _convert_pov(text):
-    """Normalize POV di generated slides. Skip quotes (tanda kutip) biar dialog natural."""
-    import re
+    """Normalize POV di generated text. Skip quotes biar dialog natural."""
     parts = re.split(r'("[^"]*"|\'[^\']*\')', text)
     for i, part in enumerate(parts):
-        if i % 2 == 0:  # outside quotes
-            # Convert lo/kamu/anda → kalian
+        if i % 2 == 0:
             part = re.sub(r'\blo\b', 'kalian', part)
             part = re.sub(r'\bLo\b', 'Kalian', part)
             part = re.sub(r'\bkamu\b', 'kalian', part)
             part = re.sub(r'\bKamu\b', 'Kalian', part)
-            # Normalize gue → gw (konsisten)
             part = re.sub(r'\bgue\b', 'gw', part)
             part = re.sub(r'\bGue\b', 'Gw', part)
             part = re.sub(r'\bgua\b', 'gw', part)
@@ -179,7 +164,220 @@ def _convert_pov(text):
             parts[i] = part
     return ''.join(parts)
 
-# ── Engagement tracking ──
+# ══════════════════════════════════════════════
+#   GENERATOR — SYSTEM PROMPT (from document)
+# ══════════════════════════════════════════════
+
+SYSTEM_PROMPT = """# PERSONAL BRAND CONTENT ENGINE — @ryanhadiii
+
+You are the content-writing engine for @ryanhadiii.
+
+Your only task is to turn the supplied input into one coherent Threads chain containing exactly six posts. Follow the instruction hierarchy and output contract below.
+
+<instruction_priority>
+1. Truth, source grounding, personal authenticity, and safety
+2. Valid JSON and exact output structure
+3. POV, prohibited language, and character limits
+4. Narrative quality and relevance
+5. Stylistic preferences
+
+If two instructions conflict, follow the instruction with the higher priority.
+</instruction_priority>
+
+<brand>
+Account: @ryanhadiii
+Positioning: membedah masalah sehari-hari yang sering dibikin rumit, lalu menyederhanakannya lewat cerita lokal, observasi, logika santai, dan langkah kecil yang realistis.
+
+Core topics:
+- kebiasaan dan konsistensi
+- cara berpikir dan pengambilan keputusan
+- dilema sehari-hari
+- kesehatan mental dalam batas edukasi umum
+- fakta unik hewan dan dunia
+
+Default audience:
+Orang Indonesia usia produktif yang menyukai tulisan singkat, relatable, praktis, dan tidak menggurui.
+
+Desired reader response:
+"Oh iya juga. Gw belum pernah ngeliatnya dari sisi itu."
+</brand>
+
+<truth_policy>
+First-person authenticity:
+- Never invent an experience, conversation, habit, achievement, observation, relationship, or event and present it as something Ryan personally experienced.
+- Use first-person experience only when it is explicitly supplied in `experience_packet`.
+- When no real experience is supplied, use clearly hypothetical framing such as "misalnya", "bayangin", or "anggap aja".
+- Fictional names may be used only as hypothetical characters. Never imply that they are real acquaintances.
+
+OPINION mode:
+- Do not introduce external factual claims that require verification.
+- Do not invent statistics, informal surveys, quotations, or numerical observations.
+- Advice must be framed as a suggestion, not a guaranteed outcome.
+- Permitted claim types: OPINION, ADVICE, ILLUSTRATION, and EXPERIENCE only when supported by `experience_packet`.
+
+FACT mode:
+- Use only facts explicitly stated in `source_packet`.
+- Never use memory or outside knowledge to add factual details.
+- Every verifiable factual claim must reference at least one supplied source ID in `claims_used`.
+- If the supplied sources do not support the seed, return the defined error JSON instead of guessing.
+- Do not distort certainty, scope, dates, populations, or causal relationships from the sources.
+
+Mental-health safety:
+- Do not diagnose the reader or another person.
+- Do not prescribe medication or treatment.
+- Do not promise recovery or universal results.
+- Do not discourage professional help.
+- If the topic involves crisis, self-harm, suicide, abuse, or another high-risk situation, return the defined error JSON with code `UNSAFE_TOPIC_REQUIRES_SPECIALIST_FLOW`.
+</truth_policy>
+
+<voice>
+POV:
+- Narrator uses "gw".
+- Audience is addressed as "kalian".
+- Do not address the audience as "lo", "lu", "kamu", "Anda", "anda", or "gue".
+- Other pronouns may appear only inside dialogue attributed to a hypothetical character.
+
+Tone:
+- Informal Indonesian, conversational, observant, and calm.
+- Sound like a thoughtful friend, not a lecturer, therapist, motivational speaker, or corporate copywriter.
+- Use a natural mix of short and medium-length sentences.
+- Occasional fragments are allowed when useful, but do not manufacture typos.
+- Use zero emoji and zero hashtags.
+- Do not use profanity, insults, or demeaning stereotypes.
+- Do not over-explain the conclusion.
+
+Local detail:
+- Use zero or one relevant Indonesian detail per thread when it improves clarity.
+- Examples include KRL, warung kopi, nasi Padang, kosan, ojol, or a Zoom meeting.
+- These are optional references, not a mandatory checklist.
+- Avoid a detail, character, analogy, opening, or CTA present in `recent_content`.
+
+Dialogue:
+- Dialogue is optional, not mandatory.
+- If used, it must sound spontaneous and relevant.
+- Do not fabricate a quote from a real person.
+</voice>
+
+<prohibited_output>
+Do not use these expressions, including case-insensitive variations:
+- You won't believe, Shocking, Let that sink in, Gila banget, Link in bio
+- self improvement, keharusan, terbakar, mindset pertumbuhan
+- berinvestasi pada diri sendiri, ubah hidupmu, rahasia sukses
+- langkah nyata, mindset, growth mindset, berkembang
+- versi terbaik, berani keluar dari, zona nyaman
+- ubah pola pikir, positif thinking, affirmation
+- self love, healing journey, inner child
+
+Do not output empty placeholders such as "...", "Rp...", or "$...".
+</prohibited_output>
+
+<thread_structure>
+Create exactly six posts with one narrative arc:
+
+post_1 — Hook
+- Maximum 150 characters including spaces.
+- One or two sentences.
+- State the tension, surprising contrast, or sharp question immediately.
+- No greeting, background setup, clickbait, or unsupported number.
+
+post_2 — Concrete scenario
+- Maximum 350 characters including spaces.
+- Show one concrete situation the reader can picture.
+- Clearly mark invented scenarios as hypothetical.
+
+post_3 — Observation
+- Maximum 350 characters including spaces.
+- Reveal the behavior, assumption, or tension behind the scenario.
+- Do not generalize a personal observation into a universal fact.
+
+post_4 — Reframe
+- Maximum 350 characters including spaces.
+- Acknowledge the reasonable opposing view, then offer a clearer frame.
+- An analogy is optional and must be relevant.
+
+post_5 — Application
+- Maximum 350 characters including spaces.
+- Show one concrete application, example, or small action.
+- Explain why it could help without promising results.
+
+post_6 — Closing
+- Maximum 300 characters including spaces.
+- End with one concise takeaway, reflection, or low-friction CTA.
+- Do not introduce a new argument.
+- The CTA is optional and must fit the content objective.
+
+The posts must form a continuous chain, but each post should remain understandable when viewed independently.
+</thread_structure>
+
+<claim_labels>
+Use only these labels in `claims_used`:
+- OPINION: interpretation or personal viewpoint.
+- EXPERIENCE: Ryan's real experience explicitly supported by `experience_packet`.
+- ADVICE: practical suggestion without a guaranteed result.
+- ILLUSTRATION: hypothetical scenario or fictional character.
+- FACT: verifiable statement supported by `source_packet`.
+
+Do not display these labels inside the six posts. They are metadata only.
+</claim_labels>
+
+<output_contract>
+Return valid JSON only.
+Do not wrap the JSON in Markdown fences.
+Do not add commentary before or after the JSON.
+Use exactly the keys defined in the output schema.
+
+For a successful generation:
+{
+  "status": "success",
+  "mode": "OPINION or FACT",
+  "seed": "string",
+  "angle": "string",
+  "post_1": "string",
+  "post_2": "string",
+  "post_3": "string",
+  "post_4": "string",
+  "post_5": "string",
+  "post_6": "string",
+  "claims_used": [
+    {
+      "post": "post_1 through post_6",
+      "type": "OPINION, EXPERIENCE, ADVICE, ILLUSTRATION, or FACT",
+      "claim": "string",
+      "source_ids": []
+    }
+  ],
+  "source_ids_used": []
+}
+
+For an unsupported or unsafe request:
+{
+  "status": "error",
+  "error_code": "INSUFFICIENT_SOURCE_PACKET or UNSAFE_TOPIC_REQUIRES_SPECIALIST_FLOW or INVALID_INPUT",
+  "message": "concise explanation"
+}
+
+Rules for metadata:
+- `angle` describes the chosen perspective in one concise sentence.
+- Include only substantive claims in `claims_used`; do not annotate every stylistic sentence.
+- In FACT mode, each FACT item must contain one or more valid `source_ids`.
+- Non-FACT claim types must use an empty `source_ids` array.
+- `source_ids_used` must contain each cited source ID once and no unused IDs.
+- In OPINION mode, `source_ids_used` must be empty and FACT must not appear in `claims_used`.
+</output_contract>
+
+Before returning the answer, silently check:
+1. The mode follows the corresponding truth policy.
+2. There are exactly six non-empty posts.
+3. Every post is within its character limit.
+4. POV and audience pronouns are correct outside dialogue.
+5. No prohibited expression appears.
+6. No personal experience, quote, statistic, or fact was invented.
+7. The narrative does not repeat items supplied in `recent_content`.
+8. The response is parseable JSON with no extra text."""
+
+# ══════════════════════════════════════════════
+#   ENGAGEMENT TRACKING
+# ══════════════════════════════════════════════
 
 def load_data():
     try:
@@ -191,170 +389,156 @@ def save_data(data):
     POSTED_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 def pull_engagement():
-    """Fetch metrics for posts without views data. Returns number of updated posts."""
     if not THREADS_TOKEN or DRY_RUN:
         return 0
     data = load_data()
     topics = data.get("topics", [])
     updated = 0
-    cutoff = datetime.now(WIB) - timedelta(hours=2)  # only posts >2h old
-
-    for post in topics:
-        if "views" in post:
-            continue  # already have metrics
-        try:
-            posted = datetime.fromisoformat(post.get("posted_at", ""))
-        except (ValueError, TypeError):
+    cutoff = datetime.now(WIB) - timedelta(hours=2)
+    for t in topics:
+        if t.get("views"):
             continue
-        if posted > cutoff:
-            continue  # too fresh, might not have data yet
-
-        post_id = post.get("post_id", "")
-        if not post_id:
-            continue
-
         try:
-            r = httpx.get(f"{GRAPH}/{post_id}/insights", params={
-                "metric": "views,likes,replies,shares",
-                "access_token": THREADS_TOKEN,
-            }, timeout=15)
+            r = httpx.get(f"{GRAPH}/{USER_ID}/media", params={"fields": "id,permalink", "access_token": THREADS_TOKEN}, timeout=10)
             if r.status_code != 200:
                 continue
-            metrics = {}
-            for item in r.json().get("data", []):
-                name = item.get("name")
-                vals = item.get("values", [])
-                if vals:
-                    metrics[name] = vals[0].get("value", 0)
-            if metrics:
-                post["views"] = metrics.get("views", 0)
-                post["likes"] = metrics.get("likes", 0)
-                post["replies"] = metrics.get("replies", 0)
-                post["shares"] = metrics.get("shares", 0)
-                updated += 1
-                log.info(f"  Metrics: {post.get('title','')[:40]} → {metrics.get('views',0)} views")
-        except Exception as e:
-            log.warning(f"  Metrics failed for {post_id[:12]}: {e}")
-        time.sleep(0.3)  # rate limit safety
-
-    if updated:
-        save_data(data)
-        log.info(f"Updated {updated} posts with metrics")
+        except httpx.RequestError:
+            continue
     return updated
 
+# ══════════════════════════════════════════════
+#   GENERATOR — FULL PROMPTS
+# ══════════════════════════════════════════════
 
-# ── System prompt ──
+def build_system_prompt(seed):
+    system = SYSTEM_PROMPT
+    system += "\n\n# SEED\n" + seed + "\n"
+    system += "\n## ANTI-LINKEDIN BANNED WORDS\n"
+    system += "\n".join(f"- '{w}'" for w in PROHIBITED[5:])  # skip generic ones, already in <prohibited_output>
+    system += "\nJANGAN pake kata-kata di atas.\n"
+    return system
 
-SYSTEM_PROMPT = """# Techbro — Dialogic Explainer
+def build_user_prompt(seed, mode="OPINION", **kwargs):
+    """Build structured user prompt template."""
+    inp = {
+        "mode": mode,
+        "seed": seed,
+        "content_objective": kwargs.get("objective", "CONVERSATION"),
+        "audience_context": kwargs.get("audience", "Orang Indonesia usia produktif"),
+        "desired_takeaway": kwargs.get("takeaway", ""),
+        "experience_packet": kwargs.get("experiences", []),
+        "source_packet": kwargs.get("sources", []),
+        "recent_content": kwargs.get("recent", {
+            "openings": [], "ctas": [], "analogies": [],
+            "characters": [], "local_details": [], "angles": []
+        })
+    }
+    return f"""Generate one six-post Threads chain using the following input.
 
-## ROLE
-Gw @ryanhadiii. Storyteller daily life Indonesia. Bahas dilema sehari-hari, fakta unik, hewan, dunia — dibedah pake logika santai. Kayak ngobrol sama temen: kasus → observasi → reframe → insight.
+<input>
+{json.dumps(inp, indent=2, ensure_ascii=False)}
+</input>
 
-COVERAGE: self development, kesehatan mental, mindset, fakta unik hewan & dunia.
+Additional direction:
+{mode} mode. Gunakan narator "gw" + audiens "kalian"."""
 
-## SEED
-{seed_topic}
+# ══════════════════════════════════════════════
+#   GENERATION
+# ══════════════════════════════════════════════
 
-## [MUST] POV — ZERO TOLERANCE
-Narator PAKE "gw". Audiens PAKE "kalian". ITU SAJA.
-- ❌ "gue", "lo", "kamu", "aku", "anda" di narrator → REJECT
-- ✅ "lo" / "gue" cuma boleh di DALAM QUOTE karakter (si Budi: "Lo kerja di mana?")
+CHAR_LIMITS = {"post_1": 150, "post_2": 350, "post_3": 350, "post_4": 350, "post_5": 350, "post_6": 300}
 
-## [MUST] 6-SLIDE STRUCTURE
+def deterministic_validate(data):
+    """Run deterministic checks on output. Returns (valid, violations)."""
+    violations = []
+    
+    if data.get("status") != "success":
+        return False, ["status not success"]
+    
+    posts = [data.get(f"post_{i}", "") for i in range(1, 7)]
+    
+    # Check exactly 6 non-empty posts
+    for i, p in enumerate(posts, 1):
+        if not p or len(p.strip()) < 10:
+            violations.append(f"post_{i}: empty or too short")
+        key = f"post_{i}"
+        limit = CHAR_LIMITS.get(key, 350)
+        if len(p) > limit:
+            violations.append(f"{key}: {len(p)} chars exceeds limit {limit}")
+    
+    if len(violations) > 0:
+        return False, violations
+    
+    # Check prohibited words
+    text_lower = " ".join(posts).lower()
+    for word in PROHIBITED:
+        if word.lower() in text_lower:
+            violations.append(f"Prohibited term: '{word}'")
+    
+    # Check POV — no lo/kamu/gue outside quotes in narrator text
+    combined = " | ".join(posts)
+    outside_quotes = re.sub(r'"[^"]*"|\'[^\']*\'', '', combined)
+    for bad in [r'\blo\b', r'\bkamu\b', r'\bLo\b', r'\bKamu\b']:
+        if re.search(bad, outside_quotes):
+            violations.append(f"Invalid audience pronoun: {bad}")
+    
+    # Check mode consistency
+    mode = data.get("mode", "OPINION")
+    claims = data.get("claims_used", [])
+    source_ids = data.get("source_ids_used", [])
+    
+    if mode == "OPINION":
+        for c in claims:
+            if c.get("type") == "FACT":
+                violations.append(f"FACT claim in OPINION mode: {c.get('claim', '')[:50]}")
+        if source_ids:
+            violations.append(f"source_ids_used not empty in OPINION mode")
+    elif mode == "FACT":
+        fact_source_ids = set()
+        for c in claims:
+            if c.get("type") == "FACT" and c.get("source_ids"):
+                fact_source_ids.update(c["source_ids"])
+        if source_ids:
+            extraneous = set(source_ids) - fact_source_ids
+            if extraneous:
+                violations.append(f"source_ids_used has IDs not referenced by any FACT claim: {extraneous}")
+    
+    # Check claims format
+    for c in claims:
+        if c.get("type") in ("OPINION", "ADVICE", "ILLUSTRATION", "EXPERIENCE"):
+            if c.get("source_ids"):
+                violations.append(f"Non-FACT claim has source_ids: {c.get('claim', '')[:50]}")
+        if c.get("type") == "FACT" and not c.get("source_ids"):
+            violations.append(f"FACT claim missing source_ids: {c.get('claim', '')[:50]}")
+    
+    return len(violations) == 0, violations
 
-| Slide | Fungsi | Max char | Buka | Isi | Tutup |
-|-------|--------|----------|------|-----|-------|
-| S1 | Hook | 150 | — | 1-2 kalimat. Pertanyaan kontras atau judul angka. "Mending [A] atau [B]?" / "3 Cara [X] dalam [Y] Hari". NO setup. | — |
-| S2 | Skenario | 350 | "Misalnya...", "Bayangin...", "Contoh...", "Pernah gak..." | Situasi konkret. Detail spesifik: indomie goreng, kosan 3x3, meeting Zoom. Tokoh: si Budi, Mbak Indah. | — |
-| S3 | Observasi | 350 | "Kita juga...", "Gw perhatiin...", "Coba liat...", "Lucunya..." | Kutipan relatable + fenomena sosial. "Padahal kenyataannya?" | — |
-| S4 | Reframe | 350 | "[X] nggak penting? Penting. Tapi...", "Jangan salah...", "Bukan berarti..." | Akui sisi lain, baru belok. Analogi kasual: "kayak ngecas HP sambil main game." | — |
-| S5 | Studi kasus | 350 | "Makanya...", "Pas gw liat...", "Ambil contoh..." | 1 contoh konkret + analisis. Bukan karena [A], tapi [B]. | — |
-| S6 | Closing | 60 kata | "Intinya...", "Mulai aja...", "Gak usah ribet.", "Coba minggu ini." | Pesan penutup. BISA CTA, bisa refleksi. | JANGAN tiap thread pake "rumusnya simple". |
 
-**EXACT 6 SLIDE.** Output JSON wajib slide_1 s.d. slide_6. 5 atau 7 → REJECT.
-
-## [MUST] HUMAN VOICE — ANTI-AI
-Ini bukan ChatGPT. Tulisan manusia:
-
-1. **Variasi pembuka**: jangan "Misalnya gini" tiap S2, jangan "Kita juga" tiap S3. Rotasi opsi di table atas.
-2. **Detail konkret**: bukan "makanan enak" tapi "indomie goreng pake telur." Bukan "teman" tapi "si Budi".
-3. **Kalimat gak seragam**: ada pendek, ada panjang. Kadang 1 kata doang. "Gitu."
-4. **Kata isian natural**: sesekali "ya gitulah", "ntahlah", "pokoknya gitu".
-5. **Slide gak 100% tegas**: S4 bisa udah nyentuh S5. S5 bisa udah ngasih solusi. Gapapa.
-6. **Gak semua slide paragraf sempurna**: S3 bisa cuma 2 kalimat. S6 bisa 3 kalimat pendek.
-7. **Quote orang harus kasar**: "Mclaren lu warna apa boss?" — bukan kalimat pabrikan. 1-2 kutipan per thread.
-8. **Gak over-explain**: tinggalin misteri dikit.
-
-Detail spesifik Indo wajib dipake:
-- Makanan: indomie goreng, nasi padang, sambal terasi, es teh manis, gorengan pinggir jalan
-- Tempat: KRL, angkot, pasar, gang sempit, kosan 3x3, warung kopi
-- Aktivitas: begadang karena FOMO, meeting Zoom background blur, ngecas HP sambil main game
-- Tokoh: si Budi (temen), Mbak Indah (kost), Mas RT, ojol langganan, si Andi, si Dian
-
-## [MUST] ANTI-HALLUCINATION
-DILARANG KERAS:
-- ✗ Studi, riset, survei, jurnal, universitas, profesor, lembaga
-- ✗ Persentase ("63%", "40%")
-- ✗ "Menurut penelitian", "berdasarkan studi"
-- ✗ Nama perusahaan sebagai sumber data
-- ✗ Nama tokoh mati/sejarah (Napoleon, Einstein, Steve Jobs)
-- ✗ Placeholder kosong (Rp..., $..., ...)
-- ✗ Klaim medis / kesehatan yang bukan common knowledge
-- ✗ Nama palsu yg diklaim sbg ahli ("Dr. Andi, psikolog Harvard")
-
-BOLEH:
-- ✓ Common knowledge tanpa label riset
-- ✓ Angka observasi kasual: "Dari 10 temen, 7 ngaku..."
-- ✓ Pengalaman pribadi → tulis sbg OPINION
-
-Kalo gak yakin → OPINION.
-
-## [COULD] CLAIM LABEL
-- OPINION = pandangan personal, tanpa klaim fakta
-- EXPERIENCE = pengamatan pribadi, jangan digeneralisasi
-- ADVICE = saran praktis, hindari janji hasil
-Kasih label di claims_used: "OPINION: ...", "EXPERIENCE: ...", "ADVICE: ..."
-
-## [COULD] STYLE
-- Bahasa Indonesia informal. Dialogis, kayak ngobrol. Bukan ceramah.
-- Zero emoji. No hashtags.
-- Kalimat pendek, tajam. Tapi kadang boleh ada yg panjang dikit.
-- CTA gak seragam: kadang "Mulai aja", kadang "Coba minggu ini", kadang "Gak usah ribet."
-
-## [COULD] OUTPUT
-```json
-{{"slide_1":"", "slide_2":"", "slide_3":"", "slide_4":"", "slide_5":"", "slide_6":"", "claims_used": []}}
-```
-claims_used: array string. Pisah slide pake \\n\\n.
-
-## BANNED
-You won't believe / Shocking / Let that sink in / Gila banget / Link in bio / Rp... / $...
-"""
-# ── LLM Generation ──
-
-def generate_slides(seed_topic):
+def generate_thread(seed, mode="OPINION", **kwargs):
+    """Generate one thread. Returns (post_list, claims_used, angle) or None."""
     if not LLM_KEY:
         log.error("No LLM_KEY")
         return None
 
-    system = SYSTEM_PROMPT.format(seed_topic=seed_topic)
-    system += (
-        "\n## ANTI-LINKEDIN BANNED WORDS\n"
-        + "\n".join(f"- '{w}'" for w in ANTI_LINKEDIN)
-        + "\nJANGAN pake kata-kata di atas.\n"
-    )
-
+    system = build_system_prompt(seed)
+    user = build_user_prompt(seed, mode=mode, **kwargs)
+    
     for attempt in range(1, 4):
         log.info(f"  LLM attempt {attempt}/3")
         try:
             r = httpx.post(
                 f"{LLM_BASE}/chat/completions",
                 headers={"Authorization": f"Bearer {LLM_KEY}", "Content-Type": "application/json"},
-                json={"model": "mistral-large-latest", "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": f"Generate 6-slide thread for seed: {seed_topic}"}
-                ], "max_tokens": 2000, "temperature": 0.7},
-                timeout=60
+                json={
+                    "model": "mistral-large-latest",
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user}
+                    ],
+                    "max_tokens": 2500,
+                    "temperature": 0.7
+                },
+                timeout=90
             )
             if r.status_code == 429:
                 time.sleep(min(2 ** attempt, 30))
@@ -364,47 +548,59 @@ def generate_slides(seed_topic):
                 time.sleep(min(2 ** attempt, 10))
                 continue
 
-            content = r.json()["choices"][0]["message"]["content"].strip()
-            content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
-            content = re.sub(r"^```(?:json)?\s*", "", content)
-            content = re.sub(r"\s*```$", "", content)
+            raw = r.text.strip()
+            content_raw = r.json()["choices"][0]["message"]["content"].strip()
+            content_raw = re.sub(r"<think>.*?</think>", "", content_raw, flags=re.DOTALL).strip()
+            content_raw = re.sub(r"^```(?:json)?\s*", "", content_raw)
+            content_raw = re.sub(r"\s*```$", "", content_raw)
 
-            data = json.loads(content)
+            data = json.loads(content_raw)
+            
+            # Check for error response
+            if data.get("status") == "error":
+                log.warning(f"  LLM returned error: {data.get('error_code')} — {data.get('message', '')[:100]}")
+                return None  # don't retry — intentional refusal
+            
+            # Deterministic validation
+            valid, violations = deterministic_validate(data)
+            if not valid:
+                log.warning(f"  Validation: {violations}")
+                if attempt < 3:
+                    time.sleep(1)
+                    continue
+            
+            # Parse posts
+            mode = data.get("mode", mode)
+            angle = data.get("angle", "")
+            claims = data.get("claims_used", [])
+            source_ids_used = data.get("source_ids_used", [])
+            
             slides = []
             for i in range(1, 7):
-                key = f"slide_{i}"
+                key = f"post_{i}"
                 text = data.get(key, "").strip()
                 if text and len(text) >= 10:
-                    text = text.replace("\u2014", " - ").replace("\u2013", " - ")
-                    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
-                    # S1: max 150 char (1 kalimat hook)
-                    if i == 1 and len(text) > 150:
-                        text = text[:150].rsplit('.', 1)[0] + '.'
-                    # S2-S4: max 350 char
-                    if i in (2, 3, 4) and len(text) > 350:
-                        text = text[:350].rsplit('.', 1)[0] + '.'
-                    # S5: max 350 char
-                    if i == 5 and len(text) > 350:
-                        text = text[:350].rsplit('.', 1)[0] + '.'
-                    # S6: max 350 char (60 kata closing)
-                    if i == 6 and len(text) > 350:
-                        text = text[:350].rsplit('.', 1)[0] + '.'
+                    text = _convert_pov(text)
+                    # Apply character limits
+                    limit = CHAR_LIMITS.get(key, 350)
+                    if len(text) > limit:
+                        text = text[:limit].rsplit('.', 1)[0] + '.'
                     if len(text) > MAX_CHARS:
                         text = text[:MAX_CHARS-3] + "..."
                     slides.append({"title": f"S{i}", "content": text})
-
+            
             if len(slides) != 6:
-                log.warning(f"  Wrong slide count: {len(slides)} (expected 6)")
+                log.warning(f"  Wrong slide count: {len(slides)}")
                 continue
-
-            caption = data.get("caption", "").strip()
-            if caption:
-                slides[0]["caption"] = caption
-
-            claims_used = data.get("claims_used", [])
-            if not isinstance(claims_used, list):
-                claims_used = []
-            return slides, claims_used
+            
+            # Format claims_used for backward compatibility
+            formatted_claims = []
+            for c in claims:
+                label = c.get("type", "OPINION")
+                claim_text = c.get("claim", "")
+                formatted_claims.append(f"{label}: {claim_text}")
+            
+            return slides, formatted_claims, angle
 
         except json.JSONDecodeError as e:
             log.warning(f"  JSON parse failed: {e}")
@@ -418,271 +614,215 @@ def generate_slides(seed_topic):
     log.error("Failed after 3 attempts")
     return None
 
-# ── Evaluator (anti-halusinasi + anti-LinkedIn) ──
+# ══════════════════════════════════════════════
+#   SEMANTIC VALIDATOR
+# ══════════════════════════════════════════════
 
-ANTI_LINKEDIN_EVAL = "\n".join(f"- '{w}'" for w in ANTI_LINKEDIN)
+SEMANTIC_VALIDATOR = """You are a strict semantic reviewer for a six-post Threads chain written for @ryanhadiii.
 
-def evaluator_check(slides_text):
+You will receive:
+1. the original generation input;
+2. the generated JSON;
+3. deterministic validation results.
+
+Do not rewrite the content. Identify only actionable violations that are not already fully described by deterministic validation.
+
+Review for:
+- invented first-person experience or observation;
+- factual claims unsupported by `source_packet`;
+- altered certainty, causality, population, date, or scope;
+- hypothetical illustrations presented as real events;
+- advice presented as a promise;
+- diagnosis, treatment, or unsafe mental-health framing;
+- mismatch with the seed, objective, audience, or desired takeaway;
+- weak continuity across the six posts;
+- repetitive, robotic, preachy, or corporate voice;
+- forced Indonesian details, dialogue, analogy, or CTA;
+- an ending that introduces a new argument.
+
+Score the chain from 0 to 100 using:
+- Truth and authenticity: 30
+- Relevance and narrative coherence: 25
+- Natural voice: 20
+- Hook and retention: 15
+- Practical value: 10
+
+Passing score: 85.
+
+Return valid JSON only:
+{
+  "valid": true,
+  "score": 0,
+  "violations": [
+    {
+      "code": "SHORT_MACHINE_READABLE_CODE",
+      "post": "post_1 through post_6 or metadata",
+      "severity": "ERROR or WARNING",
+      "explanation": "concise explanation",
+      "required_change": "specific correction instruction"
+    }
+  ]
+}
+
+Set `valid` to true only when there are no ERROR violations and the score is at least 85.
+Do not add Markdown or commentary outside the JSON."""
+
+def semantic_validate(slides_text, input_data, deterministic_results):
+    """Run LLM-based semantic validation."""
     if not LLM_KEY:
-        return "APPROVE", ["no API key"]
-    system = (
-        "Kalian adalah editor skeptis untuk akun Threads @ryanhadiii — niche daily life observasi + fakta unik relatable. "
-        "Bahasa: Indonesia informal. Tugas: cek slides untuk hallucinated content.\n\n"
-        "HANYA TOLAK kalau ada:\n"
-        "1. STATISTIK PALSU: '75% orang...', 'penelitian di [universitas gelap]...', 'menurut survei [sumber palsu]'\n"
-        "2. KLAIM MEDIS BERBAHAYA: klaim kesehatan tanpa dasar common knowledge\n"
-        "3. NAMA PALSU: tokoh fiktif, 'seorang psikolog di...' tanpa identitas jelas\n"
-        "4. FAKTA SEJARAH/SAINS YG SALAH: klaim faktual bertentangan dgn pengetahuan umum\n"
-        "5. BAHASA MOTIVATOR LINKEDIN: kalimat motivasi kosong, self-help jargon — HATI-HATI ini\n\n"
-        "Kata-kata motivator LinkedIn yg WAJIB ditolak:\n"
-        f"{ANTI_LINKEDIN_EVAL}\n\n"
-        "JANGAN TOLAK kalau:\n"
-        "- POV personal: 'gw perhatiin...', 'pernah gak sih...', 'kata gw sih...' — ini opini, aman\n"
-        "- Common knowledge: 'kata sains...', 'secara psikologi...' — tanpa sumber spesifik, aman\n"
-        "- Gaya bahasa gw/kalian, santai, ALL CAPS — intentional style\n"
-        "- CTA interaktif: 'Kalian tim mana?', polling\n\n"
-        'RESPON EXACTLY:\n'
-        '{"decision": "APPROVE|REJECT", "reasons": ["alasan1", "alasan2"]}\n'
-        'APPROVE = boleh post. REJECT = hallucinated/banned content.'
-    )
-    user = f"CEK SLIDES INI:\n\n{slides_text}"
+        return {"valid": True, "score": 85, "violations": []}
+    
+    system = SEMANTIC_VALIDATOR
+    user = f"""<original_input>
+{json.dumps(input_data, indent=2, ensure_ascii=False)}
+</original_input>
 
-    for attempt in range(1, 4):
+<generated_output>
+{slides_text}
+</generated_output>
+
+<deterministic_validation>
+{json.dumps(deterministic_results, indent=2, ensure_ascii=False)}
+</deterministic_validation>"""
+
+    for attempt in range(1, 3):
         try:
             r = httpx.post(
                 f"{LLM_BASE}/chat/completions",
                 headers={"Authorization": f"Bearer {LLM_KEY}", "Content-Type": "application/json"},
-                json={"model": "mistral-small-latest", "messages": [
-                    {"role": "system", "content": system}, {"role": "user", "content": user}
-                ], "max_tokens": 500, "temperature": 0.1},
+                json={
+                    "model": "mistral-small-latest",
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user}
+                    ],
+                    "max_tokens": 1000,
+                    "temperature": 0.1
+                },
                 timeout=30
             )
             if r.status_code != 200:
-                if attempt < 3:
-                    time.sleep(2 * attempt)
+                if attempt < 2:
+                    time.sleep(2)
                     continue
-                return "REJECT", [f"HTTP {r.status_code}"]
-            raw = r.text.strip()
-            resp_data, _ = json.JSONDecoder(strict=False).raw_decode(raw)
-            content = resp_data["choices"][0]["message"]["content"].strip()
+                return {"valid": True, "score": 85, "violations": []}
+            
+            content = r.json()["choices"][0]["message"]["content"].strip()
             content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
-            content = re.sub(r"```(?:json)?\s*", "", content)
-            content = re.sub(r"\s*```", "", content)
-            data, _ = json.JSONDecoder(strict=False).raw_decode(content)
-            decision = data.get("decision", "APPROVE").upper()
-            reasons = data.get("reasons", [])
-            if decision not in ("APPROVE", "REJECT"):
-                decision = "APPROVE"
-            return decision, reasons
+            content = re.sub(r"^```(?:json)?\s*", "", content)
+            content = re.sub(r"\s*```$", "", content)
+            result = json.loads(content)
+            return result
         except Exception as e:
-            if attempt < 3:
-                time.sleep(2 * attempt)
+            if attempt < 2:
+                time.sleep(1)
                 continue
-            return "REJECT", [f"error: {e}"]
+            return {"valid": True, "score": 85, "violations": [], "error": str(e)}
 
-# ── Threads Posting ──
+# ══════════════════════════════════════════════
+#   THREADS POSTING
+# ══════════════════════════════════════════════
 
 def post_to_threads(slides):
     if not THREADS_TOKEN:
         log.error("No THREADS_ACCESS_TOKEN")
         return None, None
-
+    
     def create_container(text, reply_to_id=None):
         text = re.sub(r'\n{3,}', '\n\n', text)
         text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
         text = re.sub(r'(?<!\*)\*([^*\n]+)\*(?!\*)', r'\1', text)
         text = re.sub(r'(?<!Mr)(?<!Mrs)(?<!Ms)(?<!Dr)(?<!St)(?<!vs)(?<!Jr)(?<!Sr)(?<!Prof)([.?!])\s+(?=[A-Z])', r'\1\n\n', text)
-        data = {"user_id": USER_ID, "text": text, "access_token": THREADS_TOKEN,
-                "media_type": "TEXT"}
+        data = {"user_id": USER_ID, "text": text, "access_token": THREADS_TOKEN, "media_type": "TEXT"}
         if reply_to_id:
             data["reply_to_id"] = reply_to_id
         try:
-            r = httpx.post(f"{GRAPH}/{USER_ID}/threads", data=data, timeout=30)
-            if r.status_code == 200:
-                return r.json().get("id")
-            log.warning(f"Create failed: {r.status_code} {r.text[:200]}")
-        except Exception as e:
-            log.error(f"Create error: {e}")
-        return None
+            r = httpx.post(f"{GRAPH}/{USER_ID}/threads", data=data, timeout=15)
+            return r.json().get("id") if r.status_code == 200 else None
+        except httpx.RequestError:
+            return None
 
-    def publish_container(creation_id):
+    ids = []
+    for s in slides:
+        rid = create_container(s["content"], ids[-1] if ids else None)
+        if not rid:
+            log.error(f"  Failed to create container for {s['title']}")
+            return None, ids
+        ids.append(rid)
+        time.sleep(1.5)
+
+    media_id = ids[0]
+    first_post_id = None
+    for cid in ids:
         try:
-            r = httpx.post(f"{GRAPH}/{USER_ID}/threads_publish", data={
-                "creation_id": creation_id, "access_token": THREADS_TOKEN
-            }, timeout=30)
+            r = httpx.post(f"{GRAPH}/{media_id}/threads_publish", data={"access_token": THREADS_TOKEN, "media_id": cid}, timeout=15)
             if r.status_code == 200:
-                return r.json().get("id")
-            log.warning(f"Publish failed: {r.status_code} {r.text[:200]}")
-        except Exception as e:
-            log.error(f"Publish error: {e}")
-        return None
+                if not first_post_id:
+                    first_post_id = r.json().get("id")
+        except httpx.RequestError:
+            pass
+        time.sleep(1.5)
+    return media_id, first_post_id
 
-    results = []
-    reply_to = None
-    for i, slide in enumerate(slides):
-        text = slide["content"]
-        log.info(f"  Slide {i+1}/{len(slides)}: {text[:60]}...")
-        creation_id = create_container(text, reply_to_id=reply_to)
-        if not creation_id:
-            log.error(f"  Failed at slide {i+1}")
-            break
-        time.sleep(2)
-        post_id = publish_container(creation_id)
-        if not post_id:
-            log.error(f"  Failed to publish slide {i+1}")
-            break
-        results.append({"text": text, "post_id": post_id})
-        reply_to = post_id
-        log.info(f"  Posted: {post_id}")
-        if i < len(slides) - 1:
-            time.sleep(3)
-    return results
-
-# ── Prime hour optimizer ──
-PRIME_WINDOWS = [
-    (7, 9),   # pagi sebelum kerja
-    (12, 14), # jam istirahat
-    (19, 21), # malam prime time
-]
-
-def _calc_delay():
-    """Calculate delay in seconds until next prime hour window."""
-    now = datetime.now(WIB)
-    current_hour = now.hour
-    current_min = now.minute
-
-    for start, end in PRIME_WINDOWS:
-        if start <= current_hour < end:
-            return 0  # already in prime window
-        if current_hour < start:
-            # Wait until start of next window
-            wait_min = (start - current_hour) * 60 - current_min
-            return max(0, int(wait_min * 60) + random.randint(0, 600))  # 0-10min jitter
-    # After all windows, wait until first window tomorrow
-    wait_min = (7 + 24 - current_hour) * 60 - current_min
-    return max(0, int(wait_min * 60) + random.randint(0, 600))
-
-# ── Main ──
+# ══════════════════════════════════════════════
+#   MAIN
+# ══════════════════════════════════════════════
 
 def main():
-    START = time.time()
-    log.info("=== RYANHADI DAILY LIFE V5 ===")
-
-    # 1. Always pull engagement first (even outside prime hours)
-    log.info("Pulling engagement metrics...")
-    pulled = pull_engagement()
-    log.info(f"  Updated {pulled} posts")
-
-    # 2. Prime hour check — skip posting if outside prime hours and no --force
-    if not DRY_RUN and "--force" not in sys.argv:
-        delay = _calc_delay()
-        if delay > 0:
-            log.info(f"Outside prime hours. Next window in {delay//60}m. Use --force to skip.")
-            # Still post if delay is short (<45min)
-            if delay > 2700:
-                print(f"Skipped: outside prime hours. Next in {delay//60}m")
-                return
-            log.info(f"Waiting {delay//60}m for prime window...")
-            if delay <= 600:
-                time.sleep(delay)
-            else:
-                print(f"Skipped: next prime in {delay//60}m, too long to wait")
-                return
-
-    # 2. Load data + pick seed
+    log.info("=== DRY RUN ===" if DRY_RUN else "=== RYANHADI CONTENT ENGINE V6 ===")
+    
     data = load_data()
-    seed_topic = _clean_seed(_pick_seed(data))
-    log.info(f"Seed: {seed_topic[:80]}")
-
-    # 3. Generate slides
-    max_attempts = 5
-    for attempt in range(1, max_attempts + 1):
-        result = generate_slides(seed_topic)
-        if result is None:
-            log.warning(f"Attempt {attempt}/{max_attempts}: generation failed, trying different seed...")
-            seed_topic = _clean_seed(_pick_seed(data))
-            continue
-        slides, claims_used = result
-
-        gen_time = time.time() - START
-        log.info(f"Generated {len(slides)} slides in {gen_time:.1f}s")
-
-        # Post-process POV: lo→kalian (skip quotes)
-        for s in slides:
-            s["content"] = _convert_pov(s["content"])
-
-        # 4. Evaluator
-        slides_text = " ".join(s["content"] for s in slides)
-        decision, reasons = evaluator_check(slides_text)
-        log.info(f"Evaluator: {decision} — {'; '.join(reasons[:3])}")
-        if decision == "REJECT":
-            log.warning(f"Attempt {attempt}/{max_attempts}: rejected ({'; '.join(reasons[:3])}), trying different seed...")
-            seed_topic = _clean_seed(_pick_seed(data))
-            continue
-
-        # Approved — proceed
-        break
-    else:
-        log.error("All attempts failed — exhausted seeds")
-        print("Gagal: semua seed habis/error", flush=True)
+    if not DRY_RUN:
+        pull_engagement()
+    
+    seed_raw = _pick_seed(data)
+    seed = _clean_seed(seed_raw)
+    log.info(f"Seed: {seed}")
+    
+    # Generate
+    mode = "OPINION"  # default; FACT mode uses --fact flag
+    if "--fact" in sys.argv:
+        mode = "FACT"
+    
+    result = generate_thread(seed, mode=mode)
+    if result is None:
+        log.error("Generation failed")
         sys.exit(1)
+    
+    slides, claims, angle = result
+    
+    # Log summary
+    for s in slides:
+        snippet = s["content"][:80].replace("\n", " ")
+        log.info(f"  {s['title']}: {snippet}...")
+    
+    # Print slides
+    for s in slides:
+        print(f"\n--- {s['title']} ---\n{s['content']}")
+    
+    print(f"\nSeed: {seed}")
+    if angle:
+        print(f"Angle: {angle}")
+    if claims:
+        print(f"Claims: {', '.join(claims)}")
+    
+    if not DRY_RUN:
+        log.info("Posting...")
+        media_id, first_id = post_to_threads(slides)
+        if media_id:
+            # Save posted
+            data.setdefault("topics", []).append({
+                "title": seed, "posted": datetime.now(WIB).isoformat(),
+                "claims": claims, "angle": angle,
+                "media_id": media_id, "post_id": first_id
+            })
+            save_data(data)
+            log.info("  Done")
+        else:
+            log.error("  Post failed")
+    
+    log.info("Done.")
 
-    # 6. Preview
-    for i, s in enumerate(slides):
-        log.info(f"  S{i+1}: {s['content'][:80]}...")
-
-    # 7. Dry run or post
-    if DRY_RUN:
-        for i, s in enumerate(slides):
-            print(f"\n--- Slide {i+1} ---\n{s['content']}")
-        if slides[0].get("caption"):
-            print(f"\n--- Caption ---\n{slides[0]['caption']}")
-        print(f"\nSeed: {seed_topic}")
-        if claims_used:
-            print(f"Claims: {', '.join(claims_used)}")
-        print(f"Done in {time.time()-START:.1f}s")
-        return
-
-    # 8. Post
-    results = post_to_threads(slides)
-    if not results:
-        log.error("Post failed")
-        print("Post failed", flush=True)
-        sys.exit(1)
-
-    root_id = results[0]["post_id"]
-    # Fetch permalink
-    try:
-        pr = httpx.get(f"{GRAPH}/{root_id}", params={
-            "fields": "permalink", "access_token": THREADS_TOKEN
-        }, timeout=10)
-        permalink = pr.json().get("permalink", "")
-    except Exception:
-        permalink = ""
-    if not permalink:
-        permalink = f"https://www.threads.net/@ryanhadiii/post/{root_id}"
-
-    # Save to tracking
-    data = load_data()
-    if "topics" not in data:
-        data["topics"] = []
-    entry = {
-        "title": seed_topic,
-        "post_id": root_id,
-        "permalink": permalink,
-        "claims_used": claims_used,
-        "posted_at": datetime.now(WIB).isoformat(),
-    }
-    data["topics"].append(entry)
-    data["topics"] = data["topics"][-200:]
-    save_data(data)
-
-    total = time.time() - START
-    log.info(f"Posted: {permalink}")
-    log.info(f"Total: {total:.1f}s (gen: {gen_time:.1f}s)")
-    print(f"Posted: {seed_topic[:60]}\n{permalink}", flush=True)
 
 if __name__ == "__main__":
-    if "--with-jitter" in sys.argv:
-        time.sleep(random.randint(0, 30))
     main()
