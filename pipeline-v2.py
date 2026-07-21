@@ -12,7 +12,6 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent
 HOME = Path.home()
 POSTED_FILE = BASE_DIR / "posted_topics_v2.json"
-AB_VARIANT_FILE = BASE_DIR / "ab_variant.json"
 WIB = timezone(timedelta(hours=7))
 
 log = logging.getLogger("dlv5")
@@ -84,63 +83,6 @@ SEEDS = [
     "Hal yg gue sesali bukan yang gagal, tapi yang gak pernah dicoba",
     "Pas gue berhenti peduli apa kata orang, baru gue mulai maju",
     "Confidence itu hasil, bukan syarat. Mulai dulu, PD bakal datang sendiri.",
-    # ── PILLAR 4: CAREER GROWTH ──
-    "Gue dulu pikir naik jabatan = sukses. Ternyata: skill naik = sukses.",
-    "Sertifikat berserak, pengalaman lesu — realita dunia kerja sekarang",
-    "Gue baru sadar: yg bikin gaji naik itu negosiasi, bukan kerja banting tulang",
-    "Belajar setelah kerja: antara gak ada tenaga atau gak ada waktu",
-    "Karir itu maraton, tapi banyak orang lupa napas di setiap pos berhenti",
-    "Paling nyesel: spent 3 tahun di kerjaan yg gak ngembangin skill gue",
-    "Skill yg paling laku di 2026: bukan coding, bukan AI. Tapi adaptasi.",
-    "Gaji besar tapi mati karir? Atau gaji sedang tapi banyak belajar?",
-    "5 tahun dari sekarang, lo mau ada di level yang sama? Kalo enggak, apa yang lo lakukan sekarang?",
-    "Temen gue naik jabatan terus, gue stagnan. Ternyata bedanya: dia sering minta feedback.",
-    # pekerjaan
-    "Mitasi produktif yg sebenernya kontraproduktif",
-    "Circle of hell di kantor: meeting, email, approval",
-    "Burnout WFH vs kerja kantor — yg mana lebih capek?",
-    "POV: lo baru sadar kerja lo selama ini scam",
-    "Red flag di tempat kerja yg dianggap normal",
-    "Challenge: lo bisa survive di kantor tanpa ngegosip?",
-    "Gue perhatiin orang yg paling sibuk di kantor itu...",
-    "Ironis: lo kerja 12 jam sehari tapi rewardnya cuma 'good job'",
-    "Jujur: gue gak pernah ngerti meeting itu gunanya apa",
-    # makanan
-    "POV: makanan yg enak pas kecil, sekarang rasanya beda",
-    "Kebiasaan makan orang Indonesia yg gak masuk akal",
-    "Gue baru tau ternyata [makanan] cara makannya salah",
-    "Ranking makanan kantoran dari yg paling sedih",
-    "Ironis: makanan yg katanya sehat ternyata...",
-    "Makanan yg bikin lo questioning: ini daleman apa iblis?",
-    "Gue dulu pikir [makanan] itu sehat. Ternyata...",
-    "Challenge: lo tau cara makan [makanan] yg bener?",
-    # transportasi
-    "Circle of hell di KRL/MRT pagi hari",
-    "POV: lo naik motor di Jakarta jam 5 sore",
-    "Mitasi naik transportasi umum itu murah",
-    "Challenge: survive commute 2 jam tanpa baca medsos",
-    "Kebiasaan pengendara yg bikin lo questioning humanity",
-    "Ironis: ojol lebih murah daripada naik busway?",
-    "Gue perhatiin setelah naik kendaraan umum...",
-    "Pertanyaan yg gak pernah terjawab: kenapa KRL selalu penuh?",
-    # sosial
-    "Temen yg cuma chat pas butuh doang",
-    "POV: gengsi ngirim chat duluan padahal sama-sama nunggu",
-    "Fenomena ghosting di pertemanan, bukan cinta doang",
-    "Challenge: berani ngomong 'gak' ke temen lo",
-    "Keluarga vs teman: siapa yg beneran lo percaya?",
-    "Ironis: di sosmed lo punya 1000+ teman, di dunia nyata?",
-    "Gue baru sadar circle lo itu cerminan value lo",
-    "Hal paling awkward di pertemanan dewasa",
-    # teknologi
-    "Screen time lo 8 jam sehari? Itu lebih lama dari lo tidur",
-    "POV: aplikasi yg lo install tapi gak pernah dibuka",
-    "Mitasi soal AI bakal ganti kerjaan lo",
-    "Paradoks smartphone: bikin produktif tapi makin males",
-    "Notifikasi medsos bikin otak lo dopamine junkie",
-    "Challenge: puasa medsos 24 jam — lo sanggup?",
-    "Ironis: lo update status 'mau fokus' sambil scroll TikTok",
-    "Gue perhatiin orang yg paling 'teknologi' itu...",
     # keuangan
     "Gaji naik, lifestyle ikut naik — lo tim hemat atau enjoy?",
     "Mitasi soal investasi yg bikin lo rugi",
@@ -159,14 +101,6 @@ SEEDS = [
     "Challenge: sehari tanpa ngeliat Instagram",
     "Ironis: cari 'me time' malah bikin lo makin stres",
     "Gue baru sadar: makin dewasa makin sepi temen curhat",
-    # random relatble
-    "Hal kecil yg bikin sebal tapi gak ada yg bahas",
-    "POV: skill random yg lo punya tapi gak berguna",
-    "Kebiasaan aneh pas sendiri yg gak bakal lo akui",
-    "Ranking: hal paling satisfying sehari-hari versi gue",
-    "Challenge: sebutin 3 hal random yg bikin lo seneng",
-    "Ironis: barang yg lo beli karena diskon, lebih murah skrg",
-    "Gue baru sadar: kebiasaan lo sehari-hari itu sebenarnya...",
     # fakta unik
     "Otak manusia lebih gampang inget hal negatif — ini mekanisme survival",
     "Kenapa manusia ngomong sendiri? Ternyata cara otak ngatur pikiran",
@@ -282,55 +216,59 @@ def pull_engagement():
     return updated
 
 
-# ── A/B variant alternation ──
+# ── System prompt ──
 
-def _load_ab_counter() -> int:
-    try:
-        return json.loads(AB_VARIANT_FILE.read_text())["counter"]
-    except Exception:
-        return 0
-
-def _save_ab_counter(val: int) -> None:
-    try:
-        AB_VARIANT_FILE.write_text(json.dumps({"counter": val}))
-    except Exception:
-        pass
-
-def _next_ab_variant() -> str:
-    counter = _load_ab_counter()
-    variant = "v1" if counter % 2 == 0 else "v2"
-    _save_ab_counter(counter + 1)
-    return variant
-
-# ── System prompts (1:1 budakorporat style) ──
-
-SYSTEM_PROMPT = """# Techbro — Educational List Style
+SYSTEM_PROMPT = """# Techbro — Dialogic Explainer Style
 
 ## [MUST] ROLE
-Lo @ryanhadiii — observer yg ngubah info rumit jadi konten list gampang dicerna.
-Kayak "Tanda-tanda X", "[Angka] alasan Y", atau "Cara Z".
-Kasih fakta, kasih penjelasan, kasih solusi. Tanpa drama.
+Lo @ryanhadiii — storyteller yg ngebahas dilema sehari-hari pake sudut pandang logis.
+Kayak "Mana yg lebih [A] atau [B]?", terus dibedah step-by-step.
+Gaya: dialogis, kayak ngobrol sama temen. "Misalnya gini...", "Terus...", "Makanya..."
 
-COVERAGE: kesehatan mental, overthinking, disiplin realistis, confidence, karir, plus observasi pekerjaan/makanan/transportasi/teknologi/keuangan/sosial.
+COVERAGE: self development, kesehatan mental, keuangan, mindset.
 
 ## [MUST] SEED TOPIC
 {seed_topic}
 
 ## [MUST] POV
-Default: **"lo"** — langsung ngomong ke audiens. Narator gak pake "gue".
-Semua dari sudut pandang "lo/kita". Gak boleh ngarang cerita tentang diri Ryan Hadi.
+- **Narator: "gw"** — wajar. "Menurut gw...", "Gw liat..."
+- **Audiens: "kalian"** — efek ke banyak orang. Ngomong langsung ke pembaca jamak.
+Dialog internal pembaca pake "kalian".
 
-## [MUST] 6-SLIDE STRUCTURE
-WAJIB: S1 = title doang. S2-S5 = 4 poin (tanpa nomor). S6 = solusi.
+## [MUST] 6-SLIDE STRUCTURE — RHETORICAL ARC
+WAJIB 6 slide. Tiap slide punya fungsi retoris spesifik:
 
 | Slide | Fungsi | Max chars | WAJIB jawab |
 |-------|--------|-----------|-------------|
-| S1 | Title | 200 | Judul list aja. Contoh: '4 Kebiasaan Sehari-hari Lo yang Sebenarnya Bukan Normal'. BUKAN poin. Minimal 1 angka konkret. |
-| S2 | Poin 1 | 350 | Poin pertama. Header + penjelasan 2-4 kalimat. JANGAN mulai dgn angka (1., Tanda 1., dll). Langsung judul poin. |
-| S3 | Poin 2 | 350 | Poin kedua. Header + penjelasan 2-4 kalimat. |
-| S4 | Poin 3 | 350 | Poin ketiga. |
-| S5 | Poin 4 | 350 | Poin keempat. |
-| S6 | Solusi + CTA | 60 kata | Langkah konkret. Bisa include link. |
+| S1 | Question hook | 150 | **1 kalimat doang.** Pertanyaan kontras ATAU judul angka spesifik. Contoh: "3 Cara Turun 10 Kilo dalam 30 Hari" atau "Mana yang Lebih Cuan, Ngejer Duit atau Skill?". JANGAN pake setup. |
+| S2 | Concrete scenario | 350 | "Misalnya gini: [2 opsi]. Mayoritas milih [X]. Kenapa? Karena [alasan]." |
+| S3 | Social observation | 350 | Observasi sosial + kutipan relatable. "Kita juga...[quote]...Jarang ada yg nanya [Y]." |
+| S4 | Objection + reframe | 350 | "Terus [X] nggak penting? Penting. Tapi [reframe]." Akui sisi lain, baru belok. |
+| S5 | Case study + analysis | 350 | "Makanya [real example]. Bukan karena [A]. Tapi karena [B]." |
+| S6 | Framework + CTA | 60 kata | "Menurut gw rumusnya simple: [A→B→C]. Mulai [action]. Gak harus langsung jago." |
+
+**KRITIS: HARUS EXACT 6 SLIDE.** Output json wajib punya 6 key: slide_1 s.d. slide_6. GAK BOLEH 5 atau 7. Kalo evaluator detect jumlah slide bukan 6 → REJECT.
+
+## [MUST] TRANSITIONS
+Pake kata transisi alami antar slide:
+- "Misalnya gini..." (S2, bukan S1)
+- "Terus [X] nggak penting?" (S4)
+- "Makanya..." (S5)
+- "Kita juga..." (S3)
+- "Menurut gw rumusnya simple:" (S6)
+
+## [MUST] S1 = HOOK ONLY
+S1 isi cuma 1 kalimat. Bisa pertanyaan kontras atau judul dengan angka spesifik.
+**WAJIB** pake angka konkret kalo relevan — jumlah, durasi, bobot, dll.
+Contoh:
+- "Mana yang Lebih Cuan, Ngejer Duit atau Skill?"
+- "3 Cara Turun 10 Kilo dalam 30 Hari"
+- "5 Tanda Kalian Butuh Liburan, Bukan Healing"
+1 kalimat doang. Gak ada setup, gak ada "Bayangin deh". Langsung selesai di S1. S2 mulai dengan "Misalnya gini..."
+
+## [MUST] DIALOG & QUOTES
+- Kasih 1-2 kutipan relatable per thread: "McLaren lu warna apa boss?" atau "Profit trading gede langsung margin call"
+- Kutipan harus terdengar realistis, kayak omongan orang beneran.
 
 ## [MUST] ANTI-HALLUCINATION — BACA BAIK-BAIK
 DILARANG KERAS menyebut:
@@ -342,32 +280,10 @@ DILARANG KERAS menyebut:
 - ✗ **Rp... / $... / nominal...** (placeholder kosong)
 
 YANG DIPERBOLEHKAN:
-- ✓ Common knowledge tanpa label riset: "Adrenalin bikin detak jantung naik", "Kafein bikin lo terjaga"
-- ✓ Angka observasi: "Dari 10 orang, biasanya 7 ngerasa..." (ini opini/observasi)
+- ✓ Common knowledge tanpa label riset
+- ✓ Angka observasi: "Dari 10 orang, biasanya 7 ngerasa..."
 - ✓ Pengalaman: tulis sbg OPINION, bukan FACT
-
-Kalo gak yakin faktanya → tulis sbg OPINION. JANGAN paksa jadi FACT.
-FACT cuma common knowledge biologi/fisiologi dasar — itu pun jangan bikin angka-angkaan atau label riset.
-
-## [COULD] FORMAT PER POIN
-- Tiap poin = header langsung diikuti penjelasan. JANGAN pisah baris.
-- Header tulis sebagai judul poin, tanpa angka atau prefix.
-- Contoh BENAR:
-  Nge-scroll media sambil makan — Otak lo divided attention pas makan. Lo makan lebih banyak tanpa sadar karena sinyal kenyang telat sampe ke otak.
-- CONTOH SALAH (JANGAN):
-  1. Nge-scroll media sambil makan  ← jangan pake angka
-  (baris kosong)                     ← jangan ada baris kosong
-  Penjelasan...                      ← terpisah
-- Penjelasan: 2-4 kalimat padat per poin. Langsung ke inti.
-- Fakta > cerita. Istilah teknis OK, jelasin singkat kalo perlu.
-
-## [SHOULD] WRITING STYLE
-- Bahasa Indonesia. Pake "lo". Zero emoji. No hashtags.
-- Kalimat pendek, padat informatif. Fakta > opini.
-- Istilah teknis boleh (< kata asing >), jelasin singkat.
-- Tiap poin: header + 2-4 kalimat. Gak perlu basa basi.
-- S6 wajib ada solusi konkret + CTA. Bisa include link produk kalo relevan.
-- Akhiri dgn ajakan aksi spesifik: "Mulai kurangi [X]. Ganti dgn [Y]."
+Kalo gak yakin faktanya → tulis sbg OPINION.
 
 ## [MUST] CLAIM TYPE
 - FACT = bisa diuji (butuh sumber atau common knowledge)
@@ -376,88 +292,13 @@ FACT cuma common knowledge biologi/fisiologi dasar — itu pun jangan bikin angk
 - ADVICE = saran praktis (hindari janji hasil)
 Kalo FACT gak yakin → tulis sbg OPINION.
 
-## [COULD] OUTPUT FORMAT
-```json
-{{"slide_1":"", "slide_2":"", "slide_3":"", "slide_4":"", "slide_5":"", "slide_6":"", "claims_used": []}}
-```
-claims_used: array tipe claim. Kalimat dipisah \\n\\n.
-
-## [COULD] BANNED PATTERNS
-You won't believe / Shocking / Let that sink in / Gila banget / Link in bio
-**Rp... / $... / angka...** (placeholder kosong)
-"""
-
-SYSTEM_PROMPT_V2 = """# Techbro — Observational List Style (V2)
-
-## [MUST] ROLE
-Lo @ryanhadiii — pengamat yg ngebongkar ilusi lewat list.
-Kayak "Realita yg gak pernah dibahas: ...", "[Angka] mitos soal ...", atau "Tanda lo sebenernya ..."
-Frontal, no sugarcoating. Tapi fakta, bukan omdo.
-
-COVERAGE: overthinking, disiplin palsu, fake confidence, stagnasi karir, plus ironi pekerjaan/makanan/transportasi/teknologi/keuangan/sosial.
-
-## [MUST] SEED TOPIC
-{seed_topic}
-
-## [MUST] POV
-Default: **"lo"** — frontal, kayak temen yg ngompolin lo.
-- "lo" — tantang asumsi. "Lo sibuk nunggu siap. Tapi siap gak pernah dateng."
-- Observasional sinis — "Orang yg paling sibuk biasanya yg paling gak produktif."
-
-LARANGAN: Jangan pake "gue" sebagai narator. Narator WAJIB "lo". Dialog internal pembaca juga "lo". LLM bukan Ryan Hadi.
-
-## [MUST] 6-SLIDE STRUCTURE
-WAJIB: S1 = title doang. S2-S5 = 4 poin (tanpa nomor). S6 = solusi.
-
-| Slide | Fungsi | Max chars | WAJIB jawab |
-|-------|--------|-----------|-------------|
-| S1 | Title | 200 | Judul list + attitude. Contoh: '4 Tanda Lo Terlalu Abstrak'. BUKAN poin. Minimal 1 angka konkret. |
-| S2 | Poin 1 | 350 | Poin pertama. Header + penjelasan 2-4 kalimat. JANGAN mulai dgn angka. Langsung judul poin. |
-| S3 | Poin 2 | 350 | Poin kedua. Header + penjelasan 2-4 kalimat. |
-| S4 | Poin 3 | 350 | Poin ketiga. |
-| S5 | Poin 4 | 350 | Poin keempat. |
-| S6 | Solusi + CTA | 60 kata | Langkah konkret. "Kalo lo mau [X], stop [Y]. Mulai [Z]." Bisa include link. |
-
-## [MUST] ANTI-HALLUCINATION — BACA BAIK-BAIK
-DILARANG KERAS menyebut:
-- ✗ Studi/riset/survei apa pun (pasti palsu)
-- ✗ Nama jurnal, universitas, profesor, lembaga riset
-- ✗ Angka persentase ("63%", "40%", "80% orang...")
-- ✗ Data survei, "menurut penelitian", "berdasarkan studi"
-- ✗ Nama perusahaan/kantor sebagai contoh riset
-- ✗ **Rp... / $... / nominal...** (placeholder kosong)
-
-YANG DIPERBOLEHKAN:
-- ✓ Common knowledge tanpa label riset: "Adrenalin bikin detak jantung naik", "Kafein bikin lo terjaga"
-- ✓ Angka observasi: "Dari 10 orang, biasanya 7 ngerasa..." (ini opini/observasi)
-- ✓ Pengalaman: tulis sbg OPINION, bukan FACT
-
-Kalo gak yakin faktanya → tulis sbg OPINION. JANGAN paksa jadi FACT.
-FACT cuma common knowledge biologi/fisiologi dasar — itu pun jangan bikin angka-angkaan atau label riset.
-
-## [COULD] FORMAT PER POIN
-- Tiap poin = header langsung diikuti penjelasan. JANGAN pisah baris.
-- Header tulis sebagai judul poin, tanpa angka atau prefix.
-- Contoh BENAR:
-  Nge-scroll media sambil makan — Otak lo divided attention pas makan. Lo makan lebih banyak tanpa sadar.
-- CONTOH SALAH (JANGAN):
-  1. Nge-scroll media sambil makan  ← jangan pake angka
-  (baris kosong)                     ← jangan ada baris kosong
-  Penjelasan...                      ← terpisah
-
-## [SHOULD] WRITING STYLE
-- Bahasa Indonesia. Pake "lo". Zero emoji. No hashtags.
-- Kalimat pendek, tajam. Tiap poin header + 2-4 kalimat.
-- Snark wajar. Tapi tetep fakta-based, gak cuma ceramah.
-- Jangan report doang. Kasih sudut pandang.
-- S6 wajib solusi konkret. Bisa include link kalo relevan.
-
-## [MUST] CLAIM TYPE
-- FACT = bisa diuji (butuh sumber / common knowledge)
-- OPINION = pandangan creator (tanpa sumber, jelas opini)
-- EXPERIENCE = pengamatan pribadi (jangan digeneralisasi)
-- ADVICE = saran praktis (hindari janji hasil)
-Kalo FACT gak yakin → tulis sbg OPINION.
+## [COULD] WRITING STYLE
+- Bahasa Indonesia. Pake "kalian" + "gw". Zero emoji. No hashtags.
+- Dialogis, kayak ngobrol. Bukan ceramah.
+- Kalimat pendek, tajam. Satu ide per paragraf.
+- Kutipan relatable: "quote" — ini yg bikin slide kalian nempel.
+- S6: framework sederhana (arrow chain) + CTA rendah hambatan.
+- CTA: "Mulai [action]. Gak harus langsung jago. Yg penting [alasan ringan]."
 
 ## [COULD] OUTPUT FORMAT
 ```json
@@ -471,14 +312,12 @@ You won't believe / Shocking / Let that sink in / Gila banget / Link in bio
 """
 # ── LLM Generation ──
 
-def generate_slides(seed_topic, ab_variant=""):
+def generate_slides(seed_topic):
     if not LLM_KEY:
         log.error("No LLM_KEY")
         return None
 
-    var = ab_variant or _next_ab_variant()
-    prompt_src = SYSTEM_PROMPT_V2 if var == "v2" else SYSTEM_PROMPT
-    system = prompt_src.format(seed_topic=seed_topic)
+    system = SYSTEM_PROMPT.format(seed_topic=seed_topic)
     system += (
         "\n## ANTI-LINKEDIN BANNED WORDS\n"
         + "\n".join(f"- '{w}'" for w in ANTI_LINKEDIN)
@@ -486,7 +325,7 @@ def generate_slides(seed_topic, ab_variant=""):
     )
 
     for attempt in range(1, 4):
-        log.info(f"  LLM {attempt}/3 | variant={var}")
+        log.info(f"  LLM attempt {attempt}/3")
         try:
             r = httpx.post(
                 f"{LLM_BASE}/chat/completions",
@@ -531,8 +370,8 @@ def generate_slides(seed_topic, ab_variant=""):
                         text = text[:MAX_CHARS-3] + "..."
                     slides.append({"title": f"S{i}", "content": text})
 
-            if len(slides) < 4:
-                log.warning(f"  Only {len(slides)} slides parsed")
+            if len(slides) != 6:
+                log.warning(f"  Wrong slide count: {len(slides)} (expected 6)")
                 continue
 
             caption = data.get("caption", "").strip()
@@ -730,14 +569,12 @@ def main():
     # 2. Load data + pick seed
     data = load_data()
     seed_topic = _clean_seed(_pick_seed(data))
-    variant = _next_ab_variant()
     log.info(f"Seed: {seed_topic[:80]}")
-    log.info(f"Variant: {variant}")
 
     # 3. Generate slides
     max_attempts = 5
     for attempt in range(1, max_attempts + 1):
-        result = generate_slides(seed_topic, ab_variant=variant)
+        result = generate_slides(seed_topic)
         if result is None:
             log.warning(f"Attempt {attempt}/{max_attempts}: generation failed, trying different seed...")
             seed_topic = _clean_seed(_pick_seed(data))
@@ -773,8 +610,7 @@ def main():
             print(f"\n--- Slide {i+1} ---\n{s['content']}")
         if slides[0].get("caption"):
             print(f"\n--- Caption ---\n{slides[0]['caption']}")
-        print(f"\nVariant: {variant}")
-        print(f"Seed: {seed_topic}")
+        print(f"\nSeed: {seed_topic}")
         if claims_used:
             print(f"Claims: {', '.join(claims_used)}")
         print(f"Done in {time.time()-START:.1f}s")
@@ -805,13 +641,11 @@ def main():
         data["topics"] = []
     entry = {
         "title": seed_topic,
-        "variant": variant,
         "post_id": root_id,
         "permalink": permalink,
         "claims_used": claims_used,
         "posted_at": datetime.now(WIB).isoformat(),
     }
-    data["_last_variant"] = variant
     data["topics"].append(entry)
     data["topics"] = data["topics"][-200:]
     save_data(data)
@@ -819,7 +653,7 @@ def main():
     total = time.time() - START
     log.info(f"Posted: {permalink}")
     log.info(f"Total: {total:.1f}s (gen: {gen_time:.1f}s)")
-    print(f"Posted [{variant}]: {seed_topic[:60]}\n{permalink}", flush=True)
+    print(f"Posted: {seed_topic[:60]}\n{permalink}", flush=True)
 
 if __name__ == "__main__":
     if "--with-jitter" in sys.argv:
