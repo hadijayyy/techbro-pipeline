@@ -147,15 +147,33 @@ def _pick_seed(data):
     return random.choice(SEEDS)
 
 def _clean_seed(s):
-    """Hapus 1st person biar LLM gak ngarang cerita Ryan Hadi."""
+    """Hapus 1st person biar LLM gak ngarang cerita Ryan Hadi. Juga convert lo→kalian di seed."""
     # Prefix removal
     s = re.sub(r"^(gue|Gue)\s+", "", s)
     s = re.sub(r"^aku\s+", "", s, flags=re.IGNORECASE)
-    # Mid-sentence 1st person → lo
-    s = re.sub(r"\bgue\b", "lo", s)
-    s = re.sub(r"\bGue\b", "Lo", s)
-    s = re.sub(r"\baku\b", "lo", s, flags=re.IGNORECASE)
+    # Mid-sentence 1st person → kalian
+    s = re.sub(r"\bgue\b", "kalian", s)
+    s = re.sub(r"\bGue\b", "Kalian", s)
+    s = re.sub(r"\baku\b", "kalian", s, flags=re.IGNORECASE)
+    # Convert lo→kalian (karena seeds masih pake lo)
+    s = re.sub(r"\blo\b", "kalian", s)
+    s = re.sub(r"\bLo\b", "Kalian", s)
     return s.strip()
+
+def _convert_pov(text):
+    """Convert lo→kalian di generated slides. Skip quotes (tanda kutip) biar dialog natural."""
+    import re
+    # Replace lo/kamu/anda with kalian outside of quotes
+    parts = re.split(r'("[^"]*"|\'[^\']*\')', text)
+    for i, part in enumerate(parts):
+        if i % 2 == 0:  # outside quotes
+            # Skip "lu" (different slang, keep it)
+            part = re.sub(r'\blo\b', 'kalian', part)
+            part = re.sub(r'\bLo\b', 'Kalian', part)
+            part = re.sub(r'\bkamu\b', 'kalian', part)
+            part = re.sub(r'\bKamu\b', 'Kalian', part)
+            parts[i] = part
+    return ''.join(parts)
 
 # ── Engagement tracking ──
 
@@ -616,6 +634,10 @@ def main():
 
         gen_time = time.time() - START
         log.info(f"Generated {len(slides)} slides in {gen_time:.1f}s")
+
+        # Post-process POV: lo→kalian (skip quotes)
+        for s in slides:
+            s["content"] = _convert_pov(s["content"])
 
         # 4. Evaluator
         slides_text = " ".join(s["content"] for s in slides)
