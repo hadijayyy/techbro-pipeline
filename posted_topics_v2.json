@@ -88,42 +88,111 @@
       "angle": "Cegukan adalah alarm kecil tubuh yang nggak perlu kita matikan—cukup dengarkan dan biarkan lewat.",
       "media_id": "17975344911119201",
       "post_id": "18117777889899333"
+    },
+    {
+      "title": "Lalat ngeliat 4x lebih lambat — tangan kalian kayak gerakan lem buat mata majemuk mereka",
+      "posted": "2026-07-22T11:39:13.626198+07:00",
+      "claims": [
+        "OPINION: Lalat melihat dunia 4x lebih lambat dari manusia",
+        "ILLUSTRATION: Tangan manusia bergerak cepat terlihat seperti gerakan lambat bagi lalat",
+        "OPINION: Lalat bisa melihat gerakan manusia dari jarak 2 meter dan bereaksi dalam sepersekian detik",
+        "OPINION: Mata majemuk lalat terdiri dari 3.000 unit penglihatan yang bekerja secara independen"
+      ],
+      "angle": "Kita sering menganggap lalat lambat dan bodoh, padahal mereka punya kecepatan persepsi yang bikin kita kayak robot tua di mata mereka",
+      "category": -1,
+      "media_id": "17975361087119201",
+      "post_id": "18111744619947706"
+    },
+    {
+      "title": "Lapar 4 jam bikin kalian 3x lebih impulsif — gula darah turun, prefrontal cortex mati duluan",
+      "posted": "2026-07-22T12:02:51.345219+07:00",
+      "claims": [
+        "OPINION: Setelah 4 jam tanpa makan, kemungkinan impulsif meningkat 3x karena gula darah turun di bawah 70 mg/dL",
+        "ILLUSTRATION: Orang lebih mudah mengeluarkan uang saat lapar",
+        "ADVICE: Minum air gula bisa memberi waktu bagi prefrontal cortex untuk pulih sebelum mengambil keputusan"
+      ],
+      "angle": "Rasa lapar bukan cuma soal perut kosong, tapi juga cara otak kehilangan rem pengendalian diri",
+      "category": -1,
+      "media_id": "17975363922119201",
+      "post_id": "18382869787162411"
+    },
+    {
+      "title": "Bintang laut: mulut di bagian bawah dan bisa regenerasi tubuh",
+      "posted": "2026-07-22T14:02:52.001405+07:00",
+      "claims": [
+        "OPINION: 1 dari 5 bintang laut bisa menumbuhkan tubuh baru dari satu lengannya",
+        "OPINION: Bintang laut tidak peduli bentuk, yang penting fungsi",
+        "ILLUSTRATION: Bintang laut fokus pada fungsi setelah kehilangan bagian tubuh, bukan balik ke bentuk semula"
+      ],
+      "angle": "Regenerasi bintang laut bukan soal kekuatan super, tapi cara tubuhnya mengabaikan ego dan fokus pada fungsi",
+      "category": 1,
+      "media_id": "17975374530119201",
+      "post_id": "18361178737245588"
+    },
+    {
+      "title": "Kaki seribu punya 750 kaki — tapi tiap pasangan gerak bergelombang, bukan serempak. Mekanisme gerak paling efisien di serangga",
+      "posted": "2026-07-22T16:02:28.712511+07:00",
+      "claims": [
+        "ILLUSTRATION: Kaki seribu punya 750 kaki yang gerak bergelombang, bukan serempak",
+        "OPINION: Konsistensi sering dianggap harus serempak dan sempurna seperti marching band",
+        "OPINION: Gerak kaki seribu yang tidak serempak justru membuatnya lebih efisien melewati rintangan",
+        "ADVICE: Belajar hal baru bisa dilakukan sedikit-sedikit tapi rutin, seperti gerak kaki seribu"
+      ],
+      "angle": "Gerak kaki seribu yang bergelombang adalah contoh efisiensi alami yang bisa kita tiru dalam hal konsistensi tanpa harus sempurna",
+      "category": 1,
+      "media_id": "17975409324119201",
+      "post_id": "18274322833288045"
+    },
+    {
+      "title": "Rambut kepala tumbuh 6 tahun nonstop — alis cuma 3 bulan. Beda genetik di fase anagen, bukan gizi atau perawatan",
+      "posted": "2026-07-22T19:37:08.730349+07:00",
+      "claims": [
+        "OPINION: Rambut kepala tumbuh 6 tahun nonstop, alis cuma 3 bulan",
+        "OPINION: Fase anagen di alis cuma 3 bulan, di kepala 6 tahun",
+        "OPINION: Serum atau perawatan cuma bantu mencapai potensi maksimal, bukan ubah aturan genetik"
+      ],
+      "angle": "Perbedaan durasi tumbuh rambut dan alis adalah contoh bagaimana tubuh mengatur prioritas tanpa kita sadari",
+      "category": 2,
+      "media_id": "17975430948119201",
+      "post_id": "18400661455080133"
     }
   ],
   "recent_content": {
     "openings": [
-      "ngomong sendiri bukan tanda gila",
-      "minum air gula doang bisa bikin sakit kepala ilang",
-      "kucing takut air",
-      "rayap bikin sarang setinggi gedung 3 lantai",
-      "cegukan muncul 1-2 kali per menit tapi kenapa kita nggak bisa berhentiin soalnya"
+      "lalat ngeliat dunia 4x lebih lambat dari kita",
+      "setelah 4 jam tanpa makan kalian 3x lebih mungkin ngambil keputusan gegabah",
+      "1 dari 5 bintang laut bisa menumbuhkan tubuh baru dari satu lengannya",
+      "kaki seribu punya 750 kaki tapi nggak pernah gerak bareng",
+      "15 cm per tahun"
     ],
     "ctas": [
-      "itu cuma otak lagi ngerjain pr-nya",
-      "dan itu nggak selalu butuh obat",
-      "bukan salah, cuma beda strategi",
-      "cukup kerja bareng, pakai apa yang ada, dan fokus sama tujuan",
-      "gimana rasanya"
+      "gimana rasanya",
+      "gimana hasilnya",
+      "cerita dong",
+      "kalian pernah ngerasa kayak kaki seribu dalam hidup sehari-hari, nggak",
+      "cerita dong, gimana rasanya pas tau kenyataannya beda sama yang kalian kira"
     ],
     "analogies": [
-      "Kita sering lihat rayap cuma sebagai hama yang merusak kayu",
-      "Gimana kalau kalian selesaikan bareng-bareng, kayak rayap bikin sarang",
-      "Padahal otak cuma ngirim sinyal acak ke diafragma—seperti alarm mobil yang bunyi gara-gara angin",
-      "Dia kayak hujan di siang bolong—ngganggu, tapi nggak berbahaya",
-      "Intinya: cegukan itu kayak alarm palsu"
+      "Tiap pasangannya maju bergantian, kayak gelombang",
+      "Gw perhatiin, kita sering mikir konsistensi harus kayak marching band: serempak, teratur, sempurna",
+      "Kayak kaki seribu — tiap langkah kecil, tapi pasti sampai tujuan",
+      "Kalian pernah ngerasa kayak kaki seribu dalam hidup sehari-hari, nggak",
+      "Kayak tanaman yang disiram tiap hari—tetep ada batas tinggi yang udah ditentuin sejak awal"
     ],
     "characters": [],
     "local_details": [
       "kosan",
       "gang",
-      "nasi Padang"
+      "nasi Padang",
+      "warteg",
+      "kopi"
     ],
     "angles": [
-      "Ngomong sendiri bukan tanda gila, tapi mekanisme otak untuk mengurai kekacauan pikiran.",
-      "Gula sebagai placebo menunjukkan bahwa otak punya kekuatan lebih besar dari yang kita sadari dalam mengelola rasa sakit.",
-      "Perbedaan ketakutan kucing dan anjing terhadap air bisa jadi soal evolusi dan cara mereka beradaptasi dengan lingkungan.",
-      "Rayap bukan sekadar hama, tapi contoh bagaimana kerja sama dan desain sederhana bisa menciptakan struktur yang lebih kuat dari kemampuan individu.",
-      "Cegukan adalah alarm kecil tubuh yang nggak perlu kita matikan—cukup dengarkan dan biarkan lewat."
+      "Kita sering menganggap lalat lambat dan bodoh, padahal mereka punya kecepatan persepsi yang bikin kita kayak robot tua di mata mereka",
+      "Rasa lapar bukan cuma soal perut kosong, tapi juga cara otak kehilangan rem pengendalian diri",
+      "Regenerasi bintang laut bukan soal kekuatan super, tapi cara tubuhnya mengabaikan ego dan fokus pada fungsi",
+      "Gerak kaki seribu yang bergelombang adalah contoh efisiensi alami yang bisa kita tiru dalam hal konsistensi tanpa harus sempurna",
+      "Perbedaan durasi tumbuh rambut dan alis adalah contoh bagaimana tubuh mengatur prioritas tanpa kita sadari"
     ]
   }
 }

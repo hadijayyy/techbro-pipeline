@@ -256,14 +256,16 @@ def _viral_potential(seed):
     return min(5, max(1, score))
 
 def _clean_seed(s):
-    """Hapus 1st person biar LLM gak ngarang cerita Ryan. Juga convert lo→kalian."""
+    """Hapus 1st person biar LLM gak ngarang cerita Ryan. Juga convert ke POV 'lu'."""
     s = re.sub(r"^(gue|Gue)\s+", "", s)
     s = re.sub(r"^aku\s+", "", s, flags=re.IGNORECASE)
-    s = re.sub(r"\bgue\b", "kalian", s)
-    s = re.sub(r"\bGue\b", "Kalian", s)
-    s = re.sub(r"\baku\b", "kalian", s, flags=re.IGNORECASE)
-    s = re.sub(r"\blo\b", "kalian", s)
-    s = re.sub(r"\bLo\b", "Kalian", s)
+    s = re.sub(r"\bgue\b", "lu", s)
+    s = re.sub(r"\bGue\b", "Lu", s)
+    s = re.sub(r"\baku\b", "lu", s, flags=re.IGNORECASE)
+    s = re.sub(r"\blo\b", "lu", s)
+    s = re.sub(r"\bLo\b", "Lu", s)
+    s = re.sub(r"\bkalian\b", "lu", s)
+    s = re.sub(r"\bKalian\b", "Lu", s)
     return s.strip()
 
 def _convert_pov(text):
@@ -271,10 +273,12 @@ def _convert_pov(text):
     parts = re.split(r'("[^"]*"|\'[^\']*\')', text)
     for i, part in enumerate(parts):
         if i % 2 == 0:
-            part = re.sub(r'\blo\b', 'kalian', part)
-            part = re.sub(r'\bLo\b', 'Kalian', part)
-            part = re.sub(r'\bkamu\b', 'kalian', part)
-            part = re.sub(r'\bKamu\b', 'Kalian', part)
+            part = re.sub(r'\blo\b', 'lu', part)
+            part = re.sub(r'\bLo\b', 'Lu', part)
+            part = re.sub(r'\bkalian\b', 'lu', part)
+            part = re.sub(r'\bKalian\b', 'Lu', part)
+            part = re.sub(r'\bkamu\b', 'lu', part)
+            part = re.sub(r'\bKamu\b', 'Lu', part)
             part = re.sub(r'\bgue\b', 'gw', part)
             part = re.sub(r'\bGue\b', 'Gw', part)
             part = re.sub(r'\bgua\b', 'gw', part)
@@ -330,7 +334,7 @@ Mental-health safety:
 </truth_policy>
 
 <voice>
-POV: Narrator = "gw". Audience = "kalian". Never "lo"/"kamu"/"anda"/"gue".
+POV: Narrator = "gw". Audience = "lu". Never "lo"/"kalian"/"kamu"/"anda"/"gue".
 Tone: Informal Indonesian, conversational, observant, calm. Thoughtful friend, not lecturer/motivator. Mix short+medium sentences. Zero emoji, zero hashtags. No profanity or stereotypes. Don't over-explain.
 Local detail: Zero or one Indonesian detail per thread (KRL, warteg, nasi Padang, kosan, ojol, Zoom). Optional — not a checklist. Avoid anything present in `recent_content`.
 Dialogue: Optional, spontaneous, never fabricate a real person's quote.
@@ -380,8 +384,8 @@ post_5 — Application: Max 350 chars. One concrete application/example/small ac
 post_6 — Closing: Max 300 chars. REQUIRED: invite reply via tag/cerita/pengalaman.
 DO NOT start with "Pernah nggak" — that's overused.
 Good: "Tag temen yang paling sering [relate] biar dia tau."
-Good: "Komentar '[sesuatu]' kalo kalian pernah ngalamin."
-Good: "Coba cerita dong, pengalaman [relate] versi kalian gimana?"
+Good: "Komentar '[sesuatu]' kalo lu pernah ngalamin."
+Good: "Coba cerita dong, pengalaman [relate] versi lu gimana?"
 Good: "Kirim ke grup keluarga — mereka juga perlu tau ini."
 Rule: one call-to-action, references thread detail, low effort to reply. Speaks to one person, not crowd.
 </thread_structure>
@@ -414,10 +418,10 @@ Silent pre-flight check before returning:
 7. Nothing from recent_content repeated. 8. Parseable JSON.
 
 # REFERENCE EXAMPLE 1 — OTAK (dejavu)
-{"posts": [{"title": "POST_1", "content": "7 dari 10 orang pernah ngalamin dejavu. Tapi bukan itu ramalan masa depan — otak kalian cuma lagi error nulis timestamp memori."}, {"title": "POST_2", "content": "Prosesnya gini: hippocampus nyimpen pengalaman baru, terus dikirim ke korteks. Kadang sinyalnya nyasar — memori barunya dikasih label udah pernah, padahal baru pertama kali."}, {"title": "POST_3", "content": "Peneliti Colorado State University bilang dejavu makin sering pas otak capek atau stress. Makin tinggi beban kognitif, makin gampang sistem memorinya korslet."}, {"title": "POST_4", "content": "Fakta tambahan: usia 15-25 adalah golden age dejavu. Setelah 40 intensitas turun drastis — hippocampus mulai lambat, jadi lebih jarang error. Bukan otak makin bagus, cuma makin pelan."}, {"title": "POST_5", "content": "Ada hipotesis lain: dejavu bisa jadi tanda otak lagi ngecek konsistensi memori. Kayak sistem file error-checking. Setiap kali ngerasa udah pernah, otak lagi maintenance."}, {"title": "POST_6", "content": "Intinya dejavu wajar, bukan mistis, bukan tanda kalian spesial. Cuma glitch sistem. Ngomong-ngomong, kapan terakhir kali kalian ngerasa dejavu, dan lagi ngapain waktu itu?"}], "claims_used": [{"claim": "7 dari 10 orang pernah alami dejavu", "type": "OPINION"}, {"claim": "Dejavu karena kesalahan pelabelan memori di hippocampus", "type": "OPINION"}, {"claim": "Usia 15-25 golden age dejavu, menurun setelah 40", "type": "OPINION"}], "source_ids_used": [], "angle": "Dejavu = memory timestamp error, bukan ramalan"}
+{"posts": [{"title": "POST_1", "content": "7 dari 10 orang pernah ngalamin dejavu. Tapi bukan itu ramalan masa depan — otak lu cuma lagi error nulis timestamp memori."}, {"title": "POST_2", "content": "Prosesnya gini: hippocampus nyimpen pengalaman baru, terus dikirim ke korteks. Kadang sinyalnya nyasar — memori barunya dikasih label udah pernah, padahal baru pertama kali."}, {"title": "POST_3", "content": "Peneliti Colorado State University bilang dejavu makin sering pas otak capek atau stress. Makin tinggi beban kognitif, makin gampang sistem memorinya korslet."}, {"title": "POST_4", "content": "Fakta tambahan: usia 15-25 adalah golden age dejavu. Setelah 40 intensitas turun drastis — hippocampus mulai lambat, jadi lebih jarang error. Bukan otak makin bagus, cuma makin pelan."}, {"title": "POST_5", "content": "Ada hipotesis lain: dejavu bisa jadi tanda otak lagi ngecek konsistensi memori. Kayak sistem file error-checking. Setiap kali ngerasa udah pernah, otak lagi maintenance."}, {"title": "POST_6", "content": "Intinya dejavu wajar, bukan mistis, bukan tanda lu spesial. Cuma glitch sistem. Ngomong-ngomong, kapan terakhir kali lu ngerasa dejavu, dan lagi ngapain waktu itu?"}], "claims_used": [{"claim": "7 dari 10 orang pernah alami dejavu", "type": "OPINION"}, {"claim": "Dejavu karena kesalahan pelabelan memori di hippocampus", "type": "OPINION"}, {"claim": "Usia 15-25 golden age dejavu, menurun setelah 40", "type": "OPINION"}], "source_ids_used": [], "angle": "Dejavu = memory timestamp error, bukan ramalan"}
 
 # REFERENCE EXAMPLE 2 — HEWAN (nyamuk + golongan darah)
-{"posts": [{"title": "POST_1", "content": "Cuma 1 dari 10 orang yang jadi target utama nyamuk. Yang punya golongan darah O ditargetin 2x lebih sering dari golongan A."}, {"title": "POST_2", "content": "Bayangin lo lagi duduk di taman sama temen. Ada nyamuk mondar-mandir. Temen lo aman, lo yang abis digigitin. Lo mikir: kok gue doang sih? Darah manis kali ya."}, {"title": "POST_3", "content": "Gue perhatiin, banyak yang masih percaya darah manis/asin. Padahal riset udah nunjukin: nyamuk milih target berdasarkan kombinasi karbon dioksida, asam laktat, dan amonia dari keringet."}, {"title": "POST_4", "content": "Golongan darah O keluar sinyal kimia 2x lebih banyak dari A dan B. Bukan soal manis — ini soal sinyal yang kebaca dari jarak 50 meter. Nyamuk betina nge-track molekul CO2 lo kayak GPS."}, {"title": "POST_5", "content": "Buat yang golongan darah O: pakai baju lengan panjang, hindari olahraga outdoor jam senja, pilih repellent dengan DEET. Bukan jaminan 100%, tapi nurunin kemungkinan digigit."}, {"title": "POST_6", "content": "Intinya bukan darah manis — nyamuk cuma jago baca sinyal. Kalian sering digigit nyamuk atau jarang? Golongan darah apa? Share pengalaman kalian."}], "claims_used": [{"claim": "1 dari 10 orang jadi target utama nyamuk", "type": "OPINION"}, {"claim": "Golongan darah O ditargetin 2x lebih sering", "type": "OPINION"}, {"claim": "Nyamuk mendeteksi karbon dioksida, asam laktat, dan amonia", "type": "OPINION"}], "source_ids_used": [], "angle": "Nyamuk pilih target berdasarkan sinyal kimia, bukan darah manis"}
+{"posts": [{"title": "POST_1", "content": "Cuma 1 dari 10 orang yang jadi target utama nyamuk. Yang punya golongan darah O ditargetin 2x lebih sering dari golongan A."}, {"title": "POST_2", "content": "Bayangin lu lagi duduk di taman sama temen. Ada nyamuk mondar-mandir. Temen lu aman, lu yang abis digigitin. Lu mikir: kok gw doang sih? Darah manis kali ya."}, {"title": "POST_3", "content": "Gw perhatiin, banyak yang masih percaya darah manis/asin. Padahal riset udah nunjukin: nyamuk milih target berdasarkan kombinasi karbon dioksida, asam laktat, dan amonia dari keringet."}, {"title": "POST_4", "content": "Golongan darah O keluar sinyal kimia 2x lebih banyak dari A dan B. Bukan soal manis — ini soal sinyal yang kebaca dari jarak 50 meter. Nyamuk betina nge-track molekul CO2 lu kayak GPS."}, {"title": "POST_5", "content": "Buat yang golongan darah O: pakai baju lengan panjang, hindari olahraga outdoor jam senja, pilih repellent dengan DEET. Bukan jaminan 100%, tapi nurunin kemungkinan digigit."}, {"title": "POST_6", "content": "Intinya bukan darah manis — nyamuk cuma jago baca sinyal. Lu sering digigit nyamuk atau jarang? Golongan darah apa? Share pengalaman lu."}], "claims_used": [{"claim": "1 dari 10 orang jadi target utama nyamuk", "type": "OPINION"}, {"claim": "Golongan darah O ditargetin 2x lebih sering", "type": "OPINION"}, {"claim": "Nyamuk mendeteksi karbon dioksida, asam laktat, dan amonia", "type": "OPINION"}], "source_ids_used": [], "angle": "Nyamuk pilih target berdasarkan sinyal kimia, bukan darah manis"}
 
 END REFERENCE"""
 
@@ -579,7 +583,7 @@ def build_user_prompt(seed, mode="OPINION", **kwargs):
 </input>
 
 Additional direction:
-- {mode} mode. Gunakan narator "gw" + audiens "kalian".
+- {mode} mode. Gunakan narator "gw" + audiens "lu".
 - ANGLES TO AVOID (already recently used — do NOT repeat these patterns): {json.dumps(inp.get('recent', {}).get('angles', [])[:5], ensure_ascii=False)}
 - Do NOT phrase the angle as "bukan X, tapi Y", "bukan X, melainkan Y", or "X bukan Y, tapi Z" if similar phrasing appears in the avoided angles."""
 
@@ -650,7 +654,7 @@ def deterministic_validate(data):
     
     # Check POV — no lo/kamu in narrator text (not inside quotes)
     combined = " | ".join(posts)
-    for word in ['lo', 'kamu']:
+    for word in ['lo', 'kalian', 'kamu']:
         for m in re.finditer(rf'\b{re.escape(word)}\b', combined, re.IGNORECASE):
             text_before = combined[:m.start()]
             # If even number of quotes before match → outside quoted text
@@ -886,9 +890,9 @@ POST_1 NO DIGIT — post_1 must contain at least one number.
 ══════════════════════════════════════
 POST_1 EXCEEDS 150 CHARS — post_1 character limit is 150.
   FIX: Trim filler words and subordinate clauses. Keep the counter-intuitive hook + number.
-  WRONG: "Ternyata ada satu fakta menarik yang mungkin kalian belum tahu tentang otak manusia..."
+  WRONG: "Ternyata ada satu fakta menarik yang mungkin lu belum tahu tentang otak manusia..."
   RIGHT: "Otak lo cuma 2% dari badan tapi makan 20% energi harian. Tanpa lo sadari."
-  Strategy: remove "Ternyata...", "Fakta menarik...", "Tahukah kalian..." — go straight to the fact.
+  Strategy: remove "Ternyata...", "Fakta menarik...", "Tahukah lu..." — go straight to the fact.
 
 ══════════════════════════════════════
 POST_N EXCEEDS 350 CHARS (N=2-5) — posts 2-5 max 350 characters each.
@@ -906,7 +910,7 @@ POST_6 EXCEEDS 300 CHARS — post_6 max 300 characters.
 POST_6 NO QUESTION — post_6 must end with a genuine question mark.
   FIX: Replace the last sentence with a question that invites personal reply.
   WRONG: "Itulah kenapa cegukan muncul tiba-tiba."
-  RIGHT: "Kapan terakhir kali kalian cegukan di momen paling gak tepat?"
+  RIGHT: "Kapan terakhir kali lu cegukan di momen paling gak tepat?"
   Rule: NOT rhetorical (bukan "iya kan?", "gila kan?"). Must ask for personal experience.
 
 ══════════════════════════════════════
@@ -918,10 +922,10 @@ PROHIBITED WORD — output contains a banned LinkedIn/self-dev word.
   Rule: use everyday Indonesian (warteg-level), not seminar-level.
 
 ══════════════════════════════════════
-INVALID PRONOUN — "lo"/"lu"/"kamu"/"anda" found in narrator text.
-  FIX: Replace with "kalian" (audience) or "gw/gue" (narrator). Keep inside quotes unchanged.
-  WRONG: "Otak lo cuma 2% dari badan" (narrator text)
-  RIGHT: "Otak kalian cuma 2% dari badan" (narrator addressing audience)
+INVALID PRONOUN — "lo"/"kalian"/"kamu"/"anda" found in narrator text.
+  FIX: Replace with "lu" (audience) or "gw" (narrator). Keep inside quotes unchanged.
+  WRONG: "Otak lo cuma 2% dari badan" (narrator text → use "lu")
+  RIGHT: "Otak lu cuma 2% dari badan tapi makan 20% energi harian"
   EXCEPTION: Dialog inside quotes ("...") stays — "terus dia bilang 'lo gila ya'" is fine.
 
 ══════════════════════════════════════
@@ -1019,7 +1023,7 @@ def _extract_elements(slides, angle):
     opening = re.sub(r"[‘’'\"!?…,]", "", opening).strip().lower()
     opening = opening[:80]
     
-    # CTA: last sentence of S6 (after "kalian bisa", "coba", "mulai")
+    # CTA: last sentence of S6 (after "lu bisa", "coba", "mulai")
     s6_sentences = [s.strip() for s in re.split(r'[.!?\n]', s6) if s.strip()]
     cta = s6_sentences[-1] if s6_sentences else ""
     cta = re.sub(r"[‘’'\"…]", "", cta).strip().lower()
