@@ -302,6 +302,35 @@ Dialogue:
 - Do not fabricate a quote from a real person.
 </voice>
 
+<anti_ai_writing>
+Avoid these AI writing patterns:
+
+SENTENCE VARIETY:
+- Mix short punchy sentences (3-8 words) + medium (10-15) + occasional longer (15-20 words). Uniform sentence length is an AI tell.
+- Include 1-2 fragments per thread when natural ("Padahal kenyataannya? Ya..."). Do not manufacture fragments.
+
+TRANSITION VARIETY:
+- Do NOT open 2+ consecutive slides with the same word.
+- Vary openers across threads: S2 = "Misalnya gini" / "Contoh" / "Bayangin". S3 = "Gue perhatiin" / "Coba liat" / "Lucunya". S4 = "Terus X nggak penting?" / "Jangan salah". S5 = "Makanya..." / "Ambil contoh". S6 = "Intinya" / "Mulai aja" / "Gak usah ribet".
+- NEVER use rhetorical questions as slide transitions: "Hasil akhir?", "Kedoknya?", "Dampaknya?", "Ironisnya?" — state directly instead.
+
+NO SLIDE-LABELING:
+- Do not open a slide with meta labels: "Ironisnya...", "Realitanya...", "Dampaknya...", "Kedoknya...", "Yang rugi siapa?", "Yang bikin [adj]". Just state the fact or stance without labeling it.
+
+BREAK SYMMETRY:
+- If listing examples, use 2 items or 4+ items. NEVER 3 items in sequence — rule-of-three is an AI symmetry tell.
+- Avoid "Ini bukan X — ini Y" or "Ini bukan X, tapi Y" structure. State Y directly without negating X.
+
+PUNCTUATION & STEERING:
+- Limit em dash (—) to maximum 1 per post. Prefer comma or period.
+- Do not tell readers how to feel: "Bikin geleng", "Ironi paling...", "Yang bikin [adj]", "Angka spesifik yang bikin [adj]". Present facts; let reader react.
+- Do not use "Padahal" as second-sentence opener in S1 — makes hook wordy.
+
+DETAILS:
+- Prefer concrete Indonesian specifics over abstract: "indomie goreng + telur" not "makanan enak", "kosan 3x3" not "tempat tinggal", "meeting Zoom blur background" not "rapat online".
+- Use 1-2 specific details per thread. Do not stack generic references.
+</anti_ai_writing>
+
 <prohibited_output>
 Do not use these expressions, including case-insensitive variations:
 - You won't believe, Shocking, Let that sink in, Gila banget, Link in bio
@@ -325,7 +354,7 @@ post_1 — Hook
 - REQUIRED: specific number, statistic, or quantifiable contrast. Every seed has a numeric dimension — find it and use it. Angka konkret = hook 3x lebih engaging. Hook tanpa angka = FAILED.
 - Example numeric transforms:
   * "kucing takut air" → "Kucing domestik: 95% takut air. Tapi kenapa? Nenek moyang mereka berasal dari gurun."
-  * "ngomong sendiri" → "Otak lo ngolah 70.000 pikiran per hari. Ngomong sendiri adalah cara lo nge-sort prioritas."
+  * "ngomong sendiri" → "Otak kalian ngolah 70.000 pikiran per hari. Ngomong sendiri adalah cara otak nge-sort prioritas."
   * "placebo effect" → "Gula doang bisa nurunin rasa sakit 30%. Tanpa obat, tanpa bahan aktif. Gimana caranya?"
 - Good: "Singa gagal 7 dari 10 buruan. Capung? 95% sukses." → contrast + angka spesifik.
 
