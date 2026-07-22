@@ -212,6 +212,8 @@ def _pick_seed(data):
         w = base_weight
         if use_weights and s in eng_map:
             w *= 1.5  # +50% boost for engaged seeds
+        viral = _viral_potential(s)
+        w *= (1.0 + 0.3 * (viral - 2))  # 1→0.7x, 3→1.3x, 5→1.9x
         weights.append(w)
 
     # Category balance: de-weight last 3 categories
@@ -238,6 +240,20 @@ for _i, _s in enumerate(SEEDS):
 
 def _categorize(seed):
     return _SEED_CAT.get(seed, -1)
+
+def _viral_potential(seed):
+    """Score seed viral potential 1-5 (keyword heuristics). 5 = high WTF."""
+    score = 1
+    s = seed.lower()
+    if re.search(r'\d+', s): score += 1           # angka = specific
+    if any(w in s for w in ['kenapa','ternyata','padahal','bikin','tanpa']):
+        score += 1                                  # counter-intuitive framing
+    if any(w in s for w in ['kalian','hidup','tubuh','otak','rasa','sehari']):
+        score += 1                                  # personal relevance
+    if any(w in s for w in ['hewan','kucing','burung','serangga','laut','mata']):
+        score += 1                                  # visual/novelty factor
+    if len(s.split()) < 8: score = max(1, score-1) # too vague
+    return min(5, max(1, score))
 
 def _clean_seed(s):
     """Hapus 1st person biar LLM gak ngarang cerita Ryan. Juga convert lo→kalian."""
@@ -341,10 +357,19 @@ Banned (case-insensitive): you won't believe, shocking, let that sink in, gila b
 <thread_structure>
 Six posts, one narrative arc.
 
-post_1 — Hook: Max 150 chars, 1-2 sentences. REQUIRED: counter-intuitive claim + specific number. Hook tanpa angka = FAILED.
-Examples: "kucing takut air" → "Kucing domestik: 95% takut air. Nenek moyang berasal dari gurun." "Singa gagal 7 dari 10 buruan. Capung? 95% sukses."
+post_1 — Hook: Max 150 chars, 1-2 sentences.
+REQUIRED: specific claim + number visible IN THE PREVIEW. Open with the number.
+Format: "[Number] + [counter-intuitive fact]". Max 12 words.
+Bad: "Alis manusia punya 250 rambut. Fungsinya..." — terlalu panjang.
+Good: "7 dari 10 orang pernah ngalamin dejavu."
+Good: "Cuma 1 dari 10 orang yang jadi target utama nyamuk."
+Good: "250 rambut. Fungsi alis: nahan keringat."
+Rule: the preview text (first ~80 chars) must contain the surprising claim, not setup.
 
 post_2 — Scenario: Max 350 chars. One concrete, picturable situation. Mark hypotheticals clearly.
+REQUIRED: use a UNIVERSAL Indonesian setting.
+Good settings: kosan, KRL jam pulang, warteg, nasi Padang, ojek online, angkot, macet Jakarta, antrian, ujian, liburan, nongkrong, Zoom meeting, hujan-hujanan.
+Bad settings: terlalu spesifik (acara TV tertentu, brand mahal, negara lain).
 
 post_3 — Observation: Max 350 chars. Reveal the behavior/assumption/tension. Don't generalize personal opinion as fact.
 
@@ -352,11 +377,13 @@ post_4 — Reframe: Max 350 chars. Acknowledge opposing view, then clearer frame
 
 post_5 — Application: Max 350 chars. One concrete application/example/small action. Explain without promising results.
 
-post_6 — Closing: Max 300 chars. REQUIRED: genuine question inviting personal reply — not rhetorical.
-Bad: "Pernah ngerasain hal yang sama?" — too generic.
-Good: "Kucing lo gitu juga? Atau malah kebalikannya?" — specific, low-effort, comparison-driven.
-Good: "Kapan terakhir kali kalian ngerasa dejavu, dan lagi ngapain waktu itu?" — personal experience, natural.
-Rule: one question, references thread detail, feels like DM-ing a friend. No new argument.
+post_6 — Closing: Max 300 chars. REQUIRED: invite reply via tag/cerita/pengalaman.
+DO NOT start with "Pernah nggak" — that's overused.
+Good: "Tag temen yang paling sering [relate] biar dia tau."
+Good: "Komentar '[sesuatu]' kalo kalian pernah ngalamin."
+Good: "Coba cerita dong, pengalaman [relate] versi kalian gimana?"
+Good: "Kirim ke grup keluarga — mereka juga perlu tau ini."
+Rule: one call-to-action, references thread detail, low effort to reply. Speaks to one person, not crowd.
 </thread_structure>
 
 <trending_rule>
@@ -630,10 +657,15 @@ def deterministic_validate(data):
     if not re.search(r'\d', s1):
         violations.append("post_1: no number — REQUIRED for hook engagement")
     
-    # S6 reply-bait
+    # S6 reply-bait — question or tag/komentar/kirim pattern
     s6 = posts[5].strip()
-    if not s6.endswith('?'):
-        violations.append("post_6: must end with a question mark — reply-bait CTA REQUIRED")
+    cta_patterns = [
+        s6.endswith('?'),
+        bool(re.match(r'^(Tag|Komentar|Kirim|Coba)\s', s6)),
+        bool(re.search(r'tag\s+temen|komentar\s+[\'\"¿]|cerita dong|gimana\s+menurut|share pengalaman', s6, re.I)),
+    ]
+    if not any(cta_patterns):
+        violations.append("post_6: CTA REQUIRED — end with ?, \"Tag temen...\", \"Komentar '...'\", or \"Coba cerita...\"")
     
     # Check mode consistency
     mode = data.get("mode", "OPINION")
