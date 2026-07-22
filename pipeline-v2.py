@@ -477,25 +477,43 @@ def _fetch_trending_context(seed):
         seed_lower = seed.lower()
         stopwords = {'dan', 'di', 'ke', 'dengan', 'yang', 'ini', 'itu', 'dari',
             'pada', 'untuk', 'bisa', 'tidak', 'akan', 'adalah', 'sebagai',
-            'atau', 'juga', 'oleh', 'dalam', 'kami', 'kita', 'mereka', 'telah', 'sudah'}
+            'atau', 'juga', 'oleh', 'dalam', 'kami', 'kita', 'mereka',
+            'telah', 'sudah', 'punya', 'baru', 'program', 'saya', 'setelah',
+            'antara', 'kata', 'terus', 'semua', 'saat', 'hari', 'dunia',
+            ' tahun', 'orang', 'negara', 'presiden', 'indonesia',
+            'ternyata', 'rupanya', 'memang', 'justru', 'bahkan', 'nyatanya',
+            'lagi', 'saja', 'juga', 'pula', 'kembali', 'terjadi', 'mungkin'}
         seed_kws = [w for w in re.findall(r'\w+', seed_lower)
-                    if w not in stopwords and len(w) > 3]
+                    if w not in stopwords and len(w) > 4]
+
+        # Category-level boost: match against broader topic area
+        category_map = {
+            'otak': ['otak', 'otak', 'pikiran', 'memori', 'tidur', 'mimpi', 'dejavu', 'sadar', 'bawah sadar', 'psikologi'],
+            'hewan': ['hewan', 'kucing', 'anjing', 'burung', 'ikan', 'serangga', 'nyamuk', 'lalat', 'bintang', 'laut', 'alam', 'satwa'],
+            'tubuh': ['tubuh', 'tulang', 'darah', 'jantung', 'paru', 'kulit', 'mata', 'telinga', 'otot', 'sistem', 'imun', 'pencernaan'],
+            'kebiasaan': ['kebiasaan', 'rutinitas', 'kerja', 'produktif', 'waktu', 'usia', 'tua', 'dewasa', 'sehari'],
+        }
+        cat_kws = set()
+        for cat, words in category_map.items():
+            if any(w in seed_lower for w in words):
+                cat_kws.update(w for w in words if len(w) > 3)
 
         scored = []
         for t in all_trends:
             tl = t.lower()
-            kw_score = sum(2 for kw in seed_kws if kw in tl)
-            if any(s in tl for s in seed_lower.split() if len(s) > 4):
-                kw_score += 3
-            if kw_score > 0:
+            kw_score = sum(3 for kw in seed_kws if kw in tl)
+            kw_score += sum(2 for kw in cat_kws if kw in tl)
+            if any(s in tl for s in seed_lower.split() if len(s) > 5):
+                kw_score += 4
+            if kw_score >= 7:
                 scored.append((kw_score, t))
 
         if scored:
             scored.sort(key=lambda x: (-x[0], x[1]))
             return {"trends": [t for _, t in scored[:3]], "all_top": all_trends[:5]}
 
-        # No direct match — still provide today's pulse
-        return {"trends": [], "all_top": all_trends[:5]}
+        log.debug("No related trends for this seed")
+        return None
 
     except Exception as e:
         log.debug(f"Trend fetch: {e}")
