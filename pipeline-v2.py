@@ -472,21 +472,36 @@ def save_data(data):
     POSTED_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 def pull_engagement():
+    """Fetch per-post engagement metrics from Threads and save."""
     if not THREADS_TOKEN or DRY_RUN:
         return 0
     data = load_data()
     topics = data.get("topics", [])
     updated = 0
-    cutoff = datetime.now(WIB) - timedelta(hours=2)
     for t in topics:
-        if t.get("views"):
+        media_id = t.get("media_id") or t.get("post_id")
+        if not media_id or t.get("likes") is not None:
             continue
         try:
-            r = httpx.get(f"{GRAPH}/{USER_ID}/media", params={"fields": "id,permalink", "access_token": THREADS_TOKEN}, timeout=10)
-            if r.status_code != 200:
-                continue
-        except httpx.RequestError:
-            continue
+            r = httpx.get(
+                f"{GRAPH}/{media_id}",
+                params={"fields": "like_count,replies_count,permalink", "access_token": THREADS_TOKEN},
+                timeout=10
+            )
+            if r.status_code == 200:
+                info = r.json()
+                t["likes"] = info.get("like_count", 0)
+                t["replies"] = info.get("replies_count", 0)
+                updated += 1
+            else:
+                t["likes"] = 0
+                t["replies"] = 0
+        except (httpx.RequestError, json.JSONDecodeError):
+            t["likes"] = 0
+            t["replies"] = 0
+    if updated:
+        save_data(data)
+        log.info(f"Engagement: {updated} topics updated")
     return updated
 
 # ══════════════════════════════════════════════
@@ -688,6 +703,36 @@ def generate_thread(seed, mode="OPINION", **kwargs):
                     time.sleep(1)
                     continue
             
+            # Semantic validation
+            if attempt <= 2:  # only on first 2 attempts (avoid cost on last retry)
+                sem_result = semantic_validate(
+                    json.dumps(data, indent=2, ensure_ascii=False),
+                    {"mode": mode, "seed": seed, "recent": kwargs.get("recent", {})},
+                    {"violations": violations if not valid else []}
+                )
+                if sem_result.get("score", 85) < 85 and attempt < 3:
+                    sem_violations = sem_result.get("violations", [])
+                    log.warning(f"  Semantic: score={sem_result.get('score')}, violations={len(sem_violations)}")
+                    # Inject violations as feedback for revision
+                    if sem_violations and attempt == 1:
+                        revised = revise_output(
+                            json.dumps(data, indent=2, ensure_ascii=False),
+                            sem_violations,
+                            {"mode": mode, "seed": seed, "recent": kwargs.get("recent", {})}
+                        )
+                        if revised:
+                            rev_valid, rev_violations = deterministic_validate(revised)
+                            if rev_valid:
+                                log.info("  Semantic revision — accepted")
+                                data = revised
+                                valid = True
+                            else:
+                                log.warning(f"  Semantic revision failed: {rev_violations}")
+                    if not valid:
+                        log.info(f"  Semantic quality below threshold, regenerating...")
+                        time.sleep(1)
+                        continue
+            
             # Parse posts
             mode = data.get("mode", mode)
             angle = data.get("angle", "")
@@ -739,15 +784,35 @@ def generate_thread(seed, mode="OPINION", **kwargs):
 
 REVISION_PROMPT = """Your job: fix the generated output below so it passes validation.
 
-Original input and the failing JSON are provided. The deterministic validation errors are listed. Fix ONLY what caused the violations; keep everything else identical.
+Original input and the failing JSON are provided. The validation errors are listed. Fix ONLY what caused the violations; keep everything else identical.
 
-Rules:
-1. If the error is a character limit (e.g. "post_1: 164 chars exceeds limit 150"), truncate or rephrase concisely while keeping the same meaning.
-2. If the error is a prohibited word, replace it with a natural equivalent.
-3. If the error is an invalid pronoun ("lo" instead of "kalian"), change ONLY the pronoun.
-4. Change as little as possible. Do not rewrite the entire output.
-5. Return valid JSON only — same schema as the original output.
-6. Do not add Markdown fences or commentary."""
+Fix rules per error type:
+
+POST_1 NO DIGIT:
+- Add a specific number or statistic to post_1. Find the numeric dimension in the seed.
+- Example: "fenomena unik" → "95% kucing domestik takut air"
+
+POST_6 NO QUESTION:
+- Rewrite the last sentence of post_6 as a genuine question ending with "?".
+- Must invite personal reply, not rhetorical.
+
+CHARACTER LIMIT:
+- Truncate or rephrase concisely while keeping the same meaning.
+- Cut filler words, not substance.
+
+PROHIBITED WORD:
+- Replace with a natural equivalent from everyday Indonesian casual speech.
+
+INVALID PRONOUN ("lo" instead of "kalian"):
+- Change ONLY the pronoun from "lo"/"lu"/"kamu" to "kalian".
+- If "lo" is inside a quoted dialogue, leave it unchanged.
+
+SEMANTIC ISSUES:
+- If flagged for hallucination or unsupported claim, correct the claim to match seed facts.
+
+General rules:
+- Change as little as possible. Do not rewrite the entire output.
+- Return valid JSON only — same schema as the original output."""
 
 def revise_output(output_text, violations, input_data):
     """Send original failed output + errors to LLM for targeted fix."""
@@ -774,13 +839,13 @@ Fix the generated output to pass validation. Return valid JSON only."""
             f"{LLM_BASE}/chat/completions",
             headers={"Authorization": f"Bearer {LLM_KEY}", "Content-Type": "application/json"},
             json={
-                "model": "mistral-large-latest",
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user}
-                ],
-                "max_tokens": 2500,
-                "temperature": 0.3
+                "model": "mistral-small-latest",
+                    "messages": [
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user}
+                    ],
+                    "max_tokens": 2500,
+                    "temperature": 0.3
             },
             timeout=60
         )
@@ -995,30 +1060,44 @@ def post_to_threads(slides):
             log.error(f"  Create container fail: {e}")
             return None
 
-    # Flow: create → publish → get published ID → create next with reply_to
-    ids = []
-    parent_publish_id = None
-    first_publish_id = None
+    # Flow: create, publish, get published ID, create next with reply_to
+        ids = []
+        parent_publish_id = None
+        first_publish_id = None
     
-    for i, s in enumerate(slides):
-        # 1. Create container
-        container_id = create_container(s["content"], parent_publish_id)
-        if not container_id:
-            log.error(f"  Failed to create container for {s['title']}")
-            return None, ids
-        time.sleep(1.5)
-        
-        # 2. Publish immediately
-        try:
-            r = httpx.post(
-                f"{GRAPH}/{USER_ID}/threads_publish",
-                data={"access_token": THREADS_TOKEN, "creation_id": container_id},
-                timeout=15
-            )
-            if r.status_code != 200:
-                log.error(f"  Publish failed for {s['title']}: {r.text[:200]}")
+        for i, s in enumerate(slides):
+            # 1. Create container (with retry)
+            container_id = None
+            for retry in range(3):
+                container_id = create_container(s["content"], parent_publish_id)
+                if container_id:
+                    break
+                log.warning(f"  Retry {retry+1}/3 create container for {s['title']}")
+                time.sleep(2 * (1 + retry))
+            if not container_id:
+                log.error(f"  Failed to create container for {s['title']} after 3 retries")
                 return None, ids
-            publish_data = r.json()
+            time.sleep(1.5)
+        
+            # 2. Publish immediately (with retry)
+            publish_data = None
+            for retry in range(3):
+                try:
+                    r = httpx.post(
+                        f"{GRAPH}/{USER_ID}/threads_publish",
+                        data={"access_token": THREADS_TOKEN, "creation_id": container_id},
+                        timeout=15
+                    )
+                    if r.status_code == 200:
+                        publish_data = r.json()
+                        break
+                    log.warning(f"  Retry {retry+1}/3 publish {s['title']}: {r.status_code}")
+                except (httpx.RequestError, json.JSONDecodeError, KeyError) as e:
+                    log.warning(f"  Retry {retry+1}/3 publish error: {e}")
+                time.sleep(2 * (1 + retry))
+            if not publish_data:
+                log.error(f"  Publish failed for {s['title']} after 3 retries")
+                return None, ids
             publish_id = publish_data.get("id") or publish_data.get("media_id")
             if not publish_id:
                 log.error(f"  No id in publish response: {publish_data}")
@@ -1027,10 +1106,7 @@ def post_to_threads(slides):
                 first_publish_id = publish_id
             ids.append(container_id)
             parent_publish_id = publish_id  # next post replies to this published post
-        except (httpx.RequestError, json.JSONDecodeError, KeyError) as e:
-            log.error(f"  Publish error for {s['title']}: {e}")
-            return None, ids
-        time.sleep(1.5)
+            time.sleep(1.5)
     
     media_id = ids[0] if ids else None
     return media_id, first_publish_id
