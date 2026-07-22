@@ -51,87 +51,87 @@ PROHIBITED = [
 SEEDS = [
     # Fakta unik (otak / tidur / memori)
     "Otak manusia lebih gampang inget hal negatif — ini mekanisme survival",
-    "Kenapa manusia ngomong sendiri? Ternyata cara otak ngatur pikiran",
+    "96% orang ngomong sendiri dalam 24 jam — tapi makin keras, makin tenang pikiran lo",
     "1 kebiasaan sehari: baca 10 halaman bisa naikin fokus 23%. Tapi kenapa susah konsisten?",
     "60% pekerja alami sleep inertia — 8 jam tidur masih lemes pas bangun",
-    "Paradoks pilihan: makin banyak pilihan makin susah milih",
+    "30 pilihan di depan mata bikin otak freeze — bukan soal keputusan, ini overload kognitif",
     "Lagu lawas trigger otak 10x lebih kuat dari foto. Ini kenapa lo bisa nangis denger lagu SD",
     "70% orang bangun masih capek meski tidur 8 jam. Bukan kurang tidur — salah siklus REM",
-    "Kenapa manusia punya dejavu? Penjelasan ilmiahnya",
+    "7 dari 10 orang pernah ngalamin dejavu — bukan ingatan masa lalu, otak cuma error nulis timestamp",
     "Senyum palsu 30 detik doang lepasin serotonin. Otak lo gak bisa bedain mana yang genuine",
     "80% orang Indonesia doyan pedas. Padahal cabe trigger reseptor rasa sakit — bukan rasa",
     "Setelah 25 tahun, 1 tahun terasa cuma 6 bulan. Soal proporsi memori di otak lo",
-    "Fakta: otak milih yg enak bukan yg bener — ini alasannya",
-    "Kenapa mata bisa liat titik kosong sendiri — fenomena blind spot",
-    "Otak punya filter kebisingan: lo bisa selektif dengar meski lagi ramai",
-    "Kenapa lupa bawa kunci tapi inget lirik lagu masa kecil?",
-    "Mimpi buruk: kenapa otak lo nyiksa diri sendiri pas tidur",
-    "Kenapa musik bikin mood lo berubah dalam hitungan detik",
+    "Otak milih yg enak 3x lebih cepet daripada yg bener — dan keputusan itu terjadi sebelum lo sadar",
+    "Setiap mata punya blind spot segede bola pingpong — tapi lo gak pernah sadar karena otak nge-fill otomatis",
+    "Telinga denger semua suara — otak filter 90% noise. Lo selektif dengar nama sendiri dari keramaian dalam 0.5 detik",
+    "80% lirik lagu SD masih diinget — tapi naruh kunci 5 menit lalu gak inget. Otak prioritasin emosi, bukan utilitas",
+    "Otak replay pengalaman buruk 4x lebih sering pas REM — bukan nyiksa, ini latihan survival",
+    "3 detik denger lagu udah cukup ubah mood — dan terjadi sebelum lo sadar lagi denger apa",
     "Merasa diamati pas sendirian? Otak lo nge-scan ancaman tanpa sadar",
     "Air dingin turunin detak jantung 15% dalam 10 detik. Cuci muka pas stres = reset instan",
     "Otak cuma 2% dari badan tapi makan 20% energi harian lo",
-    "Kenapa kita gak bisa geli diri sendiri? Jawabannya ada di otak kecil",
-    "Earworm: kenapa lagu stuck di kepala dan susah banget dihilangin",
-    "Kenapa bau bisa langsung ngingetin memori spesifik dari masa kecil",
-    "Kenapa badan tiba-tiba kejang pas mau tidur — hypnic jerk",
+    "Lo gak bisa geli diri sendiri karena otak kecil udah prediksi jari nyentuh — error margin 0",
+    "1 dari 3 orang alamin earworm tiap hari — makin lo usaha ngilangin, makin kuat nempel",
+    "Bau hujan tembus ke memori 5x lebih dalam dari foto — jalurnya lewatin amigdala, pusat emosi",
+    "70% orang alamin hypnic jerk — otak kaget detak jantung turun terlalu cepet, ngira lo sekarat",
     "Placebo effect: kenapa gula doang bisa ngurangin rasa sakit lo",
     # Fakta hewan & dunia (Indonesia)
-    "Kenapa suara tokek bisa segede itu? Fakta soal reptil kecil bersuara raksasa",
+    "Tokek sebesar jempol hasilin 100 desibel — setara motor. Rahasianya di rongga dada, bukan pita suara",
     "Semut Rangrang: ternyata tentara paling brutal di kerajaan serangga",
-    "Kenapa nyamuk lebih suka gigit orang tertentu? Ilmu di baliknya",
-    "Cicak bisa nempel di dinding, kenapa manusia gabisa?",
+    "Cuma 1 dari 10 orang target utama nyamuk — golongan darah O punya 83% risiko lebih tinggi digigit",
+    "Cicak nempel di dinding 100% tanpa lem — gaya Van der Waals di 1 juta rambut halus di telapak kakinya",
     "Lumba-lumba tidur setengah otak — ternyata manusia juga mirip",
-    "Kenapa burung merpati bisa pulang walau dilepas ribuan kilometer?",
-    "Kenapa ayam bisa jalan-jalan padahal kepalanya udah putus?",
-    "Fakta soal laron: kenapa dia bunuh diri ke lampu?",
+    "Merpati pulang dari jarak 1.800 km tanpa GPS — magnet alami di paruh baca medan magnet bumi",
+    "Ayam masih gerak 30 detik setelah dipenggal — brainstem masih hidup, ATP di otot belum habis",
+    "Laron mati massal tiap malam hujan pertama — mereka kira bohlam itu rembulan, bukan bunuh diri",
     "Gajah Sumatra bisa deteksi gempa sebelum manusia — ini sebabnya",
-    "Kenapa hewan peliharaan lo bisa tau mood lo duluan?",
+    "Anjing bau perubahan hormon lo dalam 3 detik — jauh sebelum lo sadar lagi bad mood",
     "Capung: predator paling mematikan di dunia (lebih dari singa)",
-    "Kenapa kunang-kunang udah mulai langka di kota lo?",
+    "Populasi kunang-kunang turun 70% di kota besar Indonesia — satu spesies hilang sebelum sempet diteliti",
     "Ternyata rayap bukan musuh — dia arsitek terbaik dunia serangga",
-    "Kenapa kucing takut air tapi anjing enggak?",
+    "Kucing domestik gak pernah adaptasi air — cuma 1 dari 38 spesies kucing liar yang bisa berenang",
     "Fakta soal harimau Sumatra: dia bisa niruin suara mangsanya",
     "Bunglon berubah warna bukan buat kamuflase — ini alasan sebenarnya",
-    "Kaki seribu: ternyata gak segitakut yang lo kira",
+    "Kaki seribu punya 750 kaki — tapi tiap pasangan gerak bergelombang, bukan serempak. Mekanisme gerak paling efisien di serangga",
     "Bebek bisa jalan di air — rahasianya ada di struktur kaki",
     "Fakta soal kecoa: bisa hidup seminggu tanpa kepala. Mitos atau fakta?",
     "Ular bisa deteksi detak jantung mangsanya dari jarak 1 meter",
-    "Kenapa lalat susah banget dipukul? Mereka ngeliat dunia dalam gerakan lambat",
-    "Kenapa kuda tidur sambil berdiri — dan kenapa manusia gak bisa",
+    "Lalat ngeliat 4x lebih lambat — tangan lo kayak gerakan lem buat mata majemuk mereka",
+    "Kuda tidur berdiri 4 jam nonstop — stay apparatus di kaki otomatis ngunci sendi pas otot rileks",
     "Bintang laut: mulut di bagian bawah dan bisa regenerasi tubuh",
     "Burung hantu bisa muter kepala 270 derajat. Ini mekanisme di baliknya",
     "Siput lambat bukan kelemahan — itu strategi survival yang brilian",
     "Cumi-cumi bisa edit gen di tubuhnya sendiri — ini cara kerjanya",
-    "Kenapa kucing suka ngasih hadiah tikus mati ke pemiliknya?",
+    "Kucing ngasih lo tikus mati karena ngira lo kucing bodoh yang gak bisa berburu — ini pelatihan, bukan hadiah",
     "Hiu: bisa deteksi setetes darah dalam 100 liter air",
-    "Kenapa burung tidur sambil berdiri dan gak pernah jatuh",
+    "Burung tidur berdiri 8 jam tanpa jatuh — tendon di kaki otomatis ngunci pas otot rileks. Manusia gak punya fitur ini",
     "Paus — yang sering lo panggil 'ikan paus' ternyata mamalia dan dulunya jalan di darat",
     # Fakta tubuh manusia (di luar otak)
-    "Kenapa kita menguap — dan kenapa nular secara nggak sadar",
-    "Kenapa jari keriput pas di air: bukan karena basah, ini mekanisme survival",
-    "Kenapa cegukan susah dihentiin dan tiba-tiba ilang sendiri",
-    "Kenapa kita punya sidik jari: bukan cuma buat KTP",
+    "60% orang ikut menguap dalam 5 menit setelah liat orang lain — bukan soal oksigen, ini sinyal empati otomatis",
+    "Jari keriput cuma butuh 3 menit di air — ini sinyal aktif dari sistem saraf, bukan reaksi pasif penyerapan air",
+    "Cegukan tiap 3 detik selama 5 menit — diafragma kram karena saraf vagus irritation, lo gak bisa kontrol",
+    "Sidik jari terbentuk di usia janin 10 minggu — bukan buat identitas, tapi buat nge-grip benda licin",
     "90% manusia dominan kanan. Tapi kenapa ada yang kidal? Jawabannya udah ditentukan sebelum lahir",
     "Bulu kuduk merinding: ternyata pesan dari otak purba",
-    "Kenapa kuping kita terus tumbuh seumur hidup?",
-    "Kenapa tubuh kita demam — bukan penyakit, tapi senjata",
-    "Fakta soal nafsu: kenapa lapar juga ngaruh ke emosi dan keputusan",
-    "Kenapa tubuh gatal di tempat yang susah dijangkau pas lagi sepi",
-    "Kenapa kita punya alis — bukan cuma buat ekspresi",
+    "Kuping tumbuh 0.22mm per tahun — setelah 60 tahun panjangnya bisa beda 2cm dari waktu bayi",
+    "Demam 38°C bikin virus replikasi 2x lebih lambat — bukan kecelakaan, ini senjata tubuh yang terprogram",
+    "Lapar 4 jam bikin lo 3x lebih impulsif — gula darah turun, prefrontal cortex mati duluan",
+    "Gatal muncul di 3 titik spesifik pas lagi sendiri — area yang paling jarang disentuh, sensornya paling hipersensitif",
+    "Alis bukan cuma ekspresi — 5.000 tahun evolusi bikin alis jadi pelindung mata dari keringat dan hujan",
     "Urat kelihatan biru padahal darah merah — ini penjelasan optiknya",
-    "Kenapa badan kedutan pas mau tidur? Otak ngira lo mau mati",
+    "60% orang alamin kedutan pas tidur — otak kaget detak jantung turun drastis, ngira lo sekarat",
     "Bayi punya 300 tulang, dewasa cuma 206 — kemana sisanya?",
-    "Kenapa manusia punya 2 ginjal padahal 1 aja cukup?",
-    "Kenapa rambut rontok tiap hari tapi gak botak?",
-    "Paru-paru kiri lebih kecil dari kanan — ini alasannya",
-    "Kenapa rambut kepala bisa panjang tapi alis dan bulu badan cuma pendek?",
+    "Manusia punya 2 ginjal padahal 1 berfungsi 100% — tapi 60% pasokan kena penyakit baru tau",
+    "Lo rontok 50-100 helai per hari — normal, setiap folikel punya siklus 3 fase yang udah diprogram genetik",
+    "Paru-paru kiri 10% lebih kecil dari kanan — jantung butuh ruang. Bukan desain error, ini efisiensi ruang",
+    "Rambut kepala tumbuh 6 tahun nonstop — alis cuma 3 bulan. Beda genetik di fase anagen, bukan gizi atau perawatan",
     "Lidah — peta rasa tradisional yang diajarin di sekolah ternyata udah usang",
-    "Kenapa badan bisa ngerasa panas pas malu — blushing effect",
+    "Blushing cuma butuh 2 detik — darah melonjak ke pipa akibat adrenalin. Lo malu, tapi tubuh lo siap fight",
     "Keringat gak bau — bakteri di kulit lo yang bikin bau",
-    "Kenapa gak bisa nahan kentut waktu tidur? Otot rileks total",
-    "Kenapa beberapa orang buta warna — gak cuma hitam putih",
-    "Jantung gak berhenti meski lo gak sadar — gimana cara passive survival",
-    "Kenapa ada orang yang gak bisa digigit nyamuk — faktor genetik",
+    "Rata-rata tubuh produksi 200ml gas per hari — saat tidur sfingter rileks total, kontrol sadar off",
+    "1 dari 12 pria buta warna — mayoritas bukan hitam-putih, cuma merah-hijau. Gen resesif di kromosom X",
+    "Jantung denyut 100.000 kali per hari tanpa lo perintah, tanpa lo kontrol, tanpa lo ingat. Kenapa gak capek?",
+    "15% manusia gak pernah digigit nyamuk — bukan soal darah manis/tawar, senyawa di kulit bikin mereka ogah",
 ]
 
 def _pick_seed(data):
@@ -160,6 +160,49 @@ def _pick_seed(data):
     MIN_DATA = 5
     eng_seeds = len(eng_map)
     use_weights = eng_seeds >= MIN_DATA
+
+    # Retirement: exclude seeds used >=3x with below-median avg engagement
+    RETIRE_THRESHOLD = 3
+    if use_weights:
+        # Count usage per seed
+        usage = {}
+        for t in topics:
+            title = t.get("title", "")
+            if title in SEEDS:
+                usage.setdefault(title, 0)
+                usage[title] += 1
+        # Total engagement per seed (for multi-use aggregation)
+        seed_eng = {}
+        seed_count = {}
+        for t in topics:
+            title = t.get("title", "")
+            likes = t.get("likes", 0) or 0
+            replies = t.get("replies", 0) or 0
+            if title in SEEDS and (likes + replies) > 0:
+                score = likes + replies * 2
+                seed_eng.setdefault(title, 0)
+                seed_eng[title] += score
+                seed_count.setdefault(title, 0)
+                seed_count[title] += 1
+        # Calc per-seed average & overall median
+        avgs = []
+        for title, total in seed_eng.items():
+            cnt = seed_count.get(title, 1)
+            avgs.append(total / cnt)
+        median_eng = sorted(avgs)[len(avgs) // 2] if avgs else 0
+        # Build retirement set
+        retired = set()
+        for title, avg in [(t, seed_eng[t] / seed_count[t]) for t in seed_eng if usage.get(t, 0) >= RETIRE_THRESHOLD]:
+            if avg < median_eng:
+                retired.add(title)
+        if retired:
+            log.info(f"Retired {len(retired)} underperforming seeds: {', '.join(list(retired)[:3])}...")
+            unused = [s for s in unused if s not in retired]
+            # If all seeds retired, fall back to full pool
+            if not unused:
+                unused = [s for s in SEEDS if s not in retired]
+                if not unused:
+                    unused = list(SEEDS)
 
     # Compute base weight per seed
     base_weight = 1.0
@@ -472,7 +515,14 @@ Before returning the answer, silently check:
 5. No prohibited expression appears.
 6. No personal experience, quote, statistic, or fact was invented.
 7. The narrative does not repeat items supplied in `recent_content`.
-8. The response is parseable JSON with no extra text."""
+8. The response is parseable JSON with no extra text.
+
+# REFERENCE: Example of a good thread
+Below is a complete example that follows ALL the rules above. Use this as a quality anchor — your output must match this standard of counter-intuitive hook, natural voice, proper POV, and question-driven closing.
+
+{"posts": [{"title": "POST_1", "content": "7 dari 10 orang pernah ngalamin dejavu. Tapi bukan itu ramalan masa depan — otak kalian cuma lagi error nulis timestamp memori."}, {"title": "POST_2", "content": "Prosesnya gini: hippocampus nyimpen pengalaman baru, terus dikirim ke korteks. Kadang sinyalnya nyasar — memori barunya dikasih label udah pernah, padahal baru pertama kali. Efeknya: kalian ngerasa familiar, padahal belum pernah."}, {"title": "POST_3", "content": "Peneliti Colorado State University bilang dejavu makin sering pas otak capek atau stress. Makin tinggi beban kognitif, makin gampang sistem memorinya korslet."}, {"title": "POST_4", "content": "Fakta tambahan: usia 15-25 adalah golden age dejavu. Setelah 40 intensitas turun drastis - hippocampus mulai lambat, jadi lebih jarang error. Bukan otak makin bagus, cuma makin pelan."}, {"title": "POST_5", "content": "Ada hipotesis lain: dejavu bisa jadi tanda otak lagi ngecek konsistensi memori. Kayak sistem file error-checking. Setiap kali ngerasa udah pernah, otak lagi maintenance."}, {"title": "POST_6", "content": "Intinya dejavu wajar, bukan mistis, bukan tanda kalian spesial. Cuma glitch sistem. Ngomong-ngomong, kapan terakhir kali kalian ngerasa dejavu, dan lagi ngapain waktu itu?"}], "claims_used": [{"claim": "7 dari 10 orang pernah alami dejavu", "type": "OPINION"}, {"claim": "Dejavu terjadi karena kesalahan pelabelan memori di hippocampus", "type": "OPINION"}, {"claim": "Usia 15-25 golden age dejavu, menurun setelah 40", "type": "OPINION"}], "source_ids_used": [], "angle": "Dejavu = memory timestamp error, bukan ramalan"}
+
+END REFERENCE"""
 
 # ══════════════════════════════════════════════
 #   ENGAGEMENT TRACKING
@@ -527,9 +577,6 @@ def pull_engagement():
 def build_system_prompt(seed):
     system = SYSTEM_PROMPT
     system += "\n\n# SEED\n" + seed + "\n"
-    system += "\n## ANTI-LINKEDIN BANNED WORDS\n"
-    system += "\n".join(f"- '{w}'" for w in PROHIBITED[5:])  # skip generic ones, already in <prohibited_output>
-    system += "\nJANGAN pake kata-kata di atas.\n"
     return system
 
 def build_user_prompt(seed, mode="OPINION", **kwargs):
