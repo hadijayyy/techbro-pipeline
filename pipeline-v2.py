@@ -52,15 +52,15 @@ SEEDS = [
     # Fakta unik (otak / tidur / memori)
     "Otak manusia lebih gampang inget hal negatif — ini mekanisme survival",
     "Kenapa manusia ngomong sendiri? Ternyata cara otak ngatur pikiran",
-    "Kebiasaan kecil yg bikin otak lo lebih optimal",
-    "Alasan kenapa lo susah bangun tidur — bukan karena males",
+    "1 kebiasaan sehari: baca 10 halaman bisa naikin fokus 23%. Tapi kenapa susah konsisten?",
+    "60% pekerja alami sleep inertia — 8 jam tidur masih lemes pas bangun",
     "Paradoks pilihan: makin banyak pilihan makin susah milih",
-    "Cara kerja memori: kenapa lagu lawas bisa bikin nostalgia",
-    "Fakta soal tidur: yg bikin lo lemes pas bangun padahal udah 8 jam",
+    "Lagu lawas trigger otak 10x lebih kuat dari foto. Ini kenapa lo bisa nangis denger lagu SD",
+    "70% orang bangun masih capek meski tidur 8 jam. Bukan kurang tidur — salah siklus REM",
     "Kenapa manusia punya dejavu? Penjelasan ilmiahnya",
-    "Fakta tentang senyum: ngefek ke otak lo tanpa lo sadari",
-    "Alasan kenapa lo suka makanan pedas padahal sakit",
-    "Kenapa makin dewasa waktu berasa makin cepet?",
+    "Senyum palsu 30 detik doang lepasin serotonin. Otak lo gak bisa bedain mana yang genuine",
+    "80% orang Indonesia doyan pedas. Padahal cabe trigger reseptor rasa sakit — bukan rasa",
+    "Setelah 25 tahun, 1 tahun terasa cuma 6 bulan. Soal proporsi memori di otak lo",
     "Fakta: otak milih yg enak bukan yg bener — ini alasannya",
     "Kenapa mata bisa liat titik kosong sendiri — fenomena blind spot",
     "Otak punya filter kebisingan: lo bisa selektif dengar meski lagi ramai",
@@ -68,7 +68,7 @@ SEEDS = [
     "Mimpi buruk: kenapa otak lo nyiksa diri sendiri pas tidur",
     "Kenapa musik bikin mood lo berubah dalam hitungan detik",
     "Merasa diamati pas sendirian? Otak lo nge-scan ancaman tanpa sadar",
-    "Kenapa lo langsung ngerasa lebih baik pas cuci muka pas stres",
+    "Air dingin turunin detak jantung 15% dalam 10 detik. Cuci muka pas stres = reset instan",
     "Otak cuma 2% dari badan tapi makan 20% energi harian lo",
     "Kenapa kita gak bisa geli diri sendiri? Jawabannya ada di otak kecil",
     "Earworm: kenapa lagu stuck di kepala dan susah banget dihilangin",
@@ -111,7 +111,7 @@ SEEDS = [
     "Kenapa jari keriput pas di air: bukan karena basah, ini mekanisme survival",
     "Kenapa cegukan susah dihentiin dan tiba-tiba ilang sendiri",
     "Kenapa kita punya sidik jari: bukan cuma buat KTP",
-    "Alasan kenapa ada tangan dominan — kanan vs kidal",
+    "90% manusia dominan kanan. Tapi kenapa ada yang kidal? Jawabannya udah ditentukan sebelum lahir",
     "Bulu kuduk merinding: ternyata pesan dari otak purba",
     "Kenapa kuping kita terus tumbuh seumur hidup?",
     "Kenapa tubuh kita demam — bukan penyakit, tapi senjata",
@@ -135,12 +135,65 @@ SEEDS = [
 ]
 
 def _pick_seed(data):
+    """Pick seed with engagement weighting + cross-category balancing.
+    
+    Categories: otak=0, hewan=1, tubuh=2. Tracks last 3 categories to avoid
+    consecutive repeats. Seeds with engagement data get +50% weight.
+    Fallback: pure random if <5 engaged posts.
+    """
     topics = data.get("topics", [])
     used_topics = [t.get("title", "") for t in topics[-100:]]
     unused = [s for s in SEEDS if s not in used_topics]
-    if unused:
-        return random.choice(unused)
-    return random.choice(SEEDS)
+    if not unused:
+        unused = list(SEEDS)
+
+    # Build engagement weight map (likes + replies*2)
+    eng_map = {}
+    for t in topics:
+        title = t.get("title", "")
+        likes = t.get("likes", 0) or 0
+        replies = t.get("replies", 0) or 0
+        if title in SEEDS and likes + replies > 0:
+            eng_map[title] = max(likes + replies * 2, 1)
+
+    # Only activate if enough data
+    MIN_DATA = 5
+    eng_seeds = len(eng_map)
+    use_weights = eng_seeds >= MIN_DATA
+
+    # Compute base weight per seed
+    base_weight = 1.0
+    weights = []
+    for s in unused:
+        w = base_weight
+        if use_weights and s in eng_map:
+            w *= 1.5  # +50% boost for engaged seeds
+        weights.append(w)
+
+    # Category balance: de-weight last 3 categories
+    last_cats = [t.get("category", -1) for t in topics[-3:]]
+    for i, s in enumerate(unused):
+        cat = _categorize(s)
+        if cat in last_cats:
+            weights[i] *= 0.5  # -50% for recently used category
+
+    choice = random.choices(unused, weights=weights, k=1)[0]
+    return choice
+
+
+# Seed→category mapping (indices: 0-24 otak, 25-54 hewan, 55-79 tubuh)
+_SEED_CAT = {}
+for _i, _s in enumerate(SEEDS):
+    if _i < 25:
+        _SEED_CAT[_s] = 0
+    elif _i < 55:
+        _SEED_CAT[_s] = 1
+    else:
+        _SEED_CAT[_s] = 2
+
+
+def _categorize(seed):
+    return _SEED_CAT.get(seed, -1)
 
 def _clean_seed(s):
     """Hapus 1st person biar LLM gak ngarang cerita Ryan. Juga convert lo→kalian."""
@@ -745,37 +798,82 @@ def generate_thread(seed, mode="OPINION", **kwargs):
 #   REVISION LOOP
 # ══════════════════════════════════════════════
 
-REVISION_PROMPT = """Your job: fix the generated output below so it passes validation.
+REVISION_PROMPT = """You are a surgical editor. Fix ONLY the validation violations in the JSON output below.
+Keep everything that isn't flagged IDENTICAL — do not rewrite, rephrase, or restructure.
 
-Original input and the failing JSON are provided. The validation errors are listed. Fix ONLY what caused the violations; keep everything else identical.
+VIOLATION → FIX (apply ONLY to the flagged post, not others):
 
-Fix rules per error type:
+══════════════════════════════════════
+POST_1 NO DIGIT — post_1 must contain at least one number.
+  FIX: Inject a specific statistic or number from the seed into post_1.
+  WRONG: "Otak manusia lebih gampang inget hal negatif."
+  RIGHT: "Otak manusia 3x lebih gampang inget hal negatif dibanding positif. Ini mekanisme survival."
+  Rule: find the numeric dimension — percentage, count, ratio, time — and surface it.
 
-POST_1 NO DIGIT:
-- Add a specific number or statistic to post_1. Find the numeric dimension in the seed.
-- Example: "fenomena unik" → "95% kucing domestik takut air"
+══════════════════════════════════════
+POST_1 EXCEEDS 150 CHARS — post_1 character limit is 150.
+  FIX: Trim filler words and subordinate clauses. Keep the counter-intuitive hook + number.
+  WRONG: "Ternyata ada satu fakta menarik yang mungkin kalian belum tahu tentang otak manusia..."
+  RIGHT: "Otak lo cuma 2% dari badan tapi makan 20% energi harian. Tanpa lo sadari."
+  Strategy: remove "Ternyata...", "Fakta menarik...", "Tahukah kalian..." — go straight to the fact.
 
-POST_6 NO QUESTION:
-- Rewrite the last sentence of post_6 as a genuine question ending with "?".
-- Must invite personal reply, not rhetorical.
+══════════════════════════════════════
+POST_N EXCEEDS 350 CHARS (N=2-5) — posts 2-5 max 350 characters each.
+  FIX: Cut the weakest sentence in that post. Keep the strongest claim.
+  Strategy: remove redundant explanation, merge two short sentences, or trim adjectives.
 
-CHARACTER LIMIT:
-- Truncate or rephrase concisely while keeping the same meaning.
-- Cut filler words, not substance.
+══════════════════════════════════════
+POST_6 EXCEEDS 300 CHARS — post_6 max 300 characters.
+  FIX: Trim closing setup, keep only the question. No recap of previous points.
+  WRONG: "Jadi itulah kenapa otak lo lebih suka inget yang negatif. Pertanyaannya sekarang: hal negatif apa yang paling lo inget minggu ini?"
+  RIGHT: "Hal negatif apa yang masih lo inget dari minggu ini?"
+  Rule: delete everything before the question mark if it repeats earlier content.
 
-PROHIBITED WORD:
-- Replace with a natural equivalent from everyday Indonesian casual speech.
+══════════════════════════════════════
+POST_6 NO QUESTION — post_6 must end with a genuine question mark.
+  FIX: Replace the last sentence with a question that invites personal reply.
+  WRONG: "Itulah kenapa cegukan muncul tiba-tiba."
+  RIGHT: "Kapan terakhir kali kalian cegukan di momen paling gak tepat?"
+  Rule: NOT rhetorical (bukan "iya kan?", "gila kan?"). Must ask for personal experience.
 
-INVALID PRONOUN ("lo" instead of "kalian"):
-- Change ONLY the pronoun from "lo"/"lu"/"kamu" to "kalian".
-- If "lo" is inside a quoted dialogue, leave it unchanged.
+══════════════════════════════════════
+PROHIBITED WORD — output contains a banned LinkedIn/self-dev word.
+  FIX: Replace with natural Indonesian casual equivalent.
+  BANNED → REPLACE WITH: mindset → cara pikir, growth → berkembang, produktivitas → hasil kerja,
+     konsisten → terus-terusan, kebiasaan → rutinitas, optimal → maksimal, transformasi → perubahan,
+     perjalanan → proses, healing → pemulihan, bersyukur → berterima kasih
+  Rule: use everyday Indonesian (warteg-level), not seminar-level.
 
-SEMANTIC ISSUES:
-- If flagged for hallucination or unsupported claim, correct the claim to match seed facts.
+══════════════════════════════════════
+INVALID PRONOUN — "lo"/"lu"/"kamu"/"anda" found in narrator text.
+  FIX: Replace with "kalian" (audience) or "gw/gue" (narrator). Keep inside quotes unchanged.
+  WRONG: "Otak lo cuma 2% dari badan" (narrator text)
+  RIGHT: "Otak kalian cuma 2% dari badan" (narrator addressing audience)
+  EXCEPTION: Dialog inside quotes ("...") stays — "terus dia bilang 'lo gila ya'" is fine.
 
-General rules:
-- Change as little as possible. Do not rewrite the entire output.
-- Return valid JSON only — same schema as the original output."""
+══════════════════════════════════════
+MISSING POST_N — a required post is empty or missing from JSON.
+  FIX: Generate the missing post. 1 sentence is enough.
+  If the seed doesn't have enough material for that slide, use a bridging question or observation.
+
+══════════════════════════════════════
+INVALID CLAIM TYPE — a claim label is wrong or missing source_ids on FACT claims.
+  FIX: Relabel or add source_ids. FACT claims MUST have at least one source_id.
+  FACT without source → change label to OPINION. OPINION with source → remove source_ids from that claim.
+
+══════════════════════════════════════
+SEMANTIC ISSUES — hallucination, unsupported claim, or factual error.
+  FIX: Remove the specific sentence. Do NOT invent data to fix it.
+  Replace with a bridging sentence that transitions naturally: "Tapi ada sisi lain yang lebih menarik." or "Kenapa bisa gitu?"
+  NEVER make up statistics, study names, or expert quotes to patch a hallucination.
+
+══════════════════════════════════════
+CRITICAL RULES:
+- Change ONLY what's flagged. Every other post, claim, and field stays verbatim.
+- Never remove post_1's counter-intuitive hook structure — that's the engagement driver.
+- Return VALID JSON with identical schema: {status, mode, seed, angle, post_1..post_6, claims_used, source_ids_used}
+- One revision only. Be precise.
+"""
 
 def revise_output(output_text, violations, input_data):
     """Send original failed output + errors to LLM for targeted fix."""
@@ -1135,6 +1233,7 @@ def main():
             data.setdefault("topics", []).append({
                 "title": seed, "posted": datetime.now(WIB).isoformat(),
                 "claims": claims, "angle": angle,
+                "category": _categorize(seed),
                 "media_id": media_id, "post_id": first_id
             })
             save_data(data)
