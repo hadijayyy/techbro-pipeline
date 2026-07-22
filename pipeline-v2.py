@@ -32,6 +32,7 @@ for env_path in [HOME / ".hermes" / ".env", BASE_DIR / ".env"]:
                 k, v = line.split("=", 1)
                 ENV[k.strip()] = v.strip().strip("\"'")
 USER_ID = "27755289527427776"
+TREND_ENABLED = "--no-trend" not in sys.argv
 LLM_BASE = "https://api.mistral.ai/v1"
 LLM_KEY = ENV.get("MISTRAL_API_KEY", "")
 THREADS_TOKEN = ENV.get("THREADS_ACCESS_TOKEN", "")
@@ -358,6 +359,10 @@ Good: "Kapan terakhir kali kalian ngerasa dejavu, dan lagi ngapain waktu itu?" �
 Rule: one question, references thread detail, feels like DM-ing a friend. No new argument.
 </thread_structure>
 
+<trending_rule>
+If `<trending_context>` is provided in input, you MAY reference 1 trending topic naturally in post_2 (scenario) or post_3 (observation) if it connects to the seed. Reference style: subtle and grounded, like "Baru-baru ini ramai soal X..." — never "Menurut trending topic..." or "Berdasarkan tren...". Never force a trend that doesn't fit. If no trend fits, ignore entirely.
+</trending_rule>
+
 <output_contract>
 Return valid JSON only, no markdown fences, no commentary. Use exactly these keys:
 
@@ -436,6 +441,67 @@ def pull_engagement():
     return updated
 
 # ══════════════════════════════════════════════
+#   TRENDING CONTEXT (Google Trends Indonesia)
+# ══════════════════════════════════════════════
+
+_TREND_CACHE = None
+
+def _fetch_trending_context(seed):
+    """Get Indonesia trending topics related to seed via Google News RSS. Returns dict or None."""
+    global _TREND_CACHE
+    if not TREND_ENABLED:
+        return None
+
+    try:
+        if _TREND_CACHE is None:
+            import xml.etree.ElementTree as ET
+            url = 'https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRFZxYUdjU0FtVnVHZ0pWVXlnQVAB?hl=id&gl=ID&ceid=ID:id'
+            r = httpx.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'})
+            if r.status_code == 200:
+                root = ET.fromstring(r.text)
+                items = root.findall('.//item')
+                all_trends = []
+                for item in items:
+                    title = item.findtext('title', '')
+                    if title:
+                        all_trends.append(title.strip())
+                _TREND_CACHE = all_trends[:40]
+                log.debug(f"Trending: {len(all_trends)} headlines fetched")
+            else:
+                log.debug(f"Trend fetch HTTP {r.status_code}")
+                return None
+        else:
+            all_trends = _TREND_CACHE
+
+        # Score each headline for relevance to seed
+        seed_lower = seed.lower()
+        stopwords = {'dan', 'di', 'ke', 'dengan', 'yang', 'ini', 'itu', 'dari',
+            'pada', 'untuk', 'bisa', 'tidak', 'akan', 'adalah', 'sebagai',
+            'atau', 'juga', 'oleh', 'dalam', 'kami', 'kita', 'mereka', 'telah', 'sudah'}
+        seed_kws = [w for w in re.findall(r'\w+', seed_lower)
+                    if w not in stopwords and len(w) > 3]
+
+        scored = []
+        for t in all_trends:
+            tl = t.lower()
+            kw_score = sum(2 for kw in seed_kws if kw in tl)
+            if any(s in tl for s in seed_lower.split() if len(s) > 4):
+                kw_score += 3
+            if kw_score > 0:
+                scored.append((kw_score, t))
+
+        if scored:
+            scored.sort(key=lambda x: (-x[0], x[1]))
+            return {"trends": [t for _, t in scored[:3]], "all_top": all_trends[:5]}
+
+        # No direct match — still provide today's pulse
+        return {"trends": [], "all_top": all_trends[:5]}
+
+    except Exception as e:
+        log.debug(f"Trend fetch: {e}")
+        return None
+
+# ══════════════════════════════════════════════
 #   GENERATOR — FULL PROMPTS
 # ══════════════════════════════════════════════
 
@@ -457,9 +523,10 @@ def build_user_prompt(seed, mode="OPINION", **kwargs):
         "recent_content": kwargs.get("recent", {
             "openings": [], "ctas": [], "analogies": [],
             "characters": [], "local_details": [], "angles": []
-        })
+        }),
+        "trending_context": kwargs.get("trending", None)
     }
-    return f"""Generate one six-post Threads chain using the following input.
+    output = f"""Generate one six-post Threads chain using the following input.
 
 <input>
 {json.dumps(inp, indent=2, ensure_ascii=False)}
@@ -469,6 +536,25 @@ Additional direction:
 - {mode} mode. Gunakan narator "gw" + audiens "kalian".
 - ANGLES TO AVOID (already recently used — do NOT repeat these patterns): {json.dumps(inp.get('recent', {}).get('angles', [])[:5], ensure_ascii=False)}
 - Do NOT phrase the angle as "bukan X, tapi Y", "bukan X, melainkan Y", or "X bukan Y, tapi Z" if similar phrasing appears in the avoided angles."""
+
+    # Append trending instruction if data exists
+    trend = kwargs.get("trending")
+    if trend and trend.get("trends"):
+        trend_list = " • ".join(trend["trends"])
+        output += f"""\n
+<trending_context>
+Today in Indonesia, these are trending and relate to your topic: {trend_list}
+If it connects naturally, weave 1 relevant trend into post_2 (scenario) or post_3 (observation). Never force — if trend doesn't fit the seed, ignore it. Reference must be subtle: "Ada yang lagi viral soal X..." not "Menurut trending topic...".
+</trending_context>"""
+    elif trend and trend.get("all_top"):
+        # Still show today's general pulse
+        top_str = " • ".join(trend["all_top"])
+        output += f"""\n
+<trending_context>
+Today's trending in Indonesia: {top_str}. Use only if naturally connected to your seed. Skip if irrelevant.
+</trending_context>"""
+
+    return output
 
 # ══════════════════════════════════════════════
 #   GENERATION
@@ -569,9 +655,17 @@ def generate_thread(seed, mode="OPINION", **kwargs):
         log.error("No LLM_KEY")
         return None
 
+    log.info(f"Seed: {seed}")
+
+    trend = _fetch_trending_context(seed)
+    if trend and trend.get("trends"):
+        log.info(f"  Related trends: {' • '.join(trend['trends'])}")
+    elif trend and trend.get("all_top"):
+        log.debug(f"  Top trends: {' • '.join(trend['all_top'][:2])}")
+
     system = build_system_prompt(seed)
-    user = build_user_prompt(seed, mode=mode, **kwargs)
-    
+    user = build_user_prompt(seed, mode=mode, trending=trend, **kwargs)
+
     for attempt in range(1, 4):
         log.info(f"  LLM attempt {attempt}/3")
         try:
@@ -1098,8 +1192,7 @@ def main():
     
     seed_raw = _pick_seed(data)
     seed = _clean_seed(seed_raw)
-    log.info(f"Seed: {seed}")
-    
+
     # Load recent_content for repetition prevention
     recent_content = data.get("recent_content", {
         "openings": [], "ctas": [], "analogies": [],
