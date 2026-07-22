@@ -537,7 +537,8 @@ def _fetch_trending_context(seed):
 
         if scored:
             scored.sort(key=lambda x: (-x[0], x[1]))
-            return {"trends": [t for _, t in scored[:3]], "all_top": all_trends[:5]}
+            top_score = scored[0][0]
+            return {"trends": [t for _, t in scored[:3]], "all_top": all_trends[:5], "top_score": top_score}
 
         log.debug("No related trends for this seed")
         return None
@@ -594,10 +595,17 @@ If it connects naturally, weave 1 relevant trend into post_2 (scenario) or post_
     elif trend and trend.get("all_top"):
         # Still show today's general pulse
         top_str = " • ".join(trend["all_top"])
-        output += f"""\n
-<trending_context>
-Today's trending in Indonesia: {top_str}. Use only if naturally connected to your seed. Skip if irrelevant.
-</trending_context>"""
+        output += f"""\n\n<trending_context>\nToday's trending in Indonesia: {top_str}. Use only if naturally connected to your seed. Skip if irrelevant.\n</trending_context>"""
+
+    # Trend-as-seed mode: connect trending headline to everyday life
+    if kwargs.get("is_trend"):
+        output += """\n\n<trend_as_seed>
+This seed is a TRENDING TOPIC from today's news. Your task: CONNECT it to everyday life.
+Angle must match @ryanhadiii brand: factual observation about daily life, not news commentary.
+Do NOT repeat or paraphrase the news — find the personal/relatable angle behind it.
+Do NOT take sides or make political statements.
+S1 still needs a specific number — find a related statistic if the headline doesn't have one.
+</trend_as_seed>"""
 
     return output
 
@@ -708,13 +716,22 @@ def generate_thread(seed, mode="OPINION", **kwargs):
     log.info(f"Seed: {seed}")
 
     trend = _fetch_trending_context(seed)
+    is_trend = False
     if trend and trend.get("trends"):
         log.info(f"  Related trends: {' • '.join(trend['trends'])}")
+        # 30% chance to use strong trend as seed
+        if trend.get("top_score", 0) >= 10 and random.random() < 0.30:
+            seed = trend["trends"][0]
+            is_trend = True
+            log.info(f"  → Trend mode: '{seed}'")
     elif trend and trend.get("all_top"):
         log.debug(f"  Top trends: {' • '.join(trend['all_top'][:2])}")
 
     system = build_system_prompt(seed)
-    user = build_user_prompt(seed, mode=mode, trending=trend, **kwargs)
+    user_kwargs = dict(kwargs)
+    if not is_trend:
+        user_kwargs["trending"] = trend  # trend context only in normal mode
+    user = build_user_prompt(seed, mode=mode, is_trend=is_trend, **user_kwargs)
 
     for attempt in range(1, 4):
         log.info(f"  LLM attempt {attempt}/3")
