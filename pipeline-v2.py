@@ -322,15 +322,12 @@ post_1 — Hook
 - Maximum 150 characters including spaces.
 - One or two sentences, never three.
 - REQUIRED: counter-intuitive claim or surprising contrast that challenges common belief.
-- REQUIRED if the seed contains numeric data or percentages: include that specific number in the hook (e.g. "95% sukses", "7 dari 10", "100.000 kali sehari"). Angka konkret bikin hook 3x lebih strong.
-- FORBIDDEN: "Pernah...?" / "Kalian pernah...?" / "Pernah nggak...?" — zero tolerance. Even with contradiction, these patterns make readers feel addressed generically and they skip.
-- FORBIDDEN: "Padahal" as the second sentence opener — makes the hook wordy. Use contrast within one sentence.
-- Bad: "Kalian pernah bangun gara-gara kentut sendiri?" → "Kalian pernah" = soft, readers mentally check out.
-- Bad: "Coba deh bayangin kalau..." → too wordy, wastes 150 chars.
-- Good: "Singa gagal 7 dari 10 buruan. Capung? 95% sukses. Gimana caranya?" → contrast + number + curiosity gap.
-- Good: "Jantung lo berdetak 100.000 kali sehari. Otak lo mikir 6.000 pikiran. Semua tanpa sadar." → specific numbers, bold, no greeting.
-- Good: "Ngomong sendiri bukan tanda gila. Itu cara otak ngatur pikiran." → bold claim, no question needed.
-- No greeting, background setup, clickbait, or unsupported number.
+- REQUIRED: specific number, statistic, or quantifiable contrast. Every seed has a numeric dimension — find it and use it. Angka konkret = hook 3x lebih engaging. Hook tanpa angka = FAILED.
+- Example numeric transforms:
+  * "kucing takut air" → "Kucing domestik: 95% takut air. Tapi kenapa? Nenek moyang mereka berasal dari gurun."
+  * "ngomong sendiri" → "Otak lo ngolah 70.000 pikiran per hari. Ngomong sendiri adalah cara lo nge-sort prioritas."
+  * "placebo effect" → "Gula doang bisa nurunin rasa sakit 30%. Tanpa obat, tanpa bahan aktif. Gimana caranya?"
+- Good: "Singa gagal 7 dari 10 buruan. Capung? 95% sukses." → contrast + angka spesifik.
 
 post_2 — Concrete scenario
 - Maximum 350 characters including spaces.
@@ -354,9 +351,14 @@ post_5 — Application
 
 post_6 — Closing
 - Maximum 300 characters including spaces.
-- End with one concise takeaway, reflection, or low-friction CTA.
+- REQUIRED: end with a question that invites personal reply. Not a rhetorical question — a genuine prompt that makes readers share their experience.
+- Bad: "Ketakutan terhadap air adalah strategi bertahan hidup yang berbeda." → statement, no reason to reply.
+- Bad: "Pernah ngerasain hal yang sama?" → too generic, nobody replies to this.
+- Good: "Kucing lo gitu juga? Atau malah kebalikannya?" → specific, low-effort reply, invites comparison.
+- Good: "Gula + keyakinan doang bisa nurunin sakit. Lo punya 'obat' aneh yang selalu manjur?" → personal experience ask, natural.
+- Good: "Rayap bangun istana dari liur. Tim lo gimana — rapi atau berantakan?" → relatable, funny, invites comparison.
+- Rule: after the takeaway, ask ONE specific question. Must reference a detail from the thread. Must feel like dm-ing a friend, not a quiz.
 - Do not introduce a new argument.
-- The CTA is optional and must fit the content objective.
 
 The posts must form a continuous chain, but each post should remain understandable when viewed independently.
 </thread_structure>
@@ -492,7 +494,9 @@ def build_user_prompt(seed, mode="OPINION", **kwargs):
 </input>
 
 Additional direction:
-{mode} mode. Gunakan narator "gw" + audiens "kalian"."""
+- {mode} mode. Gunakan narator "gw" + audiens "kalian".
+- ANGLES TO AVOID (already recently used — do NOT repeat these patterns): {json.dumps(inp.get('recent', {}).get('angles', [])[:5], ensure_ascii=False)}
+- Do NOT phrase the angle as "bukan X, tapi Y", "bukan X, melainkan Y", or "X bukan Y, tapi Z" if similar phrasing appears in the avoided angles."""
 
 # ══════════════════════════════════════════════
 #   GENERATION
@@ -516,7 +520,13 @@ def deterministic_validate(data):
         key = f"post_{i}"
         limit = CHAR_LIMITS.get(key, 350)
         if len(p) > limit:
-            violations.append(f"{key}: {len(p)} chars exceeds limit {limit}")
+            # post_1: auto-truncate instead of failing (LLM can't count chars)
+            if key == "post_1":
+                truncated = p[:limit].rsplit('.', 1)[0] + '.'
+                data["post_1"] = truncated
+                p = posts[0] = truncated
+            else:
+                violations.append(f"{key}: {len(p)} chars exceeds limit {limit}")
     
     if len(violations) > 0:
         return False, violations
@@ -527,12 +537,27 @@ def deterministic_validate(data):
         if word.lower() in text_lower:
             violations.append(f"Prohibited term: '{word}'")
     
-    # Check POV — no lo/kamu/gue outside quotes in narrator text
+    # Check POV — no lo/kamu in narrator text (not inside quotes)
     combined = " | ".join(posts)
-    outside_quotes = re.sub(r'"[^"]*"|\'[^\']*\'', '', combined)
-    for bad in [r'\blo\b', r'\bkamu\b', r'\bLo\b', r'\bKamu\b']:
-        if re.search(bad, outside_quotes):
-            violations.append(f"Invalid audience pronoun: {bad}")
+    for word in ['lo', 'kamu']:
+        for m in re.finditer(rf'\b{re.escape(word)}\b', combined, re.IGNORECASE):
+            text_before = combined[:m.start()]
+            # If even number of quotes before match → outside quoted text
+            dq = text_before.count('"')
+            sq = text_before.count("'")
+            if dq % 2 == 0 and sq % 2 == 0:
+                violations.append(f"Invalid audience pronoun: '{word}'")
+                break
+    
+    # S1 angka — MUST have at least one digit for hook strength
+    s1 = posts[0]
+    if not re.search(r'\d', s1):
+        violations.append("post_1: no number — REQUIRED for hook engagement")
+    
+    # S6 reply-bait
+    s6 = posts[5].strip()
+    if not s6.endswith('?'):
+        violations.append("post_6: must end with a question mark — reply-bait CTA REQUIRED")
     
     # Check mode consistency
     mode = data.get("mode", "OPINION")
