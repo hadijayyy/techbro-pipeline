@@ -4,8 +4,7 @@ RyanHadi Content Engine V6 — from prompt document spec.
 4 pillars + daily life. OPINION mode default; FACT mode with source_packet.
 Production-grade: truth policy, instruction priority, structured validation.
 """
-import json, os, re, sys, time, random, logging, httpx
-from collections import defaultdict
+import json, re, sys, time, random, logging, httpx
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -23,7 +22,6 @@ log.addHandler(_h)
 DRY_RUN = "--dry-run" in sys.argv
 MAX_CHARS = 495
 GRAPH = "https://graph.threads.net/v1.0"
-RECENT_WINDOW = 5  # number of past posts to track for repetition avoidance
 
 ENV = {}
 for env_path in [HOME / ".hermes" / ".env", BASE_DIR / ".env"]:
@@ -171,41 +169,6 @@ def _convert_pov(text):
             parts[i] = part
     return ''.join(parts)
 
-
-def _extract_recent_content(slides, angle="", claims=None):
-    """Extract recent content fingerprints from generated slides for repetition tracking."""
-    recent = {"openings": [], "ctas": [], "analogies": [], "characters": [], "local_details": [], "angles": []}
-    if angle:
-        recent["angles"] = [angle]
-    for s in slides:
-        content = s.get("content", "")
-        title = s.get("title", "")
-        if title == "S1":
-            recent["openings"] = [content[:120]]
-        if title == "S6":
-            recent["ctas"] = [content[:120]]
-        for keyword in ["kayak", "seperti ", "ibarat"]:
-            if keyword in content.lower():
-                for sentence in content.replace(";", ".").split("."):
-                    if keyword in sentence.lower():
-                        recent["analogies"].append(sentence.strip()[:80])
-                        break
-    for key in recent:
-        recent[key] = list(dict.fromkeys(recent[key]))[:3]
-    return recent
-
-
-def merge_recent_content(data, new_recent):
-    """Slide new recent content into data, keeping sliding window of RECENT_WINDOW items."""
-    recent = data.setdefault("recent_content", {
-        "openings": [], "ctas": [], "analogies": [], "characters": [], "local_details": [], "angles": []
-    })
-    for key in ["openings", "ctas", "analogies", "characters", "local_details", "angles"]:
-        existing = recent.get(key, [])
-        new_items = new_recent.get(key, [])
-        combined = [x for x in new_items if x not in existing] + existing
-        recent[key] = combined[:RECENT_WINDOW]
-    return data
 
 
 # ══════════════════════════════════════════════
