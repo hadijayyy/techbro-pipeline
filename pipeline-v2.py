@@ -1024,53 +1024,54 @@ def post_to_threads(slides):
             return None
 
     # Flow: create, publish, get published ID, create next with reply_to
-        ids = []
-        parent_publish_id = None
-        first_publish_id = None
-    
-        for i, s in enumerate(slides):
-            # 1. Create container (with retry)
-            container_id = None
-            for retry in range(3):
-                container_id = create_container(s["content"], parent_publish_id)
-                if container_id:
+    ids = []
+    parent_publish_id = None
+    first_publish_id = None
+
+    for i, s in enumerate(slides):
+        # 1. Create container (with retry)
+        container_id = None
+        for retry in range(3):
+            container_id = create_container(s["content"], parent_publish_id)
+            if container_id:
+                break
+            log.warning(f"  Retry {retry+1}/3 create container for {s['title']}")
+            time.sleep(2 * (1 + retry))
+        if not container_id:
+            log.error(f"  Failed to create container for {s['title']} after 3 retries")
+            return None, ids
+        time.sleep(1.5)
+
+        # 2. Publish immediately (with retry)
+        publish_data = None
+        for retry in range(3):
+            try:
+                r = httpx.post(
+                    f"{GRAPH}/{USER_ID}/threads_publish",
+                    data={"access_token": THREADS_TOKEN, "creation_id": container_id},
+                    timeout=15
+                )
+                if r.status_code == 200:
+                    publish_data = r.json()
                     break
-                log.warning(f"  Retry {retry+1}/3 create container for {s['title']}")
-                time.sleep(2 * (1 + retry))
-            if not container_id:
-                log.error(f"  Failed to create container for {s['title']} after 3 retries")
-                return None, ids
-            time.sleep(1.5)
-        
-            # 2. Publish immediately (with retry)
-            publish_data = None
-            for retry in range(3):
-                try:
-                    r = httpx.post(
-                        f"{GRAPH}/{USER_ID}/threads_publish",
-                        data={"access_token": THREADS_TOKEN, "creation_id": container_id},
-                        timeout=15
-                    )
-                    if r.status_code == 200:
-                        publish_data = r.json()
-                        break
-                    log.warning(f"  Retry {retry+1}/3 publish {s['title']}: {r.status_code}")
-                except (httpx.RequestError, json.JSONDecodeError, KeyError) as e:
-                    log.warning(f"  Retry {retry+1}/3 publish error: {e}")
-                time.sleep(2 * (1 + retry))
-            if not publish_data:
-                log.error(f"  Publish failed for {s['title']} after 3 retries")
-                return None, ids
-            publish_id = publish_data.get("id") or publish_data.get("media_id")
-            if not publish_id:
-                log.error(f"  No id in publish response: {publish_data}")
-                return None, ids
-            if first_publish_id is None:
-                first_publish_id = publish_id
-            ids.append(container_id)
-            parent_publish_id = publish_id  # next post replies to this published post
-            time.sleep(1.5)
-    
+                log.warning(f"  Retry {retry+1}/3 publish {s['title']}: {r.status_code}")
+            except (httpx.RequestError, json.JSONDecodeError, KeyError) as e:
+                log.warning(f"  Retry {retry+1}/3 publish error: {e}")
+            time.sleep(2 * (1 + retry))
+        if not publish_data:
+            log.error(f"  Publish failed for {s['title']} after 3 retries")
+            return None, ids
+        publish_id = publish_data.get("id") or publish_data.get("media_id")
+        if not publish_id:
+            log.error(f"  No id in publish response: {publish_data}")
+            return None, ids
+
+        if first_publish_id is None:
+            first_publish_id = publish_id
+        ids.append(container_id)
+        parent_publish_id = publish_id  # next post replies to this published post
+        time.sleep(1.5)
+
     media_id = ids[0] if ids else None
     return media_id, first_publish_id
 
