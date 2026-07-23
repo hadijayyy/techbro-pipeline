@@ -48,7 +48,7 @@ PROHIBITED = [
     "self love", "healing journey", "inner child",
 ]
 
-# ── Seed pool — 3 categories: otak, hewan, tubuh manusia ──
+# ── Seed pool — 3 categories: otak, hewan, kesehatan ──
 SEEDS = [
     # Fakta unik (otak / tidur / memori)
     "Otak manusia lebih gampang inget hal negatif — ini mekanisme survival",
@@ -107,38 +107,38 @@ SEEDS = [
     "Hiu: bisa deteksi setetes darah dalam 100 liter air",
     "Burung tidur berdiri 8 jam tanpa jatuh — tendon di kaki otomatis ngunci pas otot rileks. Manusia gak punya fitur ini",
     "Paus — yang sering lo panggil 'ikan paus' ternyata mamalia dan dulunya jalan di darat",
-    # Fakta tubuh manusia (di luar otak)
-    "60% orang ikut menguap dalam 5 menit setelah liat orang lain — bukan soal oksigen, ini sinyal empati otomatis",
-    "Jari keriput cuma butuh 3 menit di air — ini sinyal aktif dari sistem saraf, bukan reaksi pasif penyerapan air",
-    "Cegukan tiap 3 detik selama 5 menit — diafragma kram karena saraf vagus irritation, lo gak bisa kontrol",
-    "Sidik jari terbentuk di usia janin 10 minggu — bukan buat identitas, tapi buat nge-grip benda licin",
-    "90% manusia dominan kanan. Tapi kenapa ada yang kidal? Jawabannya udah ditentukan sebelum lahir",
-    "Bulu kuduk merinding: ternyata pesan dari otak purba",
-    "Kuping tumbuh 0.22mm per tahun — setelah 60 tahun panjangnya bisa beda 2cm dari waktu bayi",
-    "Demam 38°C bikin virus replikasi 2x lebih lambat — bukan kecelakaan, ini senjata tubuh yang terprogram",
-    "Lapar 4 jam bikin lo 3x lebih impulsif — gula darah turun, prefrontal cortex mati duluan",
-    "Gatal muncul di 3 titik spesifik pas lagi sendiri — area yang paling jarang disentuh, sensornya paling hipersensitif",
-    "Alis bukan cuma ekspresi — 5.000 tahun evolusi bikin alis jadi pelindung mata dari keringat dan hujan",
-    "Urat kelihatan biru padahal darah merah — ini penjelasan optiknya",
-    "60% orang alamin kedutan pas tidur — otak kaget detak jantung turun drastis, ngira lo sekarat",
-    "Bayi punya 300 tulang, dewasa cuma 206 — kemana sisanya?",
-    "Manusia punya 2 ginjal padahal 1 berfungsi 100% — tapi 60% pasokan kena penyakit baru tau",
-    "Lo rontok 50-100 helai per hari — normal, setiap folikel punya siklus 3 fase yang udah diprogram genetik",
-    "Paru-paru kiri 10% lebih kecil dari kanan — jantung butuh ruang. Bukan desain error, ini efisiensi ruang",
-    "Rambut kepala tumbuh 6 tahun nonstop — alis cuma 3 bulan. Beda genetik di fase anagen, bukan gizi atau perawatan",
-    "Lidah — peta rasa tradisional yang diajarin di sekolah ternyata udah usang",
-    "Blushing cuma butuh 2 detik — darah melonjak ke pipa akibat adrenalin. Lo malu, tapi tubuh lo siap fight",
-    "Keringat gak bau — bakteri di kulit lo yang bikin bau",
-    "Rata-rata tubuh produksi 200ml gas per hari — saat tidur sfingter rileks total, kontrol sadar off",
-    "1 dari 12 pria buta warna — mayoritas bukan hitam-putih, cuma merah-hijau. Gen resesif di kromosom X",
-    "Jantung denyut 100.000 kali per hari tanpa lo perintah, tanpa lo kontrol, tanpa lo ingat. Kenapa gak capek?",
-    "15% manusia gak pernah digigit nyamuk — bukan soal darah manis/tawar, senyawa di kulit bikin mereka ogah",
+    # Fakta kesehatan & gaya hidup
+    "5.000 langkah per hari 50% lebih efektif turunin tekanan darah dr 10.000 — bukan makin banyak makin bagus",
+    "Vitamin D dari sinar matahari pagi 15 menit setara 10.000 IU — tapi 70% orang Indonesia tetep defisit",
+    "Garam di indomie 1 bungkus udah 60% batas harian — bukan cuma bikin haus, ini silent killer ginjal",
+    "Duduk 8 jam per hari naikin risiko penyakit jantung 40% meski lo olahraga 1 jam",
+    "Minum air putih 2 liter sehari itu mitos — kebutuhan cairan beda-beda per orang, gak ada angka universal",
+    "Sakit kepala tegang 90% bukan di otak — otot leher dan bahu yang kaku, sarafnya sampe ke kepala",
+    "Gula aren lebih sehat dari gula pasir? Mitos. Glukosa+fruktosa tetap sama, cuma beda rasa doang",
+    "Tidur 6 jam 30 menit bisa lebih nyenyak dr 9 jam — kuncinya siklus REM, bukan durasi total",
+    "Asam lambung naik bukan karena pedas — 80% dipicu stres, posisi tidur, dan porsi makan",
+    "Kolesterol tinggi 70% faktor genetik — pola makan cuma 30%. Jangan bully orang gemuk",
+    "Olahraga malam bikin susah tidur? Mitos. 20 menit yoga ringan 1 jam sebelum tidur malah bikin lelap",
+    "Flu dan batuk sembuh 7 hari tanpa obat kalo imun lo jalan. Antibiotik guna buat bakteri, bukan virus",
+    "Berat badan turun drastis 2 minggu pertama diet — 80% air, bukan lemak. Jangan seneng dulu",
+    "Mata minus makin parah bukan karena main HP — 60% genetik, sisanya jarak baca + cahaya",
+    "Hidung mampet salah satu sisi bukan sinus — tubuh sengaja shift sirkulasi tiap 2-4 jam",
+    "Sarapan ternyata gak wajib buat turun BB. Puasa 14 jam bisa reset metabolisme",
+    "Telinga berdenging 90% bukan penyakit — otot kecil di dalam telinga kram akibat stres atau kafein",
+    "Kaki bengkak abis jalan jauh bukan lemak — cairan limfatik numpuk. Angkat kaki 20 menit = reset",
+    "Makan 1x sehari bisa lebih sehat dr 6x kalo total kalori sama — bukan frekuensi, totalnya yang penting",
+    "Jerawat di dagu 80% hormon — cuci muka 5x sehari gak ngaruh kalo dalemannya masih bermasalah",
+    "Sendawa 20-30x per hari normal. Kalo lebih — bakteri usus lagi produksi gas berlebih",
+    "Lemak gak bisa dikonversi jadi otot — push-up gak bikin lengan kecil mengecil, cuma ngencengin",
+    "Minum es abis olahraga bikin radang tenggorokan? Mitos. Air es justru cepetin recovery otot",
+    "Imun turun 30% kalo tidur <6 jam — lebih gampang sakit dibanding yang tidur 7-9 jam",
+    "Makanan fermentasi (tempe, tape, kimchi) bikin bakteri usus sehat — 90% imun berasal dari usus",
 ]
 
 def _pick_seed(data):
     """Pick seed with engagement weighting + cross-category balancing.
     
-    Categories: otak=0, hewan=1, tubuh=2. Tracks last 3 categories to avoid
+    Categories: otak=0, hewan=1, kesehatan=2. Tracks last 3 categories to avoid
     consecutive repeats. Seeds with engagement data get +50% weight.
     Fallback: pure random if <5 engaged posts.
     """
@@ -227,7 +227,7 @@ def _pick_seed(data):
     return choice
 
 
-# Seed→category mapping (indices: 0-24 otak, 25-54 hewan, 55-79 tubuh)
+# Seed→category mapping (indices: 0-24 otak, 25-54 hewan, 55-79 kesehatan)
 _SEED_CAT = {}
 for _i, _s in enumerate(SEEDS):
     if _i < 25:
@@ -248,7 +248,7 @@ def _viral_potential(seed):
     if re.search(r'\d+', s): score += 1           # angka = specific
     if any(w in s for w in ['kenapa','ternyata','padahal','bikin','tanpa']):
         score += 1                                  # counter-intuitive framing
-    if any(w in s for w in ['kalian','hidup','tubuh','otak','rasa','sehari']):
+    if any(w in s for w in ['kalian','hidup','tubuh','otak','rasa','sehari','sehat','kesehatan']):
         score += 1                                  # personal relevance
     if any(w in s for w in ['hewan','kucing','burung','serangga','laut','mata']):
         score += 1                                  # visual/novelty factor
@@ -521,7 +521,7 @@ def _fetch_trending_context(seed):
         category_map = {
             'otak': ['otak', 'otak', 'pikiran', 'memori', 'tidur', 'mimpi', 'dejavu', 'sadar', 'bawah sadar', 'psikologi'],
             'hewan': ['hewan', 'kucing', 'anjing', 'burung', 'ikan', 'serangga', 'nyamuk', 'lalat', 'bintang', 'laut', 'alam', 'satwa'],
-            'tubuh': ['tubuh', 'tulang', 'darah', 'jantung', 'paru', 'kulit', 'mata', 'telinga', 'otot', 'sistem', 'imun', 'pencernaan'],
+            'kesehatan': ['kesehatan', 'sehat', 'vitamin', 'darah', 'jantung', 'ginjal', 'imun', 'diet', 'lemak', 'kalori', 'gula', 'olahraga', 'tidur', 'stres', 'pencernaan', 'usus', 'metabolisme'],
             'kebiasaan': ['kebiasaan', 'rutinitas', 'kerja', 'produktif', 'waktu', 'usia', 'tua', 'dewasa', 'sehari'],
         }
         cat_kws = set()
