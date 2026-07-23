@@ -147,10 +147,11 @@ SEEDS = [
 
 
 def _pick_seed(data):
-    """Pick seed with engagement weighting + cross-category balancing.
+    """Pick seed with engagement weighting + cross-category balancing + seed gate.
     
     Categories: otak=0, hewan=1, kesehatan=2. Tracks last 3 categories to avoid
     consecutive repeats. Seeds with engagement data get +50% weight.
+    Seeds below _SEED_GATE_MIN are auto-rejected (max 10 retries).
     Fallback: pure random if <5 engaged posts.
     """
     topics = data.get("topics", [])
@@ -158,6 +159,22 @@ def _pick_seed(data):
     unused = [s for s in SEEDS if s not in used_topics]
     if not unused:
         unused = list(SEEDS)
+
+    # seed gate: reject weak seeds (max 10 attempts)
+    for _ in range(10):
+        gated = [s for s in unused if _seed_gate(s)[0]]
+        if gated:
+            break
+        # if all seeds rejected, lower threshold slightly
+        global _SEED_GATE_MIN
+        _SEED_GATE_MIN = max(3, _SEED_GATE_MIN - 1)
+    else:
+        gated = unused  # fallback: accept all
+        log.info(f"Seed gate: all {len(unused)} seeds below threshold — accepting all")
+
+    rejected = len(unused) - len(gated)
+    if rejected:
+        log.info(f"Seed gate: {rejected}/{len(unused)} rejected (min score={_SEED_GATE_MIN})")
 
     # category balancing
     last_cats = []
@@ -168,7 +185,7 @@ def _pick_seed(data):
             last_cats.append(c)
 
     weights = []
-    for s in unused:
+    for s in gated:
         w = 1.0
         cat = _SEED_CAT.get(s, -1)
 
@@ -209,21 +226,58 @@ def _categorize(seed):
     return _SEED_CAT.get(seed, -1)
 
 
-def _viral_potential(seed):
-    """Score seed viral potential 1-5 (keyword heuristics). 5 = high WTF."""
-    score = 1
+def _score_seed_viral(seed):
+    """Score seed 1-10 for 'test grup WA' shareability. 7+ = likely shareable."""
     s = seed.lower()
-    if re.search(r'\d+', s): score += 1           # angka = specific
-    if any(w in s for w in ['kenapa','ternyata','padahal','bikin','tanpa']):
-        score += 1                                  # counter-intuitive framing
-    if any(w in s for w in ['kalian','hidup','tubuh','otak','rasa','sehari','sehat','kesehatan']):
-        score += 1                                  # personal relevance
-    if any(w in s for w in ['hewan','kucing','burung','serangga','laut','mata']):
-        score += 1                                  # visual/novelty factor
-    # subtle wording → higher potential
-    if seed[-1] not in '?!.' and len(seed.split()) > 8:
-        score += 1                                  # complex claim
-    return min(score, 5)
+    score = 1  # baseline
+
+    # SPECIFICITY (0-3): angka, persentase, satuan waktu/skala
+    if re.search(r'\d+', s):
+        score += 2
+    if '%' in s:
+        score += 1
+    if any(w in s for w in ['kali','lipat','jam','menit','detik','hari','bulan','tahun']):
+        score += 1
+
+    # COUNTER-INTUITIVE (0-3): surprising angle
+    if any(w in s for w in ['ternyata','padahal','bukan','tanpa','rahasia','gak','cuma']):
+        score += 2
+    if any(w in s for w in ['tapi','meski','walaupun']):
+        score += 1
+
+    # PERSONAL RELEVANCE (0-2): everyday body/mind/life
+    body_mind = ['otak','tubuh','tidur','makan','minum','mata','telinga','kulit','darah','jantung','napas']
+    if any(w in s for w in body_mind):
+        score += 1
+    daily = ['sehari','kebiasaan','ngomong','jalan','duduk','mandi','pagi','malam','bangun','kerja']
+    if any(w in s for w in daily):
+        score += 1
+
+    # SHOCK/VISUAL (0-2): WTF factor, imagery
+    if any(w in s for w in ['hewan','burung','serangga','ular','ikan','laut','bumi','planet']):
+        score += 1
+    if any(w in s for w in ['mati','racun','ledakan','buta','tuli','gila','error','ilusi']):
+        score += 1
+
+    # LENGTH & COMPLEXITY (0-1): substantial claim > trivial fact
+    if len(seed.split()) > 8:
+        score += 1
+
+    return min(score, 10)
+
+
+_SEED_GATE_MIN = 5  # seeds scoring below this are auto-rejected
+
+
+def _seed_gate(seed):
+    """Return (passed: bool, score: int). Reject weak seeds."""
+    score = _score_seed_viral(seed)
+    return score >= _SEED_GATE_MIN, score
+
+
+def _viral_potential(seed):
+    """Legacy wrapper — returns 1-5 from the new 1-10 scale."""
+    return min(_score_seed_viral(seed) // 2, 5)
 
 
 # ══════════════════════════════════════════════
