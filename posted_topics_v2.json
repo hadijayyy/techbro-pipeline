@@ -1,6 +1,105 @@
 {
   "topics": [
     {
+      "title": "Otak cuma 2% dari badan tapi makan 20% energi harian lo",
+      "angle": "Otak boros banget: 2% berat badan tapi makan 20% energi harian—dan alasan mengapa sistem tubuh rela melepas begitu banyak cadangan untuk organ rumit ini.",
+      "pillar": "Otak, Tubuh, dan Perilaku",
+      "hook_pattern": "hidden_cause",
+      "post_id": "18191392255380087",
+      "media_id": "18191392255380087",
+      "timestamp": "2026-07-23T23:02:01+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Cumi-cumi bisa edit gen di tubuhnya sendiri — ini cara kerjanya",
+      "angle": "Cumi-cumi memanipulasi gen-nya sendiri untuk beradaptasi—bukan lewat mutasi, tapi dengan editing RNA selama hidup.",
+      "pillar": "Hal Biasa, Fakta Luar Biasa",
+      "hook_pattern": "number_shock",
+      "post_id": "18111666940758340",
+      "media_id": "18111666940758340",
+      "timestamp": "2026-07-23T22:02:00+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Sakit kepala tegang 90% bukan di otak — otot leher dan bahu yang kaku, sarafnya sampe ke kepala",
+      "angle": "Sakit kepala tegang = sinyal palsu dari otot leher/bahu yang kaku, bukan sakit di otak sendiri.",
+      "pillar": "Otak, Tubuh, dan Perilaku",
+      "hook_pattern": "myth_breaker",
+      "post_id": "17950173117215617",
+      "media_id": "17950173117215617",
+      "timestamp": "2026-07-23T21:02:01+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Burung hantu bisa muter kepala 270 derajat. Ini mekanisme di baliknya",
+      "angle": "Burung hantu punya mekanisme unik di lehernya yang memungkinkan putaran kepala ekstrim, bukan tulang yang fleksibel.",
+      "pillar": "Sains, Alam, dan Semesta",
+      "hook_pattern": "myth_breaker",
+      "post_id": "18057907901788146",
+      "media_id": "18057907901788146",
+      "timestamp": "2026-07-23T20:01:56+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "80% orang Indonesia doyan pedas. Padahal cabe trigger reseptor rasa sakit — bukan rasa",
+      "angle": "Pedihnya cabe sebetulnya sinyal rasa sakit yang dimanipulasi otak—bukan rasa nikmat asli.",
+      "pillar": "Mitos vs Fakta",
+      "hook_pattern": "myth_breaker",
+      "post_id": "17997730097793434",
+      "media_id": "17997730097793434",
+      "timestamp": "2026-07-23T19:02:04+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Mata minus makin parah bukan karena main HP — 60% genetik, sisanya jarak baca + cahaya",
+      "angle": "Kerusakan mata minus bukan karena layar, tapi 60% faktor genetik, sisanya lingkungan — dan lo bisa turunkan risikonya.",
+      "pillar": "Otak, Tubuh, dan Perilaku",
+      "hook_pattern": "belief_reversal",
+      "post_id": "18096363440225003",
+      "media_id": "18096363440225003",
+      "timestamp": "2026-07-23T18:01:47+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Air dingin turunin detak jantung 15% dalam 10 detik. Cuci muka pas stres = reset instan",
+      "angle": "Mendinginkan wajah saat stres menurunkan denyut nadi secara fisiologis—bukannya ‘reset’ instan lewat lelucon.",
+      "pillar": "Hal Biasa, Fakta Luar Biasa",
+      "hook_pattern": "belief_reversal",
+      "post_id": "18060921623755337",
+      "media_id": "18060921623755337",
+      "timestamp": "2026-07-23T17:01:42+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Vitamin D dari sinar matahari pagi 15 menit setara 10.000 IU — tapi 70% orang Indonesia tetep defisit",
+      "angle": "Dosis vitamin D dari 15 menit matahari pagi ternyata jauh lebih besar dari yang dibayangkan—tapi kenapa kebanyakan orang Indonesia masih defisit?",
+      "pillar": "Kedengarannya Bohong, Tapi Benar",
+      "hook_pattern": "number_shock",
+      "post_id": "17936510487089951",
+      "media_id": "17936510487089951",
+      "timestamp": "2026-07-23T16:01:52+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Minum es abis olahraga bikin radang tenggorokan? Mitos. Air es justru cepetin recovery otot",
+      "angle": "Air es pasca-olahraga tidak menyebabkan radang tenggorokan—malah membantu menurunkan suhu otot dan mempercepat pemulihan.",
+      "pillar": "Mitos vs Fakta",
+      "hook_pattern": "number_shock",
+      "post_id": "17960926362159009",
+      "media_id": "17960926362159009",
+      "timestamp": "2026-07-23T15:27:33+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
       "title": "bukan gak bisa milih. Kalian cuma takut salah milih.",
       "posted": "2026-07-21T18:33:17.976835+07:00",
       "claims": [
@@ -155,44 +254,156 @@
       "category": 2,
       "media_id": "17975430948119201",
       "post_id": "18400661455080133"
+    },
+    {
+      "title": "30 pilihan di depan mata bikin otak freeze — bukan soal keputusan, ini overload kognitif",
+      "posted": "2026-07-22T21:02:29.452593+07:00",
+      "claims": [
+        "ILLUSTRATION: 30 pilihan di warteg bikin milih nasi putih doang",
+        "OPINION: Pilihan terlalu banyak bikin otak kayak komputer tab kebuka semua",
+        "OPINION: Overload pilihan nguras energi mental sebelum mikir yang penting",
+        "ADVICE: Membatasi pilihan jadi 3 mengurangi beban mental"
+      ],
+      "angle": "Overload pilihan bikin otak kehabisan energi sebelum sempat mikir jernih, bukan karena kita lemah ambil keputusan",
+      "category": 0,
+      "media_id": "17975442165119201",
+      "post_id": "18434144977124718"
+    },
+    {
+      "title": "60% orang alamin kedutan pas tidur — otak kaget detak jantung turun drastis, ngira lu sekarat",
+      "posted": "2026-07-22T23:02:35.339024+07:00",
+      "claims": [
+        "OPINION: 60% orang mengalami kedutan saat tidur",
+        "OPINION: Otak panik karena detak jantung turun drastis saat tidur",
+        "OPINION: Kedutan saat tidur adalah respons otak yang kebingungan dengan relaksasi tubuh",
+        "OPINION: Kedutan adalah tanda otak masih aktif, bukan hal berbahaya"
+      ],
+      "angle": "Kedutan saat tidur adalah alarm palsu otak yang kebingungan dengan relaksasi tubuh",
+      "category": -1,
+      "media_id": "17975456196119201",
+      "post_id": "18069820637427397"
+    },
+    {
+      "title": "Anjing bau perubahan hormon lu dalam 3 detik — jauh sebelum lu sadar lagi bad mood",
+      "posted": "2026-07-23T07:02:35.050104+07:00",
+      "claims": [
+        "OPINION: Anjing bisa mendeteksi perubahan hormon dalam 3 detik sebelum manusia sadar bad mood",
+        "OPINION: Anjing membaca perubahan kimia tubuh seperti kortisol, adrenalin, dan feromon",
+        "OPINION: Otak manusia butuh waktu untuk memproses emosi, sementara anjing langsung bereaksi tanpa filter"
+      ],
+      "angle": "Anjing jadi alarm emosi yang lebih peka dari kesadaran diri kita sendiri",
+      "category": -1,
+      "media_id": "17975499393119201",
+      "post_id": "17899635561475261"
+    },
+    {
+      "title": "Kuping tumbuh 0.22mm per tahun — setelah 60 tahun panjangnya bisa beda 2cm dari waktu bayi",
+      "posted": "2026-07-23T09:02:32.293381+07:00",
+      "claims": [
+        "OPINION: Kuping tumbuh 0.22mm per tahun dan bisa beda 2cm setelah 60 tahun",
+        "ILLUSTRATION: Otak manusia cenderung mengabaikan perubahan yang terjadi secara perlahan",
+        "OPINION: Pertumbuhan kuping tidak berhenti dan bisa mencapai 3cm lebih panjang di usia 80 tahun"
+      ],
+      "angle": "Pertumbuhan kuping yang tak terasa adalah metafora bagaimana perubahan kecil yang konsisten bisa jadi besar tanpa kita sadari",
+      "category": 2,
+      "media_id": "17975509371119201",
+      "post_id": "17949293400209057"
+    },
+    {
+      "title": "Cicak nempel di dinding 100% tanpa lem — gaya Van der Waals di 1 juta rambut halus di telapak kakinya",
+      "posted": "2026-07-23T11:02:32.938853+07:00",
+      "claims": [
+        "OPINION: Cicak bisa nempel di dinding karena 1 juta rambut halus di telapak kakinya yang memanfaatkan gaya Van der Waals",
+        "OPINION: Banyak orang mengira cicak punya lem atau cakar super kuat untuk nempel di dinding",
+        "OPINION: Gaya Van der Waals adalah tarik-menarik antar molekul yang lemah, tapi efektif jika bekerja dalam jumlah besar"
+      ],
+      "angle": "Kekuatan cicak nempel di dinding bukan karena kekuatan besar, tapi karena jutaan interaksi kecil yang bekerja bareng",
+      "category": 1,
+      "media_id": "17975521224119201",
+      "post_id": "18075206771380280"
+    },
+    {
+      "title": "Kuda tidur berdiri 4 jam nonstop — stay apparatus di kaki otomatis ngunci sendi pas otot rileks",
+      "posted": "2026-07-23T13:02:34.517537+07:00",
+      "claims": [
+        "ILLUSTRATION: Kuda bisa tidur berdiri 4 jam berkat stay apparatus di kakinya",
+        "OPINION: Tubuh punya cara sendiri untuk istirahat tanpa harus rebahan",
+        "ILLUSTRATION: Manusia punya sistem stabilisasi otomatis yang bekerja saat lelah"
+      ],
+      "angle": "Tubuh punya mekanisme otomatis yang bekerja diam-diam, bahkan saat kita nggak sadar atau capek",
+      "category": 1,
+      "media_id": "17975531325119201",
+      "post_id": "18061250426755637"
     }
   ],
   "recent_content": {
     "openings": [
-      "lalat ngeliat dunia 4x lebih lambat dari kita",
-      "setelah 4 jam tanpa makan kalian 3x lebih mungkin ngambil keputusan gegabah",
-      "1 dari 5 bintang laut bisa menumbuhkan tubuh baru dari satu lengannya",
-      "kaki seribu punya 750 kaki tapi nggak pernah gerak bareng",
-      "15 cm per tahun"
+      "Otak cuma 2% berat badan. Tapi otak makan 20% energi lu tiap hari—10x lipat porsinya. Sisanya diambi",
+      "Cumi-cumi punya 30 ribu gen, tapi bisa edit sendiri 15 ribu gen itu dalam hitungan minggu—tanpa muta",
+      "90% sakit kepala tegang ternyata keluhan otot, bukan di otak. Otot leher/bahu kaku ngirim sinyal ke ",
+      "Kepala burung hantu bisa muter 270 derajat. Bukan karena tulangnya lentur—tapi karena sistem sirkula",
+      "80% dari lu doyan pedas. Padahal cabe gak ngasih rasa, cuma nyulut sensor sakit di mulut.",
+      "60% penurunan penglihatan disebabkan genetik. Sisanya jarak baca dekat dan cahaya redup—bukan main H",
+      "15% detak jantung lu turun dalam 10 detik setelah cuci muka air dingin. Tapi bukan ‘bye-bye stress’,",
+      "15 menit sinar matahari pagi = 10.000 IU vitamin D. Tapi 7 dari 10 orang Indonesia tetap defisit.",
+      "250 ribu orang di Jakarta ikut lomba lari pagi tiap Minggu. Yang minum es abis start, sore harinya b",
+      "60% orang kedutan pas tidur"
     ],
     "ctas": [
-      "gimana rasanya",
-      "gimana hasilnya",
-      "cerita dong",
-      "kalian pernah ngerasa kayak kaki seribu dalam hidup sehari-hari, nggak",
+      "Intinya otak ngeluarin ongkos besar supaya lu bisa ngerasa, mikir, dan nginget. Otak lu pernah ngerj",
+      "Intinya DNA gak berubah, tapi RNA-nya yang pintar beradaptasi. Lu pernah bayangin tubuh kita punya s",
+      "Jadi, kalo kepala lu tiba-tiba sakit tanpa sebab jelas, cek dulu posisi leher dan bahu lu. Terusin p",
+      "Intinya bukan tulangnya ajaib, tapi sistem tubuh yang sinkron. Lo pernah liat burung hantu di alam l",
+      "Jadi pedas itu gak ada hubungannya sama rasa enak. Lebih ke efek kimia otak yang dimanipulasi. Tahun",
+      "Jadi gak usah ngeluh soal HP. Cek riwayat keluarga, jaga jarak baca, dan atur cahaya. Mata lu bakal ",
+      "Jadi reset yang lu rasain itu fenomena saraf, bukan psikis. Lo pernah ngerasa denyut jantung lu anjl",
+      "Intinya bukan soal durasi, tapi kondisi idealnya susah didapat. Lu pernah cek kadar vitamin D lewat ",
+      "Intinya es abis olahraga aman dan membantu. Lo pernah minum es abis latihan tanpa ngerasa radang? Ce",
       "cerita dong, gimana rasanya pas tau kenyataannya beda sama yang kalian kira"
     ],
     "analogies": [
-      "Tiap pasangannya maju bergantian, kayak gelombang",
-      "Gw perhatiin, kita sering mikir konsistensi harus kayak marching band: serempak, teratur, sempurna",
-      "Kayak kaki seribu — tiap langkah kecil, tapi pasti sampai tujuan",
-      "Kalian pernah ngerasa kayak kaki seribu dalam hidup sehari-hari, nggak",
-      "Kayak tanaman yang disiram tiap hari—tetep ada batas tinggi yang udah ditentuin sejak awal"
+      "Gw perhatiin, perubahan yang pelan banget kayak gini sering lu abaikan",
+      "Kayak berat badan yang naik 1kg per tahun — pas naik tangga aja baru sadar napas ngos-ngosan",
+      "Kayak ribuan orang nahan pintu yang mau kebuka",
+      "Kayak ada rem otomatis yang nahan",
+      "Itu mekanisme yang sama kayak kuda — cuma skala beda"
     ],
     "characters": [],
     "local_details": [
-      "kosan",
-      "gang",
-      "nasi Padang",
       "warteg",
-      "kopi"
+      "kopi",
+      "KRL",
+      "angkot",
+      "stasiun"
     ],
     "angles": [
-      "Kita sering menganggap lalat lambat dan bodoh, padahal mereka punya kecepatan persepsi yang bikin kita kayak robot tua di mata mereka",
-      "Rasa lapar bukan cuma soal perut kosong, tapi juga cara otak kehilangan rem pengendalian diri",
-      "Regenerasi bintang laut bukan soal kekuatan super, tapi cara tubuhnya mengabaikan ego dan fokus pada fungsi",
-      "Gerak kaki seribu yang bergelombang adalah contoh efisiensi alami yang bisa kita tiru dalam hal konsistensi tanpa harus sempurna",
-      "Perbedaan durasi tumbuh rambut dan alis adalah contoh bagaimana tubuh mengatur prioritas tanpa kita sadari"
+      "Kedutan saat tidur adalah alarm palsu otak yang kebingungan dengan relaksasi tubuh",
+      "Anjing jadi alarm emosi yang lebih peka dari kesadaran diri kita sendiri",
+      "Pertumbuhan kuping yang tak terasa adalah metafora bagaimana perubahan kecil yang konsisten bisa jadi besar tanpa kita sadari",
+      "Kekuatan cicak nempel di dinding bukan karena kekuatan besar, tapi karena jutaan interaksi kecil yang bekerja bareng",
+      "Tubuh punya mekanisme otomatis yang bekerja diam-diam, bahkan saat kita nggak sadar atau capek"
+    ],
+    "pillars": [
+      "Otak, Tubuh, dan Perilaku",
+      "Hal Biasa, Fakta Luar Biasa",
+      "Otak, Tubuh, dan Perilaku",
+      "Sains, Alam, dan Semesta",
+      "Mitos vs Fakta",
+      "Otak, Tubuh, dan Perilaku",
+      "Hal Biasa, Fakta Luar Biasa",
+      "Kedengarannya Bohong, Tapi Benar",
+      "Mitos vs Fakta"
+    ],
+    "hooks": [
+      "hidden_cause",
+      "number_shock",
+      "myth_breaker",
+      "myth_breaker",
+      "myth_breaker",
+      "belief_reversal",
+      "belief_reversal",
+      "number_shock",
+      "number_shock"
     ]
   }
 }
