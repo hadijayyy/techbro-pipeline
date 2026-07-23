@@ -25,6 +25,16 @@ try:
 except Exception:
     pass
 
+# Resolve Threads user_id from token (for v1.0 API endpoints)
+THREADS_USER_ID = None
+if THREADS_TOKEN and not DRY_RUN:
+    try:
+        r = httpx.get(f"{GRAPH}/me?access_token={THREADS_TOKEN}", timeout=10)
+        if r.status_code == 200:
+            THREADS_USER_ID = r.json().get("id")
+    except Exception:
+        pass
+
 
 # ── Logging ──
 import logging
@@ -793,16 +803,17 @@ def generate_thread(seed, trending=None, recent_content=None):
 # ══════════════════════════════════════════════
 
 def post_to_threads(seed, posts):
-    """Post 6-slide chain to Threads via Graph API."""
-    if not THREADS_TOKEN:
-        log.error("No THREADS_ACCESS_TOKEN in environment")
+    """Post 6-slide chain to Threads via v1.0 Graph API. Publish sequentially so each reply_to_id is a published post."""
+    if not THREADS_TOKEN or not THREADS_USER_ID:
+        log.error("No THREADS_ACCESS_TOKEN or THREADS_USER_ID")
         return None
     if DRY_RUN:
         log.info("DRY RUN — skipping post")
         return None
 
-    media_ids = []
-    error = None
+    uid = THREADS_USER_ID
+    published_ids = []
+    last_post_id = None
 
     for i in range(1, 7):
         key = f"post_{i}"
@@ -810,60 +821,57 @@ def post_to_threads(seed, posts):
         if not text:
             continue
 
-        payload = {
+        # Step 1: Create container — Threads v1.0 form-data endpoint
+        data = {
+            "user_id": uid,
             "media_type": "TEXT",
             "text": text,
             "access_token": THREADS_TOKEN,
         }
+        if last_post_id:
+            data["reply_to_id"] = last_post_id
 
-        # Chain to previous post
-        if media_ids:
-            payload["reply_to_id"] = media_ids[-1]
-
-        try:
-            r = httpx.post(f"{GRAPH}/me/threads", data=payload, timeout=15)
-            if r.status_code == 200:
-                result = r.json()
-                mid = result.get("id")
-                if mid:
-                    media_ids.append(mid)
-                    log.info(f"  {key} → {mid}")
-                    time.sleep(1.5)
-                else:
-                    error = f"{key}: no id in response"
+        container_id = None
+        for retry in range(2):
+            try:
+                r = httpx.post(f"{GRAPH}/{uid}/threads", data=data, timeout=15)
+                if r.status_code == 200:
+                    container_id = r.json().get("id")
                     break
-            else:
-                error = f"{key}: HTTP {r.status_code} — {r.text[:200]}"
-                log.error(error)
-                break
-        except httpx.RequestError as e:
-            error = f"{key}: {e}"
-            log.error(error)
-            break
+                log.warning(f"  {key} create attempt {retry+1}: HTTP {r.status_code}")
+            except (httpx.RequestError, json.JSONDecodeError) as e:
+                log.warning(f"  {key} create attempt {retry+1}: {e}")
+            time.sleep(2)
 
-    if not media_ids or error:
-        # Publish what we have (retry logic omitted for now)
-        return {"error": error, "media_ids": media_ids}
+        if not container_id:
+            log.error(f"  {key} create failed after retries")
+            return {"error": f"{key} create failed", "post_ids": published_ids}
+        time.sleep(2)
 
-    # Publish all
-    post_ids = []
-    for mid in media_ids:
-        try:
-            r = httpx.post(f"{GRAPH}/{mid}/publish",
-                          data={"access_token": THREADS_TOKEN}, timeout=15)
-            if r.status_code == 200:
-                pid = r.json().get("id")
-                if pid:
-                    post_ids.append(pid)
-                    time.sleep(1.5)
-            else:
-                log.warning(f"Publish failed for {mid}: {r.status_code}")
-        except httpx.RequestError as e:
-            log.warning(f"Publish error for {mid}: {e}")
+        # Step 2: Publish — Threads v1.0 thread_publish endpoint
+        post_id = None
+        for retry in range(2):
+            try:
+                r = httpx.post(f"{GRAPH}/{uid}/threads_publish",
+                              data={"access_token": THREADS_TOKEN, "creation_id": container_id}, timeout=15)
+                if r.status_code == 200:
+                    post_id = r.json().get("id")
+                    break
+                log.warning(f"  {key} publish attempt {retry+1}: HTTP {r.status_code}")
+            except (httpx.RequestError, json.JSONDecodeError) as e:
+                log.warning(f"  {key} publish attempt {retry+1}: {e}")
+            time.sleep(2)
 
-    if post_ids:
-        return {"post_ids": post_ids, "media_ids": media_ids}
-    return {"error": "publish failed", "media_ids": media_ids}
+        if not post_id:
+            log.error(f"  {key} publish failed after retries")
+            return {"error": f"{key} publish failed", "post_ids": published_ids}
+
+        published_ids.append(post_id)
+        last_post_id = post_id
+        log.info(f"  {key} → {post_id}")
+        time.sleep(2)
+
+    return {"post_ids": published_ids, "media_ids": published_ids}
 
 
 # ══════════════════════════════════════════════
