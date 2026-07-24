@@ -207,7 +207,7 @@ def _pick_seed(data):
 
         weights.append(max(w, 0.1))
 
-    choice = random.choices(unused, weights=weights, k=1)[0]
+    choice = random.choices(gated, weights=weights, k=1)[0]
     return choice
 
 
