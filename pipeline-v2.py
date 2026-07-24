@@ -420,49 +420,35 @@ Write ONE sentence, then a blank line, then the next sentence.
 This applies to ALL 6 slides.
 
 Correct:
-"70% orang bangun masih capek meski tidur 8 jam."
+<slide_structure>
+Six slides, one narrative arc. Each slide has exactly one job.
 
-"Bukan kurang tidur — salah siklus REM."
+## CRITICAL FORMAT — BLANK LINES BETWEEN SENTENCES
+Every. Single. Sentence. Gets. Its. Own. Line.
+Write ONE sentence, then a blank line, then the next sentence.
 
-Wrong:
-"70% orang bangun masih capek meski tidur 8 jam. Bukan kurang tidur — salah siklus REM."
+# Slide 1 — Stop (max 150 chars, 1-2 sentences)
+Pain point first. Open with relatable problem.
+Example: "Bangun jam 6 tapi masih capek? 60% pekerja alami sleep inertia — REM ganggu otak."
+Follow with trigger word + angka + contradiction if space permits.
 
-Slide 1 — Stop (max 150 chars, 1-2 sentences)
-OPEN dengan angka konkret. Preview text (~80 chars) harus langsung nyentuh fakta.
-FORMULA (prefer): Trigger word + angka + contradiction.
-Variasi penting — jangan semua post mulai sama.
-Good examples (rotate style):
-"Ternyata 7 dari 10 orang..."
-"250 rambut di alis fungsinya nahan keringet — bukan buat gaya."
-"Gak nyangka: 60% penurunan penglihatan penyebabnya genetik."
-Rule: max 15 kata. Angka di awal. Jangan intro basa-basi.
+# Slide 2 — Set up (max 350 chars)
+Make reader care. Add URGENCY: "Kalo lo terus biarin ini, produktivitas turun 30% tiap minggu."
+Use universal Indonesian setting, keep variation.
 
-Slide 2 — Set up (max 350 chars)
-Make reader care. Recognizable context + common assumption + what's at stake.
-REQUIRED: use a UNIVERSAL Indonesian setting when relevant.
-Good: kosan, KRL, warteg, nasi Padang, ojek online, macet Jakarta, antrian, ujian, Zoom meeting, hujan-hujanan.
+# Slide 3 — Reveal (max 350 chars)
+Deliver central fact. Verified fact + concrete detail + evidence cue.
 
-Slide 3 — Reveal (max 350 chars)
-Deliver the central fact. Verified fact + concrete detail + evidence cue.
-State the answer clearly. Include date, number, or comparison when useful.
+# Slide 4 — Explain (max 350 chars)
+Explain mechanism, plain language, analogy.
 
-Slide 4 — Explain (max 350 chars)
-Make the fact understandable. Cause/mechanism + plain-language explanation + analogy/example.
-Explain "why" or "how", not merely what happened.
+# Slide 5 — Deepen (max 350 chars)
+Promise of transformation: "Setelah lo terapkan teknik tidur REM yang tepat, energi pagi naik 2‑3x."
+Add actionable insight.
 
-Slide 5 — Deepen (max 350 chars)
-Add a concrete takeaway or actionable insight. Step-by-step or specific consequence.
-"Pertama... Abis itu..." pattern when actionable. Build on the main fact, never unrelated trivia.
-Relevance: "Ini penting buat lu karena..."
-
-Slide 6 — Land (max 300 chars, 2-3 sentences each on own line)
-Close the loop and invite response. One-sentence takeaway + personal experience CTA.
-BUKAN tanya opini — tanya PENGALAMAN hidup pembaca.
-Format wajib: "Lo pernah [situasi spesifik]? [detail]?"
-Contoh perform tinggi:
-- "Lo pernah ngalamin [X] di [setting]? Cerita dong."
-- "Kalo [pengalaman relatable], lo tim [A] atau [B]?"
-- "Tag temen yang [relate] — biar dia tau."
+# Slide 6 — Land (max 300 chars, 2‑3 sentences each on own line)
+Close loop, invite experience. Personal story CTA already present.
+</slide_structure>
 </slide_structure>
 
 <hook_formulas>
