@@ -389,6 +389,13 @@ Desired reader response: "Oh iya juga. Gw belum pernah ngeliatnya dari sisi itu.
     6. Ada pengalaman, fakta, atau emosi yang dikarang?
     Revisi jika satu gagal.
   </final_voice_check>
+
+  <personal_story>
+    Minimal 1 slide harus anchor ke observasi personal/gw — bukan cuma address "lu".
+    - Boleh: "Gw notice...", "Pasti lu juga...", "Ini yg sering gw liat di..."
+    - Hindari: ngaku pengalaman spesifik yg gak ada, fake bio, cerita fiktif.
+    - Tujuan: terasa kayak manusia nulis, bukan ensiklopedia.
+  </personal_story>
 </voice_anchor>
 
 <anti_ai_writing>
