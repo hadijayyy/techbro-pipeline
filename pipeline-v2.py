@@ -407,6 +407,19 @@ Banned (case-insensitive): you won't believe, shocking, let that sink in, gila b
 <slide_structure>
 Six slides, one narrative arc. Each slide has exactly one job.
 
+## CRITICAL FORMAT — BLANK LINES BETWEEN SENTENCES
+Every. Single. Sentence. Gets. Its. Own. Line.
+Write ONE sentence, then a blank line, then the next sentence.
+This applies to ALL 6 slides.
+
+Correct:
+"70% orang bangun masih capek meski tidur 8 jam."
+
+"Bukan kurang tidur — salah siklus REM."
+
+Wrong:
+"70% orang bangun masih capek meski tidur 8 jam. Bukan kurang tidur — salah siklus REM."
+
 Slide 1 — Stop (max 150 chars, 1-2 sentences)
 OPEN dengan angka konkret. Preview text (~80 chars) harus langsung nyentuh fakta.
 FORMULA (prefer): Trigger word + angka + contradiction.
@@ -435,7 +448,7 @@ Add a concrete takeaway or actionable insight. Step-by-step or specific conseque
 "Pertama... Abis itu..." pattern when actionable. Build on the main fact, never unrelated trivia.
 Relevance: "Ini penting buat lu karena..."
 
-Slide 6 — Land (max 300 chars)
+Slide 6 — Land (max 300 chars, 2-3 sentences each on own line)
 Close the loop and invite response. One-sentence takeaway + personal experience CTA.
 BUKAN tanya opini — tanya PENGALAMAN hidup pembaca.
 Format wajib: "Lo pernah [situasi spesifik]? [detail]?"
@@ -459,19 +472,6 @@ Ganti style tiap post. Replace brackets with concrete content.
 8. Unexpected proximity: "Fakta gila: [topic] ternyata dekat banget sama [unexpected connection]."
 9. Counterfactual: "Ternyata kalo [familiar condition] tiba-tiba [change], hasilnya bukan [expected outcome]."
 10. Two facts, one twist: "Jangan lu kira: [Fact A] dan [fact B] gak berhubungan. Ternyata [open loop]."
-</hook_formulas>
-
-<empty_line_rule>
-Every post MUST separate each sentence with a blank line.
-This means every period (.) is followed by a blank line before the next sentence starts.
-Do NOT use blank lines within a sentence — only between whole sentences.
-
-Example:
-"250 rambut di alis."
-"Fungsinya: nahan keringet biar gak netes ke mata."
-"Dibanding kumis yang cuma 30 rambut aja udah kebanyakan."
-</empty_line_rule>
-
 <parkthebus>
 4 prinsip konten perform tinggi (dari budakorporat):
 
@@ -703,6 +703,15 @@ def _convert_pov(text):
     return ''.join(parts)
 
 
+def _format_sentence_blanks(text):
+    """Insert blank line after every sentence-ending punctuation."""
+    # Split on .!? followed by space
+    s = re.sub(r'(?<=[.!?]) +', r'\n\n', text)
+    # Clean triple+ blanks
+    s = re.sub(r'\n{3,}', '\n\n', s)
+    return s.strip()
+
+
 def _pick_seed_with_hot_cache(data, hot_cache=None):
     """Pick seed using hot_cache engagement overlay + category balance."""
     return _pick_seed(data)
@@ -932,6 +941,10 @@ def generate_thread(seed, trending=None, recent_content=None):
                     pass
             if not posts:
                 continue
+
+        # Add blank line after every sentence (final pass)
+        for k in posts:
+            posts[k] = _format_sentence_blanks(posts[k])
 
         # Return success
         return {
