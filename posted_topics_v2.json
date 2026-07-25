@@ -1,6 +1,204 @@
 {
   "topics": [
     {
+      "title": "RI & China Bidik Kerja Sama Proyek Rp 37 Triliun Lewat TCTP",
+      "article_url": "https://finance.detik.com/berita-ekonomi-bisnis/d-8589193/ri-china-bidik-kerja-sama-proyek-rp-37-triliun-lewat-tctp",
+      "article_source": "detik_finance",
+      "angle": "Rp37 triliun kerja sama RI-China lewat TCTP — tapi lo baru sadar dampaknya ke dompet pas bensin naik dan lapangan kerja belum jelas",
+      "post_id": "17878404999504173",
+      "media_id": "17878404999504173",
+      "timestamp": "2026-07-25T13:02:12+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Analis: Keputusan BI Tahan Suku Bunga Jadi Kejutan Positif bagi Pasar",
+      "article_url": "https://money.kompas.com/read/2026/07/25/103852826/analis-keputusan-bi-tahan-suku-bunga-jadi-kejutan-positif-bagi-pasar",
+      "article_source": "kompas_money",
+      "angle": "Keputusan BI menahan suku bunga 5,75% jadi kejutan positif yang bikin IHSG menguat, tapi dampaknya ke masyarakat masih terbatas",
+      "post_id": "18615821128052851",
+      "media_id": "18615821128052851",
+      "timestamp": "2026-07-25T12:01:50+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Harga Minyak Tembus 100 Dollar AS, Purbaya Pastikan BBM Subsidi Tak NaikEnergi",
+      "article_url": "https://money.kompas.com/read/2026/07/24/155722026/harga-minyak-tembus-100-dollar-as-purbaya-pastikan-bbm-subsidi-tak-naik",
+      "article_source": "kompas_money",
+      "angle": "Harga minyak dunia tembus 100 dolar tapi BBM subsidi tetap aman—tapi sampai kapan?",
+      "post_id": "18600628570061108",
+      "media_id": "18600628570061108",
+      "timestamp": "2026-07-25T11:01:46+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "80% lirik lagu SD masih diinget — tapi naruh kunci 5 menit lalu gak inget. Otak prioritasin emosi, bukan utilitas",
+      "angle": "Otak menyimpan informasi emosional lebih lama daripada informasi praktis—itulah kenapa lirik lagu SD ingat, tapi lokasi kunci hilang.",
+      "pillar": "Otak, Tubuh, dan Perilaku",
+      "hook_pattern": "everyday_blind_spot",
+      "post_id": "18607298206019088",
+      "media_id": "18607298206019088",
+      "timestamp": "2026-07-25T10:02:09+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "70% orang alamin hypnic jerk — otak kaget detak jantung turun terlalu cepet, ngira lo sekarat",
+      "angle": "Hypnic jerk—kejutan otak saat tidur—bukan sekadar ‘kaget’, tapi sistem sirkulasi yang error karena detak jantung turun terlalu cepat.",
+      "pillar": "Otak, Tubuh, dan Perilaku",
+      "hook_pattern": "number_shock",
+      "post_id": "18038511893811397",
+      "media_id": "18038511893811397",
+      "timestamp": "2026-07-25T09:01:44+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Populasi kunang-kunang turun 70% di kota besar Indonesia — satu spesies hilang sebelum sempet diteliti",
+      "angle": "Kepunahan kunang-kunang di kota besar Indonesia disebabkan fragmentasi habitat dan polusi cahaya, bukan sekadar perubahan iklim — dan dampaknya lebih besar dari yang lu bayangin.",
+      "pillar": "Sains, Alam, dan Semesta",
+      "hook_pattern": "number_shock",
+      "post_id": "18092613593295534",
+      "media_id": "18092613593295534",
+      "timestamp": "2026-07-25T08:01:39+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "1 kebiasaan sehari: baca 10 halaman bisa naikin fokus 23%. Tapi kenapa susah konsisten?",
+      "angle": "Konsistensi baca 10 halaman tiap hari = latihan otak, tapi otak melawan karena butuh reward instan. Gunakan sistem, bukan semangat.",
+      "pillar": "Otak, Tubuh, dan Perilaku",
+      "hook_pattern": "everyday_blind_spot",
+      "post_id": "18104196653135582",
+      "media_id": "18104196653135582",
+      "timestamp": "2026-07-25T07:01:47+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Flu dan batuk sembuh 7 hari tanpa obat kalo imun lo jalan. Antibiotik guna buat bakteri, bukan virus",
+      "angle": "Flu dan batuk sembuh dalam 7 hari karena sistem imun, bukan obat. Antibiotik hanya untuk bakteri, dan penggunaannya yang berlebihan justru memperburuk resistensi.",
+      "pillar": "Mitos vs Fakta",
+      "hook_pattern": "myth_breaker",
+      "post_id": "18121383394817718",
+      "media_id": "18121383394817718",
+      "timestamp": "2026-07-24T23:01:49+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Burung tidur berdiri 8 jam tanpa jatuh — tendon di kaki otomatis ngunci pas otot rileks. Manusia gak punya fitur ini",
+      "angle": "Burung mengunci tendon kaki secara biologis untuk tidur berdiri tanpa jatuh—manusia tidak memiliki mekanisme ini, sehingga tidak bisa melakukan hal serupa.",
+      "pillar": "Hal Biasa, Fakta Luar Biasa",
+      "hook_pattern": "everyday_blind_spot",
+      "post_id": "18028319138846637",
+      "media_id": "18028319138846637",
+      "timestamp": "2026-07-24T22:01:45+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Tidur 6 jam 30 menit bisa lebih nyenyak dr 9 jam — kuncinya siklus REM, bukan durasi total",
+      "angle": "Kualitas tidur lebih penting daripada durasi — siklus REM yang utuh adalah kunci tidur nyenyak, bukan jam total.",
+      "pillar": "Otak, Tubuh, dan Perilaku",
+      "hook_pattern": "counterfactual",
+      "post_id": "18008701109937071",
+      "media_id": "18008701109937071",
+      "timestamp": "2026-07-24T21:01:43+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Makanan fermentasi (tempe, tape, kimchi) bikin bakteri usus sehat — 90% imun berasal dari usus",
+      "angle": "Fermentasi bikin bakteri usus naik—tapi 90% klaim imun usus adalah mitos karena dipelintir tanpa konteks.",
+      "pillar": "Mitos vs Fakta",
+      "hook_pattern": "number_shock",
+      "post_id": "17997963659963647",
+      "media_id": "17997963659963647",
+      "timestamp": "2026-07-24T20:01:43+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Otak replay pengalaman buruk 4x lebih sering pas REM — bukan nyiksa, ini latihan survival",
+      "angle": "Otak memutar ulang pengalaman buruk 4x lebih sering pas fase REM—bukan nyiksa, melainkan simulasi survival tanpa sadar.",
+      "pillar": "Otak, Tubuh, dan Perilaku",
+      "hook_pattern": "everyday_blind_spot",
+      "post_id": "18165900337455890",
+      "media_id": "18165900337455890",
+      "timestamp": "2026-07-24T19:01:50+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Paus — yang sering lo panggil 'ikan paus' ternyata mamalia dan dulunya jalan di darat",
+      "angle": "Paus dulunya darat, sekarang laut—evolusi balik dari mamalia yang kembali ke air dan mengubah tubuh drastis demi bertahan hidup.",
+      "pillar": "Sains, Alam, dan Semesta",
+      "hook_pattern": "belief_reversal",
+      "post_id": "18109689301998034",
+      "media_id": "18109689301998034",
+      "timestamp": "2026-07-24T18:02:23+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Duduk 8 jam per hari naikin risiko penyakit jantung 40% meski lo olahraga 1 jam",
+      "angle": "Kebiasaan duduk statis 8 jam meningkatkan risiko penyakit jantung 40% meski sudah olahraga—karena efeknya bukan kalori, tapi gangguan metabolik sistemik.",
+      "pillar": "Otak, Tubuh, dan Perilaku",
+      "hook_pattern": "counterfactual",
+      "post_id": "18042569669801245",
+      "media_id": "18042569669801245",
+      "timestamp": "2026-07-24T17:01:38+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Minum air putih 2 liter sehari itu mitos — kebutuhan cairan beda-beda per orang, gak ada angka universal",
+      "angle": "Standar '2 liter air sehari' adalah mitos yang tidak mempertimbangkan aktivitas, iklim, dan fisiologi individu.",
+      "pillar": "Mitos vs Fakta",
+      "hook_pattern": "myth_breaker",
+      "post_id": "18601449214040370",
+      "media_id": "18601449214040370",
+      "timestamp": "2026-07-24T16:01:40+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Setiap mata punya blind spot segede bola pingpong — tapi lo gak pernah sadar karena otak nge-fill otomatis",
+      "angle": "Blind spot di retina memang ada, tapi otak secara otomatis mengisi celah visual dengan dugaan terbaiknya — tanpa lu sadari.",
+      "pillar": "Otak, Tubuh, dan Perilaku",
+      "hook_pattern": "everyday_blind_spot",
+      "post_id": "18065303963711471",
+      "media_id": "18065303963711471",
+      "timestamp": "2026-07-24T14:01:42+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Garam di indomie 1 bungkus udah 60% batas harian — bukan cuma bikin haus, ini silent killer ginjal",
+      "angle": "Garam dalam Indomie melebihi 60% batas harian tanpa disadari, berdampak signifikan pada ginjal—bukan sekadar haus.",
+      "pillar": "Mitos vs Fakta",
+      "hook_pattern": "number_shock",
+      "post_id": "18129494659649387",
+      "media_id": "18129494659649387",
+      "timestamp": "2026-07-24T13:01:37+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
+      "title": "Berat badan turun drastis 2 minggu pertama diet — 80% air, bukan lemak. Jangan seneng dulu",
+      "angle": "Penurunan berat badan drastis di minggu pertama diet sebagian besar adalah kehilangan air, bukan lemak—tetapi strategi diet sering mengabaikan ini dan malah merugikan metabolisme.",
+      "pillar": "Otak, Tubuh, dan Perilaku",
+      "hook_pattern": "number_shock",
+      "post_id": "18069004877708309",
+      "media_id": "18069004877708309",
+      "timestamp": "2026-07-24T12:01:36+07:00",
+      "likes": null,
+      "replies": null
+    },
+    {
       "title": "Kucing domestik gak pernah adaptasi air — cuma 1 dari 38 spesies kucing liar yang bisa berenang",
       "angle": "Kucing domestik menghindari air karena genetik purba dan insting bertahan hidup, bukan sekadar 'takut'.",
       "pillar": "Sains, Alam, dan Semesta",
@@ -360,28 +558,28 @@
   ],
   "recent_content": {
     "openings": [
-      "1 dari 38 spesies kucing liar bisa berenang. Sisanya? Terancam mati. Kucing domestik bawa insting in",
-      "Gak nyangka: 6 dari 10 pekerja bangun tidur udah 8 jam. Tapi otak masih di mode \"layu\". Namanya slee",
-      "Otak cuma 2% berat badan. Tapi otak makan 20% energi lu tiap hari—10x lipat porsinya. Sisanya diambi",
-      "Cumi-cumi punya 30 ribu gen, tapi bisa edit sendiri 15 ribu gen itu dalam hitungan minggu—tanpa muta",
-      "90% sakit kepala tegang ternyata keluhan otot, bukan di otak. Otot leher/bahu kaku ngirim sinyal ke ",
-      "Kepala burung hantu bisa muter 270 derajat. Bukan karena tulangnya lentur—tapi karena sistem sirkula",
-      "80% dari lu doyan pedas. Padahal cabe gak ngasih rasa, cuma nyulut sensor sakit di mulut.",
-      "60% penurunan penglihatan disebabkan genetik. Sisanya jarak baca dekat dan cahaya redup—bukan main H",
-      "15% detak jantung lu turun dalam 10 detik setelah cuci muka air dingin. Tapi bukan ‘bye-bye stress’,",
-      "15 menit sinar matahari pagi = 10.000 IU vitamin D. Tapi 7 dari 10 orang Indonesia tetap defisit."
+      "Baru aja RI-China sepakat proyek Rp37 triliun lewat TCTP.\n\nKatanya bakal jadi Shenzhen-nya Indonesia",
+      "Mayoritas pasar udah siap BI naikin suku bunga jadi 6%, tapi malah diem di 5,75%.\n\nKejutan yang biki",
+      "Rp1,79 juta per barrel.\n\nItu harga minyak dunia sekarang.\n\nNaik lagi ke angka psikologis 100 dolar A",
+      "Gw dulu hafal lirik 'Pelangi' sampai 'Bintang Kecil' pas SD.\n\nTapi 5 menit lalu gw nyari kunci motor",
+      "70% orang pernah ngalamin hypnic jerk.\n\nOtak lu kaget sendiri karena detak jantung turun terlalu cep",
+      "Gw baru tahu: populasi kunang-kunang di Jakarta turun 70% dalam 20 tahun.\n\nBahkan spesies lokal udah",
+      "Gw capek kerja full online dari jam 9 pagi—tapi lu tahu yang bikin badan lebih capek?\n\nNunggu notif ",
+      "Kalo lu flu, batuk, pilek, tapi gak minum obat—7 hari bakal sembuh sendiri.\n\nLu cuma perlu istirahat",
+      "Tendon Achilles burung punya ‘kunci otomatis’.\n\nSaat otot rileks, sistem tendon langsung ngunci—gak ",
+      "Ternyata: tidur 6,5 jam bisa lebih segar daripada 9 jam.\n\nBukan durasi, tapi siklus REM-nya yang utu"
     ],
     "ctas": [
-      "Jadi bukan soal ‘takut air’ — soal apakah air bikin lu lebih mudah dimangsa. Lo pernah lihat kucing ",
-      "Pernah bangun pagi udah 8 jam tapi masih lemes kayak kurang tidur? Cerita dong, jam berapa alarm-nya",
-      "Intinya otak ngeluarin ongkos besar supaya lu bisa ngerasa, mikir, dan nginget. Otak lu pernah ngerj",
-      "Intinya DNA gak berubah, tapi RNA-nya yang pintar beradaptasi. Lu pernah bayangin tubuh kita punya s",
-      "Jadi, kalo kepala lu tiba-tiba sakit tanpa sebab jelas, cek dulu posisi leher dan bahu lu. Terusin p",
-      "Intinya bukan tulangnya ajaib, tapi sistem tubuh yang sinkron. Lo pernah liat burung hantu di alam l",
-      "Jadi pedas itu gak ada hubungannya sama rasa enak. Lebih ke efek kimia otak yang dimanipulasi. Tahun",
-      "Jadi gak usah ngeluh soal HP. Cek riwayat keluarga, jaga jarak baca, dan atur cahaya. Mata lu bakal ",
-      "Jadi reset yang lu rasain itu fenomena saraf, bukan psikis. Lo pernah ngerasa denyut jantung lu anjl",
-      "Intinya bukan soal durasi, tapi kondisi idealnya susah didapat. Lu pernah cek kadar vitamin D lewat "
+      "Lu udah ngerasain dampaknya belum?\n\nAtau masih nunggu Shenzhen-nya Indonesia jadi kenyataan?\n\nhttps:",
+      "Lo lebih milih BI naikin bunga buat jaga rupiah atau diem dulu biar ekonomi jalan?\n\nCek artikel leng",
+      "BBM subsidi aman—tapi buat sekarang.\n\nKalau lu masih boros, mulai hemat dari sekarang.\n\nAtau lu siap",
+      "Next time lu lupa di mana letak kunci, jangan marah—otak lu lagi sibuk ngejaga momen-momen yang emos",
+      "Intinya hypnic jerk itu normal.\n\nGw sendiri pernah terbangun karena ini—dan lu?\n\nPernah terbangun me",
+      "Gw dulu pernah ngerasa sebel karena kunang-kunang di kampung hilang.\n\nKini rasanya miris—kita udah k",
+      "Bukan salah lu kalau susah konsisten baca.\n\nOtak lu lagi melawan.\n\nTapi coba paksain 5 menit aja—lu ",
+      "Jadi, lu pernah sembuh tanpa antibiotik waktu flu?\n\nAtau malah selalu buru-buru minum antibiotik pad",
+      "Gw pernah tidur di bangku taman sambil nunggu jemputan.\n\nSekitar 20 menit—kaki udah kebas.\n\nKira-kir",
+      "Lo pernah tidur 8 jam tapi bangun masih kewalahan?\n\nCoba ganti jam tidur supaya gak terpotong REM te"
     ],
     "analogies": [
       "Gw perhatiin, perubahan yang pelan banget kayak gini sering lu abaikan",
@@ -406,28 +604,28 @@
       "Tubuh punya mekanisme otomatis yang bekerja diam-diam, bahkan saat kita nggak sadar atau capek"
     ],
     "pillars": [
+      "Otak, Tubuh, dan Perilaku",
+      "Otak, Tubuh, dan Perilaku",
       "Sains, Alam, dan Semesta",
       "Otak, Tubuh, dan Perilaku",
-      "Otak, Tubuh, dan Perilaku",
+      "Mitos vs Fakta",
       "Hal Biasa, Fakta Luar Biasa",
       "Otak, Tubuh, dan Perilaku",
-      "Sains, Alam, dan Semesta",
       "Mitos vs Fakta",
       "Otak, Tubuh, dan Perilaku",
-      "Hal Biasa, Fakta Luar Biasa",
-      "Kedengarannya Bohong, Tapi Benar"
+      "Sains, Alam, dan Semesta"
     ],
     "hooks": [
-      "hidden_cause",
+      "everyday_blind_spot",
       "number_shock",
-      "hidden_cause",
       "number_shock",
+      "everyday_blind_spot",
       "myth_breaker",
-      "myth_breaker",
-      "myth_breaker",
-      "belief_reversal",
-      "belief_reversal",
-      "number_shock"
+      "everyday_blind_spot",
+      "counterfactual",
+      "number_shock",
+      "everyday_blind_spot",
+      "belief_reversal"
     ]
   }
 }

@@ -1,98 +1,73 @@
-# TechBro Pipeline
+# TechBro V3 — Ekonomi Nasional Indonesia
 
-Content automation pipeline for [@ryanhadiii](https://www.threads.com/@ryanhadiii) — "1% Better" personal branding on Threads.
+Content automation pipeline for [@ryanhadiii](https://www.threads.net/@ryanhadiii) — Ekonomi Nasional Indonesia thread generator.
 
-Scrapes articles → scores by relevance → generates content (winning/carousel) via LLM → posts to Threads.
+Scrapes CNBC/CNN/Detik Finance/Kompas Money → scores by economy relevance → generates 6-slide thread via Mistral → posts to Threads.
 
 ## Architecture
 
 ```
-┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌──────────────┐
-│  1. SCRAPE  │───▶│ 2. GENERATE  │───▶│ 3. EVALUATE │───▶│  4. POST     │
-│ Google News │    │ Deepseek LLM │    │ LLM review  │    │ Threads API  │
-│ RSS + Trends│    │ 3-provider   │    │ max 3 retry │    │ thread chain │
-│ 17-comp scr │    │ fallback     │    │ ground check│    │              │
-└─────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
-       │
-       ▼
-┌─────────────┐
-│ HOT TOPIC   │  Union-Find clustering, 4h rolling cache
-│ DETECTION   │  30+ entity recognition, +25 boost
-└─────────────┘
+┌─────────────┐    ┌─────────────┐    ┌──────────────┐    ┌────────────┐
+│  1. SCRAPE  │───▶│ 2. SCORE    │───▶│ 3. GENERATE  │───▶│ 4. POST    │
+│ 6 RSS/HTML  │    │ 8 category  │    │ Mistral LLM  │    │ Threads    │
+│ sources     │    │ entity      │    │ 7 arc prompt │    │ API        │
+│             │    │ threshold   │    │ revision     │    │            │
+└─────────────┘    └─────────────┘    └──────────────┘    └────────────┘
 ```
 
 ## Pipeline Flow
 
-1. **Scrape** — 5 Google News RSS feeds (produktivitas, mindset, finansial, kesehatan, relationship). 50 articles scraped, shuffled for diversity.
+1. **Scrape** — 6 sources parallel (CNBC, CNN Ekonomi, Detik Finance, Detik Hukum, Kompas Money, CNN Nasional). RSS + HTML fallback. ~75 articles per run. Tempo excluded (always 403).
 
-2. **Hot Topic Detection** — Union-Find clustering by entity overlap. 30+ known entities (Indonesian + international names, companies). 4h rolling cache sees 80-120 articles vs 20 per run. Boost: +25 (3+ sources) or +15 (2 sources).
+2. **Score** — 8 category system with per-category cap:
+   - Dompet Langsung (30): gaji, upah, UMR, THR, PHK, pajak, PPN, PPh, BPJS, subsidi, BBM, KPR, pinjol, inflasi
+   - Kebijakan Ekonomi (25): APBN, defisit, suku bunga, rupiah, ekspor, IP, PDB
+   - Tenaga Kerja (25): PHK massal, pengangguran, upah minimum, bonus
+   - Harga Pangan (25): beras, pangan, BBM, tarif listrik, biaya sekolah
+   - Kredit & Utang (22): KPR, cicilan, paylater, pinjol, gagal bayar
+   - Pasar Modal (18): IHSG, saham, emas, rupiah, dolar
+   - Korupsi (18): korupsi, suap, gratifikasi, KPK, kejagung
+   - Bonus Angka (max 15): Rp100jt +3, Rp1T +5, Rp10T+ +10
 
-3. **Score** — 17-component scoring (Pressbox-adapted): keyword match (3-tier), category, recency, data/konkret, source tier (10/8/6/3), audience reach, drama signal, paradox bonus, niche penalty, western penalty, hot topic bonus, peak-hour, analytics boost, density bonus, **human interest**. Soft cap: diminishing returns above 100.
+   Entity boost: Otoritas +10 (sri mulyani, perry warjiyo, presiden), Figur +7 (ahlis, lutfi), Institusi +5 (KPK, BI)
+   Freshness multiplier: <6h=1.0, <12h=0.9, <24h=0.75, <48h=0.5, >48h=0.2
+   Source quality: CNBC 1.1, Detik Finance 1.0, CNN 0.9
+   Threshold: reject<45, backup 45-59, process≥60, priority≥75
 
-4. **Generate** — Winning format (ATM: 4 tanda + solusi + CTA) via 9router/Deepseek. Carousel fallback (Hook → Setup → Twist → Deep → So What → CTA). Voice: casual Indonesian ("lu/gw"), anti-LinkedIn.
+3. **Generate** — 7-arc system (Dompet Kejepit, Market Shock, Policy Bomb, Global Domino, Personal Finance, Jobs Under Pressure, Public Money Trail, Debt Trap). Each arc has unique S1-S6 structure (Hook → Context → Why → Impact → Trade-off → CTA). Mistral LLM with revision gate for quality.
 
-5. **Evaluate** — Independent LLM review (carousel only). Winning format skips evaluator. Scoring: accept ≥7/10, revise <7, reject <5 with max 3 retry.
+4. **Validate** — Deterministic post-gen checks: slop detection, Chinese filler, "baru aja" hook (article must be ≤48h), rhetorical questions (S1-5 only), empty post, CTA presence. Revision retry on failure.
 
-6. **Post** — Carousel posted as thread chain. Slide 1 = root, slides 2-6 = replies. 20 posts/day limit + dynamic daily limit based on engagement analytics.
+5. **Post** — 6-slide thread chain via Threads Graph API. Slide 1=root, 2-6=replies. HD image from article og:image (skip if absent).
 
 ## Content Rules
 
-- **Voice**: Casual Indonesian ("lu/gw"), empathetic, blunt, anti-corporate, anti-LinkedIn
-- **Framework**: RCTOE v2 (Role, Context, Task, Output, Execution)
-- **Format**: 6-slide (Hook → Setup → Twist → Deep → So What → CTA). Winning (ATM): 4 tanda + solusi + CTA
-- **Viral criteria**: 7 criteria per slide (Pro&Con, Relatable, Famous Figure, Trending, Ironi, Surprising Fact, Emotional Hook)
-- **Hook patterns**: controversy, curiosity, paradox, data drop, quote, realization, contrast — auto-selected from article analysis
-- **Sources**: 5 topic feeds — produktivitas, mindset, finansial, kesehatan, relationship
-- **Celebrity cap**: 30% max per 48h window
-- **Daily limit**: 20 posts/day, auto-adjusted from engagement
-- **Banned patterns**: 84+ (cringe phrases, generic hooks, hallucinated facts, foreign book references)
-- **Grounding rules**: 10 rules, auto-REJECT if grounding < 5/10, deterministic proper noun + number validator
-- **Self-dev identity**: excludes famous startup founders (e.g. Elon Musk, Jack Ma) — targets relatable achievers
+- **Voice**: Casual Indonesian ("lu/gue"), ironi, angka real, no AI slop
+- **Format**: 6-slide per arc. Each arc has specific slide purpose
+- **Tag**: S1 Wajib `baru aja` untuk kejadian ≤48 jam
+- **Banned**: Chinese filler, puja-puji pejabat, "Indonesia" repeated, "kalau/kita"
+- **Reject**: olahraga, selebriti, bencana alam, pilkada/pilpres, parpol (hard -200)
+- **Penalty**: hiburan, gempa, banjir, covid (soft -60)
+- **CTA**: S6 wajib ada "?", "menurut lo", atau "pilih mana"
 
-## Pressbox Parity (~98%)
+## Sources
 
-TechBro mirrors [Pressbox](https://github.com/hadijayyy/pressbox-pipeline) architecture for self-dev niche:
-
-| Feature | Status | Detail |
-|---------|--------|--------|
-| RCTOE framework | ✅ | Role, Context, Task, Output, Execution |
-| 17-component scoring | ✅ | Added human interest + source tier upgrade |
-| Evaluator loop | ✅ | Independent LLM review, max 3 retry with feedback |
-| Grounding score | ✅ | Auto-REJECT if < 5/10 |
-| Grounding validator | ✅ | Deterministic proper noun + number check in prompt |
-| Viral criteria | ✅ | 7 criteria per slide |
-| Worked example | ✅ | Full JSON GTA VI example in prompt |
-| Local content rules | ✅ | 2/3 recommendations must be Indonesian-known |
-| Foreign book detection | ✅ | Postprocess flags obscure foreign books |
-| 4h article cache | ✅ | Persistent, rolling window |
-| Hot topic detection | ✅ | Union-Find, 30+ entities |
-| Hook analytics | ✅ | DB-based, activates at 20+ posts |
-| Hook pattern selection | ✅ | Dynamic from article analysis |
-| Banned patterns | ✅ | 84+ (stricter than Pressbox) |
-| Grounding rules | ✅ | 10 anti-hallucination rules |
-| Escalation arc | ✅ | Hook→Context→Escalation→Tips→Lesson→CTA |
-| Caption rules | ✅ | 2-3 lines, zero emoji/hashtags |
-| A/B testing | ✅ | 3 variants with hook quality scoring |
-| Source fingerprints | ✅ | Skip unchanged RSS feeds |
-| Title similarity dedup | ✅ | Jaccard + stopwords, 72h window, threshold 0.35 |
-| Engagement feedback | ✅ | Pull views/likes/replies via Threads Graph API |
-| Human interest scoring | ✅ | 72 keywords, max 15 boost |
-| Source tier system | ✅ | 4 tiers (10/8/6/3) |
-| Regex whitespace safety net | ✅ | Final pass: double spaces, punctuation gaps, trailing period |
-| 9router/Deepseek support | ✅ | Tier 1 provider, no rate limits |
-| Telegram notify | ✅ | Post confirmation to Telegram |
-| Cover image selection | ⏭️ | Skipped — low impact for text posts |
+| Source | Type | Score |
+|--------|------|-------|
+| CNBC Indonesia | RSS | 10 |
+| Detik Finance | HTML | 9 |
+| CNN Ekonomi | RSS | 9 |
+| Detik Hukum | HTML | 8 |
+| CNN Nasional | RSS | 8 |
+| Kompas Money | HTML | 7 |
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `scripts/pipeline.py` | Main orchestrator: scrape → score → generate → evaluate → stage |
-| `scripts/scraper.py` | Google News RSS + Trends scraping, 17-comp scoring, hot topic detection |
-| `scripts/generator.py` | LLM carousel generation (3-provider fallback) + evaluator with retry |
-| `scripts/poster.py` | Threads API wrapper for posting staged content |
-| `scripts/db.py` | SQLite database operations |
-| `scripts/techbro-pipeline.sh` | Cron wrapper script |
+| `pipeline-v3.py` | Main pipeline: scrape → score → generate → post |
+| `pipeline-v2.py` | Legacy self-dev pipeline (retired) |
+| `posted_topics_v2.json` | Dedup tracker (URL + title hash) |
 
 ## Setup
 
@@ -103,46 +78,41 @@ cd techbro-pipeline
 
 # Environment
 cp .env.example .env
-# Edit .env with your keys:
-#   ROUTER_KEY=...     (9router/Deepseek — tier 1)
+# Edit .env with:
 #   MISTRAL_API_KEY=...
-#   GROQ_API_KEY=...
 #   THREADS_ACCESS_TOKEN=...
 #   THREADS_USER_ID=...
 
-# Install deps
-pip install httpx beautifulsoup4 lxml google-news-decoder
+# Install deps (venv recommended)
+pip install httpx beautifulsoup4 lxml
 
 # Run
-python3 scripts/pipeline.py --dry-run  # test
-python3 scripts/pipeline.py            # live
+python3 pipeline-v3.py --dry-run  # test
+python3 pipeline-v3.py            # live
 
-# Cron (hourly)
-crontab -e
-0 * * * * cd ~/techbro && bash scripts/techbro-pipeline.sh
+# Cron (hourly 07:00-23:00 WIB)
+# Uses Hermes cron job: techbro-daily (bbb505feb8ad)
+# Schedule: 0 7-23 * * *
+# Script: techbro-daily.sh
 ```
 
 ## Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TOP_N` | 1 | Articles per run |
-| `DAILY_LIMIT` | 20 | Max posts per day |
-| `ARTICLE_CACHE_HOURS` | 4 | Rolling cache window |
-| `MAX_AGE_HOURS` | 720 | Article freshness (30 days) |
-| `celebrity_cap` | 30% | Max celebrity content per 48h |
+| `MAX_AGE_HOURS` | 48 | Article freshness cutoff |
+| `SCORE_THRESHOLDS["process"]` | 60 | Minimum score to generate |
+| `SCORE_THRESHOLDS["priority"]` | 75 | High-priority threshold |
+| `IMAGE_REQUIRED` | False | Skip article if no og:image |
 
 ## Monitoring
 
 ```bash
-# Check stats
-python3 -c "import sys; sys.path.insert(0,'scripts'); from db import get_stats, get_db; print(get_stats(get_db()))"
+# Check dedup state
+cat posted_topics_v2.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{len(d)} topics tracked')"
 
-# Check daily posts
-python3 -c "import sqlite3; conn=sqlite3.connect('pipeline.db'); conn.row_factory=sqlite3.Row; print(conn.execute(\"SELECT COUNT(*) FROM posts WHERE status='posted' AND date(posted_at)=date('now')\").fetchone()[0])"
-
-# Check cache size
-wc -l ~/.hermes/techbro/article-cache.json
+# Run dry-run
+python3 pipeline-v3.py --dry-run
 ```
 
 ## License

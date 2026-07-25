@@ -5,8 +5,15 @@ Threads content pipeline — 6-slide viral fact chain.
 Google News RSS trending integration. Seed engagement weighting.
 """
 
-import httpx, json, random, re, sys, time
+import html, httpx, json, random, re, sys, time, urllib.parse
 from pathlib import Path
+
+IMAGE_URL = None
+for i, a in enumerate(sys.argv):
+    if a == "--image-url" and i + 1 < len(sys.argv):
+        IMAGE_URL = sys.argv[i + 1]
+        break
+IMAGE_DISABLED = "--no-image" in sys.argv
 
 DRY_RUN = "--dry-run" in sys.argv
 TREND_ENABLED = "--no-trend" not in sys.argv
@@ -221,6 +228,101 @@ for _i, _s in enumerate(SEEDS):
     else:
         _SEED_CAT[_s] = 2
 
+# ── Category fallback images (Approach 1) ──
+CATEGORY_IMAGES = {
+    0: "https://images.unsplash.com/photo-1559757175-5700dde675bc?w=600",   # otak / brain
+    1: "https://images.unsplash.com/photo-1504006833117-8886a355efbf?w=600", # hewan / animals
+    2: "https://images.unsplash.com/photo-1505751172876-fa1923c5c528?w=600", # kesehatan / health
+}
+
+CATEGORY_KEYWORDS = {
+    0: ["otak", "pikiran", "memori", "tidur", "mimpi", "dejavu", "sadar", "psikologi", "neuron", "kognitif"],
+    1: ["hewan", "kucing", "anjing", "burung", "ikan", "serangga", "nyamuk", "lalat", "alam", "satwa"],
+    2: ["kesehatan", "sehat", "vitamin", "darah", "jantung", "ginjal", "imun", "diet", "lemak", "gula", "olahraga", "stres", "pencernaan", "usus", "metabolisme"],
+}
+
+
+def _detect_category(seed: str) -> int:
+    """Detect category from seed text. Defaults to 0 (otak)."""
+    seed_lower = seed.lower()
+    scores = {0: 0, 1: 0, 2: 0}
+    for cat, kws in CATEGORY_KEYWORDS.items():
+        for kw in kws:
+            if kw in seed_lower:
+                scores[cat] += 1
+    if max(scores.values()) == 0:
+        return 0
+    return max(scores, key=scores.get)
+
+
+def _extract_keywords(seed: str) -> list[str]:
+    """Extract meaningful keywords from seed for image search."""
+    stopwords = {'yang', 'di', 'ke', 'dari', 'dan', 'ini', 'itu', 'nya', 'dengan', 'untuk',
+                 'tidak', 'ada', 'akan', 'bisa', 'dalam', 'pada', 'lebih', 'setelah', 'sampai',
+                 'bagi', 'oleh', 'atau', 'sebagai', 'karena', 'telah', 'saja', 'juga', 'hanya',
+                 'saya', 'dia', 'mereka', 'kita', 'kami', 'saat', 'banyak', 'antara', 'punya',
+                 'baru', 'lagi', 'pula', 'kembali', 'terjadi', 'mungkin', 'banget', 'tapi',
+                 'kenapa', 'bikin', 'gampang', 'susah', 'biasanya', 'ternyata', 'rupanya',
+                 'memang', 'justru', 'bahkan', 'nyatanya', 'setiap', 'semua'}
+    words = re.findall(r'[a-zA-Z]+', seed.lower())
+    return [w for w in words if w not in stopwords and len(w) > 3][:5]
+
+
+def _search_image(keywords: list[str]) -> str | None:
+    """Search image via DuckDuckGo (VQD token flow). Returns image URL or None."""
+    if not keywords:
+        return None
+    query = " ".join(keywords)
+    try:
+        # Step 1: get VQD token from search page
+        search_url = f"https://duckduckgo.com/?q={urllib.parse.quote(query)}&iax=images&ia=images"
+        r = httpx.get(search_url, timeout=8, headers={
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        })
+        if r.status_code != 200:
+            return None
+        # Extract vqd token from page
+        m = re.search(r'vqd["\s:=]+([a-zA-Z0-9-]+)', r.text)
+        if not m:
+            return None
+        vqd = m.group(1)
+
+        # Step 2: fetch images with VQD token
+        img_url = f"https://duckduckgo.com/i.js?q={urllib.parse.quote(query)}&o=json&iax=images&ia=images&vqd={vqd}"
+        r2 = httpx.get(img_url, timeout=8, headers={
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://duckduckgo.com/",
+        })
+        if r2.status_code != 200:
+            return None
+        data = r2.json()
+        results = data.get("results", [])
+        for res in results:
+            img = res.get("image", "")
+            if img and not img.endswith(".svg"):
+                return img
+        return None
+    except Exception:
+        return None
+
+
+def _resolve_image(seed: str, cat: int | None = None) -> str | None:
+    """Resolve image URL: try search first, fallback to category. Returns URL or None."""
+    if cat is None:
+        cat = _detect_category(seed)
+    # Approach 2: search by keywords
+    kws = _extract_keywords(seed)
+    if kws:
+        url = _search_image(kws)
+        if url:
+            log.info(f"  Image: search hit ({url[:60]}...)")
+            return url
+    # Approach 1: category fallback
+    url = CATEGORY_IMAGES.get(cat)
+    if url:
+        log.info(f"  Image: category fallback ({cat})")
+        return url
+    return None
 
 def _categorize(seed):
     return _SEED_CAT.get(seed, -1)
@@ -957,8 +1059,8 @@ def generate_thread(seed, trending=None, recent_content=None):
 #   THREADS PUBLISHER
 # ══════════════════════════════════════════════
 
-def post_to_threads(seed, posts):
-    """Post 6-slide chain to Threads via v1.0 Graph API. Publish sequentially so each reply_to_id is a published post."""
+def post_to_threads(seed, posts, image_url=None):
+    """Post 6-slide chain to Threads via v1.0 Graph API. Slide 1 can have image."""
     if not THREADS_TOKEN or not THREADS_USER_ID:
         log.error("No THREADS_ACCESS_TOKEN or THREADS_USER_ID")
         return None
@@ -969,6 +1071,7 @@ def post_to_threads(seed, posts):
     uid = THREADS_USER_ID
     published_ids = []
     last_post_id = None
+    image_used = False
 
     for i in range(1, 7):
         key = f"post_{i}"
@@ -976,13 +1079,18 @@ def post_to_threads(seed, posts):
         if not text:
             continue
 
-        # Step 1: Create container — Threads v1.0 form-data endpoint
+        is_first = (i == 1)
+        use_image = is_first and image_url and not image_used
+
+        # Step 1: Create container
         data = {
             "user_id": uid,
-            "media_type": "TEXT",
+            "media_type": "IMAGE" if use_image else "TEXT",
             "text": text,
             "access_token": THREADS_TOKEN,
         }
+        if use_image:
+            data["image_url"] = image_url
         if last_post_id:
             data["reply_to_id"] = last_post_id
 
@@ -999,11 +1107,49 @@ def post_to_threads(seed, posts):
             time.sleep(2)
 
         if not container_id:
-            log.error(f"  {key} create failed after retries")
-            return {"error": f"{key} create failed", "post_ids": published_ids}
-        time.sleep(2)
+            if use_image:
+                # Fallback: retry as TEXT
+                log.warning(f"  IMAGE container failed for {key}, falling back to TEXT")
+                use_image = False
+                image_used = True  # don't retry image
+                data["media_type"] = "TEXT"
+                data.pop("image_url", None)
+                for retry in range(2):
+                    try:
+                        r = httpx.post(f"{GRAPH}/{uid}/threads", data=data, timeout=15)
+                        if r.status_code == 200:
+                            container_id = r.json().get("id")
+                            break
+                        log.warning(f"  {key} TEXT fallback attempt {retry+1}: HTTP {r.status_code}")
+                    except (httpx.RequestError, json.JSONDecodeError) as e:
+                        log.warning(f"  {key} TEXT fallback attempt {retry+1}: {e}")
+                    time.sleep(2)
+            if not container_id:
+                log.error(f"  {key} create failed after retries")
+                return {"error": f"{key} create failed", "post_ids": published_ids}
 
-        # Step 2: Publish — Threads v1.0 thread_publish endpoint
+        # Wait for image processing if needed
+        if use_image:
+            for poll in range(15):
+                try:
+                    sr = httpx.get(f"{GRAPH}/{container_id}",
+                                   params={"fields": "status,error_message",
+                                           "access_token": THREADS_TOKEN}, timeout=10)
+                    if sr.status_code == 200:
+                        status = sr.json().get("status", "")
+                        if status == "FINISHED":
+                            break
+                        if status == "ERROR":
+                            log.warning(f"  {key} image processing error: {sr.json().get('error_message', '')}")
+                            break
+                except Exception:
+                    pass
+                time.sleep(2)
+            image_used = True
+
+        time.sleep(1)
+
+        # Step 2: Publish
         post_id = None
         for retry in range(2):
             try:
@@ -1023,7 +1169,7 @@ def post_to_threads(seed, posts):
 
         published_ids.append(post_id)
         last_post_id = post_id
-        log.info(f"  {key} → {post_id}")
+        log.info(f"  {key} {'IMAGE' if use_image else 'TEXT'} → {post_id}")
         time.sleep(2)
 
     return {"post_ids": published_ids, "media_ids": published_ids}
@@ -1068,8 +1214,18 @@ def main():
         log.info(f"  S{k[5:]}: {first_line}")
 
     # Post or dry-run
+    # Resolve image for slide 1
+    image_url = None
+    if IMAGE_URL:
+        image_url = IMAGE_URL
+        log.info(f"  Image: manual --image-url")
+    elif not IMAGE_DISABLED:
+        image_url = _resolve_image(seed)
+    if image_url:
+        log.info(f"  Image URL: {image_url[:80]}...")
+
     if not DRY_RUN:
-        pub_result = post_to_threads(seed, posts)
+        pub_result = post_to_threads(seed, posts, image_url=image_url)
         if pub_result and pub_result.get("post_ids"):
             log.info(f"Posted: {pub_result['post_ids'][0]}")
             # Save topic
