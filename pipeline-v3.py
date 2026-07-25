@@ -409,11 +409,15 @@ def _convert_pov(text):
 
 def _format_sentence_blanks(text):
     """Clean text: strip em dash, then add blank lines between sentences."""
-    # Strip em dash first — LLM ignores prompt ban
     s = text.replace('— ', ' ').replace('—', ' ')
     s = re.sub(r'[ \t]+', ' ', s)  # collapse horizontal whitespace only
-    # Then insert blank lines between sentences
-    s = re.sub(r'(?<=[.!?]) +', r'\n\n', s)
+    # Insert blank lines after sentence-ending punctuation + space
+    s = re.sub(r'(?<=[.!?]) +', '\n\n', s)
+    # Also handle period + single newline (common LLM output format)
+    s = re.sub(r'(?<=[.!?])\n(?!\n)', '\n\n', s)
+    # Ensure every single \n becomes \n\n
+    s = re.sub(r'(?<!\n)\n(?!\n)', '\n\n', s)
+    # Collapse 3+
     s = re.sub(r'\n{3,}', '\n\n', s)
     return s.strip()
 
