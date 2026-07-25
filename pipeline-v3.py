@@ -483,6 +483,28 @@ Kamu adalah content engine @ryanhadiii. Baca artikel ekonomi di bawah, lalu tuli
 **"Baru aja"** — cuma kalo kejadian maks 48 jam lalu. Kalo lebih: "Minggu ini...", "Belakangan ini...", "Ada perubahan baru soal...".
 **Angka gede wajib dikonversi** di S2. Gak cuma "RpX triliun". "Setara 1.500 Avanza cuma kalo relevan", "gaji lo 500 tahun", "THR 40 kali". Pake asumsi jelas, dibulatin, jangan presisi palsu.
 
+## ATURAN SEDERHANA — JELASIN KE TEMEN YANG GAK NGERTI EKONOMI
+
+Setiap post HARUS lulus tes "jelasin ke temen di warung". Caranya:
+
+**1. Tiap istilah teknis → jelasin atau ganti**
+Kalo lu pake: devisa, subsidi, co-processing, suku bunga, IHSG, obligasi, PDB, inflasi, defisit, APBN — ganti atau tambah penjelasan singkat.
+- "devisa" → "uang negara buat bayar impor"
+- "co-processing" → "campur minyak sawit sama minyak mentah"
+- "inflasi" → "harga barang naik"
+- "APBN" → "anggaran belanja negara"
+
+**2. Maks 1 konsep baru per slide**
+Satu slide = satu ide. Jangan campur: kenapa harga naik + dampak siapa + perbandingan. Pilih satu aja.
+
+**3. Angka konkret > abstrak**
+- ❌ "mayoritas produk dari luar" → ✅ "6 dari 10 liter bensin kita impor"
+- ❌ "ketergantungan impor" → ✅ "setiap liter bensin yang lo isi, Rp6.000 nya buat negara lain"
+- ❌ "berpotensi menurunkan" → ✅ "bisa turun Rp500 per liter"
+
+**4. Kalo gak paham sendiri, pembaca juga gak paham**
+Kalo lu ragu temen lu ngerti istilah yang lu pake — ganti. Sederhana = cerdas.
+
 **LARANGAN — Gak boleh pake kata/frasa ini:**
 emoji, hashtag, "tau gak sih", "gak bakal percaya", "coba resapin", "let that sink in", "bayangin", "coba lo bayangin", "yang rugi siapa", "yang menarik", "patut dicatat", "tapi ternyata", "faktanya", "nyatanya", "inilah yang", "inilah kenapa", "sudah bukan rahasia lagi", "tak terelakkan", "perlu lo tau", "perlu diingat", "gimana menurut lo", "termasuk lo", "itulah mengapa", "jadi intinya", "yang bikin... adalah...", "mulai dari... sampai..."
 S1-S5: Gak boleh pertanyaan retoris. S6: maksi 1 CTA spesifik.
@@ -668,10 +690,6 @@ def _quality_gate(article, data, posts, warnings):
         warnings.append("S1: no tension marker")
     # 8. "baru aja" freshness check (soft warn if stale)
     # 9. S1-S5 no rhetorical questions
-    s1_5_questions = any(
-        "?" in posts.get(f"post_{i}", "") and "< 100 chars heuristic"
-        for i in range(1, 6)
-    )
     # 10. S6 has specific CTA
     s6 = posts.get("post_6", "").lower()
     if not any(qt in s6 for qt in ["?", "menurut", "pilih"]):
@@ -726,9 +744,9 @@ def generate_thread(article):
                             for k in p2:
                                 p2[k] = _convert_pov(p2[k])
                             w2 = deterministic_validate(p2)
-                            # Reject revision if any post still empty
+                            # Reject revision if any post still empty or ANY warning remains
                             has_empty = any(not p2.get(k, "").strip() for k in ["post_1","post_2","post_3","post_4","post_5","post_6"])
-                            if not has_empty and (not w2 or len(w2) < len(warnings)):
+                            if not has_empty and not w2:
                                 data, posts = d2, p2
                                 log.info("  Revision fixed validation")
                     except json.JSONDecodeError:
