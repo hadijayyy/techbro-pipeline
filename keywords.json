@@ -59,7 +59,7 @@
     {"min": 10000000000000, "max": null, "score": 18, "label": "Rp10T+"}
   ],
 
-  "hard_reject": ["olahraga", "sepak bola", "liga", "film", "musik", "konser", "gosip", "selebriti", "artis", "reality show", "sinetron", "ramalan", "zodiak", "kriminal biasa", "kecelakaan"],
+  "hard_reject": ["olahraga", "sepak bola", "liga", "film", "musik", "konser", "gosip", "selebriti", "artis", "reality show", "sinetron", "ramalan", "zodiak", "kriminal biasa", "kecelakaan", "promo", "promosi", "cashback", "diskon", "giveaway", "festival", "fest ", "acara ", "pameran ", "ajang tahunan", "helat", "kompetisi", "penghargaan", "ekspo", "event"],
 
   "soft_reject": ["pilkada", "pilpres", "capres", "cawapres", "parpol", "koalisi", "fraksi", "banjir", "gempa", "tsunami", "cuaca", "perang", "konflik luar negeri", "drama personal"],
 
