@@ -100,9 +100,8 @@ print("-" * 40)
 def test_whitespace():
     from generator import _add_whitespace
     result = _add_whitespace("First sentence. Second sentence. Third sentence.")
-    assert "\n\n" in result, f"No blank lines: {repr(result)}"
-    parts = result.split("\n\n")
-    assert len(parts) == 3, f"Expected 3 parts, got {len(parts)}"
+    assert "\n\n" not in result, f"Blank lines still present: {repr(result)}"
+    assert result == "First sentence. Second sentence. Third sentence."
 test("postproc_whitespace", test_whitespace)
 
 def test_em_dash():

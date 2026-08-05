@@ -1,74 +1,392 @@
 {
-  "_note": "TechBro V3 dynamic keywords — edit this file to update scoring without code changes.",
+  "_note": "TechBro V3 dynamic keywords \u2014 edit this file to update scoring without code changes.",
   "_version": 3,
-
   "score_categories": [
     {
       "name": "dampak_dompet",
       "max_score": 30,
-      "keywords": ["gaji", "upah", "umr", "ump", "umk", "thr", "bonus", "tunjangan", "phk", "pemecatan", "pesangon", "lowongan kerja", "pajak", "ppn", "pph", "cukai", "bpjs", "subsidi", "bansos", "harga pangan", "harga beras", "harga minyak", "harga bbm", "tarif listrik", "tarif tol", "biaya sekolah", "kpr", "cicilan", "pinjol", "bunga kredit", "daya beli", "inflasi"]
+      "keywords": [
+        "gaji",
+        "upah",
+        "umr",
+        "ump",
+        "umk",
+        "thr",
+        "bonus",
+        "tunjangan",
+        "phk",
+        "pemecatan",
+        "pesangon",
+        "lowongan kerja",
+        "pajak",
+        "ppn",
+        "pph",
+        "cukai",
+        "bpjs",
+        "subsidi",
+        "bansos",
+        "harga pangan",
+        "harga beras",
+        "harga minyak",
+        "harga bbm",
+        "tarif listrik",
+        "tarif tol",
+        "biaya sekolah",
+        "kpr",
+        "cicilan",
+        "pinjol",
+        "bunga kredit",
+        "daya beli",
+        "inflasi"
+      ]
     },
     {
       "name": "kebijakan_ekonomi",
-      "max_score": 25,
-      "keywords": ["kebijakan fiskal", "kebijakan moneter", "apbn", "apbd", "anggaran negara", "penerimaan negara", "belanja negara", "defisit", "surplus", "utang pemerintah", "subsidi energi", "subsidi pangan", "suku bunga", "bi rate", "nilai tukar", "rupiah", "cadangan devisa", "ekspor", "impor", "neraca perdagangan", "pdb", "pertumbuhan ekonomi", "konsumsi rumah tangga"]
+      "max_score": 35,
+      "keywords": [
+        "kebijakan fiskal",
+        "kebijakan moneter",
+        "apbn",
+        "apbd",
+        "anggaran negara",
+        "penerimaan negara",
+        "penerimaan pajak",
+        "belanja negara",
+        "defisit",
+        "surplus",
+        "utang pemerintah",
+        "utang negara",
+        "rasio utang",
+        "tax ratio",
+        "subsidi energi",
+        "subsidi pangan",
+        "suku bunga",
+        "bi rate",
+        "nilai tukar",
+        "rupiah",
+        "cadangan devisa",
+        "neraca pembayaran",
+        "current account",
+        "ekspor",
+        "impor",
+        "kuota impor",
+        "neraca perdagangan",
+        "bea masuk",
+        "bea keluar",
+        "tarif",
+        "pdb",
+        "pertumbuhan ekonomi",
+        "konsumsi rumah tangga",
+        "hilirisasi",
+        "pmi manufaktur",
+        "indeks kepercayaan konsumen",
+        "inflasi inti",
+        "harga produsen",
+        "bumn",
+        "tarif listrik"
+      ]
     },
     {
       "name": "tenaga_kerja",
       "max_score": 25,
-      "keywords": ["phk massal", "pemutusan hubungan kerja", "pengangguran", "pekerja", "buruh", "lapangan kerja", "tenaga kerja", "gaji minimum", "upah minimum", "kenaikan gaji", "penurunan upah", "bonus", "thr", "pesangon", "pabrik tutup", "efisiensi karyawan", "rekrutmen", "pekerja informal"]
+      "keywords": [
+        "phk massal",
+        "pemutusan hubungan kerja",
+        "pengangguran",
+        "pekerja",
+        "buruh",
+        "lapangan kerja",
+        "tenaga kerja",
+        "gaji minimum",
+        "upah minimum",
+        "kenaikan gaji",
+        "penurunan upah",
+        "bonus",
+        "thr",
+        "pesangon",
+        "pabrik tutup",
+        "efisiensi karyawan",
+        "rekrutmen",
+        "pekerja informal"
+      ]
     },
     {
       "name": "harga_kebutuhan",
       "max_score": 25,
-      "keywords": ["harga beras", "harga pangan", "sembako", "minyak goreng", "daging", "telur", "cabai", "gula", "bbm", "pertalite", "solar", "gas lpg", "tarif listrik", "token listrik", "transportasi", "tarif tol", "biaya pendidikan", "uang sekolah", "biaya kesehatan", "iuran bpjs", "harga rumah", "sewa rumah"]
+      "keywords": [
+        "harga beras",
+        "harga gabah",
+        "harga pangan",
+        "sembako",
+        "minyak goreng",
+        "daging",
+        "telur",
+        "cabai",
+        "gula",
+        "bbm",
+        "pertalite",
+        "solar",
+        "gas lpg",
+        "tarif listrik",
+        "token listrik",
+        "transportasi",
+        "tarif tol",
+        "biaya pendidikan",
+        "uang sekolah",
+        "biaya kesehatan",
+        "iuran bpjs",
+        "harga rumah",
+        "sewa rumah",
+        "hpp",
+        "stok beras",
+        "sphp",
+        "harga eceran tertinggi"
+      ]
     },
     {
       "name": "kredit_utang",
       "max_score": 22,
-      "keywords": ["kpr", "kredit", "cicilan", "bunga kredit", "bunga pinjaman", "kartu kredit", "paylater", "pinjol", "gagal bayar", "utang rumah tangga", "restrukturisasi kredit", "skor kredit", "slik ojk", "tabungan", "deposito", "dana darurat", "investasi ritel"]
+      "keywords": [
+        "kpr",
+        "kredit",
+        "cicilan",
+        "bunga kredit",
+        "bunga pinjaman",
+        "kartu kredit",
+        "paylater",
+        "pinjol",
+        "gagal bayar",
+        "utang rumah tangga",
+        "restrukturisasi kredit",
+        "skor kredit",
+        "slik ojk",
+        "tabungan",
+        "deposito",
+        "dana darurat",
+        "investasi ritel"
+      ]
     },
     {
       "name": "pasar_investasi",
-      "max_score": 18,
-      "keywords": ["ihsg", "bursa efek indonesia", "saham", "obligasi", "sukuk", "reksa dana", "dividen", "emas", "bitcoin", "aset kripto", "rupiah", "dolar", "capital outflow", "capital inflow", "investor asing", "laba", "rugi", "pendapatan", "ipo", "delisting"]
+      "max_score": 8,
+      "keywords": [
+        "rupiah",
+        "dolar",
+        "capital outflow",
+        "capital inflow",
+        "investor asing"
+      ]
     },
     {
       "name": "korupsi_publik",
-      "max_score": 18,
-      "keywords": ["korupsi", "suap", "gratifikasi", "mark up", "pengadaan", "kerugian negara", "penyalahgunaan anggaran", "dana bansos", "dana desa", "proyek pemerintah", "kpk", "kejaksaan agung", "jampidsus"]
+      "max_score": 8,
+      "keywords": [
+        "kerugian negara",
+        "penyalahgunaan anggaran",
+        "dana bansos",
+        "dana desa",
+        "proyek pemerintah"
+      ]
     },
     {
       "name": "bisnis_industri",
-      "max_score": 15,
-      "keywords": ["pabrik tutup", "ekspansi", "investasi", "divestasi", "merger", "akuisisi", "kebangkrutan", "pailit", "efisiensi", "restrukturisasi", "laba", "rugi", "penjualan", "pendapatan", "industri manufaktur", "ritel", "perbankan", "startup", "umkm", "properti", "otomotif", "tekstil", "sawit", "tambang"]
+      "max_score": 18,
+      "keywords": [
+        "pabrik tutup",
+        "investasi",
+        "kebangkrutan",
+        "pailit",
+        "efisiensi",
+        "restrukturisasi",
+        "industri manufaktur",
+        "umkm",
+        "properti",
+        "otomotif",
+        "tekstil",
+        "sawit",
+        "tambang",
+        "produksi",
+        "kawasan industri",
+        "rantai pasok",
+        "tkdn"
+      ]
+    },
+    {
+      "name": "makro_global",
+      "max_score": 18,
+      "keywords": [
+        "federal reserve",
+        "the fed",
+        "ecb",
+        "bank sentral eropa",
+        "bank of japan",
+        "boj",
+        "pboc",
+        "opec",
+        "harga minyak dunia",
+        "tarif dagang",
+        "perang dagang",
+        "sanksi ekonomi",
+        "resesi global",
+        "ekonomi global",
+        "perdagangan global"
+      ]
     }
   ],
-
   "entity_boost": {
-    "otoritas": { "score": 10, "names": ["bank indonesia", "kementerian keuangan", "direktorat jenderal pajak", "ojk", "badan pusat statistik", "bps", "lembaga penjamin simpanan"] },
-    "figur": { "score": 7, "names": ["menteri keuangan", "gubernur bank indonesia", "ketua dewan komisioner ojk", "kepala bps", "direktur jenderal pajak"] },
-    "institusi": { "score": 5, "names": ["kpk", "kejaksaan agung", "bpk", "bpkp", "pertamina", "pln", "bulog"] }
+    "otoritas": {
+      "score": 10,
+      "names": [
+        "bank indonesia",
+        "kementerian keuangan",
+        "direktorat jenderal pajak",
+        "ojk",
+        "badan pusat statistik",
+        "bps",
+        "lembaga penjamin simpanan"
+      ]
+    },
+    "figur": {
+      "score": 7,
+      "names": [
+        "menteri keuangan",
+        "gubernur bank indonesia",
+        "ketua dewan komisioner ojk",
+        "kepala bps",
+        "direktur jenderal pajak"
+      ]
+    },
+    "institusi": {
+      "score": 5,
+      "names": [
+        "kpk",
+        "kejaksaan agung",
+        "bpk",
+        "bpkp",
+        "pertamina",
+        "pln",
+        "bulog"
+      ]
+    }
   },
-
   "number_bonus": [
-    {"min": 100000000, "max": 999999999, "score": 3, "label": "Rp100jt-Rp999jt"},
-    {"min": 1000000000, "max": 99999999999, "score": 6, "label": "Rp1M-Rp99M"},
-    {"min": 100000000000, "max": 999999999999, "score": 10, "label": "Rp100M-Rp999M"},
-    {"min": 1000000000000, "max": 9999000000000, "score": 14, "label": "Rp1T-Rp9,9T"},
-    {"min": 10000000000000, "max": null, "score": 18, "label": "Rp10T+"}
+    {
+      "min": 100000000,
+      "max": 999999999,
+      "score": 3,
+      "label": "Rp100jt-Rp999jt"
+    },
+    {
+      "min": 1000000000,
+      "max": 99999999999,
+      "score": 6,
+      "label": "Rp1M-Rp99M"
+    },
+    {
+      "min": 100000000000,
+      "max": 999999999999,
+      "score": 10,
+      "label": "Rp100M-Rp999M"
+    },
+    {
+      "min": 1000000000000,
+      "max": 9999000000000,
+      "score": 14,
+      "label": "Rp1T-Rp9,9T"
+    },
+    {
+      "min": 10000000000000,
+      "max": null,
+      "score": 18,
+      "label": "Rp10T+"
+    }
   ],
-
-  "hard_reject": ["olahraga", "sepak bola", "liga", "film", "musik", "konser", "gosip", "selebriti", "artis", "reality show", "sinetron", "ramalan", "zodiak", "kriminal biasa", "kecelakaan", "promo", "promosi", "cashback", "diskon", "giveaway", "festival", "fest ", "acara ", "pameran ", "ajang tahunan", "helat", "kompetisi", "penghargaan", "ekspo", "event"],
-
-  "soft_reject": ["pilkada", "pilpres", "capres", "cawapres", "parpol", "koalisi", "fraksi", "banjir", "gempa", "tsunami", "cuaca", "perang", "konflik luar negeri", "drama personal"],
-
-  "named_blacklist": ["clara", "shinta", "gitasav"],
-
+  "hard_reject": [
+    "olahraga",
+    "sepak bola",
+    "liga",
+    "film",
+    "musik",
+    "konser",
+    "gosip",
+    "selebriti",
+    "artis",
+    "reality show",
+    "sinetron",
+    "zodiak",
+    "kriminal biasa",
+    "kecelakaan",
+    "promo",
+    "promosi",
+    "cashback",
+    "diskon",
+    "giveaway",
+    "festival",
+    "fest ",
+    "acara ",
+    "pameran ",
+    "ajang tahunan",
+    "helat",
+    "kompetisi",
+    "penghargaan",
+    "ekspo",
+    "event"
+  ],
+  "soft_reject": [
+    "pilkada",
+    "pilpres",
+    "capres",
+    "cawapres",
+    "parpol",
+    "koalisi",
+    "fraksi",
+    "banjir",
+    "gempa",
+    "tsunami",
+    "cuaca",
+    "drama personal"
+  ],
+  "commercial_reject": [
+    "promo",
+    "promosi",
+    "cashback",
+    "diskon",
+    "giveaway",
+    "sponsor",
+    "sponsorship",
+    "bersponsor",
+    "advertorial",
+    "iklan",
+    "kemitraan",
+    "kolaborasi umkm",
+    "brand activation",
+    "aktivasi merek",
+    "program loyalitas",
+    "loyalty program",
+    "nasabah prioritas",
+    "festival",
+    "fest",
+    "pameran",
+    "expo",
+    "ekspo",
+    "ajang",
+    "event",
+    "acara tahunan",
+    "pre-order",
+    "preorder",
+    "kode promo",
+    "voucher",
+    "buy 1 get 1"
+  ],
+  "named_blacklist": [
+    "clara",
+    "shinta",
+    "gitasav"
+  ],
   "score_thresholds": {
     "reject": 45,
     "backup": 60,
-    "process": 60,
+    "process": 50,
     "priority": 75
   }
 }

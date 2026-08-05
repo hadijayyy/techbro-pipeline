@@ -712,13 +712,8 @@ def _count_sentences(text: str):
 
 
 def _add_whitespace(text: str) -> str:
-    """Split text into sentences and join with double line breaks. Safer than regex split."""
-    # Split on sentence boundaries (period, exclamation, question mark followed by space or newline)
-    sentences = re.split(r'(?<=[.!?])(\s+|\n+)', text)
-    # Filter out empty strings and whitespace-only entries
-    sentences = [s.strip() for s in sentences if s.strip()]
-    # Join with exactly one double line break
-    return "\n\n".join(sentences)
+    """Collapse whitespace to single spaces — no forced blank line per sentence (5 Aug 2026)."""
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _regex_fallback(text: str) -> str:
@@ -1003,10 +998,9 @@ def _postprocess_slides(slides: dict, source_url: str = "") -> dict:
         # Strip placeholders
         text = re.sub(r'\[.*?\]', '', text)
         
-        # Add whitespace between sentences
-        text = _add_whitespace(text)
-        # Unescape escaped newlines from LLM JSON (\n → actual newline)
+        # No forced blank lines; collapse AFTER unescaping LLM newlines
         text = text.replace('\\n', '\n')
+        text = _add_whitespace(text)
         text = text.strip()
         
         # Auto-trim body slides (2-5) to max 3 sentences — matches Pressbox
