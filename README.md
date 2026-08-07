@@ -1,119 +1,102 @@
-# TechBro V3 — Ekonomi Nasional Indonesia
+# TechBro V5 — Ekonomi Nasional Indonesia
 
-Content automation pipeline for [@ryanhadiii](https://www.threads.net/@ryanhadiii) — Ekonomi Nasional Indonesia thread generator.
+Content automation pipeline for [@ryanhadiii](https://www.threads.net/@ryanhadiii) — Ekonomi Nasional Indonesia thread generator, reverse-engineered from viral Threads post patterns.
 
-Scrapes CNBC/CNN/Detik Finance/Kompas Money → scores by economy relevance → generates 6-slide thread via Mistral → posts to Threads.
+Scrapes CNBC/CNN/Detik Finance → scores by economy relevance → generates 6-slide thread via LLM → posts to Threads. Hourly cron 07:00-23:00 WIB.
 
 ## Architecture
 
 ```
-┌─────────────┐    ┌─────────────┐    ┌──────────────┐    ┌────────────┐
-│  1. SCRAPE  │───▶│ 2. SCORE    │───▶│ 3. GENERATE  │───▶│ 4. POST    │
-│ 6 RSS/HTML  │    │ 8 category  │    │ Mistral LLM  │    │ Threads    │
-│ sources     │    │ entity      │    │ 7 arc prompt │    │ API        │
-│             │    │ threshold   │    │ revision     │    │            │
-└─────────────┘    └─────────────┘    └──────────────┘    └────────────┘
+┌─────────────┐    ┌──────────────┐    ┌──────────────┐    ┌────────────┐
+│  1. SCRAPE  │───▶│ 2. CANDIDATE │───▶│ 3. GENERATE  │───▶│ 4. POST    │
+│ 5 RSS/HTML  │    │ gate + rank  │    │ LLM V5       │    │ Threads    │
+│ sources     │    │ title/body   │    │ formula      │    │ API        │
+│             │    │ score≥3      │    │ anti-halus   │    │ chain 6    │
+└─────────────┘    └──────────────┘    └──────────────┘    └────────────┘
 ```
 
-## Pipeline Flow
+## V5 Formula — Ryan Hadi Style
 
-1. **Scrape** — 6 sources parallel (CNBC, CNN Ekonomi, Detik Finance, Detik Hukum, Kompas Money, CNN Nasional). RSS + HTML fallback. ~75 articles per run. Tempo excluded (always 403).
+Reverse-engineered from viral @ryanhadiii post (Pelita Air → Garuda). 6-slide structure:
 
-2. **Score** — 8 category system with per-category cap:
-   - Dompet Langsung (30): gaji, upah, UMR, THR, PHK, pajak, PPN, PPh, BPJS, subsidi, BBM, KPR, pinjol, inflasi
-   - Kebijakan Ekonomi (25): APBN, defisit, suku bunga, rupiah, ekspor, IP, PDB
-   - Tenaga Kerja (25): PHK massal, pengangguran, upah minimum, bonus
-   - Harga Pangan (25): beras, pangan, BBM, tarif listrik, biaya sekolah
-   - Kredit & Utang (22): KPR, cicilan, paylater, pinjol, gagal bayar
-   - Pasar Modal (18): IHSG, saham, emas, rupiah, dolar
-   - Korupsi (18): korupsi, suap, gratifikasi, KPK, kejagung
-   - Bonus Angka (max 15): Rp100jt +3, Rp1T +5, Rp10T+ +10
+| Slide | Formula | Example |
+|-------|---------|---------|
+| **S1** | "Baru aja [event]. [dampak ke lo]" | "Baru aja Pelita Air dipindahin ke Garuda. Bisa ubah nasib 10.000 karyawan dan harga tiket lo." |
+| **S2** | "[Angka A] vs [Angka B]. Siapa deg-degan?" | "Pelita Air 3.200 vs Garuda 11.000 karyawan. Siapa paling deg-degan?" |
+| **S3** | "[Alasan resmi]. Tapi [realita]. [bukti]" | "Alasannya biar penerbangan kuat. Tapi efisiensi = PHK. Garuda aja tutup rute tahun lalu." |
+| **S4** | "Yang kena: [profesi A,B,C]. Aman: [profesi X,Y]" | "Paling kena: petugas check-in, mekanik, pilot. Aman: IT, manajemen." |
+| **S5** | "Bisa [buruk] kalau [X]. Bisa [baik] kalau [Y]" | "Harga tiket? Bisa naik kalau Garuda monopoli. Bisa turun kalau efisiensi berhasil." |
+| **S6** | "Lo kerja di [niche]? Cerita dong." + URL | "Lo kerja di maskapai BUMN? Cerita dong suasana kantor sekarang." |
 
-   Entity boost: Otoritas +10 (sri mulyani, perry warjiyo, presiden), Figur +7 (ahlis, lutfi), Institusi +5 (KPK, BI)
-   Freshness multiplier: <6h=1.0, <12h=0.9, <24h=0.75, <48h=0.5, >48h=0.2
-   Source quality: CNBC 1.1, Detik Finance 1.0, CNN 0.9
-   Threshold: reject<45, backup 45-59, process≥60, priority≥75
+## Voice
 
-3. **Generate** — 7-arc system (Dompet Kejepit, Market Shock, Policy Bomb, Global Domino, Personal Finance, Jobs Under Pressure, Public Money Trail, Debt Trap). Each arc has unique S1-S6 structure (Hook → Context → Why → Impact → Trade-off → CTA). Mistral LLM with revision gate for quality.
+- **"Lo"** not "kalian" — DM-style, 1:1 feel
+- 1-2 sentences per slide, phone-optimized
+- Opinionated, takes the side of regular people
+- Translates economy jargon: "holding company → perusahaan induk yang ngatur anak perusahaan"
+- **Banned words**: akselerasi, mitigasi, implementasi, optimalisasi, signifikan, komprehensif, bayangin, foto ini, terlihat
 
-4. **Validate** — Deterministic post-gen checks: slop detection, Chinese filler, "baru aja" hook (article must be ≤48h), rhetorical questions (S1-5 only), empty post, CTA presence. Revision retry on failure.
+## Anti-Hallucination
 
-5. **Post** — 6-slide thread chain via Threads Graph API. Slide 1=root, 2-6=replies. HD image from article og:image (skip if absent).
+Multi-layer defense:
+1. Body ≥ 500 chars required
+2. Topic score ≥ 3 (economy + impact)
+3. LLM fact-extraction pre-step before writing
+4. Post-generation validator: every number, name, institution checked against article body
+5. Max 2 revision attempts per article
+6. Retry on next candidate if generation fails
 
-## Content Rules
+## Candidate Gates
 
-- **Voice**: Casual Indonesian ("lu/gue"), ironi, angka real, no AI slop
-- **Format**: 6-slide per arc. Each arc has specific slide purpose
-- **Tag**: S1 Wajib `baru aja` untuk kejadian ≤48 jam
-- **Banned**: Chinese filler, puja-puji pejabat, "Indonesia" repeated, "kalau/kita"
-- **Reject**: olahraga, selebriti, bencana alam, pilkada/pilpres, parpol (hard -200)
-- **Penalty**: hiburan, gempa, banjir, covid (soft -60)
-- **CTA**: S6 wajib ada "?", "menurut lo", atau "pilih mana"
+| Gate | Threshold |
+|------|-----------|
+| Title economy signals | Must match keyword list |
+| Body length | ≥ 500 chars |
+| Topic score | ≥ 3/10 |
+| Image | HD required (1200×670+) |
+| Source publish time | ≤ 24h, not future |
+| Repeat detection | Skip if shared entities within 72h |
 
 ## Sources
 
-| Source | Type | Score |
+| Source | Type | Items |
 |--------|------|-------|
-| CNBC Indonesia | RSS | 10 |
-| Detik Finance | HTML | 9 |
-| CNN Ekonomi | RSS | 9 |
-| Detik Hukum | HTML | 8 |
-| CNN Nasional | RSS | 8 |
-| Kompas Money | HTML | 7 |
-
-## Files
-
-| File | Purpose |
-|------|---------|
-| `pipeline-v3.py` | Main pipeline: scrape → score → generate → post |
-| `pipeline-v2.py` | Legacy self-dev pipeline (retired) |
-| `posted_topics_v2.json` | Dedup tracker (URL + title hash) |
+| CNN Ekonomi | RSS | 100 |
+| Detik Finance | RSS | 100 |
+| CNBC News | RSS | 100 |
+| CNBC Market | RSS | 100 |
+| Detik Finance | HTML fallback | 68 |
 
 ## Setup
 
 ```bash
-# Clone
 git clone https://github.com/hadijayyy/techbro-pipeline.git
 cd techbro-pipeline
 
 # Environment
 cp .env.example .env
-# Edit .env with:
-#   MISTRAL_API_KEY=...
-#   THREADS_ACCESS_TOKEN=...
-#   THREADS_USER_ID=...
+# THREADS_ACCESS_TOKEN=...
+# THREADS_USER_ID=...
 
-# Install deps (venv recommended)
 pip install httpx beautifulsoup4 lxml
 
-# Run
-python3 pipeline-v3.py --dry-run  # test
-python3 pipeline-v3.py            # live
-
-# Cron (hourly 07:00-23:00 WIB)
-# Uses Hermes cron job: techbro-daily (bbb505feb8ad)
-# Schedule: 0 7-23 * * *
-# Script: techbro-daily.sh
-```
-
-## Configuration
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MAX_AGE_HOURS` | 48 | Article freshness cutoff |
-| `SCORE_THRESHOLDS["process"]` | 60 | Minimum score to generate |
-| `SCORE_THRESHOLDS["priority"]` | 75 | High-priority threshold |
-| `IMAGE_REQUIRED` | False | Skip article if no og:image |
-
-## Monitoring
-
-```bash
-# Check dedup state
-cat posted_topics_v2.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{len(d)} topics tracked')"
-
-# Run dry-run
+# Test
 python3 pipeline-v3.py --dry-run
+
+# Live
+python3 pipeline-v3.py
+
+# Cron: Hermes cron job "Techbro Hourly" (0 7-23 * * *)
 ```
+
+## Files
+
+| File | Purpose |
+|------|---------|
+| `pipeline-v3.py` | Main pipeline (V5 prompt, anti-hallucination, retry logic) |
+| `posted_topics_v2.json` | Dedup tracker |
+| `pov_affiliate.json` | S7 affiliate rotation |
+| `keywords.json` | Economy keyword categories |
 
 ## License
 

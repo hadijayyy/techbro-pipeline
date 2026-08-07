@@ -7,6 +7,8 @@ Article-based: scrape economy RSS/HTML → 6 threads with personal POV.
 import html, httpx, json, logging, os, random, re, struct, sys, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
+
+WIB = timezone(timedelta(hours=7))
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from bs4 import BeautifulSoup
@@ -96,13 +98,14 @@ DYNAMIC_KEYWORDS = load_dynamic_keywords()
 # ── Economy Sources ──────────────────────────────────────────────────────────
 
 SOURCES = {
-    "cnbc_ekonomi":   {"url": "https://www.cnbcindonesia.com/news/rss",          "score": 10, "type": "rss",  "domain": "cnbcindonesia.com/"},
-    "cnbc_market":    {"url": "https://www.cnbcindonesia.com/market/",           "score": 9,  "type": "html", "domain": "cnbcindonesia.com/market/"},
-    "cnn_global":     {"url": "https://www.cnnindonesia.com/internasional/rss",  "score": 8,  "type": "rss",  "domain": "cnnindonesia.com/internasional/"},
-    "cnn_ekonomi":    {"url": "https://www.cnnindonesia.com/ekonomi/rss",        "score": 9,  "type": "rss",  "domain": "cnnindonesia.com/ekonomi/"},
-    "detik_finance":  {"url": "https://finance.detik.com/",                     "score": 9,  "type": "html", "domain": "finance.detik.com/"},
-    "detik_hukum":    {"url": "https://news.detik.com/hukum/",                  "score": 8,  "type": "html", "domain": "news.detik.com/hukum/"},
-    "cnn_nasional":   {"url": "https://www.cnnindonesia.com/nasional/rss",       "score": 8,  "type": "rss",  "domain": "cnnindonesia.com/nasional/"},
+    # PURE ekonomi — RSS feeds
+    "cnn_ekonomi":      {"url": "https://www.cnnindonesia.com/ekonomi/rss",        "score": 10, "type": "rss", "domain": "cnnindonesia.com/ekonomi/"},
+    "detik_finance":    {"url": "https://finance.detik.com/rss",                  "score": 10, "type": "rss", "domain": "finance.detik.com/"},
+    "cnbc_market":      {"url": "https://www.cnbcindonesia.com/market/rss",       "score": 9,  "type": "rss", "domain": "cnbcindonesia.com/market/"},
+    # Mixed (ekonomi + umum) — prioritised below pure ekonomi via lower score
+    "cnbc_news":        {"url": "https://www.cnbcindonesia.com/news/rss",          "score": 8,  "type": "rss", "domain": "cnbcindonesia.com/"},
+    # HTML fallback — only used when RSS is empty, slower but deeper
+    "detik_finance_html": {"url": "https://finance.detik.com/",                   "score": 7,  "type": "html", "domain": "finance.detik.com/"},
 }
 
 # ── Scoring Configuration (loaded from keywords.json) ──────────────────────────
@@ -220,6 +223,25 @@ def _canonical_url(url):
 
 # ── RSS Scraping ─────────────────────────────────────────────────────────────
 
+def _title_is_junk(title):
+    """Reject non-article titles: tickers, video prefixes, short codes, navigation."""
+    t = title.strip()
+    if len(t) < 20:
+        return True
+    # Market widgets / tickers
+    if re.match(r'^[A-Z]{2,5}\d[\d,.]+\s*[-+]\d', t):
+        return True
+    if any(kw in t.lower() for kw in ("video:", "foto:", "live:", "infografis:", "live report")):
+        return True
+    # CNBC junk patterns
+    if re.search(r'Market\d+\s+(jam|menit|detik)\s+yang\s+lalu', t, re.I):
+        return True
+    # Pure number-only titles
+    if re.match(r'^[\d,.\s%+\-]+$', t):
+        return True
+    return False
+
+
 def _scrape_rss(url, source, base_score):
     """Parse RSS feed → article dicts."""
     articles = []
@@ -246,6 +268,8 @@ def _scrape_rss(url, source, base_score):
             if mc is not None:
                 og_image = mc.get("url")
             if not title or not link or "/live/" in link or "/liveblog/" in link:
+                continue
+            if _title_is_junk(title):
                 continue
             articles.append({
                 "title": title, "url": link, "source": source,
@@ -274,7 +298,7 @@ def _scrape_html(url, source, base_score, domain):
                 continue
             title = a_tag.get_text(strip=True)
             title = re.sub(r"\s+", " ", title).strip()
-            if len(title) < 25:
+            if len(title) < 25 or _title_is_junk(title):
                 continue
             if href in seen:
                 continue
@@ -313,7 +337,19 @@ def scrape_all():
                 articles.extend(f.result())
             except Exception as e:
                 log.warning(f"Scrape {fut_map[f]}: {e}")
-    return articles
+    # Same-source cluster dedup: keep max 2 per source, prefer diverse entities
+    from collections import defaultdict
+    by_source = defaultdict(list)
+    for a in articles:
+        by_source[a["source"]].append(a)
+    deduped = []
+    for source, src_articles in by_source.items():
+        # Sort by title quality (longer = more specific = better)
+        src_articles.sort(key=lambda a: len(a["title"]), reverse=True)
+        # Keep max 2 per source to prevent OJK/OJK/OJK/OJK cluster
+        deduped.extend(src_articles[:2])
+    log.info(f"  Articles: {len(articles)} raw → {len(deduped)} deduped")
+    return deduped
 
 # ── Economy Relevance Scoring ────────────────────────────────────────────────
 
@@ -501,12 +537,35 @@ def validate_article_image(url):
     try:
         response = httpx.get(url, timeout=15, follow_redirects=True)
         size = _image_size(response.content) if response.status_code == 200 else None
-        if size and size[0] >= 1200 and size[1] >= 674:
+        if size and size[0] >= 1200 and size[1] >= 670:
             return url
         log.warning(f"Reject non-HD article image: {size or 'unknown'} {url[:80]}")
     except httpx.RequestError as e:
         log.warning(f"Validate article image failed: {e}")
     return None
+
+def _image_hint(url):
+    """Extract a short visual hint from image URL path for S1 hook context."""
+    if not url:
+        return ""
+    try:
+        path = urllib.parse.urlsplit(url).path.lower()
+        hints = []
+        for kw, label in [
+            ("ilustrasi", "ilustrasi"), ("pasar", "pasar"), ("pabrik", "pabrik"),
+            ("buruh", "buruh/pekerja"), ("petani", "petani"), ("nelayan", "nelayan"),
+            ("jalan", "jalan raya"), ("pelabuhan", "pelabuhan"), ("tambang", "tambang"),
+            ("perkantoran", "kantor"), ("uang", "uang/transaksi"), ("bank", "bank"),
+            ("menteri", "pejabat"), ("presiden", "presiden"), ("rapat", "rapat"),
+            ("beras", "beras/pangan"), ("bbm", "BBM/SPBU"),
+            ("listrik", "listrik/PLN"), ("sekolah", "sekolah"), ("rumah", "perumahan"),
+        ]:
+            if kw in path:
+                hints.append(label)
+        return ", ".join(hints[:3]) if hints else "foto berita"
+    except Exception:
+        return ""
+
 
 def _fetch_article_body(url):
     """Fetch article HTML, extract clean text + og:image + source publish time."""
@@ -524,7 +583,7 @@ def _fetch_article_body(url):
                 published_ts = parsedate_to_datetime(date_tag["content"]).timestamp()
             except (TypeError, ValueError):
                 try:
-                    published_ts = datetime.strptime(str(date_tag["content"]), "%Y/%m/%d %H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
+                    published_ts = datetime.strptime(str(date_tag["content"]), "%Y/%m/%d %H:%M:%S").replace(tzinfo=WIB).timestamp()
                 except ValueError:
                     pass
         # og:image
@@ -569,7 +628,11 @@ def _is_techbro_relevant(body):
         r"pemerintah indonesia|presiden|mahkamah konstitusi|mk|kemenkeu|"
         r"bank indonesia|bi|ojk|bpk|dpr|federal reserve|the fed|ecb|bank sentral eropa|"
         r"bank of japan|boj|bank rakyat china|pboc|opec|harga minyak dunia|tarif dagang|"
-        r"perang dagang|sanksi ekonomi|resesi global|ekonomi global|perdagangan global)\b",
+        r"perang dagang|sanksi ekonomi|resesi global|ekonomi global|perdagangan global|"
+        r"jakarta|surabaya|bandung|medan|semarang|makassar|palembang|"
+        r"kalimantan|sumatera|sulawesi|papua|maluku|bali|nusa tenggara|"
+        r"menteri|kementerian|direktur jenderal|gubernur|bupati|walikota|"
+        r"dpr ri|dprd|kpk|kejaksaan|mahkamah agung|bumn|bumd)\b",
         body, re.IGNORECASE,
     ))
 
@@ -713,7 +776,7 @@ def _call_llm(system, user, model="mistral-large-latest", max_retries=3):
     payload = {
         "model": model,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        "temperature": 0.7,
+        "temperature": random.uniform(0.7, 0.9),
         "max_tokens": 1500,
     }
     last_error = ""
@@ -744,112 +807,129 @@ def _call_llm(system, user, model="mistral-large-latest", max_retries=3):
 #   SYSTEM PROMPT — 7 Arc + Aturan Bahasa + Quality Gate
 # ══════════════════════════════════════════════
 
-SYSTEM_PROMPT = """# TECHBRO EKONOMI — BODY-ONLY THREADS
+SYSTEM_PROMPT = """# TECHBRO EKONOMI — THREADS WRITER V5
 
-Kamu mengubah satu artikel ekonomi Indonesia atau global menjadi tepat 6 post Threads yang akurat, mudah dipahami pembaca awam, dan terasa seperti teman pintar menjelaskan berita rumit.
+⚠️ HALUSINASI = GAGAL. Setiap angka, nama lembaga, nama kota, nama proyek, nama orang, jumlah — HARUS ADA PERSIS di body artikel. Kalau gak yakin, balas insufficient_evidence. Lebih baik gak posting daripada posting fakta palsu.
 
-## SUMBER DAN ANTI-HALUSINASI — HARD
-Satu-satunya sumber fakta adalah **ISI ARTIKEL** di user message. Judul, URL, pengetahuan umum, pengalaman pribadi, dan asumsi bukan sumber fakta. Artikel harus terbit dalam 24 jam terakhir; waktu RSS, halaman kategori, dan waktu crawl bukan bukti waktu terbit.
+Kamu mengubah satu artikel ekonomi Indonesia jadi tepat 6 post Threads. Akurat, viral, pedas, dan kayak temen lo yang pinter ekonomi ngomong langsung ke lo di DM.
 
-- Semua angka, nominal, tanggal, periode, nama, lembaga, lokasi, kebijakan, kutipan, dan status waktu harus ada di isi artikel. Angka makro hanya boleh dipakai bila tertulis di body dari sumber kredibel atau resmi.
-- Tanggal harus ditulis lengkap persis seperti sumber, misalnya “28 Februari hingga 1 Juli 2026”; jangan memendekkan menjadi “sejak Februari”.
-- Jangan menciptakan contoh hitungan, nominal, kutipan, atau sumber baru.
-- Jangan mengubah “akan/rencana/diperkirakan/berpotensi/bisa” menjadi fakta pasti atau kejadian yang sudah selesai.
-- Jangan mengubah korelasi menjadi sebab-akibat. Jelaskan mekanisme hanya jika artikel menyebutnya.
-- Pisahkan fakta dengan analisis. Analisis hanya boleh menjelaskan batas informasi sumber, atau hubungan yang tertulis jelas di artikel.
-- Dampak ke harga, gaji, pekerjaan, cicilan, usaha, atau dompet hanya boleh dibahas bila artikel menyebut dampaknya atau mekanismenya secara jelas.
-- Jika isi artikel tidak cukup untuk membuat thread akurat, balas: {"status":"error","message":"insufficient_evidence"}.
+## ATURAN MUTLAK
+1. Sumber fakta SATU-SATUNYA adalah ISI ARTIKEL. Judul, pengetahuan umum, asumsi = bukan sumber.
+2. Angka, tanggal, nama, kutipan, lembaga, kebijakan HARUS PERSIS dari isi artikel. KALAU GAK TERTULIS DI BODY → JANGAN DIPAKE. Nominal Rp, jumlah orang, nama kota/proyek — semua harus literal.
+3. Jangan ubah "akan/rencana/diperkirakan/berpotensi" jadi fakta pasti.
+4. Dampak harga/gaji/pekerjaan/dompet HANYA bila artikel menyebut mekanismenya.
+5. Jika bukti tidak cukup → balas: {"status":"error","message":"insufficient_evidence"}
 
-## SUARA DAN BAHASA
-- Bahasa Indonesia lisan, sederhana, pendek, natural untuk ponsel. Jelaskan istilah ekonomi segera dengan kata mudah.
-- Pakai “kalian” dan “kita” bila perlu. Jangan pakai “lu”, “lo”, “gua”, atau “gw”.
-- Cerdas, kritis, adil, tidak sok tahu, tidak menggurui, tidak menjual ketakutan atau optimisme.
-- Jangan pakai jargon birokratis, kalimat laporan pemerintah, hashtag, atau pengalaman pribadi palsu.
-- Jangan memulai kalimat dengan template AI/laporan: “Fakta:”, “Aturan bilang:”, “Pemerintah bilang:”, “Yang perlu dicatat:”, “Perlu diketahui:”, atau “Artinya:”. Tulis fakta itu langsung dalam kalimat biasa.
-- Jangan pakai: akselerasi, mitigasi, implementasi, optimalisasi, realisasi, signifikan, komprehensif, mekanisme, skema, portofolio. Jika nama resmi memakai kata sulit, jelaskan artinya.
+## SUARA — V5 "LO" STYLE
+- "Lo" bukan "kalian", "gue" jarang. Nada: temen ngobrol di DM. Bahasa sehari-hari, pendek, kayak chat.
+- Satu slide = 1-2 kalimat pendek. Gak usah panjang. Kayak lo kirim voice note 15 detik.
+- BEROPINI — ambil sisi rakyat kecil. Jangan netral. Jangan format "di satu sisi... di sisi lain...".
+- Terjemahkan istilah ekonomi langsung: "holding company → artinya perusahaan induk yang ngatur anak-anak perusahaan".
+- JANGAN: kalimat laporan ("Fakta:", "Perlu diketahui:"), kata birokratis, hashtag, template AI.
+- JANGAN kata: akselerasi, mitigasi, implementasi, optimalisasi, signifikan, komprehensif.
 
-## CARA BERPIKIR — SUARA AHLI EKONOMI
-Bertindak sebagai penerjemah ekonomi, bukan peringkas berita. Keahlian terlihat dari cara membaca angka dan batasnya, bukan dari jargon atau klaim pengalaman.
+## FORMULA VIRAL — RYAN HADI STYLE
+Ini struktur post viral techbro ekonomi. Ikutin polanya:
 
-Untuk tiap fakta utama, cari satu hal yang paling penting bagi pembaca:
-- periode dan statusnya: sudah terjadi, rencana, atau masih dikaji;
-- apa yang angka itu ukur dan apa yang tidak bisa dibuktikan;
-- siapa atau institusi yang benar-benar disebut, serta kewajiban atau konsekuensi literalnya;
-- mekanisme sebab-akibat yang tertulis; bila tidak tertulis, katakan artikel belum menjelaskannya;
-- beda antara pengumuman kebijakan dan dampak yang sudah dirasakan.
+**S1 — "BARU AJA" HOOK → 80-140 char**
+"Baru aja [KEJADIAN]. [DAMPAK LANGSUNG KE LO — sebut angka dari artikel: berapa orang kena, harga apa naik/turun]."
+Contoh dari post viral @ryanhadiii: "Baru aja Pelita Air dipindahin dari Pertamina ke Garuda. Bukan cuma ganti logo, tapi bisa ubah nasib 10.000 karyawan dan harga tiket lo."
+KENAPA WORKS: fresh news + personal stakes dalam 2 kalimat. Gak pake basa-basi. Gak deskripsi gambar. SEMUA ANGKA HARUS DARI BODY ARTIKEL.
 
-Pilih 3–6 fakta terkuat. Bentuk satu tesis yang didukung sumber: anggapan umum yang perlu diluruskan, fakta penting yang belum jelas di judul, atau batas ketidakpastian yang perlu diketahui. Setiap post harus menambah pemahaman baru; jangan mengulang rangkuman berita dengan kata lain. Jangan memaksa tesis, konflik, dampak dompet, tindakan, atau contoh hitungan bila sumber tidak mendukung. Jika suatu dampak tidak disebut, jangan menulis disclaimer seperti “belum disebut”, “tidak diketahui”, atau “belum ada dampak”. Ganti dengan fakta lanjutan, kewajiban, konsekuensi keputusan, batas aturan, atau jadwal yang literal di artikel.
+**S2 — "DEG-DEGAN" ANGKA → 80-200 char**
+"[ANGKA SPESIFIK A] vs [ANGKA SPESIFIK B]. [IMPLIKASI: artinya...]. [PERTANYAAN: siapa paling kena?]"
+Contoh: "Pelita Air punya 3.200 karyawan. Garuda punya 11.000. Gabung jadi satu, artinya ada yang harus efisiensi. Siapa yang paling deg-degan?"
+KENAPA WORKS: angka bikin konkret, pertanyaan bikin lo mikir + pengen swipe.
 
-Dampak dompet hanya boleh ditulis jika artikel menyebutnya. Jika tidak, jangan mengarang dampak atau menjelaskan ketiadaannya; gunakan konsekuensi literal, pihak yang dituju, aturan, atau jadwal yang benar-benar ada di artikel.
+**S3 — "TAPI" KONTRADIKSI → 80-200 char**
+"[ALASAN RESMI / KATA PIHAK A]. Tapi [REALITAS BURUK ke orang kecil]. [BUKTI HISTORIS/ANGKA]."
+Contoh: "Alasannya: biar penerbangan nasional lebih kuat. Tapi efisiensi artinya PHK atau gaji dipotong. Garuda aja tahun lalu tutup rute dan potong bonus."
+KENAPA WORKS: official story vs realita = ketegangan. Orang pengen komen belain salah satu sisi.
 
-## GAYA TERBARU — PINDAR-6 DENGAN POV TAJAM
-Jangan cuma rangkum berita. Tulis sebagai cerita pendek yang bergerak dari masalah nyata, tekanan yang datang, bukti angka, pihak yang terjepit, lalu solusi dan taruhan akhirnya. Gunakan satu subjek yang memang disebut artikel, misalnya kontraktor, pemegang polis, atau pekerja; jangan menciptakan tokoh, dialog, pengalaman, atau emosi baru.
+**S4 — "SIAPA KENA" SPESIFIK → 80-200 char**
+"Sebut profesi/jabatan KONKRET dari artikel. [PIHAK A: sebut 2-3 profesi] paling kena. [PIHAK B: profesi yang aman]."
+Contoh: "Yang paling kena: petugas check-in, mekanik, dan pilot. Yang relatif aman: teknisi IT dan manajemen."
+KENAPA WORKS: super konkret, bikin pembaca langsung ngecek "gue termasuk yang mana?"
 
-Tulis seperti manusia yang menjelaskan ke anak usia 10 tahun: kalimat pendek dalam kalimat panjang S1, kata sehari-hari, dan detail konkret dari body. Jika harus memakai istilah resmi seperti premi, laba, CSM, atau restitusi, jelaskan artinya dengan kata sederhana di kalimat yang sama atau slide berikutnya sebelum istilah itu dipakai lagi. Hindari pola kalimat seragam, kalimat motivasi kosong, pembuka generik, daftar fakta kaku, pertanyaan palsu, atau kesimpulan yang mengulang S1. Setiap slide harus punya satu **take**: kontras, taruhan, atau ironi yang lahir dari fakta — bukan opini liar.
+**S5 — "BISA NAIK, BISA TURUN" → 80-200 char**
+"[VARIABEL YANG BERUBAH: harga/biaya/gaji]. Bisa [skenario buruk] kalau [kondisi]. Tapi bisa juga [skenario baik] kalau [kondisi lain]."
+Contoh: "Harga tiket? Bisa naik kalau Garuda jadi satu-satunya pemain besar. Tapi bisa juga turun kalau efisiensi beneran berhasil."
+KENAPA WORKS: gak sok tahu, kasih dua kemungkinan → orang komen pilih sisi + debat.
 
-Bawa pembaca dari perubahan besar ke arti personalnya: **Perubahan → Implikasi personal → Nominal/skala → Dilema pihak terdampak → Arah dampak → Respons pembaca.**
+**S6 — "LO SIAPA?" CTA → 80-250 char**
+"[PERTANYAAN SPESIFIK ke niche audience]. Atau [PERTANYAAN ALTERNATIF ke audience lebih luas]. [URL SUMBER]"
+Contoh: "Lo kerja di maskapai BUMN? Cerita dong gimana suasana kantor sekarang. Atau lo sering terbang, udah ngerasain perubahan harga? [URL]"
+KENAPA WORKS: CTA spesifik + low barrier. Bikin yang ngerasa "ini gue banget" langsung komen. URL di S6, bukan di S1.
 
-Cari satu kontras literal untuk jadi benang merah: uang sudah dianggarkan tetapi aturan teknis masih disusun; tujuan resmi berhadapan dengan syarat ketat; angka naik tetapi penerima berbeda kelas jabatan. Buka dari kontras itu, bukan dari kalimat laporan seperti “pemerintah mengumumkan” atau “berita ini membahas”.
+## SETIAP SLIDE — ATURAN TEKNIS
+- 1-2 kalimat per slide. Pendek = gampang dibaca di HP.
+- S1: 80-140 char. S2-S6: 80-250 char.
+- SETIAP slide harus ada KONTRAS: official vs realita, kelompok A vs B, dulu vs sekarang, angka vs dampak.
+- Buka fakta BARU tiap slide. JANGAN ulang isi slide sebelumnya.
 
-Pakai label diam-diam saat menulis:
-- **Fakta:** tulis langsung bila literal di artikel.
-- **Inferensi:** hanya dari mekanisme yang tertulis; pakai “bisa”, “berpotensi”, atau “kemungkinan”.
-- **Skenario:** pakai “jika X, maka Y”; X dan mekanismenya wajib didukung artikel. Jangan menulis skenario sebagai ramalan.
-- **Larangan:** jangan menghitung sendiri sisa bulan/tahun, menulis deadline, atau menyimpulkan proyek akan tepat waktu, molor, gagal, sukses, menarik/menolak investor lain. Target selesai bukan bukti hasil. Jangan mengubah “melibatkan” menjadi “wajib” atau menambah kewajiban baru.
+## EMPATI — LENSA RAKYAT KECIL
+Identifikasi siapa paling dirugikan: buruh, petani, nelayan, pedagang, ibu RT, pekerja informal, konsumen akhir.
+Tulis dampak dalam bahasa dompet: "berarti lo keluar RpX lebih tiap bulan", "pekerja kehilangan RpY per tahun".
+JANGAN dari sudut pemerintah/korporasi. Pembaca harus ngerasa: "ini gue banget", "ini duit gue".
 
-Thread wajib punya tiga hal yang BUKTINYA ada di artikel: **isu ekonomi/finansial**, **dampak atau pihak yang terkena**, dan **konflik/titik tegang** antara tujuan, angka, aturan, atau kepentingan. Jika salah satunya tidak punya bukti literal, balas insufficient_evidence. Jangan bikin konflik, dampak, profesi, atau pilihan palsu demi hook.
-
-Konten wajib memberi **solusi nyata**, bukan nasihat kosong. Solusi harus salah satu dari: tindakan/kewajiban resmi yang disebut artikel, pilihan aman yang mekanismenya tertulis di artikel, atau hal konkret yang perlu diperiksa pembaca sebelum terdampak. Jika artikel tidak mendukung solusi nyata, balas insufficient_evidence. Jangan membuat rekomendasi beli/jual investasi, hitungan baru, atau langkah personal yang tidak ada di sumber. Setiap slide membuka fakta baru dan menanam pertanyaan berikutnya.
-
-## STRUKTUR PINDAR 6 POST
-Tulis tepat post_1 sampai post_6. Setiap post 1–3 kalimat, 100–300 karakter; post_1 wajib tepat satu kalimat 80–140 karakter. Jangan gunakan bullet atau daftar.
-
-- S1 — Stop-scroll ala berita viral: buka dalam 10 kata pertama dengan nama pihak, angka, atau aksi nyata dari artikel. Lalu tulis satu benturan/ironi konkret dan boleh tutup pertanyaan tajam yang jawabannya ada di body. Pilih satu angka maksimal. Format: “[pihak/fakta] + [benturan] + [pertanyaan spesifik]”. Dilarang membuka dengan kalimat generik seperti “Dulu cukup”, “sekarang”, “kuota”, “internet”, “zaman”, atau pengalaman pembaca yang tidak disebut artikel. Jangan membuat metafora atau dampak seperti “jadi modal kerja” bila tidak tertulis. Jangan buka dengan istilah teknis; jelaskan istilah jika wajib dipakai. Bukan “bayangin”, bukan tokoh fiktif, bukan ringkasan.
-- S2 — Tekanan datang: tunjukkan perubahan atau konflik yang membuat masalah S1 membesar. Beri maksimal dua data literal.
-- S3 — Bukti skala: jelaskan angka atau detail yang membuat pembaca paham kenapa masalah ini tidak kecil. Terjemahkan istilah sulit segera.
-- S4 — Pihak yang terjepit: jelaskan fungsi/pihak yang disebut artikel dan dilema literal mereka. Jangan tebak korban atau profesi.
-- S5 — Jalan keluar nyata: tulis tindakan, kewajiban, pilihan aman, atau pemeriksaan konkret yang secara literal didukung artikel. Terangkan masalah apa yang dijawab solusi itu. Jika tidak ada, balas insufficient_evidence.
-- S6 — Taruhan akhir: tutup dengan konsekuensi bila solusi S5 tidak jalan, hanya jika mekanismenya didukung body. Pertanyaan tajam hanya boleh bila ada dua pilihan nyata yang didukung body; jangan pakai CTA generik.
-
-Jangan pakai “pantau terus”, “cek lagi bulan depan”, atau “gimana menurut kalian”.
-
-## AUDIT INTERNAL
-Sebelum JSON final: cek tiap klaim ke isi artikel, terutama angka, nama, status waktu, sebab-akibat, dan kutipan. Hapus klaim yang tidak didukung. Jangan tampilkan audit.
+## IMAGE CONTEXT
+Gambar S1 adalah backdrop — JANGAN deskripsi gambar. Gambar = pemicu opini. Langsung ke kontradiksi artikel.
 
 ## OUTPUT
-Balas JSON valid saja. Tidak markdown. Tidak field arc.
-{
-  "status":"success",
-  "angle":"satu kalimat sudut pandang yang didukung artikel",
-  "post_1":"...",
-  "post_2":"...",
-  "post_3":"...",
-  "post_4":"...",
-  "post_5":"...",
-  "post_6":"..."
-}
+JSON valid:
+{"status":"success","angle":"satu kalimat sudut pandang","post_1":"...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
 """
 
-REVISION_PROMPT = """Previous output failed validation. Fix ONLY the specific issues below. Keep everything else.
+REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah field lain. Balas JSON lengkap dengan field yang sudah diperbaiki.
 
 Issues: {revision_notes}"""
 
 def build_user_prompt(article):
-    """Build user prompt with article content."""
+    """Build user prompt with article content, image context, and summarized body."""
     title = article.get("title", "")
     body = article.get("body", "")
     url = article.get("url", "")
     source = article.get("source", "")
+    image_hint = article.get("image_hint", "")
+
+    # Summarize body: keep lead + key paragraphs with numbers/entities
+    short_body = body
+    if len(body) > 1500:
+        paras = [p.strip() for p in body.split("\n") if len(p.strip()) > 40]
+        key_paras = [paras[0]] if paras else []  # lead
+        for p in paras[1:]:
+            if len(" ".join(key_paras)) > 1500:
+                break
+            # Keep paragraphs with numbers, entities, or action words
+            if any(c.isdigit() for c in p) or any(w in p.lower() for w in (
+                "rp", "us$", "juta", "miliar", "triliun", "persen", "%",
+                "menteri", "presiden", "gubernur", "direktur", "bank", "bi",
+                "pemerintah", "kebijakan", "anggaran", "subsidi", "pajak",
+                "buruh", "pekerja", "harga", "naik", "turun")):
+                key_paras.append(p)
+        short_body = "\n".join(key_paras) if key_paras else body[:1500]
+
     parts = [
         f"**Judul:** {title}",
         f"**Sumber:** {source}",
         f"**URL:** {url}",
+    ]
+    if image_hint:
+        parts.append(f"**Backdrop visual S1:** {image_hint} — jangan deskripsi, langsung ke OPINI")
+    recent = article.get("recent_openings", [])
+    if recent:
+        parts.append("")
+        parts.append("**5 post terakhir (HINDARI kemiripan angle/bahasa/pola):**")
+        for i, opening in enumerate(recent, 1):
+            parts.append(f"  {i}. {opening}")
+    parts.extend([
         "",
         "**Isi Artikel:**",
-        body if body else "(isi artikel tidak tersedia)",
+        short_body,
         "",
-        "Buat JSON tepat 6 post HANYA dari isi artikel di atas. Judul bukan sumber fakta. Jika buktinya tidak cukup, balas status error insufficient_evidence.",
-    ]
+        "⚠️ LANGKAH 1: Ekstrak semua fakta dari artikel — setiap angka, nama lembaga, nama orang, tanggal, nominal Rp. HANYA yang tertulis persis di body.",
+        "LANGKAH 2: Tulis 6 post pakai formula viral S1-S6, HANYA dari fakta langkah 1. Kalau fakta gak cukup → insufficient_evidence. JANGAN tambahin apa pun yang gak ada di langkah 1.",
+    ])
     return "\n".join(parts)
 
 # ── Validation ───────────────────────────────────────────────────────────────
@@ -858,11 +938,13 @@ def deterministic_validate(posts):
     warnings = []
     slop_phrases = [
         "tau gak sih", "gak bakal percaya", "coba resapin", "let that sink in",
-        "bayangin", "yang rugi siapa", "yang menarik", "patut dicatat",
+        "bayangin", "yang rugi siapa", "patut dicatat",
         "tapi ternyata", "faktanya", "nyatanya", "inilah yang", "inilah kenapa",
         "sudah bukan rahasia lagi", "tak terelakkan", "perlu kalian tahu", "perlu diingat",
         "coba kalian bayangin", "gimana menurut kalian", "termasuk kalian",
-        "itulah mengapa", "jadi intinya",
+        "itulah mengapa", "jadi intinya", "yang menarik",
+        "foto ini", "terlihat", "di gambar", "nampak", "tampak",
+        "perlu diketahui", "sebagaimana", "perlu dicatat",
     ]
     for i in range(1, 7):
         k = f"post_{i}"
@@ -883,8 +965,8 @@ def deterministic_validate(posts):
                 warnings.append(f"{k}: only {sent_count} sentences")
         if i == 1:
             sent_count = len([c for c in p if c in ".!?"])
-            if sent_count != 1:
-                warnings.append(f"{k}: needs exactly one sentence")
+            if sent_count > 2:
+                warnings.append(f"{k}: too many sentences ({sent_count})")
         # Enforce 300 char limit
         if len(p) > 300:
             # Truncate at last period within limit
@@ -902,8 +984,8 @@ def deterministic_validate(posts):
                 warnings.append(f"{k}: hard word '{word}'")
                 break
         # S1 must start from a source-backed fact, never a generic reader scenario.
-        if i == 1 and re.match(r"\s*(?:dulu\s+cukup|sekarang\b|kuota\b|internet\b|zaman\b|bayangin\b)", outside, re.I):
-            warnings.append(f"{k}: generic/non-source opening")
+        if i == 1 and re.match(r"\s*(?:bayangin\b)", outside, re.I):
+            warnings.append(f"{k}: 'bayangin' opening")
         # Never fill a slide by describing what the source omits.
         pl = outside.lower()
         for phrase in ("artikel tidak menyebut", "artikel belum menyebut", "tidak disebut dalam artikel", "tidak diketahui", "belum ada dampak", "belum terasa"):
@@ -915,11 +997,9 @@ def deterministic_validate(posts):
             if phrase in pl:
                 warnings.append(f"{k}: slop '{phrase}'")
                 break  # one warning per slide
-        # PINDAR permits one source-backed open loop on S2; other early questions risk fake mystery.
-        if i != 2 and i <= 5 and "?" in outside:
-            warnings.append(f"{k}: rhetorical question")
-        if i == 2 and outside.count("?") > 1:
-            warnings.append(f"{k}: too many open-loop questions")
+        # Allow rhetorical questions in S2-S5 (provocation style)
+        if i == 2 and outside.count("?") > 2:
+            warnings.append(f"{k}: too many questions")
         if i == 6 and outside.count("?") > 1:
             warnings.append(f"{k}: too many CTA questions")
     return warnings
@@ -1044,9 +1124,13 @@ def _quality_gate(article, data, posts, warnings):
     s1 = posts.get("post_1", "").lower()
     viral_markers = ["tapi", "padahal", "sementara", "malah", "naik", "turun",
                      "dipotong", "ditambah", "dialihkan", "ditetapkan", "berlaku",
-                     "putusan", "wajib", "hingga", "mulai"]
+                     "putusan", "wajib", "hingga", "mulai",
+                     "lo", "gue", "gak adil", "enak", "masa", "tebak",
+                     "ngomong", "siapa", "kok", "uangnya", "duitnya",
+                     "baru aja", "deg-degan", "bisa naik", "bisa turun",
+                     "kena", "ubah", "pindah", "ganti", "naik", "turun"]
     if not any(m in s1 for m in viral_markers):
-        warnings.append("S1: no concrete viral driver")
+        warnings.append("S1: no concrete viral driver — add contrast/action word")
     # 8. "baru aja" freshness check (soft warn if stale)
     # 9. S1-S5 no rhetorical questions
     # 10. S6 has specific CTA
@@ -1102,6 +1186,13 @@ def generate_thread(article):
         claim_warnings = _validate_claim_markers(posts, article["body"])
         voice_warnings = _voice_warnings(posts)
         warnings = missing + _validate_numbers(posts, article["body"]) + _validate_years(posts, article["body"]) + noun_warnings
+        # Viral driver: S1 must have concrete tension marker or trigger revision.
+        s1 = posts.get("post_1", "").lower()
+        viral_markers = ["tapi", "padahal", "sementara", "malah", "naik", "turun",
+                         "dipotong", "ditambah", "dialihkan", "ditetapkan", "berlaku",
+                         "putusan", "wajib", "hingga", "mulai"]
+        if not any(m in s1 for m in viral_markers):
+            warnings.append("S1: no concrete viral driver — add contrast/tension marker")
         if style_warnings or claim_warnings or voice_warnings:
             log.info(f"  Soft style/claim warnings: {style_warnings + claim_warnings + voice_warnings}")
         if warnings:
@@ -1153,7 +1244,7 @@ def generate_thread(article):
             "arc": data.get("arc", "market_shock"),
             "posts": posts,
         }, None
-    return None, "LLM failed after 3 attempts"
+    return None, "LLM failed after 2 attempts"
 
 # ══════════════════════════════════════════════
 #   THREADS PUBLISHER
@@ -1270,6 +1361,7 @@ def main():
     article = load_prepared_article(posted_urls)
     if article:
         body, og_image = article["body"], article["og_image"]
+        article["image_hint"] = _image_hint(og_image) if og_image else ""
         log.info(f"Prepared article: {article['title']}")
         articles = []
     else:
@@ -1291,6 +1383,37 @@ def main():
             continue
         log.info(f"Picked: {candidate['title']}")
         log.info(f"  Source: {candidate['source']} | Score: {candidate.get('eco_score', 0)} | Reason: {candidate.get('_reason', '')} | Weight: {candidate.get('_weight', 0)}")
+        # Quick title-level economy filter: skip obviously non-ekonomi before costly body fetch
+        title_lower = candidate["title"].lower()
+        economy_title_signals = (
+            "ekonomi", "anggaran", "pajak", "subsidi", "bansos", "inflasi", "defisit",
+            "utang", "rupiah", "dolar", "saham", "ihsg", "bi rate", "suku bunga",
+            "apbn", "apbd", "bumn", "investasi", "ekspor", "impor", "dagang",
+            "phk", "pekerja", "buruh", "upah", "gaji", "pabrik", "industri",
+            "harga", "bbm", "listrik", "pangan", "minyak", "emas", "kredit",
+            "bank", "ojk", "bi ", "kemenkeu", "sri mulyani", "danantara",
+            "prabowo", "menteri", "presiden", "kebijakan", "regulasi", "tarif",
+            "insentif", "cadangan devisa", "neraca", "resesi", "the fed",
+            "hilirisasi", "perikanan", "perkebunan", "pertanian", "petani",
+            "nelayan", "tambang", "mineral", "batu bara", "nikel", "gas",
+            "konstruksi", "infrastruktur", "jalan tol", "kereta", "pelabuhan",
+            "bandara", "proyek", "realisasi", "lelang", "tender",
+            "pdb", "pertumbuhan", "konglomerat", "taipan", "kongsi",
+            "bursa", "bei", "dividen", "laba", "rugi", "bangkrut",
+            "pasar modal", "reksadana", "obligasi", "sbn", "sukuk",
+            "perbankan", "fintech", "kripto", "startup", "unicorn",
+            "koperasi", "asuransi", "dapen", "pensiun",
+            "sawit", "beras", "jagung", "kedelai", "gula", "daging",
+            "tekstil", "otomotif", "elektronik", "semen", "baja",
+            "kemenhub", "audit", "keselamatan", "transportasi",
+            "china", "rusia", "jepang", "asing", "penjajakan",
+            "emiten", "digugat", "direktur", "miliar", "triliun",
+            "garap", "railway", "trans", "gugat", "sengketa",
+        )
+        if not any(sig in title_lower for sig in economy_title_signals):
+            log.info("  Skip: title has no economy signal")
+            skipped_urls.add(candidate["url"])
+            continue
         log.info("Fetching article body...")
         candidate_body, candidate_image, source_ts = _fetch_article_body(candidate["url"])
         # Fail closed: RSS time is not proof of article recency; use source publish time.
@@ -1299,11 +1422,20 @@ def main():
             skipped_urls.add(candidate["url"])
             continue
         topic_score, economy_score, impact_score = _topic_score(candidate["title"], candidate_body)
-        eligible = topic_score >= 5
+        eligible = topic_score >= 3
         global_ok = candidate["source"] != "cnn_global" or _is_global_finance_story(candidate["title"], candidate_body)
         if candidate_body and global_ok and not _is_routine_market_story(candidate["title"], candidate_body) and not _is_empty_commentary(candidate["title"], candidate_body) and _is_techbro_relevant(candidate_body) and eligible:
+            if len(candidate_body) < 500:
+                log.warning(f"  Skip: body too short for thread ({len(candidate_body)} chars, need 500+)")
+                skipped_urls.add(candidate["url"])
+                continue
+            if candidate_image is None and not IMAGE_DISABLED:
+                log.warning("  Skip: no valid HD image — trying next candidate")
+                skipped_urls.add(candidate["url"])
+                continue
             article, body, og_image = candidate, candidate_body, candidate_image
             article["body"] = body
+            article["image_hint"] = _image_hint(og_image)
             log.info(f"  Body: {len(body)} chars | Editorial score: {topic_score}/10")
             break
         skipped_urls.add(candidate["url"])
@@ -1319,23 +1451,60 @@ def main():
         log.info("  Image: manual --image-url")
     elif not IMAGE_DISABLED:
         image_url = og_image
-        if image_url:
-            log.info(f"  Image: og:image from article")
-        else:
-            log.warning("  Image: none (no og:image)")
-            log.warning("  Skip: article has no og:image — next cron tick will try another")
-            return
+        log.info(f"  Image: {image_url[:80] if image_url else 'disabled'}")
     if image_url:
         log.info(f"  Image URL: {image_url[:80]}...")
     else:
         log.info("  Image: disabled via --no-image")
 
-    # Step 5: Generate
+    # Step 5: Generate (with retry on next candidate if hallucination fails)
     log.info("Generating thread...")
+    recent_openings = data.get("recent_content", {}).get("openings", [])
+    if recent_openings:
+        article["recent_openings"] = recent_openings[:5]
     result, error = generate_thread(article)
     if error:
         log.error(f"Generation failed: {error}")
+        skipped_urls.add(article["url"])
+        # Try next-best candidate from remaining pool (fast retry)
+        retry_article = None
+        for _ in range(candidate_limit):
+            retry_article = _pick_article(articles, posted_urls | skipped_urls)
+            if retry_article is None:
+                break
+            log.info(f"  Retry candidate: {retry_article['title'][:80]}")
+            # Quick gate on retry candidate
+            retry_body, retry_img, retry_ts = _fetch_article_body(retry_article["url"])
+            if not retry_body or len(retry_body) < 500:
+                skipped_urls.add(retry_article["url"])
+                continue
+            if retry_img is None and not IMAGE_DISABLED:
+                skipped_urls.add(retry_article["url"])
+                continue
+            topic_score, _, _ = _topic_score(retry_article["title"], retry_body)
+            if topic_score < 3:
+                skipped_urls.add(retry_article["url"])
+                continue
+            retry_article["body"] = retry_body
+            retry_article["image_hint"] = _image_hint(retry_img)
+            og_image = retry_img
+            if recent_openings:
+                retry_article["recent_openings"] = recent_openings[:5]
+            result, error = generate_thread(retry_article)
+            if error:
+                log.error(f"Retry generation also failed: {error}")
+                skipped_urls.add(retry_article["url"])
+                continue
+            article = retry_article  # update article ref for downstream use
+            break
+        if not result:
+            log.error("No valid generation after retry")
+            return
+
+    if not result:
+        log.error("Generation failed: no valid result")
         return
+
     posts = result["posts"]
     for i in range(1, 7):
         first_line = posts.get(f"post_{i}", "").split("\n")[0][:80] or "(empty)"
