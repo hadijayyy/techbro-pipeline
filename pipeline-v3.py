@@ -903,11 +903,25 @@ def _is_official_mass_change(title, body):
 
 
 def _is_empty_commentary(title, body):
-    """Reject a quote-only official reaction with no action, rule, or concrete data."""
+    """Reject a quote-only official reaction with no action, rule, or concrete data.
+    Headline reaction words alone are not enough — check body for concrete substance too."""
     headline = title.lower()
     quote_only = any(word in headline for word in ("kata", "soal", "buka suara", "ungkap", "respons", "bakal"))
-    # Body mentions of tax/tariff etc. do not turn a reaction headline into news.
-    substance = any(word in headline for word in (
+    if not quote_only:
+        return False
+    # Body with real data (Rp amounts, %, triliun/miliar) or policy/action words = substantive news
+    body_lower = (body or "").lower()
+    has_data = bool(re.search(r"(rp\s?\d|triliun|miliar|juta|\d+%|persen)", body_lower))
+    has_action = any(re.search(rf"\b{re.escape(word)}\b", body_lower) for word in (
+        "resmi", "berlaku", "ditetapkan",
+        "disahkan", "putusan", "audit", "temuan", "phk", "naik", "turun",
+        "dipotong", "ditambah", "dialihkan", "investasi", "ekspor", "impor",
+        "defisit", "anggaran", "subsidi", "utang",
+    ))
+    if has_data or has_action:
+        return False
+    # Still no substance — headline reaction words only
+    substance = any(re.search(rf"\b{re.escape(word)}\b", headline) for word in (
         "ditetapkan", "berlaku", "disahkan", "putusan", "peraturan", "audit",
         "temuan", "phk", "naik", "turun", "dipotong", "ditambah", "dialihkan",
     ))
