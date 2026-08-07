@@ -1282,8 +1282,11 @@ def _validate_proper_nouns(posts, body):
                     and source_name not in article_lower):
                 issues.append(f"{key}: name '{name}' not in article")
         # All-caps emphasis is common in generated Indonesian; only validate likely institutions.
-        emphasis = {"BUKAN", "PERTAMA", "JADI", "TAPI", "KALAU", "JIKA", "DAN", "YANG", "UNTUK", "BOLEH", "WAJIB", "TIDAK"}
-        for acronym in set(re.findall(r'\b[A-Z]{2,}\b', text)):
+        emphasis = {"BUKAN", "PERTAMA", "JADI", "TAPI", "KALAU", "JIKA", "DAN", "YANG", "UNTUK", "BOLEH", "WAJIB", "TIDAK",
+                    "URL", "HTTP", "HTTPS", "WWW", "COM", "CO", "ID", "ORG", "NET", "INSTAGRAM", "THREADS"}
+        # URLs always contain all-caps segments (CNBC, DETIK, WWW) — never flag them as institutions.
+        text_no_urls = re.sub(r"https?://\S+|www\.\S+", " ", text)
+        for acronym in set(re.findall(r'\b[A-Z]{2,}\b', text_no_urls)):
             if acronym not in emphasis and acronym.lower() not in article_lower:
                 issues.append(f"{key}: institution '{acronym}' not in article")
     return issues
@@ -1442,8 +1445,12 @@ def generate_thread(article):
         # Ensure S6 ends with article URL
         s6 = posts.get("post_6", "")
         article_url = article.get("url", "")
-        if article_url and article_url not in s6:
-            posts["post_6"] = s6.rstrip() + "\n\n" + article_url
+        if article_url:
+            # Replace literal [URL] placeholder with the real URL.
+            s6 = re.sub(r"\[URL\]", article_url, s6, flags=re.IGNORECASE)
+            if article_url not in s6:
+                s6 = s6.rstrip() + "\n\n" + article_url
+            posts["post_6"] = s6
         return {
             "article_title": article.get("title", ""),
             "article_url": article.get("url", ""),
