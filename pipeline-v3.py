@@ -621,6 +621,60 @@ def _fetch_article_body(url):
     return text, og_image, published_ts
 
 
+ECONOMY_TITLE_SIGNALS = (
+    "ekonomi", "anggaran", "pajak", "subsidi", "bansos", "inflasi", "defisit",
+    "utang", "rupiah", "dolar", "saham", "ihsg", "bi rate", "suku bunga",
+    "dividen", "setor", "pnbp", "penerimaan negara", "apbn", "apbd", "bumn", "investasi", "ekspor", "impor", "dagang",
+    "phk", "pekerja", "buruh", "upah", "gaji", "pabrik", "industri",
+    "harga", "bbm", "listrik", "pangan", "minyak", "emas", "kredit",
+    "bank", "ojk", "bi ", "kemenkeu", "sri mulyani", "danantara",
+    "prabowo", "menteri", "presiden", "kebijakan", "regulasi", "tarif",
+    "insentif", "cadangan devisa", "neraca", "resesi", "the fed",
+    "hilirisasi", "perikanan", "perkebunan", "pertanian", "petani",
+    "nelayan", "tambang", "mineral", "batu bara", "nikel", "gas",
+    "konstruksi", "infrastruktur", "jalan tol", "kereta", "pelabuhan",
+    "bandara", "proyek", "realisasi", "lelang", "tender",
+    "pdb", "pertumbuhan", "konglomerat", "taipan", "kongsi",
+    "bursa", "bei", "dividen", "laba", "rugi", "bangkrut",
+    "pasar modal", "reksadana", "obligasi", "sbn", "sukuk",
+    "perbankan", "fintech", "kripto", "startup", "unicorn",
+    "koperasi", "asuransi", "dapen", "pensiun",
+    "sawit", "beras", "jagung", "kedelai", "gula", "daging",
+    "tekstil", "otomotif", "elektronik", "semen", "baja",
+    "kemenhub", "audit", "keselamatan", "transportasi",
+    "china", "rusia", "jepang", "asing", "penjajakan",
+    "emiten", "digugat", "direktur", "miliar", "triliun",
+    "garap", "railway", "trans", "gugat", "sengketa",
+    "keuangan", "bpk", "fiskal", "penerimaan", "belanja",
+    "pembiayaan", "neraca", "cadangan", "laporan",
+)
+
+
+def _is_eligible_candidate(title, body, source):
+    """Full economy gate shared by main pick and retry path.
+    Returns (eligible: bool, reason: str)."""
+    if not body or len(body) < 500:
+        return False, "body too short"
+    title_lower = title.lower()
+    if not any(sig in title_lower for sig in ECONOMY_TITLE_SIGNALS):
+        return False, "title has no economy signal"
+    global_ok = source != "cnn_global" or _is_global_finance_story(title, body)
+    if not global_ok:
+        return False, "non-finance global story"
+    if _is_routine_market_story(title, body):
+        return False, "routine market story"
+    if _is_empty_commentary(title, body):
+        return False, "empty commentary"
+    if not _is_techbro_relevant(body):
+        return False, "not techbro relevant"
+    topic_score, economy_score, impact_score = _topic_score(title, body)
+    pattern_name, pattern_confidence = _classify_pattern(title, body)
+    eligible = (pattern_name is not None and pattern_confidence >= 0.33) or topic_score >= 7
+    if not eligible:
+        return False, f"editorial score failed ({topic_score}/10, economy={economy_score}, impact={impact_score})"
+    return True, f"pattern={pattern_name} conf={pattern_confidence:.2f} topic={topic_score}"
+
+
 def _is_techbro_relevant(body):
     """Require a concrete Indonesia or global finance/economy signal in article body."""
     return bool(re.search(
@@ -778,7 +832,7 @@ def _classify_pattern(title, body):
     best_confidence = 0
 
     for name, cfg in sorted(ECONOMY_PATTERNS.items(), key=lambda x: x[1]["priority"]):
-        hits = sum(1 for kw in cfg["keywords"] if kw in text)
+        hits = sum(1 for kw in cfg["keywords"] if re.search(rf"\b{re.escape(kw)}\b", text))
         # Confidence = hits weighted by priority (higher priority = more generous)
         # DOMPET: hits/4, KORUPSI: hits/3, KEBIJAKAN: hits/3, PROYEK: hits/4, PASAR: hits/3
         thresholds = {"DOMPET": 6, "KORUPSI": 5, "KEBIJAKAN": 5, "PROYEK": 6, "PASAR": 5}
@@ -1525,34 +1579,7 @@ def main():
         log.info(f"  Source: {candidate['source']} | Score: {candidate.get('eco_score', 0)} | Reason: {candidate.get('_reason', '')} | Weight: {candidate.get('_weight', 0)}")
         # Quick title-level economy filter: skip obviously non-ekonomi before costly body fetch
         title_lower = candidate["title"].lower()
-        economy_title_signals = (
-            "ekonomi", "anggaran", "pajak", "subsidi", "bansos", "inflasi", "defisit",
-            "utang", "rupiah", "dolar", "saham", "ihsg", "bi rate", "suku bunga",
-            "dividen", "setor", "pnbp", "penerimaan negara", "apbn", "apbd", "bumn", "investasi", "ekspor", "impor", "dagang",
-            "phk", "pekerja", "buruh", "upah", "gaji", "pabrik", "industri",
-            "harga", "bbm", "listrik", "pangan", "minyak", "emas", "kredit",
-            "bank", "ojk", "bi ", "kemenkeu", "sri mulyani", "danantara",
-            "prabowo", "menteri", "presiden", "kebijakan", "regulasi", "tarif",
-            "insentif", "cadangan devisa", "neraca", "resesi", "the fed",
-            "hilirisasi", "perikanan", "perkebunan", "pertanian", "petani",
-            "nelayan", "tambang", "mineral", "batu bara", "nikel", "gas",
-            "konstruksi", "infrastruktur", "jalan tol", "kereta", "pelabuhan",
-            "bandara", "proyek", "realisasi", "lelang", "tender",
-            "pdb", "pertumbuhan", "konglomerat", "taipan", "kongsi",
-            "bursa", "bei", "dividen", "laba", "rugi", "bangkrut",
-            "pasar modal", "reksadana", "obligasi", "sbn", "sukuk",
-            "perbankan", "fintech", "kripto", "startup", "unicorn",
-            "koperasi", "asuransi", "dapen", "pensiun",
-            "sawit", "beras", "jagung", "kedelai", "gula", "daging",
-            "tekstil", "otomotif", "elektronik", "semen", "baja",
-            "kemenhub", "audit", "keselamatan", "transportasi",
-            "china", "rusia", "jepang", "asing", "penjajakan",
-            "emiten", "digugat", "direktur", "miliar", "triliun",
-            "garap", "railway", "trans", "gugat", "sengketa",
-            "keuangan", "bpk", "fiskal", "penerimaan", "belanja",
-            "pembiayaan", "neraca", "cadangan", "laporan",
-        )
-        if not any(sig in title_lower for sig in economy_title_signals):
+        if not any(sig in title_lower for sig in ECONOMY_TITLE_SIGNALS):
             log.info("  Skip: title has no economy signal")
             skipped_urls.add(candidate["url"])
             continue
@@ -1565,13 +1592,8 @@ def main():
             continue
         topic_score, economy_score, impact_score = _topic_score(candidate["title"], candidate_body)
         pattern_name, pattern_confidence = _classify_pattern(candidate["title"], candidate_body)
-        eligible = (pattern_name is not None and pattern_confidence >= 0.33) or topic_score >= 7
-        global_ok = candidate["source"] != "cnn_global" or _is_global_finance_story(candidate["title"], candidate_body)
-        if candidate_body and global_ok and not _is_routine_market_story(candidate["title"], candidate_body) and not _is_empty_commentary(candidate["title"], candidate_body) and _is_techbro_relevant(candidate_body) and eligible:
-            if len(candidate_body) < 500:
-                log.warning(f"  Skip: body too short for thread ({len(candidate_body)} chars, need 500+)")
-                skipped_urls.add(candidate["url"])
-                continue
+        eligible_ok, eligible_reason = _is_eligible_candidate(candidate["title"], candidate_body, candidate["source"])
+        if eligible_ok:
             if candidate_image is None and not IMAGE_DISABLED:
                 log.warning("  Skip: no valid HD image — trying next candidate")
                 skipped_urls.add(candidate["url"])
@@ -1626,8 +1648,10 @@ def main():
             if retry_img is None and not IMAGE_DISABLED:
                 skipped_urls.add(retry_article["url"])
                 continue
-            topic_score, _, _ = _topic_score(retry_article["title"], retry_body)
-            if topic_score < 3:
+            # Same full economy gate as main path — retry must not bypass relevance checks
+            retry_ok, retry_reason = _is_eligible_candidate(retry_article["title"], retry_body, retry_article["source"])
+            if not retry_ok:
+                log.info(f"  Retry skip: {retry_reason}")
                 skipped_urls.add(retry_article["url"])
                 continue
             retry_article["body"] = retry_body
