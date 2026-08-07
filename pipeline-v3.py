@@ -660,53 +660,146 @@ def _is_routine_market_story(title, body):
     return market and not policy
 
 
-def _topic_score(title, body):
-    """Score full article against Techbro's Indonesia/global economy editorial brief."""
+# ── Pressbox-style Pattern Classification ──────────────────────────────────────
+# 5 economy patterns with keyword triggers + priority ordering.
+# Priority: DOMPET > KORUPSI > KEBIJAKAN > PROYEK > PASAR
+# Pattern determines candidate selection priority AND S1 hook style in LLM prompt.
+
+ECONOMY_PATTERNS = {
+    "DOMPET": {
+        "priority": 1,
+        "label": "Dompet Kejepit",
+        "desc": "Harga naik, tarif, pajak, subsidi, BBM — dampak langsung ke kantong rakyat",
+        "keywords": [
+            "harga naik", "tarif naik", "bbm naik", "harga bbm", "bbm turun", "pajak naik", "subsidi dipotong", "harga turun", "harga anjlok", "harga melonjak",
+            "inflasi", "daya beli", "biaya hidup", "harga pangan", "sembako",
+            "tarif listrik", "tarif air", "iuran bpjs", "tarif tol", "tarif parkir",
+            "upah minimum", "umr", "umk", "gaji", "tunjangan",
+            "bansos", "blt", "pkh", "bpn", "kartu prakerja",
+            "ppn", "pph", "bea", "cukai", "pungutan",
+            "kpr", "cicilan", "kredit rumah", "pinjaman",
+            "biaya sekolah", "spp", "uang kuliah",
+        ],
+    },
+    "KORUPSI": {
+        "priority": 2,
+        "label": "Korupsi & Skandal",
+        "desc": "Korupsi, suap, gratifikasi, temuan BPK, rugikan negara — viral, high engagement",
+        "keywords": [
+            "korupsi", "suap", "gratifikasi", "pencucian uang", "tppu",
+            "kpk", "kejagung", "kejaksaan agung", "bareskrim",
+            "rugikan negara", "kerugian negara", "merugikan negara",
+            "temuan bpk", "audit bpk", "opini wtp", "catatan bpk", "wtp", "catatan", "bpk",
+            "penyelewengan", "penyimpangan", "mark-up", "mark up",
+            "proyek fiktif", "fiktif", "gelapkan", "penggelapan",
+            "tersangka", "ditahan", "divonis", "dakwaan",
+            "sita", "sitaan", "aset sitaan", "pemblokiran",
+            "buron", "cekal", "red notice", "interpol",
+            "saksi", "alat bukti", "sadap", "obar",
+        ],
+    },
+    "KEBIJAKAN": {
+        "priority": 3,
+        "label": "Kebijakan & Aturan Baru",
+        "desc": "Peraturan, putusan, kebijakan pemerintah — siapa kena dampak",
+        "keywords": [
+            "kebijakan", "regulasi", "peraturan", "putusan", "aturan",
+            "disahkan", "ditetapkan", "berlaku", "dicabut", "direvisi",
+            "dividen", "setor", "pnbp", "penerimaan negara", "apbn", "apbd", "anggaran negara", "anggaran daerah",
+            "insentif", "keringanan", "pembebasan", "penghapusan",
+            "larangan", "pembatasan", "moratorium",
+            "impor", "ekspor", "bea masuk", "larangan ekspor",
+            "hilirisasi", "larangan ekspor bahan mentah",
+            "deregulasi", "omnibus law", "uu cipta kerja",
+            "perppu", "perpres", "permen", "kepmen",
+        ],
+    },
+    "PROYEK": {
+        "priority": 4,
+        "label": "Proyek & Infrastruktur",
+        "desc": "Proyek besar, infrastruktur, investasi asing — lapangan kerja & kontrak",
+        "keywords": [
+            "infrastruktur", "proyek", "konstruksi", "pembangunan",
+            "investasi", "penanaman modal", "pma", "pmdn",
+            "kereta", "railway", "trans", "jalan tol", "pelabuhan", "bandara",
+            "bendungan", "waduk", "irigasi", "plta", "plt",
+            "realisasi", "groundbreaking", "peresmian", "rampung",
+            "tender", "lelang", "kontrak", "konsorsium",
+            "china", "rusia", "jepang", "korea", "asing",
+            "danantara", "ina", "swf", "sovereign wealth fund",
+            "ikn", "ibu kota nusantara", "ibu kota baru",
+            "pabrik", "smelter", "kilang", "kawasan industri",
+            "tambang", "mineral", "nikel", "batu bara", "emas", "tembaga", "esdm", "kontraksi", "bumn", "kementerian pu", "kemenhub", "basuki",
+        ],
+    },
+    "PASAR": {
+        "priority": 5,
+        "label": "Pasar & Keuangan",
+        "desc": "Saham, IHSG, rupiah, bursa, obligasi — investor & pelaku pasar",
+        "keywords": [
+            "saham", "ihsg", "bursa", "bei", "bursa efek", "indeks harga saham", "penguatan ihsg", "tren penguatan", "level",
+            "rupiah", "dolar", "nilai tukar", "kurs",
+            "laba", "rugi", "dividen", "rights issue",
+            "obligasi", "sukuk", "sbn", "surat utang",
+            "reksadana", "rdpt", "rds", "rdpu",
+            "emiten", "ipo", "listing", "delisting",
+            "the fed", "federal reserve", "suku bunga",
+            "kripto", "bitcoin", "ethereum", "aset kripto",
+            "capital outflow", "capital inflow", "hot money",
+            "bank sentral", "bi rate", "bank indonesia",
+        ],
+    },
+}
+
+
+def _classify_pattern(title, body):
+    """Classify article into economy pattern with confidence score.
+    Returns (pattern_name, confidence) or (None, 0) if no pattern matches.
+    Like Pressbox's _select_viral_pattern but for economy content.
+    """
     text = f"{title} {body}".lower()
-    # Utility/tutorial updates are not editorial stories unless policy conflict drives headline.
+
+    # Utility/tutorial check — never generate from how-to articles
     utility = any(phrase in title.lower() for phrase in (
-        "cek bansos", "cara cek", "pakai nik", "status penerima", "syarat daftar",
+        "cek bansos", "cara cek", "pakai nik", "status penerima",
+        "syarat daftar", "simak", "berikut", "ini dia",
     ))
-    policy_change = any(phrase in text for phrase in (
-        "anggaran", "kriteria penerima", "aturan baru", "peraturan", "audit",
-        "penyelewengan", "dihentikan", "diperluas", "dipotong", "ditambah",
-    ))
-    if utility and not policy_change:
-        return 0, 0, 0
+    if utility:
+        return None, 0
 
-    def hits(words):
-        return sum(word in text for word in words)
+    best_pattern = None
+    best_confidence = 0
 
-    economy = hits((
-        "apbn", "anggaran", "pajak", "subsidi", "bansos", "inflasi", "daya beli",
-        "upah", "phk", "pekerja", "pengangguran", "bbm", "pangan", "listrik",
-        "bi rate", "suku bunga", "rupiah", "kredit", "ekspor", "impor", "umkm",
-        "industri", "pabrik", "harga", "b50", "mbg", "danantara", "investasi",
-        "penanaman modal", "pma", "ikn", "konstruksi", "properti", "ritel",
-        "perkantoran", "investor", "federal reserve", "the fed", "ecb", "boj",
-        "pboc", "opec", "tarif dagang", "perang dagang", "harga minyak dunia",
-        "sanksi ekonomi", "resesi global", "ekonomi global", "perdagangan global",
-    ))
-    change = hits((
-        "putusan", "disahkan", "ditetapkan", "berlaku", "dicabut", "ditunda",
-        "direvisi", "dipotong", "ditambah", "dialihkan", "naik", "turun",
-        "melonjak", "anjlok", "audit", "temuan", "phk", "pabrik tutup",
-        "kebocoran", "kerugian negara", "polemik", "protes", "kritik", "resmi memulai",
-        "mulai konstruksi", "realisasi investasi", "rampung",
-    ))
-    impact = hits((
-        "masyarakat", "rumah tangga", "konsumen", "pekerja", "buruh", "umkm",
-        "lapangan kerja", "daya beli", "biaya hidup", "harga pangan", "subsidi",
-        "pajak", "kesehatan", "pendidikan", "transportasi", "industri", "pelaku usaha",
-        "usaha lokal", "kontraktor", "kawasan",
-    ))
-    source = hits((
-        "menurut", "berdasarkan", "data", "laporan", "putusan", "peraturan",
-        "badan pusat statistik", "bank indonesia", "kementerian", "ojk", "bpk",
-    ))
-    # 0–3 economy/change, 0–2 impact/source. 7/10 minimum per editorial brief.
-    score = min(economy, 3) + min(change, 3) + min(impact, 2) + min(source, 2)
-    return score, min(economy, 3), min(impact, 2)
+    for name, cfg in sorted(ECONOMY_PATTERNS.items(), key=lambda x: x[1]["priority"]):
+        hits = sum(1 for kw in cfg["keywords"] if kw in text)
+        # Confidence = hits weighted by priority (higher priority = more generous)
+        # DOMPET: hits/4, KORUPSI: hits/3, KEBIJAKAN: hits/3, PROYEK: hits/4, PASAR: hits/3
+        thresholds = {"DOMPET": 6, "KORUPSI": 5, "KEBIJAKAN": 5, "PROYEK": 6, "PASAR": 5}
+        divisor = thresholds.get(name, 4)
+        confidence = min(hits / divisor, 1.0)
+
+        # Higher-priority patterns need fewer hits to qualify
+        min_hits = {1: 2, 2: 2, 3: 2, 4: 3, 5: 3}.get(cfg["priority"], 3)
+        if hits >= min_hits and confidence > best_confidence:
+            # Priority-weighted: higher priority gets bonus
+            priority_bonus = (6 - cfg["priority"]) * 0.06
+            adjusted_confidence = confidence + priority_bonus
+
+            if adjusted_confidence > best_confidence:
+                best_confidence = min(adjusted_confidence, 1.0)
+                best_pattern = name
+
+    return best_pattern, best_confidence
+
+
+def _topic_score(title, body):
+    """Legacy wrapper — delegates to pattern classification. Keep for backward compat."""
+    pattern, confidence = _classify_pattern(title, body)
+    if pattern:
+        # Map confidence to 0-10 score range
+        score = int(confidence * 8) + 2  # min 2, max 10
+        return score, score, score
+    return 0, 0, 0
 
 
 def _is_official_mass_change(title, body):
@@ -808,6 +901,8 @@ def _call_llm(system, user, model="mistral-large-latest", max_retries=3):
 # ══════════════════════════════════════════════
 
 SYSTEM_PROMPT = """# TECHBRO EKONOMI — THREADS WRITER V5
+
+RETURN ONLY VALID JSON. No markdown. No explanation. No code fences. Your entire response must be parseable by json.loads().
 
 ⚠️ HALUSINASI = GAGAL. Setiap angka, nama lembaga, nama kota, nama proyek, nama orang, jumlah — HARUS ADA PERSIS di body artikel. Kalau gak yakin, balas insufficient_evidence. Lebih baik gak posting daripada posting fakta palsu.
 
@@ -914,6 +1009,20 @@ def build_user_prompt(article):
         f"**Sumber:** {source}",
         f"**URL:** {url}",
     ]
+    # Pattern-specific hook instruction
+    pattern = article.get("pattern", "")
+    pattern_label = article.get("pattern_label", "")
+    if pattern and pattern_label:
+        pattern_hooks = {
+            "DOMPET": "Fokus: dampak langsung ke kantong rakyat. S1 hook: harga/tarif/biaya yang naik/turun.",
+            "KORUPSI": "Fokus: siapa tersangka, berapa kerugian negara, irony pejabat. S1 hook: angka kerugian + ironic twist.",
+            "KEBIJAKAN": "Fokus: aturan baru — siapa diuntungkan, siapa dirugikan. S1 hook: kontradiksi kebijakan vs realita.",
+            "PROYEK": "Fokus: nilai proyek, siapa dapat kontrak, dampak ke daerah. S1 hook: angka investasi + pertanyaan keberpihakan.",
+            "PASAR": "Fokus: pergerakan pasar, saham, rupiah. S1 hook: angka shock + siapa paling kena.",
+        }
+        hook_hint = pattern_hooks.get(pattern, "")
+        if hook_hint:
+            parts.append(f"**Pattern:** {pattern_label} — {hook_hint}")
     if image_hint:
         parts.append(f"**Backdrop visual S1:** {image_hint} — jangan deskripsi, langsung ke OPINI")
     recent = article.get("recent_openings", [])
@@ -927,8 +1036,7 @@ def build_user_prompt(article):
         "**Isi Artikel:**",
         short_body,
         "",
-        "⚠️ LANGKAH 1: Ekstrak semua fakta dari artikel — setiap angka, nama lembaga, nama orang, tanggal, nominal Rp. HANYA yang tertulis persis di body.",
-        "LANGKAH 2: Tulis 6 post pakai formula viral S1-S6, HANYA dari fakta langkah 1. Kalau fakta gak cukup → insufficient_evidence. JANGAN tambahin apa pun yang gak ada di langkah 1.",
+        "⚠️ INTERNAL: Ekstrak fakta (angka, nama, lembaga, tanggal) dari body. Lalu tulis 6 post HANYA dari fakta yang ada. Kalau gak cukup -> insufficient_evidence. Output HANYA JSON — gak ada teks lain.",
     ])
     return "\n".join(parts)
 
@@ -1146,11 +1254,11 @@ def _quality_gate(article, data, posts, warnings):
 def generate_thread(article):
     """Generate 6 posts from article. Returns (data, error)."""
     user = build_user_prompt(article)
-    for attempt in range(1, 4):
+    for attempt in range(1, 3):
         content, error = _call_llm(SYSTEM_PROMPT, user, max_retries=2)
         if error:
-            log.warning(f"  LLM attempt {attempt}/3 — {error[:80]}")
-            if attempt < 3:
+            log.warning(f"  LLM attempt {attempt}/2 — {error[:80]}")
+            if attempt < 2:
                 time.sleep(3)
             continue
         content = content.strip()
@@ -1160,8 +1268,8 @@ def generate_thread(article):
         try:
             data = json.loads(content)
         except json.JSONDecodeError:
-            log.warning(f"  LLM attempt {attempt}/3 — bad JSON")
-            if attempt < 3:
+            log.warning(f"  LLM attempt {attempt}/2 — bad JSON")
+            if attempt < 2:
                 time.sleep(3)
             continue
         if data.get("status") == "error":
@@ -1388,7 +1496,7 @@ def main():
         economy_title_signals = (
             "ekonomi", "anggaran", "pajak", "subsidi", "bansos", "inflasi", "defisit",
             "utang", "rupiah", "dolar", "saham", "ihsg", "bi rate", "suku bunga",
-            "apbn", "apbd", "bumn", "investasi", "ekspor", "impor", "dagang",
+            "dividen", "setor", "pnbp", "penerimaan negara", "apbn", "apbd", "bumn", "investasi", "ekspor", "impor", "dagang",
             "phk", "pekerja", "buruh", "upah", "gaji", "pabrik", "industri",
             "harga", "bbm", "listrik", "pangan", "minyak", "emas", "kredit",
             "bank", "ojk", "bi ", "kemenkeu", "sri mulyani", "danantara",
@@ -1409,6 +1517,8 @@ def main():
             "china", "rusia", "jepang", "asing", "penjajakan",
             "emiten", "digugat", "direktur", "miliar", "triliun",
             "garap", "railway", "trans", "gugat", "sengketa",
+            "keuangan", "bpk", "fiskal", "penerimaan", "belanja",
+            "pembiayaan", "neraca", "cadangan", "laporan",
         )
         if not any(sig in title_lower for sig in economy_title_signals):
             log.info("  Skip: title has no economy signal")
@@ -1422,7 +1532,8 @@ def main():
             skipped_urls.add(candidate["url"])
             continue
         topic_score, economy_score, impact_score = _topic_score(candidate["title"], candidate_body)
-        eligible = topic_score >= 3
+        pattern_name, pattern_confidence = _classify_pattern(candidate["title"], candidate_body)
+        eligible = pattern_name is not None and pattern_confidence >= 0.33
         global_ok = candidate["source"] != "cnn_global" or _is_global_finance_story(candidate["title"], candidate_body)
         if candidate_body and global_ok and not _is_routine_market_story(candidate["title"], candidate_body) and not _is_empty_commentary(candidate["title"], candidate_body) and _is_techbro_relevant(candidate_body) and eligible:
             if len(candidate_body) < 500:
@@ -1436,7 +1547,9 @@ def main():
             article, body, og_image = candidate, candidate_body, candidate_image
             article["body"] = body
             article["image_hint"] = _image_hint(og_image)
-            log.info(f"  Body: {len(body)} chars | Editorial score: {topic_score}/10")
+            article["pattern"] = pattern_name
+            article["pattern_label"] = ECONOMY_PATTERNS[pattern_name]["label"]
+            log.info(f"  Body: {len(body)} chars | Pattern: {pattern_name} ({ECONOMY_PATTERNS[pattern_name]['label']}, confidence={pattern_confidence:.2f})")
             break
         skipped_urls.add(candidate["url"])
         log.warning(f"  Skip: body/relevance/editorial score failed ({topic_score}/10, economy={economy_score}, impact={impact_score})")
