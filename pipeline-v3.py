@@ -651,8 +651,15 @@ def _is_routine_market_story(title, body):
     """Daily market moves need an Indonesia policy/public-money angle."""
     text = f"{title} {body}".lower()
     headline = title.lower()
-    market = any(word in text for word in ("rupiah", "kurs", "ihsg", "saham", "harga emas", "harga minyak"))
-    # Policy must drive headline. Incidental body mentions cannot rescue a daily market update.
+    # Market MOVEMENT keywords only — skip "pemegang saham", "mata uang" etc.
+    market_movement = any(word in text for word in (
+        "rupiah melemah", "rupiah menguat", "kurs rupiah", "ihsg", "harga emas", "harga minyak",
+    ))
+    market_headline = any(word in headline for word in (
+        "saham naik", "saham turun", "saham anjlok", "saham melonjak",
+        "indeks saham", "bursa saham", "harga saham", "saham hari ini",
+    ))
+    market = market_movement or market_headline
     policy = any(word in headline for word in (
         "bi rate", "apbn", "anggaran", "pajak", "subsidi", "peraturan",
         "ditetapkan", "putusan", "bpk", "ojk",
