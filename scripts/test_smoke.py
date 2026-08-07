@@ -102,6 +102,10 @@ def test_whitespace():
     result = _add_whitespace("First sentence. Second sentence. Third sentence.")
     assert "\n\n" not in result, f"Blank lines still present: {repr(result)}"
     assert result == "First sentence. Second sentence. Third sentence."
+    # LLM comma-space drop: letter-letter and letter-digit fixed, ID decimal untouched
+    assert _add_whitespace("Kasus ditangani Polri,sekarang Kejagung.") == "Kasus ditangani Polri, sekarang Kejagung."
+    assert _add_whitespace("Saksi diperiksa,12 orang.") == "Saksi diperiksa, 12 orang."
+    assert _add_whitespace("Naik 1,2 persen.") == "Naik 1,2 persen."
 test("postproc_whitespace", test_whitespace)
 
 def test_em_dash():

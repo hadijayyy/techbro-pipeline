@@ -800,13 +800,38 @@ def _classify_pattern(title, body):
 
 
 def _topic_score(title, body):
-    """Legacy wrapper — delegates to pattern classification. Keep for backward compat."""
+    """Score article relevance: 0-10. Primary: pattern classification. Fallback: editorial LLM."""
     pattern, confidence = _classify_pattern(title, body)
     if pattern:
-        # Map confidence to 0-10 score range
-        score = int(confidence * 8) + 2  # min 2, max 10
+        score = min(int(confidence * 10), 10)
         return score, score, score
-    return 0, 0, 0
+    # Fallback: LLM-based editorial scoring for articles without clear pattern
+    try:
+        # Simple keyword-based fallback scoring
+        text = f"{title} {body}".lower()
+        economy_keywords = [
+            "ekonomi", "anggaran", "apbn", "apbd", "pajak", "subsidi", "bansos",
+            "inflasi", "defisit", "utang", "rupiah", "dolar", "saham", "ihsg",
+            "bi rate", "suku bunga", "bumn", "investasi", "ekspor", "impor",
+            "phk", "pekerja", "buruh", "upah", "gaji", "industri", "pabrik",
+            "harga", "bbm", "listrik", "pangan", "minyak", "kredit", "dividen",
+            "bank", "ojk", "kemenkeu", "menteri", "presiden", "dpr",
+            "transformasi", "perubahan", "keadilan", "sosial", "csr",
+        ]
+        economy_hits = sum(1 for kw in economy_keywords if kw in text)
+        impact_keywords = [
+            "masyarakat", "rakyat", "konsumen", "pekerja", "petani", "nelayan",
+            "pedagang", "pengusaha", "umkm", "buruh", "miskin", "harga naik",
+            "harga turun", "daya beli", "lapangan kerja", "pengangguran",
+        ]
+        impact_hits = sum(1 for kw in impact_keywords if kw in text)
+        # Scale to 0-10
+        eco_score = min(economy_hits * 2, 10)
+        impact = min(impact_hits * 2, 10)
+        combined = max(eco_score, impact)
+        return combined, eco_score, impact
+    except Exception:
+        return 0, 0, 0
 
 
 def _is_official_mass_change(title, body):
@@ -1540,7 +1565,7 @@ def main():
             continue
         topic_score, economy_score, impact_score = _topic_score(candidate["title"], candidate_body)
         pattern_name, pattern_confidence = _classify_pattern(candidate["title"], candidate_body)
-        eligible = pattern_name is not None and pattern_confidence >= 0.33
+        eligible = (pattern_name is not None and pattern_confidence >= 0.33) or topic_score >= 7
         global_ok = candidate["source"] != "cnn_global" or _is_global_finance_story(candidate["title"], candidate_body)
         if candidate_body and global_ok and not _is_routine_market_story(candidate["title"], candidate_body) and not _is_empty_commentary(candidate["title"], candidate_body) and _is_techbro_relevant(candidate_body) and eligible:
             if len(candidate_body) < 500:

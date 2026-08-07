@@ -713,7 +713,13 @@ def _count_sentences(text: str):
 
 def _add_whitespace(text: str) -> str:
     """Collapse whitespace to single spaces — no forced blank line per sentence (5 Aug 2026)."""
-    return re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
+    # LLM sering drop spasi setelah koma ("Bandung,pengusaha", "periksa,12 orang").
+    # letter-letter: koma antar kata; letter-digit: spasi hilang sebelum angka.
+    # Desimal ID ("1,2") = digit-digit, tidak kena.
+    text = re.sub(r"(?<=[A-Za-z]),(?=[A-Za-z])", ", ", text)
+    text = re.sub(r"(?<=[A-Za-z]),(?=\d)", ", ", text)
+    return text
 
 
 def _regex_fallback(text: str) -> str:
