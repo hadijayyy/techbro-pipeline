@@ -1709,6 +1709,10 @@ def main():
             retry_article["body"] = retry_body
             retry_article["image_hint"] = _image_hint(retry_img)
             og_image = retry_img
+            if IMAGE_URL:
+                image_url = IMAGE_URL
+            elif not IMAGE_DISABLED:
+                image_url = retry_img  # keep slide-1 image in sync with retried article
             if recent_openings:
                 retry_article["recent_openings"] = recent_openings[:5]
             result, error = generate_thread(retry_article)
