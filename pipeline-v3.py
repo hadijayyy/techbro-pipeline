@@ -586,10 +586,24 @@ def _fetch_article_body(url):
                     published_ts = datetime.strptime(str(date_tag["content"]), "%Y/%m/%d %H:%M:%S").replace(tzinfo=WIB).timestamp()
                 except ValueError:
                     pass
-        # og:image
+        # og:image — logos are not lead images, fall through to body images.
         og_tag = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
         if og_tag and og_tag.get("content"):
-            og_image = validate_article_image(_hd_image_url(og_tag["content"]))
+            og_candidate = _hd_image_url(og_tag["content"])
+            og_alt = og_tag.get("alt") or ""
+            if not re.search(r"logo|favicon|icon|placeholder", og_candidate, re.I) and not re.search(r"logo|favicon|icon", og_alt, re.I):
+                og_image = validate_article_image(og_candidate)
+                # Some CDNs mirror og:image under a different path with a real alt on the <img>.
+                # Reject if any <img> with the same filename is marked as a logo.
+                if og_image:
+                    og_stem = urllib.parse.urlsplit(og_image).path.rsplit("/", 1)[-1].split("?", 1)[0]
+                    for img_tag in soup.find_all("img"):
+                        img_alt = str(img_tag.get("alt") or "")
+                        img_src = str(img_tag.get("src") or img_tag.get("data-src") or "")
+                        if og_stem and og_stem in img_src and re.search(r"logo|favicon|icon|placeholder", img_alt, re.I):
+                            log.warning(f"Reject logo-as-og:image: {og_stem} alt='{img_alt[:40]}'")
+                            og_image = None
+                            break
         # article body — try known ID selectors
         body_el = (
             soup.find("div", class_=lambda c: c and "detail__body-text" in c)
@@ -602,6 +616,17 @@ def _fetch_article_body(url):
         )
         if not body_el:
             return "", og_image, published_ts
+        # Fallback: og:image was missing/logo — find the first real photo in the article body.
+        if not og_image:
+            for img_tag in body_el.find_all("img"):
+                src = str(img_tag.get("src") or img_tag.get("data-src") or "")
+                alt = str(img_tag.get("alt") or "")
+                if not src or re.search(r"logo|favicon|icon|placeholder|avatar", src + " " + alt, re.I):
+                    continue
+                candidate = validate_article_image(_hd_image_url(src))
+                if candidate:
+                    og_image = candidate
+                    break
         for tag in body_el.find_all(["script", "style", "nav", "aside", "footer", "form"]):
             tag.decompose()
         for tag in body_el.find_all(class_=lambda c: c and any(x in " ".join(c if isinstance(c, list) else [c]).lower() for x in ("related", "recommend", "read-more", "advert", "author", "share"))):
