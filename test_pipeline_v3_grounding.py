@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Regression tests for Techbro v3 factual grounding and engagement scoring."""
+import json
 import importlib.util
 from pathlib import Path
 
@@ -35,6 +36,25 @@ def test_grounding_verifier_error_blocks_publish(monkeypatch):
     monkeypatch.setattr(pipeline, "_call_llm", lambda *args, **kwargs: (None, "timeout"))
     issues = pipeline.grounding_validate({"title": "T", "body": "B"}, {"post_1": "T."})
     assert issues == ["grounding: verifier unavailable"], issues
+
+
+def test_revision_requires_independent_grounding_verifier(monkeypatch):
+    article = {"body": "Nilai mencapai Rp1 miliar. " * 60}
+    revised = {
+        "status": "success",
+        **{f"post_{i}": "Fakta sumber yang cukup panjang." for i in range(1, 7)},
+    }
+    calls = []
+
+    def fake_llm(*args, **kwargs):
+        calls.append(args[0])
+        return (json.dumps(revised), None) if len(calls) == 1 else ("FAIL", None)
+
+    monkeypatch.setattr(pipeline, "_call_llm", fake_llm)
+    result, error = pipeline.generate_thread(article)
+    assert result is None
+    assert error == "LLM failed after 2 attempts"
+    assert len(calls) >= 2
 
 
 def test_hook_allows_supported_policy_change_without_forced_number_or_contradiction():

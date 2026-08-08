@@ -1574,7 +1574,7 @@ def generate_thread(article):
                     noun_w2 = _validate_proper_nouns(p2, article["body"])
                     w2 = [f"{k}: empty" for k, v in p2.items() if not v.strip()]
                     claim_w2 = _validate_claim_markers(p2, article["body"])
-                    w2.extend(deterministic_grounding_validate(article, p2))
+                    w2.extend(grounding_validate(article, p2))
                     w2.extend(noun_w2)
                     w2.extend(claim_w2)
                     voice_w2 = _voice_warnings(p2)
