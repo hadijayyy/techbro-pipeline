@@ -1,0 +1,56 @@
+{
+  "cnn_ekonomi": {
+    "url": "https://www.cnnindonesia.com/ekonomi/rss",
+    "score": 10,
+    "type": "rss",
+    "domain": "cnnindonesia.com/ekonomi/"
+  },
+  "detik_finance": {
+    "url": "https://finance.detik.com/rss",
+    "score": 10,
+    "type": "rss",
+    "domain": "finance.detik.com/"
+  },
+  "cnbc_market": {
+    "url": "https://www.cnbcindonesia.com/market/rss",
+    "score": 9,
+    "type": "rss",
+    "domain": "cnbcindonesia.com/market/"
+  },
+  "cnbc_entrepreneur": {
+    "url": "https://www.cnbcindonesia.com/entrepreneur/rss",
+    "score": 9,
+    "type": "rss",
+    "domain": "cnbcindonesia.com/entrepreneur/"
+  },
+  "antara_ekonomi": {
+    "url": "https://www.antaranews.com/rss/ekonomi.xml",
+    "score": 9,
+    "type": "rss",
+    "domain": "antaranews.com/"
+  },
+  "bi_release": {
+    "url": "https://www.bi.go.id/id/publikasi/ruang-media/news-release/default.aspx",
+    "score": 10,
+    "type": "html",
+    "domain": "bi.go.id/id/publikasi/ruang-media/news-release/"
+  },
+  "kemenkeu_release": {
+    "url": "https://www.kemenkeu.go.id/informasi-publik/publikasi/siaran-pers",
+    "score": 10,
+    "type": "html",
+    "domain": "kemenkeu.go.id/"
+  },
+  "esdm_news": {
+    "url": "https://www.esdm.go.id/id/media-center/arsip-berita",
+    "score": 9,
+    "type": "html",
+    "domain": "esdm.go.id/"
+  },
+  "detik_finance_html": {
+    "url": "https://finance.detik.com/",
+    "score": 7,
+    "type": "html",
+    "domain": "finance.detik.com/"
+  }
+}

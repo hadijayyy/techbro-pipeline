@@ -29,6 +29,7 @@ BASE = Path(__file__).parent
 POSTED_FILE = BASE / "posted_topics_v2.json"
 KEYWORDS_FILE = BASE / "keywords.json"
 DYNAMIC_KEYWORDS_FILE = BASE / "dynamic_keywords.json"
+SOURCES_FILE = BASE / "sources.json"
 PREPARED_ARTICLE_FILE = BASE / "prepared_article.json"
 
 # ── Env ───────────────────────────────────────────────────────────────────────
@@ -97,16 +98,24 @@ DYNAMIC_KEYWORDS = load_dynamic_keywords()
 
 # ── Economy Sources ──────────────────────────────────────────────────────────
 
-SOURCES = {
-    # PURE ekonomi — RSS feeds
-    "cnn_ekonomi":      {"url": "https://www.cnnindonesia.com/ekonomi/rss",        "score": 10, "type": "rss", "domain": "cnnindonesia.com/ekonomi/"},
-    "detik_finance":    {"url": "https://finance.detik.com/rss",                  "score": 10, "type": "rss", "domain": "finance.detik.com/"},
-    "cnbc_market":      {"url": "https://www.cnbcindonesia.com/market/rss",       "score": 9,  "type": "rss", "domain": "cnbcindonesia.com/market/"},
-    # Mixed (ekonomi + umum) — prioritised below pure ekonomi via lower score
-    "cnbc_news":        {"url": "https://www.cnbcindonesia.com/news/rss",          "score": 8,  "type": "rss", "domain": "cnbcindonesia.com/"},
-    # HTML fallback — only used when RSS is empty, slower but deeper
-    "detik_finance_html": {"url": "https://finance.detik.com/",                   "score": 7,  "type": "html", "domain": "finance.detik.com/"},
-}
+def load_sources():
+    """Load only maintained sources; malformed config fails closed."""
+    try:
+        data = json.loads(SOURCES_FILE.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    required = {"url", "score", "type", "domain"}
+    return {
+        name: cfg for name, cfg in data.items()
+        if isinstance(name, str) and isinstance(cfg, dict)
+        and required <= set(cfg) and cfg["type"] in {"rss", "html"}
+    }
+
+
+SOURCES = load_sources()
+MAX_ARTICLES_PER_SOURCE = 6
 
 # ── Scoring Configuration (loaded from keywords.json) ──────────────────────────
 
@@ -122,7 +131,7 @@ SCORE_THRESHOLDS = KW["score_thresholds"]
 
 def _parse_number_in_title(title):
     """Extract largest Rp amount from title for bonus calculation."""
-    big_matches = re.findall(r'Rp\s*(\d[\d,.]*)\s*(triliun|miliar|juta)', title.lower())
+    big_matches = re.findall(r'rp\s*(\d[\d,.]*)\s*(triliun|miliar|juta)', title.lower())
     if not big_matches:
         big_matches = re.findall(r'(\d[\d,.]*)\s*(triliun|miliar|juta)\s*rupiah', title.lower())
     multipliers = {"triliun": 1e12, "miliar": 1e9, "juta": 1e6}
@@ -141,7 +150,15 @@ def load_data():
         return {"topics": [], "recent_content": {"urls": [], "openings": [], "ctas": []}}
 
 def save_data(data):
-    POSTED_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    tmp = POSTED_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    tmp.replace(POSTED_FILE)
+
+
+def _publish_complete(pub, posts):
+    """Only a complete chain may enter dedup/analytics state."""
+    expected = sum(1 for text in posts.values() if text)
+    return bool(pub and not pub.get("error") and len(pub.get("post_ids", [])) == expected)
 
 
 def load_prepared_article(posted_urls):
@@ -291,7 +308,7 @@ def _scrape_html(url, source, base_score, domain):
         soup = BeautifulSoup(text, "html.parser")
         seen = set()
         for a_tag in soup.find_all("a", href=True):
-            href = _canonical_url(str(a_tag["href"]).strip())
+            href = _canonical_url(urllib.parse.urljoin(url, str(a_tag["href"]).strip()))
             if domain not in href:
                 continue
             if "/live/" in href or "/liveblog/" in href:
@@ -337,21 +354,25 @@ def scrape_all():
                 articles.extend(f.result())
             except Exception as e:
                 log.warning(f"Scrape {fut_map[f]}: {e}")
-    # Same-source cluster dedup: keep max 2 per source, prefer diverse entities
+    # Filter mixed/homepage noise before the source cap; rank later still decides.
+    articles = [a for a in articles if _has_economy_title_signal(a["title"])]
     from collections import defaultdict
     by_source = defaultdict(list)
     for a in articles:
         by_source[a["source"]].append(a)
     deduped = []
     for source, src_articles in by_source.items():
-        # Sort by title quality (longer = more specific = better)
-        src_articles.sort(key=lambda a: len(a["title"]), reverse=True)
-        # Keep max 2 per source to prevent OJK/OJK/OJK/OJK cluster
-        deduped.extend(src_articles[:2])
-    log.info(f"  Articles: {len(articles)} raw → {len(deduped)} deduped")
+        src_articles.sort(key=lambda a: (a["ts"], len(a["title"])), reverse=True)
+        deduped.extend(src_articles[:MAX_ARTICLES_PER_SOURCE])
+    log.info(f"  Articles: {len(articles)} economy-title candidates after per-source cap")
     return deduped
 
 # ── Economy Relevance Scoring ────────────────────────────────────────────────
+
+def _matches_keyword(text, keyword):
+    """Short terms require word boundaries; phrases keep natural substring matching."""
+    return bool(re.search(rf"\b{re.escape(keyword)}\b", text)) if len(keyword) <= 4 else keyword in text
+
 
 def _score_article(article):
     """Score article using new category-based system.
@@ -365,14 +386,16 @@ def _score_article(article):
 
     # Hard reject (instant fail)
     for kw in HARD_REJECT:
-        if kw in tl:
+        if _matches_keyword(tl, kw):
             return (0, "hard_reject:" + kw)
     for name in NAMED_BLACKLIST:
-        if name in tl:
+        if _matches_keyword(tl, name):
             return (0, "blacklist:" + name)
     # Video reject — skip before body fetch/LLM
     if tl.startswith("video:") or "/video-" in article.get("url", ""):
         return (0, "video_article")
+    if not _has_economy_title_signal(title):
+        return (0, "out_of_scope")
     # Category scoring — one keyword counted once per category
     for cat_entry in SCORE_CATEGORIES:
         cat_name = cat_entry.get("name", "") if isinstance(cat_entry, dict) else cat_entry[0]
@@ -380,7 +403,7 @@ def _score_article(article):
         cat_kws = cat_entry.get("keywords", []) if isinstance(cat_entry, dict) else cat_entry[2]
         cat_score = 0
         for kw in cat_kws:
-            if kw in tl:
+            if _matches_keyword(tl, kw):
                 cat_score += cat_max  # flat score per category, not per keyword
                 signals += 1
                 categories_hit += 1
@@ -393,7 +416,7 @@ def _score_article(article):
         boost_val = tier_data.get("score", 0) if isinstance(tier_data, dict) else tier_data[0]
         entities = tier_data.get("names", []) if isinstance(tier_data, dict) else tier_data[1]
         for ent in entities:
-            if ent in tl_full:
+            if _matches_keyword(tl_full, ent):
                 score += boost_val
                 signals += 1
                 break
@@ -414,7 +437,7 @@ def _score_article(article):
         score += 3
 
     # Dynamic terms are ranking hints only; body gates remain mandatory.
-    dynamic_hits = sum(kw in tl for kw in DYNAMIC_KEYWORDS)
+    dynamic_hits = sum(_matches_keyword(tl, kw) for kw in DYNAMIC_KEYWORDS)
     score += min(dynamic_hits * 5, 15)
 
     # Hot-topic briefing: public money, mass impact, and final decisions.
@@ -427,21 +450,21 @@ def _score_article(article):
         (15, ("resmi", "ditetapkan", "berlaku", "putusan", "disahkan")),
     )
     for bonus, keywords in hot_signals:
-        if any(kw in tl for kw in keywords):
+        if any(_matches_keyword(tl, kw) for kw in keywords):
             score += bonus
     if re.search(r"\bberlaku\b.*\b\d{1,2}\b|\b\d{1,2}\s+(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\b", tl):
         score += 10
 
     # Daily market moves are low-value unless title also signals policy or public impact.
-    technical = any(kw in tl for kw in ("rupiah", "ihsg", "saham", "harga emas", "harga minyak"))
-    public_angle = any(kw in tl for kw in ("kebijakan", "bi", "bank indonesia", "apbn", "pajak", "subsidi", "anggaran", "berlaku", "ditetapkan"))
+    technical = any(_matches_keyword(tl, kw) for kw in ("rupiah", "ihsg", "saham", "harga emas", "harga minyak"))
+    public_angle = any(_matches_keyword(tl, kw) for kw in ("kebijakan", "bi", "bank indonesia", "apbn", "pajak", "subsidi", "anggaran", "berlaku", "ditetapkan"))
     if technical and not public_angle:
         score -= 30
 
     # Routine SPBU price lists are utility updates, not Techbro analysis topics.
     # Keep structural fuel-policy stories such as B50 or subsidy changes eligible.
     routine_bbm = "bbm" in tl and "spbu" in tl
-    fuel_policy = any(kw in tl for kw in ("b50", "subsidi", "kebijakan", "aturan", "kuota", "alokasi", "apbn"))
+    fuel_policy = any(_matches_keyword(tl, kw) for kw in ("b50", "subsidi", "kebijakan", "aturan", "kuota", "alokasi", "apbn"))
     if routine_bbm and not fuel_policy:
         score -= 100
 
@@ -450,11 +473,24 @@ def _score_article(article):
         pass  # strong signals override soft reject
     else:
         for kw in SOFT_REJECT:
-            if kw in tl:
+            if _matches_keyword(tl, kw):
                 score -= 60
                 break
 
     return (score, f"cats={categories_hit} sig={signals} dyn={dynamic_hits}")
+
+def _load_hot_econ():
+    """Load viral-econ-hunter output (hot_econ.json) if fresh (same day)."""
+    try:
+        data = json.loads((BASE / "hot_econ.json").read_text())
+        if data.get("date") != datetime.now(WIB).strftime("%Y-%m-%d"):
+            return [], []
+        stories = data.get("stories", [])
+        boosts = {s["rank"]: s for s in stories if s.get("rank")}
+        return stories, boosts
+    except (OSError, json.JSONDecodeError):
+        return [], []
+
 
 def _pick_article(articles, posted_urls):
     """Pick best unscraped economy article. Uses category-based scoring + freshness + source quality."""
@@ -462,6 +498,7 @@ def _pick_article(articles, posted_urls):
     candidates = [a for a in articles if a["url"] not in posted_urls]
     if not candidates:
         return None
+    hot_stories, _ = _load_hot_econ()
     # Clean title
     for a in candidates:
         a["title"] = re.sub(r'^\d+', '', a["title"]).strip()
@@ -470,6 +507,30 @@ def _pick_article(articles, posted_urls):
     # Score each candidate
     for a in candidates:
         eco_score, reason = _score_article(a)
+        # Viral-econ hunter merge: match by domain + published-ts window (±2h)
+        # because gnews URLs are JS redirect stubs, not real article URLs.
+        hot_boost = 0
+        a_domain = urllib.parse.urlparse(a["url"]).netloc.lower().lstrip("www.")
+        a_tokens = set(re.findall(r"[a-z]{4,}", a["title"].lower()))
+        a_tokens -= {"yang", "dengan", "untuk", "akan", "pada", "saat", "para", "dari", "ke",
+                     "di", "dan", "ini", "itu", "hari", "terbaru", "baru", "resmi", "sebut",
+                     "pastikan", "catat", "soal", "dalam", "per", "juta", "ribu", "miliar",
+                     "triliun", "rp", "agus", "agustus", "september", "oktober", "indonesia"}
+        for hs in hot_stories:
+            h_ts = hs.get("published_ts") or 0
+            # story domains = all outlets covering it (pipeline feed may be any)
+            h_domains = {d.lower().lstrip("www.") for d in hs.get("sources") or []}
+            domain_ok = a_domain in h_domains or any(d in a_domain for d in h_domains if d)
+            overlap = len(a_tokens & set(hs.get("title_tokens") or []))
+            if (domain_ok and h_ts and overlap >= 3
+                    and abs(a["ts"] - h_ts) < 7200):
+                hot_boost = max(hot_boost, max(40 - (hs.get("rank", 5) - 1) * 8, 8))
+                if h_ts:
+                    a["ts"] = min(a["ts"], h_ts)  # use hunter publish time if earlier
+        if hot_boost:
+            eco_score += hot_boost
+            reason += f" hot={hot_boost}"
+            log.info(f"  Hot-econ boost: {a['title'][:50]} (+{hot_boost})")
         a["eco_score"] = eco_score
         a["_reason"] = reason
         # Freshness: 24h = +15, 25-48h = +10, 3-7d = +5, >7d = 0, republish = -30
@@ -675,13 +736,35 @@ ECONOMY_TITLE_SIGNALS = (
 )
 
 
+ECONOMY_SELECTION_SIGNALS = (
+    "ekonomi", "anggaran", "pajak", "subsidi", "bansos", "inflasi", "defisit", "utang",
+    "rupiah", "dolar", "saham", "ihsg", "bi rate", "suku bunga", "apbn", "apbd", "bumn",
+    "investasi", "ekspor", "impor", "phk", "pekerja", "buruh", "upah", "gaji", "pabrik",
+    "industri", "harga", "bbm", "listrik", "pangan", "kredit", "bank", "ojk", "kemenkeu",
+    "kebijakan", "regulasi", "tarif", "insentif", "hilirisasi", "perdagangan", "keuangan",
+    "penerimaan", "belanja", "pembiayaan", "perbankan", "asuransi", "koperasi",
+)
+
+
+def _has_economy_title_signal(title):
+    """Keep mixed/general feeds from consuming economy-pipeline LLM attempts."""
+    title_lower = title.lower()
+    return any(re.search(rf"(?<!\w){re.escape(signal)}(?!\w)", title_lower)
+               for signal in ECONOMY_SELECTION_SIGNALS)
+
+
 def _is_eligible_candidate(title, body, source):
     """Full economy gate shared by main pick and retry path.
     Returns (eligible: bool, reason: str)."""
+    title_lower = title.lower()
+    if any(phrase in title_lower for phrase in (
+        "cara ", "syarat ", "saldo minimal", "daftar harga", "festival",
+        "program sosial", "seremoni",
+    )):
+        return False, "utility_or_ceremony"
     if not body or len(body) < 500:
         return False, "body too short"
-    title_lower = title.lower()
-    if not any(sig in title_lower for sig in ECONOMY_TITLE_SIGNALS):
+    if not _has_economy_title_signal(title):
         return False, "title has no economy signal"
     global_ok = source != "cnn_global" or _is_global_finance_story(title, body)
     if not global_ok:
@@ -694,9 +777,8 @@ def _is_eligible_candidate(title, body, source):
         return False, "not techbro relevant"
     topic_score, economy_score, impact_score = _topic_score(title, body)
     pattern_name, pattern_confidence = _classify_pattern(title, body)
-    eligible = (pattern_name is not None and pattern_confidence >= 0.33) or topic_score >= 7
-    if not eligible:
-        return False, f"editorial score failed ({topic_score}/10, economy={economy_score}, impact={impact_score})"
+    if pattern_name is None or pattern_confidence < 0.33:
+        return False, f"no qualifying PINDAR pattern (topic={topic_score}/10, economy={economy_score}, impact={impact_score})"
     return True, f"pattern={pattern_name} conf={pattern_confidence:.2f} topic={topic_score}"
 
 
@@ -878,8 +960,18 @@ def _classify_pattern(title, body):
     return best_pattern, best_confidence
 
 
+def _pattern_label(pattern_name):
+    """Safe display label; eligibility still requires a real PINDAR pattern."""
+    return ECONOMY_PATTERNS.get(pattern_name, {}).get("label", "Tidak terklasifikasi")
+
+
 def _topic_score(title, body):
     """Score article relevance: 0-10. Primary: pattern classification. Fallback: editorial LLM."""
+    text = f"{title} {body}".lower()
+    routine_credit = any(term in text for term in ("bunga kredit", "cicilan", "kpr", "kredit bank"))
+    official_trigger = any(term in text for term in ("bank indonesia", "bi rate", "ojk", "aturan", "kebijakan", "ditetapkan", "berlaku"))
+    if routine_credit and not official_trigger:
+        return 0, 0, 0
     pattern, confidence = _classify_pattern(title, body)
     if pattern:
         score = min(int(confidence * 10), 10)
@@ -955,27 +1047,105 @@ def _is_empty_commentary(title, body):
 # ── POV Helpers ──────────────────────────────────────────────────────────────
 
 def _convert_pov(text):
-    """Normalize second person to kalian without adding a first-person narrator."""
-    parts = re.split(r'("[^"]*")', text)
-    for i, p in enumerate(parts):
-        if i % 2 == 0:
-            p = re.sub(r'\b(?:lo|lu|kamu|anda)\b', 'kalian', p, flags=re.IGNORECASE)
-
-            parts[i] = p
-    text = ''.join(parts)
+    """Keep Techbro's conversational 'lo' voice; only remove markup."""
     return re.sub(r'(?<!\w)[*_]+([^*_\n]+)[*_]+', r'\1', text)
 
 def _format_sentence_blanks(text):
-    """Collapse whitespace to one flowing paragraph per post.
-    No forced blank line per sentence; URL/footer paragraphs appended after."""
+    """Collapse whitespace to one flowing paragraph per post."""
     s = text.replace('\u2014 ', ' ').replace('\u2014', ' ')
-    # Natural writing: drop label-colon style ("2020: RI digugat" -> "2020 RI digugat").
-    # URL-safe: colon before a URL (https://... or www.) survives.
     s = re.sub(r":(?=\s+https?://|\s+www\.)", "\u0001", s)
     s = re.sub(r":\s+", " ", s)
-    s = s.replace("\u0001", ":")
-    s = re.sub(r'\s+', ' ', s)
+    s = re.sub(r'\s+', ' ', s.replace("\u0001", ":"))
     return s.strip()
+
+
+def article_evidence_gate(article):
+    """Fail closed before LLM spend: body must support a factual economy thread."""
+    body = (article.get("body") or "").strip()
+    if len(body) < 1000:
+        return "body_under_1000_chars"
+    has_number = bool(re.search(r"(?:rp\s*)?\d|\d+\s*(?:persen|%|miliar|juta|triliun)", body, re.I))
+    has_quote = '"' in body or '“' in body
+    return None if has_number or has_quote else "no_numeric_or_quote_evidence"
+
+
+def source_claim_plan(article):
+    """Give writer only substantive source sentences, never title-derived facts."""
+    body = re.sub(r"\s+", " ", article.get("body") or "").strip()
+    sentences = re.split(r"(?<=[.!?])\s+", body)
+    selected = [s for s in sentences if len(s) >= 25 and (
+        re.search(r"(?:rp\s*)?\d|\d+\s*(?:persen|%|miliar|juta|triliun)", s, re.I)
+        or '"' in s or '“' in s
+        or re.search(r"\b(?:menurut|mengatakan|ditetapkan|berlaku|mengumumkan)\b", s, re.I)
+    )]
+    return "\n".join(f"- {s}" for s in selected[:12])
+
+
+def deterministic_grounding_validate(article, posts):
+    body = article.get("body") or ""
+    return _validate_numbers(posts, body) + _validate_years(posts, body) + _validate_proper_nouns(posts, body)
+
+
+def grounding_validate(article, posts):
+    """Independent verifier failure blocks publish; its result is advisory only when available."""
+    deterministic = deterministic_grounding_validate(article, posts)
+    verifier_prompt = "Jawab PASS bila semua fakta draft ada di sumber, selain itu FAIL."
+    draft = "\n".join(posts.values())
+    verdict, error = _call_llm(verifier_prompt, f"SUMBER:\n{article.get('body', '')[:6000]}\nDRAFT:\n{draft}", max_retries=1)
+    if error or not verdict:
+        return deterministic + ["grounding: verifier unavailable"]
+    if verdict.strip().upper() != "PASS":
+        deterministic.append("grounding: verifier rejected draft")
+    return deterministic
+
+
+def hook_issues(hook, body):
+    """Hook needs source-backed concrete change; numbers are optional."""
+    if not hook.strip():
+        return ["S1: empty"]
+    if not body.strip():
+        return ["S1: source body empty"]
+    return []
+
+
+def thread_contract_issues(posts, article_url):
+    """Finalize six posts. Source URL stays intact and every post stays within Threads limit."""
+    issues = []
+    if article_url:
+        s6 = re.sub(r"\[URL(?:\s+[^\]]*)?\]", article_url, posts.get("post_6", ""), flags=re.I)
+        if article_url not in s6:
+            separator = "\n\n"
+            room = 500 - len(separator) - len(article_url)
+            if room < 1:
+                return ["post_6: source URL exceeds 500 chars"]
+            s6 = s6[:room].rstrip() + separator + article_url
+        posts["post_6"] = s6
+    for i in range(1, 7):
+        text = posts.get(f"post_{i}", "")
+        if not text.strip():
+            issues.append(f"post_{i}: empty")
+        elif len(text) > 500:
+            issues.append(f"post_{i}: over 500 chars")
+    return issues
+
+
+def _compute_performance_stats(data):
+    """Engagement quality, not raw reach, drives future source/arc preference."""
+    buckets = {"source_avg": {}, "arc_avg": {}}
+    grouped = {"source_avg": {}, "arc_avg": {}}
+    for topic in data.get("topics", []):
+        views = topic.get("views") or 0
+        if views <= 0:
+            continue
+        score = ((topic.get("likes") or 0) + 2 * (topic.get("replies") or 0) + 3 * (topic.get("reposts") or 0)) / views
+        grouped["source_avg"].setdefault(topic.get("article_source", ""), []).append(score)
+        grouped["arc_avg"].setdefault(topic.get("arc", ""), []).append(score)
+    for name, values in grouped.items():
+        buckets[name] = {key: sum(items) / len(items) for key, items in values.items() if key}
+    return buckets
+
+
+# ── LLM Call ─────────────────────────────────────────────────────────────────
 
 # ── LLM Call ─────────────────────────────────────────────────────────────────
 
@@ -1030,80 +1200,26 @@ def _call_llm(system, user, model="mistral-large-latest", max_retries=3):
 #   SYSTEM PROMPT — 7 Arc + Aturan Bahasa + Quality Gate
 # ══════════════════════════════════════════════
 
-SYSTEM_PROMPT = """# TECHBRO EKONOMI — THREADS WRITER V5
+SYSTEM_PROMPT = """# TECHBRO EKONOMI — WRITER
 
-RETURN ONLY VALID JSON. No markdown. No explanation. No code fences. Your entire response must be parseable by json.loads().
+Balas JSON valid saja. Tidak ada markdown, penjelasan, atau code fence.
 
-⚠️ HALUSINASI = GAGAL. Setiap angka, nama lembaga, nama kota, nama proyek, nama orang, jumlah — HARUS ADA PERSIS di body artikel. Kalau gak yakin, balas insufficient_evidence. Lebih baik gak posting daripada posting fakta palsu.
+Ubah satu artikel ekonomi Indonesia menjadi tepat 6 post Threads. Bahasa Indonesia lisan, tajam, natural, seperti teman pintar bicara ke Lo. Satu slide 1–2 kalimat. S1 maksimal 140 karakter; S2–S6 maksimal 300 karakter. S1–S5 tanpa pertanyaan. S6 satu pertanyaan spesifik dan URL sumber akan ditambahkan sistem.
 
-Kamu mengubah satu artikel ekonomi Indonesia jadi tepat 6 post Threads. Akurat, viral, pedas, dan kayak temen lo yang pinter ekonomi ngomong langsung ke lo di DM.
+## SUMBER ADALAH BATAS
+- ISI ARTIKEL satu-satunya sumber fakta. Judul, URL, pengetahuan umum, asumsi, dan contoh imajiner dilarang.
+- Semua angka, tanggal, nama, lembaga, lokasi, kutipan, status, pihak terdampak, sebab-akibat, dan prediksi wajib literal di isi artikel.
+- Jangan menambah dampak, profesi, angka, atau skenario agar thread terasa lebih dramatis.
+- Jangan mengubah rencana, kemungkinan, atau proyeksi menjadi kepastian.
+- Bila sumber tidak cukup untuk enam post akurat, balas {"status":"error","message":"insufficient_evidence"}.
 
-## ATURAN MUTLAK
-1. Sumber fakta SATU-SATUNYA adalah ISI ARTIKEL. Judul, pengetahuan umum, asumsi = bukan sumber.
-2. Angka, tanggal, nama, kutipan, lembaga, kebijakan HARUS PERSIS dari isi artikel. KALAU GAK TERTULIS DI BODY → JANGAN DIPAKE. Nominal Rp, jumlah orang, nama kota/proyek — semua harus literal.
-3. Jangan ubah "akan/rencana/diperkirakan/berpotensi" jadi fakta pasti.
-4. Dampak harga/gaji/pekerjaan/dompet HANYA bila artikel menyebut mekanismenya.
-5. Jika bukti tidak cukup → balas: {"status":"error","message":"insufficient_evidence"}
+## ALUR
+S1 fakta pemicu atau perubahan konkret. S2 bukti utama. S3 konteks atau penjelasan istilah yang tertulis. S4 fakta lanjutan, aturan, atau kutipan. S5 konsekuensi atau pihak yang disebut artikel. S6 hal literal yang patut dipantau lalu CTA spesifik.
 
-## SUARA — V5 "LO" STYLE
-- "Lo" bukan "kalian", "gue" jarang. Nada: temen ngobrol di DM. Bahasa sehari-hari, pendek, kayak chat.
-- Satu slide = 1-2 kalimat pendek. Gak usah panjang. Kayak lo kirim voice note 15 detik.
-- BEROPINI — ambil sisi rakyat kecil. Jangan netral. Jangan format "di satu sisi... di sisi lain...".
-- Terjemahkan istilah ekonomi langsung: "holding company → artinya perusahaan induk yang ngatur anak-anak perusahaan".
-- JANGAN: kalimat laporan ("Fakta:", "Perlu diketahui:"), kata birokratis, hashtag, template AI.
-- JANGAN pakai ":" di dalam kalimat. "Alasannya X" bukan "Alasannya: X". "2020 RI digugat" bukan "2020: RI digugat". "Yang paling kena buruh" bukan "Yang paling kena: buruh". Tulis natural kayak chat.
-- JANGAN kata: akselerasi, mitigasi, implementasi, optimalisasi, signifikan, komprehensif.
-
-## FORMULA VIRAL — RYAN HADI STYLE
-Ini struktur post viral techbro ekonomi. Ikutin polanya:
-
-**S1 — "BARU AJA" HOOK → 80-140 char**
-"Baru aja [KEJADIAN]. [DAMPAK LANGSUNG KE LO — sebut angka dari artikel: berapa orang kena, harga apa naik/turun]."
-Contoh dari post viral @ryanhadiii: "Baru aja Pelita Air dipindahin dari Pertamina ke Garuda. Bukan cuma ganti logo, tapi bisa ubah nasib 10.000 karyawan dan harga tiket lo."
-KENAPA WORKS: fresh news + personal stakes dalam 2 kalimat. Gak pake basa-basi. Gak deskripsi gambar. SEMUA ANGKA HARUS DARI BODY ARTIKEL.
-
-**S2 — "DEG-DEGAN" ANGKA → 80-200 char**
-"[ANGKA SPESIFIK A] vs [ANGKA SPESIFIK B]. [IMPLIKASI: artinya...]. [PERTANYAAN: siapa paling kena?]"
-Contoh: "Pelita Air punya 3.200 karyawan. Garuda punya 11.000. Gabung jadi satu, artinya ada yang harus efisiensi. Siapa yang paling deg-degan?"
-KENAPA WORKS: angka bikin konkret, pertanyaan bikin lo mikir + pengen swipe.
-
-**S3 — "TAPI" KONTRADIKSI → 80-200 char**
-"[ALASAN RESMI / KATA PIHAK A]. Tapi [REALITAS BURUK ke orang kecil]. [BUKTI HISTORIS/ANGKA]."
-Contoh: "Alasannya biar penerbangan nasional lebih kuat. Tapi efisiensi artinya PHK atau gaji dipotong. Garuda aja tahun lalu tutup rute dan potong bonus."
-KENAPA WORKS: official story vs realita = ketegangan. Orang pengen komen belain salah satu sisi.
-
-**S4 — "SIAPA KENA" SPESIFIK → 80-200 char**
-"Sebut profesi/jabatan KONKRET dari artikel. [PIHAK A: sebut 2-3 profesi] paling kena. [PIHAK B: profesi yang aman]."
-Contoh: "Yang paling kena petugas check-in, mekanik, dan pilot. Yang relatif aman teknisi IT dan manajemen."
-KENAPA WORKS: super konkret, bikin pembaca langsung ngecek "gue termasuk yang mana?"
-
-**S5 — "BISA NAIK, BISA TURUN" → 80-200 char**
-"[VARIABEL YANG BERUBAH: harga/biaya/gaji]. Bisa [skenario buruk] kalau [kondisi]. Tapi bisa juga [skenario baik] kalau [kondisi lain]."
-Contoh: "Harga tiket? Bisa naik kalau Garuda jadi satu-satunya pemain besar. Tapi bisa juga turun kalau efisiensi beneran berhasil."
-KENAPA WORKS: gak sok tahu, kasih dua kemungkinan → orang komen pilih sisi + debat.
-
-**S6 — "LO SIAPA?" CTA → 80-250 char**
-"[PERTANYAAN SPESIFIK ke niche audience]. Atau [PERTANYAAN ALTERNATIF ke audience lebih luas]. [URL SUMBER]"
-Contoh: "Lo kerja di maskapai BUMN? Cerita dong gimana suasana kantor sekarang. Atau lo sering terbang, udah ngerasain perubahan harga? [URL]"
-KENAPA WORKS: CTA spesifik + low barrier. Bikin yang ngerasa "ini gue banget" langsung komen. URL di S6, bukan di S1.
-
-## SETIAP SLIDE — ATURAN TEKNIS
-- 1-2 kalimat per slide. Pendek = gampang dibaca di HP.
-- S1: 80-140 char. S2-S6: 80-250 char.
-- SETIAP slide harus ada KONTRAS: official vs realita, kelompok A vs B, dulu vs sekarang, angka vs dampak.
-- Buka fakta BARU tiap slide. JANGAN ulang isi slide sebelumnya.
-
-## EMPATI — LENSA RAKYAT KECIL
-Identifikasi siapa paling dirugikan: buruh, petani, nelayan, pedagang, ibu RT, pekerja informal, konsumen akhir.
-Tulis dampak dalam bahasa dompet: "berarti lo keluar RpX lebih tiap bulan", "pekerja kehilangan RpY per tahun".
-JANGAN dari sudut pemerintah/korporasi. Pembaca harus ngerasa: "ini gue banget", "ini duit gue".
-
-## IMAGE CONTEXT
-Gambar S1 adalah backdrop — JANGAN deskripsi gambar. Gambar = pemicu opini. Langsung ke kontradiksi artikel.
+Setiap slide membuka fakta atau sudut baru dari artikel. Boleh punya pendapat singkat hanya bila jelas sebagai pembacaan atas fakta literal, bukan klaim baru. Jangan pakai label-colon, hashtag, jargon birokratis, template AI, atau deskripsi gambar. Hindari akselerasi, mitigasi, implementasi, optimalisasi, signifikan, komprehensif.
 
 ## OUTPUT
-JSON valid:
-{"status":"success","angle":"satu kalimat sudut pandang","post_1":"...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
+{"status":"success","angle":"sudut pandang yang didukung artikel","post_1":"...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
 """
 
 REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah field lain. Balas JSON lengkap dengan field yang sudah diperbaiki.
@@ -1225,6 +1341,8 @@ def deterministic_validate(posts):
         # S1 must start from a source-backed fact, never a generic reader scenario.
         if i == 1 and re.match(r"\s*(?:bayangin\b)", outside, re.I):
             warnings.append(f"{k}: 'bayangin' opening")
+        if i == 1 and re.match(r"\s*zaman sekarang harga barang naik semua\b", outside, re.I):
+            warnings.append(f"{k}: generic/non-source opening")
         # Never fill a slide by describing what the source omits.
         pl = outside.lower()
         for phrase in ("artikel tidak menyebut", "artikel belum menyebut", "tidak disebut dalam artikel", "tidak diketahui", "belum ada dampak", "belum terasa"):
@@ -1265,7 +1383,7 @@ def _validate_numbers(posts, body):
         # Unit is mandatory: catches Rp100 juta and 10%, but ignores ordinary
         # sentence numbers such as slide labels or dates without a unit.
         patterns = re.finditer(
-            r'(?:Rp\s*)?\d+(?:[.,]\d+)?\s*(?:triliun|miliar|juta|ribu|%|persen)',
+            r'(?:Rp\s*\d+(?:[.,]\d+)?(?:\s*(?:triliun|miliar|juta|ribu))?|\d+(?:[.,]\d+)?\s*(?:triliun|miliar|juta|ribu|%|persen))',
             text, re.IGNORECASE
         )
         for m in patterns:
@@ -1328,9 +1446,8 @@ def _validate_claim_markers(posts, body):
     issues = []
     source = body.lower()
     markers = (
-        "akan", "bakal", "berpotensi", "diperkirakan", "diprediksi",
-        "menyebabkan", "menyebab", "memicu", "membuat", "bikin",
-        "berdampak", "imbas", "mengakibatkan",
+        "berpotensi", "diperkirakan", "diprediksi", "menyebabkan",
+        "menyebab", "memicu", "berdampak", "imbas", "mengakibatkan", "berarti",
     )
     for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
         text = posts.get(key, "").lower()
@@ -1344,7 +1461,7 @@ def _validate_claim_markers(posts, body):
 def _voice_warnings(posts):
     """Flag synthetic/report-template phrasing for prompt revision, not rejection."""
     warnings = []
-    patterns = r"\b(?:gua|gw|lu|lo)\b|(?:^|[.!?]\s*)(?:fakta|aturan bilang|pemerintah bilang|yang perlu dicatat|perlu diketahui|artinya)\s*:"
+    patterns = r"\b(?:gua|gw|lu)\b|(?:^|[.!?]\s*)(?:fakta|aturan bilang|pemerintah bilang|yang perlu dicatat|perlu diketahui|artinya)\s*:"
     for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
         if re.search(patterns, posts.get(key, ""), re.I):
             warnings.append(f"{key}: rewrite synthetic voice/template")
@@ -1386,7 +1503,10 @@ def _quality_gate(article, data, posts, warnings):
 # ── Thread Generation ────────────────────────────────────────────────────────
 
 def generate_thread(article):
-    """Generate 6 posts from article. Returns (data, error)."""
+    """Generate six source-grounded posts. Returns (data, error)."""
+    evidence_error = article_evidence_gate(article)
+    if evidence_error:
+        return None, evidence_error
     user = build_user_prompt(article)
     for attempt in range(1, 3):
         content, error = _call_llm(SYSTEM_PROMPT, user, max_retries=2)
@@ -1427,7 +1547,7 @@ def generate_thread(article):
         missing = [f"{k}: empty" for k, v in posts.items() if not v.strip()]
         claim_warnings = _validate_claim_markers(posts, article["body"])
         voice_warnings = _voice_warnings(posts)
-        warnings = missing + _validate_numbers(posts, article["body"]) + _validate_years(posts, article["body"]) + noun_warnings
+        warnings = missing + grounding_validate(article, posts) + noun_warnings + claim_warnings
         # Viral driver: S1 must have concrete tension marker or trigger revision.
         s1 = posts.get("post_1", "").lower()
         viral_markers = ["tapi", "padahal", "sementara", "malah", "naik", "turun",
@@ -1450,13 +1570,13 @@ def generate_thread(article):
                     style_w2 = deterministic_validate(p2)
                     noun_w2 = _validate_proper_nouns(p2, article["body"])
                     w2 = [f"{k}: empty" for k, v in p2.items() if not v.strip()]
-                    w2.extend(_validate_numbers(p2, article["body"]))
-                    w2.extend(_validate_years(p2, article["body"]))
-                    w2.extend(noun_w2)
                     claim_w2 = _validate_claim_markers(p2, article["body"])
+                    w2.extend(deterministic_grounding_validate(article, p2))
+                    w2.extend(noun_w2)
+                    w2.extend(claim_w2)
                     voice_w2 = _voice_warnings(p2)
-                    if style_w2 or claim_w2 or voice_w2:
-                        log.info(f"  Soft style/claim warnings after revision: {style_w2 + claim_w2 + voice_w2}")
+                    if style_w2 or voice_w2:
+                        log.info(f"  Soft style warnings after revision: {style_w2 + voice_w2}")
                     if d2.get("status") == "success" and not w2:
                         data, posts = d2, p2
                         warnings = []
@@ -1473,15 +1593,10 @@ def generate_thread(article):
             return None, "quality_gate"
         for k in posts:
             posts[k] = _format_sentence_blanks(posts[k])
-        # Ensure S6 ends with article URL
-        s6 = posts.get("post_6", "")
-        article_url = article.get("url", "")
-        if article_url:
-            # Replace literal [URL] placeholder with the real URL.
-            s6 = re.sub(r"\[URL\]", article_url, s6, flags=re.IGNORECASE)
-            if article_url not in s6:
-                s6 = s6.rstrip() + "\n\n" + article_url
-            posts["post_6"] = s6
+        contract_issues = thread_contract_issues(posts, article.get("url", ""))
+        if contract_issues:
+            log.warning(f"  Thread contract blocked: {contract_issues}")
+            continue
         return {
             "article_title": article.get("title", ""),
             "article_url": article.get("url", ""),
@@ -1604,13 +1719,28 @@ def main():
 
     # Step 1: Editor may lock one vetted article for the next scheduled run.
     article = body = og_image = None
+    articles = []
     article = load_prepared_article(posted_urls)
     if article:
         body, og_image = article["body"], article["og_image"]
-        article["image_hint"] = _image_hint(og_image) if og_image else ""
-        log.info(f"Prepared article: {article['title']}")
+        prepared_ok, prepared_reason = _is_eligible_candidate(article["title"], body, article.get("source", "prepared"))
+        if article.get("published_ts", 0) <= 0 or time.time() - article["published_ts"] > 86400:
+            prepared_ok, prepared_reason = False, "prepared article missing/failing 24h published_ts"
+        elif article_evidence_gate(article):
+            prepared_ok, prepared_reason = False, article_evidence_gate(article)
+        elif not validate_article_image(og_image):
+            prepared_ok, prepared_reason = False, "prepared article no valid HD image"
+        if not prepared_ok:
+            log.warning(f"Prepared article rejected: {prepared_reason}")
+            article = None
+        else:
+            pattern_name, pattern_confidence = _classify_pattern(article["title"], body)
+            article["pattern"] = pattern_name
+            article["pattern_label"] = _pattern_label(pattern_name)
+            article["image_hint"] = _image_hint(og_image)
+            log.info(f"Prepared article: {article['title']}")
         articles = []
-    else:
+    if not article:
         log.info("Scraping economy sources...")
         articles = scrape_all()
         log.info(f"  Got {len(articles)} raw articles")
@@ -1630,8 +1760,7 @@ def main():
         log.info(f"Picked: {candidate['title']}")
         log.info(f"  Source: {candidate['source']} | Score: {candidate.get('eco_score', 0)} | Reason: {candidate.get('_reason', '')} | Weight: {candidate.get('_weight', 0)}")
         # Quick title-level economy filter: skip obviously non-ekonomi before costly body fetch
-        title_lower = candidate["title"].lower()
-        if not any(sig in title_lower for sig in ECONOMY_TITLE_SIGNALS):
+        if not _has_economy_title_signal(candidate["title"]):
             log.info("  Skip: title has no economy signal")
             skipped_urls.add(candidate["url"])
             continue
@@ -1654,8 +1783,8 @@ def main():
             article["body"] = body
             article["image_hint"] = _image_hint(og_image)
             article["pattern"] = pattern_name
-            article["pattern_label"] = ECONOMY_PATTERNS[pattern_name]["label"]
-            log.info(f"  Body: {len(body)} chars | Pattern: {pattern_name} ({ECONOMY_PATTERNS[pattern_name]['label']}, confidence={pattern_confidence:.2f})")
+            article["pattern_label"] = _pattern_label(pattern_name)
+            log.info(f"  Body: {len(body)} chars | Pattern: {pattern_name} ({article['pattern_label']}, confidence={pattern_confidence:.2f})")
             break
         skipped_urls.add(candidate["url"])
         log.warning(f"  Skip: body/relevance/editorial score failed ({topic_score}/10, economy={economy_score}, impact={impact_score})")
@@ -1694,6 +1823,10 @@ def main():
             log.info(f"  Retry candidate: {retry_article['title'][:80]}")
             # Quick gate on retry candidate
             retry_body, retry_img, retry_ts = _fetch_article_body(retry_article["url"])
+            if (not retry_ts or retry_ts > time.time() + 300
+                    or time.time() - retry_ts > 86400):
+                skipped_urls.add(retry_article["url"])
+                continue
             if not retry_body or len(retry_body) < 500:
                 skipped_urls.add(retry_article["url"])
                 continue
@@ -1757,7 +1890,7 @@ def main():
     # Step 6: Post
     if not DRY_RUN:
         pub = post_to_threads(article["title"], posts, image_url=image_url, pov_image_url=_pov_image_url)
-        if pub and pub.get("post_ids"):
+        if _publish_complete(pub, posts):
             log.info(f"Posted: {pub['post_ids'][0]}")
             topic = {
                 "title": article["title"],
@@ -1767,6 +1900,11 @@ def main():
                 "post_id": pub["post_ids"][0],
                 "media_id": pub["media_ids"][0] if pub.get("media_ids") else None,
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+07:00"),
+                "eco_score": article.get("eco_score"),
+                "selection_weight": article.get("_weight"),
+                "pattern": article.get("pattern"),
+                "arc": result.get("arc", ""),
+                "slides": posts,
                 "likes": None,
                 "replies": None,
             }

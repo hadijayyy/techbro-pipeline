@@ -1,33 +1,5 @@
 #!/bin/bash
-# techbro-pipeline: scrape → generate → post (1 article per run)
-# Small jitter: 0-5 min for anti-bot
+# Compatibility wrapper. Active runtime is pipeline-v3.py.
 set -euo pipefail
-
-# Small jitter: 0-5 minutes
-JITTER=$(( RANDOM % 301 ))
-echo "=== Sleeping ${JITTER}s jitter ==="
-sleep "$JITTER"
-
 cd /home/ubuntu/techbro
-mkdir -p logs
-
-# Load API keys from threads-agent .env
-set -a
-source /home/ubuntu/threads-agent/.env
-set +a
-
-LOG="logs/pipeline-$(date +%Y%m%d-%H%M%S).log"
-exec > >(tee -a "$LOG") 2>&1
-
-echo "=== Pipeline run: $(date) ==="
-
-# 1. Scrape + score + generate (1 article)
-python3 scripts/pipeline.py --top 1 2>&1
-
-# 2. Post staged
-python3 scripts/poster.py 2>&1
-
-# 3. Send report to Telegram
-python3 scripts/report.py 2>&1
-
-echo "=== Done: $(date) ==="
+exec python3 pipeline-v3.py "$@"
