@@ -101,6 +101,14 @@ def test_thread_contract_rejects_over_limit_post():
     assert "post_3: over 500 chars" in pipeline.thread_contract_issues(posts, "")
 
 
+def test_sensitive_content_blocks_categorical_verdict_even_if_source_mentions_case():
+    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
+    posts["post_2"] = "Pejabat itu jelas korup dan harus dihukum."
+    body = "Penyidik menetapkan pejabat tersebut sebagai tersangka dalam perkara dugaan korupsi."
+    issues = pipeline._validate_sensitive_language(posts, body)
+    assert any("categorical verdict" in issue for issue in issues), issues
+
+
 def test_unsupported_inference_is_a_hard_grounding_failure():
     article = {"body": "Cadangan devisa turun US$300 juta."}
     posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}

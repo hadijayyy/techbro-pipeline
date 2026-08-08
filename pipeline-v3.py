@@ -1084,7 +1084,8 @@ def source_claim_plan(article):
 
 def deterministic_grounding_validate(article, posts):
     body = article.get("body") or ""
-    return _validate_numbers(posts, body) + _validate_years(posts, body) + _validate_proper_nouns(posts, body)
+    return (_validate_numbers(posts, body) + _validate_years(posts, body)
+            + _validate_proper_nouns(posts, body) + _validate_sensitive_language(posts, body))
 
 
 def grounding_validate(article, posts):
@@ -1212,6 +1213,7 @@ Ubah satu artikel ekonomi Indonesia menjadi tepat 6 post Threads. Bahasa Indones
 - Semua angka, tanggal, nama, lembaga, lokasi, kutipan, status, pihak terdampak, sebab-akibat, dan prediksi wajib literal di isi artikel.
 - Jangan menambah dampak, profesi, angka, atau skenario agar thread terasa lebih dramatis.
 - Jangan mengubah rencana, kemungkinan, atau proyeksi menjadi kepastian.
+- Topik hukum/dugaan: pakai status dan atribusi persis dari artikel; larang vonis bersalah, tuduhan baru, doxxing, atau ajakan menghukum/persekusi.
 - Bila sumber tidak cukup untuk enam post akurat, balas {"status":"error","message":"insufficient_evidence"}.
 
 ## ALUR
@@ -1415,6 +1417,21 @@ def _validate_claim_markers(posts, body):
             if re.search(rf"\b{re.escape(marker)}\b", text) and not re.search(rf"\b{re.escape(marker)}\b", source):
                 issues.append(f"{key}: unsupported claim marker '{marker}'")
                 break
+    return issues
+
+
+def _validate_sensitive_language(posts, body):
+    """Sensitive reporting must preserve source attribution and legal status."""
+    issues = []
+    source = body.lower()
+    verdicts = ("jelas korup", "pasti korup", "terbukti korup", "penjahat", "harus dihukum",
+                "layak dihukum", "wajib dihukum", "pantas dihukum")
+    for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
+        text = posts.get(key, "").lower()
+        if any(phrase in text for phrase in verdicts):
+            issues.append(f"{key}: sensitive categorical verdict")
+        if "tersangka" in text and "tersangka" not in source:
+            issues.append(f"{key}: unsupported legal status 'tersangka'")
     return issues
 
 
