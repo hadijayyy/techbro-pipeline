@@ -1211,6 +1211,7 @@ Ubah satu artikel ekonomi Indonesia menjadi tepat 6 post Threads. Bahasa Indones
 ## SUMBER ADALAH BATAS
 - ISI ARTIKEL satu-satunya sumber fakta. Judul, URL, pengetahuan umum, asumsi, dan contoh imajiner dilarang.
 - Semua angka, tanggal, nama, lembaga, lokasi, kutipan, status, pihak terdampak, sebab-akibat, dan prediksi wajib literal di isi artikel.
+- Nama/lembaga wajib salin persis sebagai rangkaian kata utuh dari isi artikel. Jangan singkat, perluas, terjemahkan, gabungkan jabatan dengan nama, atau menambah kata seperti "kata" sebelum nama.
 - Jangan menambah dampak, profesi, angka, atau skenario agar thread terasa lebih dramatis.
 - Jangan mengubah rencana, kemungkinan, atau proyeksi menjadi kepastian.
 - Topik hukum/dugaan: pakai status dan atribusi persis dari artikel; larang vonis bersalah, tuduhan baru, doxxing, atau ajakan menghukum/persekusi.
@@ -1389,6 +1390,12 @@ def _validate_proper_nouns(posts, body):
             if (words[0].lower() not in skip and words[0].lower() not in {"pendapatan", "laba", "jika", "saat", "karena", "ketika"}
                     and source_name not in article_lower):
                 issues.append(f"{key}: name '{name}' not in article")
+        # Title-case phrases beginning with common speech/reporting verbs are not names.
+        # Strip the verb before checking the remaining literal source name.
+        for prefix in ("kata", "ujar", "tutur", "menurut", "sebut"):
+            for name in set(re.findall(rf'\b{prefix.title()}\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b', text)):
+                if name.lower() not in article_lower:
+                    issues.append(f"{key}: name '{prefix.title()} {name}' not in article")
         # All-caps emphasis is common in generated Indonesian; only validate likely institutions.
         emphasis = {"BUKAN", "PERTAMA", "JADI", "TAPI", "KALAU", "JIKA", "DAN", "YANG", "UNTUK", "BOLEH", "WAJIB", "TIDAK",
                     "URL", "HTTP", "HTTPS", "WWW", "COM", "CO", "ID", "ORG", "NET", "INSTAGRAM", "THREADS"}

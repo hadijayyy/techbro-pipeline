@@ -156,6 +156,14 @@ def test_proper_noun_validation_blocks_invented_institution():
     assert any("Kementerian Keuangan" in issue for issue in pipeline._validate_proper_nouns(posts, body))
 
 
+def test_proper_noun_validation_blocks_reporting_prefix_with_invented_name():
+    body = "Pemerintah menyampaikan langkah baru."
+    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
+    posts["post_2"] = "Kata Badan Dana Nasional, langkah baru segera berlaku."
+    issues = pipeline._validate_proper_nouns(posts, body)
+    assert any("Badan Dana Nasional" in issue for issue in issues)
+
+
 def test_story_prompt_requires_source_anchored_story_arc():
     assert "SUMBER ADALAH BATAS" in pipeline.SYSTEM_PROMPT
     assert "Jangan menambah dampak, profesi, angka, atau skenario" in pipeline.SYSTEM_PROMPT
