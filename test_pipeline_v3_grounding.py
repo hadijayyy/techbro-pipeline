@@ -89,12 +89,12 @@ def test_unsourced_editorial_claims_are_hard_grounding_failures():
     posts["post_1"] = "274 BUMN dipangkas, tapi separuh jalan sudah kebablasan."
     posts["post_2"] = "COO BP BUMN menyebut proses ini selesai."
     posts["post_5"] = "274 perusahaan sudah kena, sisanya tinggal tunggu giliran."
-    posts["post_6"] = "Apa efeknya ke lapangan kerja dan layanan publik?"
+    posts["post_6"] = "Nasib karyawan bagaimana? Ada skema penempatan ulang atau kompensasi?"
     issues = pipeline._validate_claim_markers(posts, body)
     assert any("kebablasan" in issue for issue in issues), issues
     assert any("coo bp bumn" in issue for issue in issues), issues
     assert any("sudah kena" in issue for issue in issues), issues
-    assert any("lapangan kerja" in issue for issue in issues), issues
+    assert any("nasib karyawan" in issue for issue in issues), issues
 
 
 def test_publish_completion_rejects_partial_chain():
