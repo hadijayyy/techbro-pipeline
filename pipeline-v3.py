@@ -1089,7 +1089,7 @@ def deterministic_grounding_validate(article, posts):
 def grounding_validate(article, posts):
     """Independent verifier failure blocks publish; its result is advisory only when available."""
     deterministic = deterministic_grounding_validate(article, posts)
-    verifier_prompt = "Jawab PASS bila semua fakta draft ada di sumber, selain itu FAIL."
+    verifier_prompt = """Audit ketat. Jawab PASS hanya bila setiap klaim, peran, dampak, evaluasi, dan pertanyaan CTA draft didukung literal oleh SUMBER. Jawab FAIL bila draft menambah opini evaluatif, pilihan retoris, dampak pekerja/publik, atau frasa seperti efisiensi atau potong kompas yang tidak tertulis. Jawab satu kata saja: PASS atau FAIL."""
     draft = "\n".join(posts.values())
     verdict, error = _call_llm(verifier_prompt, f"SUMBER:\n{article.get('body', '')[:6000]}\nDRAFT:\n{draft}", max_retries=1)
     if error or not verdict:
