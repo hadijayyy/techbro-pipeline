@@ -944,6 +944,11 @@ def _format_sentence_blanks(text):
     """Collapse whitespace to one flowing paragraph per post.
     No forced blank line per sentence; URL/footer paragraphs appended after."""
     s = text.replace('\u2014 ', ' ').replace('\u2014', ' ')
+    # Natural writing: drop label-colon style ("2020: RI digugat" -> "2020 RI digugat").
+    # URL-safe: colon before a URL (https://... or www.) survives.
+    s = re.sub(r":(?=\s+https?://|\s+www\.)", "\u0001", s)
+    s = re.sub(r":\s+", " ", s)
+    s = s.replace("\u0001", ":")
     s = re.sub(r'\s+', ' ', s)
     return s.strip()
 
@@ -1021,6 +1026,7 @@ Kamu mengubah satu artikel ekonomi Indonesia jadi tepat 6 post Threads. Akurat, 
 - BEROPINI — ambil sisi rakyat kecil. Jangan netral. Jangan format "di satu sisi... di sisi lain...".
 - Terjemahkan istilah ekonomi langsung: "holding company → artinya perusahaan induk yang ngatur anak-anak perusahaan".
 - JANGAN: kalimat laporan ("Fakta:", "Perlu diketahui:"), kata birokratis, hashtag, template AI.
+- JANGAN pakai ":" di dalam kalimat. "Alasannya X" bukan "Alasannya: X". "2020 RI digugat" bukan "2020: RI digugat". "Yang paling kena buruh" bukan "Yang paling kena: buruh". Tulis natural kayak chat.
 - JANGAN kata: akselerasi, mitigasi, implementasi, optimalisasi, signifikan, komprehensif.
 
 ## FORMULA VIRAL — RYAN HADI STYLE
@@ -1038,12 +1044,12 @@ KENAPA WORKS: angka bikin konkret, pertanyaan bikin lo mikir + pengen swipe.
 
 **S3 — "TAPI" KONTRADIKSI → 80-200 char**
 "[ALASAN RESMI / KATA PIHAK A]. Tapi [REALITAS BURUK ke orang kecil]. [BUKTI HISTORIS/ANGKA]."
-Contoh: "Alasannya: biar penerbangan nasional lebih kuat. Tapi efisiensi artinya PHK atau gaji dipotong. Garuda aja tahun lalu tutup rute dan potong bonus."
+Contoh: "Alasannya biar penerbangan nasional lebih kuat. Tapi efisiensi artinya PHK atau gaji dipotong. Garuda aja tahun lalu tutup rute dan potong bonus."
 KENAPA WORKS: official story vs realita = ketegangan. Orang pengen komen belain salah satu sisi.
 
 **S4 — "SIAPA KENA" SPESIFIK → 80-200 char**
 "Sebut profesi/jabatan KONKRET dari artikel. [PIHAK A: sebut 2-3 profesi] paling kena. [PIHAK B: profesi yang aman]."
-Contoh: "Yang paling kena: petugas check-in, mekanik, dan pilot. Yang relatif aman: teknisi IT dan manajemen."
+Contoh: "Yang paling kena petugas check-in, mekanik, dan pilot. Yang relatif aman teknisi IT dan manajemen."
 KENAPA WORKS: super konkret, bikin pembaca langsung ngecek "gue termasuk yang mana?"
 
 **S5 — "BISA NAIK, BISA TURUN" → 80-200 char**
