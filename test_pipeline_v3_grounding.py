@@ -159,6 +159,15 @@ def test_political_title_without_economy_signal_is_not_candidate():
     assert not pipeline._has_economy_title_signal(title)
 
 
+def test_market_story_with_policy_in_body_is_not_routine():
+    title = "IHSG Melemah Setelah Pengumuman Bank Indonesia"
+    body = (
+        "Bank Indonesia mengumumkan perubahan kebijakan makroprudensial hari ini. "
+        "Kebijakan tersebut mengubah ketentuan pembiayaan perbankan nasional. "
+    ) * 20
+    assert pipeline._is_routine_market_story(title, body) is False
+
+
 def test_utility_and_ceremony_titles_fail_full_economy_gate():
     body = "Bank Indonesia menjelaskan aturan dengan nilai Rp1.000.000. " * 30
     for title in (

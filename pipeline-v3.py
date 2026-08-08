@@ -821,9 +821,10 @@ def _is_routine_market_story(title, body):
         "indeks saham", "bursa saham", "harga saham", "saham hari ini",
     ))
     market = market_movement or market_headline
-    policy = any(word in headline for word in (
-        "bi rate", "apbn", "anggaran", "pajak", "subsidi", "peraturan",
-        "ditetapkan", "putusan", "bpk", "ojk",
+    # Policy evidence often sits in article body, not headline.
+    policy = any(word in text for word in (
+        "bi rate", "bank indonesia", "makroprudensial", "apbn", "anggaran", "pajak",
+        "subsidi", "peraturan", "kebijakan", "ditetapkan", "putusan", "bpk", "ojk",
     ))
     return market and not policy
 
