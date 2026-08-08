@@ -1448,6 +1448,8 @@ def _validate_claim_markers(posts, body):
     markers = (
         "berpotensi", "diperkirakan", "diprediksi", "menyebabkan",
         "menyebab", "memicu", "berdampak", "imbas", "mengakibatkan", "berarti",
+        "kebablasan", "coo bp bumn", "sudah kena", "tinggal tunggu giliran",
+        "lapangan kerja", "layanan publik",
     )
     for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
         text = posts.get(key, "").lower()
