@@ -1234,57 +1234,13 @@ def build_user_prompt(article):
     source = article.get("source", "")
     image_hint = article.get("image_hint", "")
 
-    # Summarize body: keep lead + key paragraphs with numbers/entities
-    short_body = body
-    if len(body) > 1500:
-        paras = [p.strip() for p in body.split("\n") if len(p.strip()) > 40]
-        key_paras = [paras[0]] if paras else []  # lead
-        for p in paras[1:]:
-            if len(" ".join(key_paras)) > 1500:
-                break
-            # Keep paragraphs with numbers, entities, or action words
-            if any(c.isdigit() for c in p) or any(w in p.lower() for w in (
-                "rp", "us$", "juta", "miliar", "triliun", "persen", "%",
-                "menteri", "presiden", "gubernur", "direktur", "bank", "bi",
-                "pemerintah", "kebijakan", "anggaran", "subsidi", "pajak",
-                "buruh", "pekerja", "harga", "naik", "turun")):
-                key_paras.append(p)
-        short_body = "\n".join(key_paras) if key_paras else body[:1500]
-
+    # ponytail: full body avoids dropping evidence; add bounded extraction only if provider context requires it.
     parts = [
-        f"**Judul:** {title}",
-        f"**Sumber:** {source}",
-        f"**URL:** {url}",
-    ]
-    # Pattern-specific hook instruction
-    pattern = article.get("pattern", "")
-    pattern_label = article.get("pattern_label", "")
-    if pattern and pattern_label:
-        pattern_hooks = {
-            "DOMPET": "Fokus: dampak langsung ke kantong rakyat. S1 hook: harga/tarif/biaya yang naik/turun.",
-            "KORUPSI": "Fokus: siapa tersangka, berapa kerugian negara, irony pejabat. S1 hook: angka kerugian + ironic twist.",
-            "KEBIJAKAN": "Fokus: aturan baru — siapa diuntungkan, siapa dirugikan. S1 hook: kontradiksi kebijakan vs realita.",
-            "PROYEK": "Fokus: nilai proyek, siapa dapat kontrak, dampak ke daerah. S1 hook: angka investasi + pertanyaan keberpihakan.",
-            "PASAR": "Fokus: pergerakan pasar, saham, rupiah. S1 hook: angka shock + siapa paling kena.",
-        }
-        hook_hint = pattern_hooks.get(pattern, "")
-        if hook_hint:
-            parts.append(f"**Pattern:** {pattern_label} — {hook_hint}")
-    if image_hint:
-        parts.append(f"**Backdrop visual S1:** {image_hint} — jangan deskripsi, langsung ke OPINI")
-    recent = article.get("recent_openings", [])
-    if recent:
-        parts.append("")
-        parts.append("**5 post terakhir (HINDARI kemiripan angle/bahasa/pola):**")
-        for i, opening in enumerate(recent, 1):
-            parts.append(f"  {i}. {opening}")
-    parts.extend([
-        "",
         "**Isi Artikel:**",
-        short_body,
+        body,
         "",
         "⚠️ INTERNAL: Ekstrak fakta (angka, nama, lembaga, tanggal) dari body. Lalu tulis 6 post HANYA dari fakta yang ada. Kalau gak cukup -> insufficient_evidence. Output HANYA JSON — gak ada teks lain.",
-    ])
+    ]
     return "\n".join(parts)
 
 # ── Validation ───────────────────────────────────────────────────────────────

@@ -57,6 +57,24 @@ def test_revision_requires_independent_grounding_verifier(monkeypatch):
     assert len(calls) >= 2
 
 
+def test_writer_prompt_uses_full_body_without_title_or_hook_instructions():
+    body = "Fakta satu. " * 300
+    prompt = pipeline.build_user_prompt({
+        "title": "Judul yang tidak boleh dipakai",
+        "url": "https://example.test/untrusted",
+        "source": "untrusted_source",
+        "pattern": "KEBIJAKAN",
+        "pattern_label": "Kebijakan",
+        "image_hint": "instruksi palsu",
+        "recent_openings": ["instruksi palsu lain"],
+        "body": body,
+    })
+    assert body in prompt
+    assert "Judul yang tidak boleh dipakai" not in prompt
+    assert "https://example.test/untrusted" not in prompt
+    assert "instruksi palsu" not in prompt
+
+
 def test_hook_allows_supported_policy_change_without_forced_number_or_contradiction():
     assert not pipeline.hook_issues("Pemerintah ubah aturan PPN minggu depan.", "Kebijakan berlaku 1 Agustus.")
 
