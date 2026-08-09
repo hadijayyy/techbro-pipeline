@@ -64,6 +64,30 @@ def test_llm_has_room_for_complete_six_post_json():
     assert captured["max_tokens"] == 4000
 
 
+def test_learning_bonus_is_bounded_and_needs_three_samples():
+    sparse = {"topics": [{"article_source": "A", "arc": "x", "views": 1000, "likes": 100}]}
+    assert pipeline._learning_bonus(sparse, "A") == 0
+    data = {"topics": (
+        [{"article_source": "A", "arc": "x", "views": 1000, "likes": 100}] * 3
+        + [{"article_source": "B", "arc": "x", "views": 1000, "likes": 1}] * 3
+    )}
+    assert 0 < pipeline._learning_bonus(data, "A") <= 0.06
+    assert -0.06 <= pipeline._learning_bonus(data, "B") < 0
+
+
+def test_refresh_metrics_preserves_data_on_api_failure(monkeypatch):
+    topic = {"post_id": "p1", "likes": 7}
+    data = {"topics": [topic]}
+
+    def fail(*args, **kwargs):
+        raise pipeline.httpx.RequestError("offline")
+
+    monkeypatch.setattr(pipeline, "THREADS_TOKEN", "token")
+    monkeypatch.setattr(pipeline.httpx, "get", fail)
+    assert pipeline.refresh_performance_metrics(data, now=999999) is False
+    assert topic == {"post_id": "p1", "likes": 7}
+
+
 def test_grounding_verifier_error_blocks_publish(monkeypatch):
     captured = {}
 
@@ -132,6 +156,11 @@ def test_revision_requires_independent_grounding_verifier(monkeypatch):
     assert result is None
     assert error == "LLM failed after 2 attempts"
     assert len(calls) >= 2
+
+
+def test_writer_prompt_forbids_unsourced_worker_impact_and_revision_stays_literal():
+    assert "Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang" in pipeline.SYSTEM_PROMPT
+    assert "hapus atau ganti dengan fakta yang muncul literal di ISI ARTIKEL" in pipeline.REVISION_PROMPT
 
 
 def test_writer_prompt_uses_full_body_without_title_or_hook_instructions():
@@ -226,6 +255,35 @@ def test_publish_completion_rejects_partial_chain():
     assert pipeline._publish_complete({"post_ids": ["1", "2"]}, posts)
 
 
+def test_success_report_sends_expected_telegram_message(monkeypatch):
+    captured = {}
+
+    class Response:
+        def __enter__(self): return self
+        def __exit__(self, *_args): pass
+        def read(self): return b'{"ok": true, "result": {"message_id": 1}}'
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["payload"] = json.loads(request.data)
+        captured["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setattr(pipeline, "SZEJAY_BOT_TOKEN", "test-token")
+    monkeypatch.setattr(pipeline.urllib.request, "urlopen", fake_urlopen)
+    assert pipeline.send_success_report("Judul", "FACT_FIRST", 142.0, "https://threads.test/post/1")
+    assert captured["payload"] == {
+        "chat_id": "8771306538",
+        "text": "✅ v3 Posted @ " + pipeline.datetime.now(pipeline.WIB).strftime("%H:%M") + " WIB\nJudul\nPattern: FACT_FIRST | 142.0s\nhttps://threads.test/post/1",
+    }
+    assert captured["timeout"] == 10
+
+
+def test_success_report_does_not_send_without_token(monkeypatch):
+    monkeypatch.setattr(pipeline, "SZEJAY_BOT_TOKEN", "")
+    assert not pipeline.send_success_report("Judul", "FACT_FIRST", 1.0, "https://threads.test/post/1")
+
+
 def test_proper_noun_validation_blocks_invented_institution():
     body = "Bank Indonesia menetapkan aturan baru dengan nilai Rp1 miliar. "
     posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
@@ -241,12 +299,24 @@ def test_proper_noun_validation_blocks_reporting_prefix_with_invented_name():
     assert any("Badan Dana Nasional" in issue for issue in issues)
 
 
-def test_story_prompt_requires_source_anchored_story_arc():
+def test_story_prompt_requires_body_only_story_arc():
     assert "SUMBER ADALAH BATAS" in pipeline.SYSTEM_PROMPT
-    assert "## DAMPAK" in pipeline.SYSTEM_PROMPT
+    assert "ISI ARTIKEL satu-satunya sumber" in pipeline.SYSTEM_PROMPT
+    assert "Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna" in pipeline.SYSTEM_PROMPT
     assert "gua–lu" in pipeline.SYSTEM_PROMPT
-    assert "Jangan menambah dampak, profesi, angka, atau skenario" in pipeline.SYSTEM_PROMPT
+    assert "Jangan menambah dampak, profesi, angka, skenario, penilaian" in pipeline.SYSTEM_PROMPT
     assert "S1 fakta pemicu atau perubahan konkret" in pipeline.SYSTEM_PROMPT
+    assert "S2–S5 masing-masing tepat dua kalimat" in pipeline.SYSTEM_PROMPT
+    assert "Jangan ulang angka, fakta, atau contoh dari slide sebelumnya" in pipeline.SYSTEM_PROMPT
+    assert "S6 merangkum satu fakta yang belum dipakai" in pipeline.SYSTEM_PROMPT
+    assert "## DAMPAK" not in pipeline.SYSTEM_PROMPT
+
+
+def test_duplicate_fact_warning_flags_reused_material_number():
+    posts = {f"post_{i}": "Fakta lain dari artikel." for i in range(1, 7)}
+    posts["post_1"] = "652 perusahaan akan dipangkas menjadi 250."
+    posts["post_2"] = "Targetnya tinggal 250 dari 652 perusahaan."
+    assert pipeline._duplicate_fact_warnings(posts) == ["post_2: repeats material numbers from post_1"]
 
 
 def test_ryanhadiii_voice_allows_gua_lu():

@@ -18,9 +18,9 @@ def system_prompt():
 
 def test_system_prompt_is_source_only_article_to_action_contract():
     prompt = system_prompt()
-    assert "satu artikel ekonomi Indonesia" in prompt
+    assert "satu ISI ARTIKEL" in prompt
     assert "ISI ARTIKEL" in prompt
-    assert "Jangan menambah dampak, profesi, angka, atau skenario" in prompt
+    assert "Jangan menambah dampak, profesi, angka, skenario, penilaian" in prompt
     assert "Setiap slide wajib kontras" not in prompt
     assert '"post_1"' in prompt
     assert '"post_6"' in prompt

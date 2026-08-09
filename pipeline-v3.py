@@ -44,6 +44,9 @@ try:
 except Exception:
     pass
 
+SZEJAY_BOT_TOKEN = os.getenv("SZEJAY_BOT_TOKEN")
+SZEJAY_CHAT_ID = "8771306538"
+
 THREADS_USER_ID = None
 if THREADS_TOKEN and not DRY_RUN:
     try:
@@ -160,6 +163,40 @@ def _publish_complete(pub, posts):
     """Only a complete chain may enter dedup/analytics state."""
     expected = sum(1 for text in posts.values() if text)
     return bool(pub and not pub.get("error") and len(pub.get("post_ids", [])) == expected)
+
+
+def send_success_report(title, pattern, elapsed, permalink):
+    """Best-effort Telegram report after a complete live Threads chain."""
+    if not SZEJAY_BOT_TOKEN:
+        log.warning("Success report skipped: SZEJAY_BOT_TOKEN missing")
+        return False
+    text = (f"✅ v3 Posted @ {datetime.now(WIB):%H:%M} WIB\n{title}\n"
+            f"Pattern: {pattern} | {elapsed:.1f}s\n{permalink}")
+    payload = json.dumps({"chat_id": SZEJAY_CHAT_ID, "text": text}).encode()
+    request = urllib.request.Request(
+        f"https://api.telegram.org/bot{SZEJAY_BOT_TOKEN}/sendMessage",
+        data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            result = json.loads(response.read())
+        if result.get("ok"):
+            log.info("Success report sent to @szejay_bot")
+            return True
+        log.warning("Success report rejected by Telegram")
+    except Exception as e:
+        log.warning(f"Success report failed: {e}")
+    return False
+
+
+def threads_permalink(post_id):
+    """Resolve canonical Threads URL without blocking successful state persistence."""
+    try:
+        r = httpx.get(f"{GRAPH}/{post_id}", params={"fields": "permalink", "access_token": THREADS_TOKEN}, timeout=10)
+        if r.status_code == 200 and r.json().get("permalink"):
+            return r.json()["permalink"]
+    except Exception as e:
+        log.warning(f"Permalink lookup failed: {e}")
+    return f"https://www.threads.com/@ryanhadiii/post/{post_id}"
 
 
 def load_prepared_article(posted_urls):
@@ -465,8 +502,19 @@ def _score_article(article):
 
     return (score, f"cats={categories_hit} sig={signals} dyn={dynamic_hits}")
 
-def _pick_article(articles, posted_urls):
-    """Pick best unscraped economy article. Uses category-based scoring + freshness + source quality."""
+def _learning_bonus(data, source, pattern=None):
+    """Bounded feedback. Never changes article/body/grounding gates."""
+    stats = _compute_performance_stats(data)
+    values = list(stats["source_avg"].values())
+    if not values or stats["source_count"].get(source, 0) < 3:
+        return 0.0
+    baseline = sum(values) / len(values)
+    score = stats["source_avg"].get(source, baseline)
+    return max(-0.06, min(0.06, (score - baseline) * 2))
+
+
+def _pick_article(articles, posted_urls, data=None):
+    """Pick best unscraped economy article. Learning only makes a bounded ranking adjustment."""
     now = time.time()
     candidates = [a for a in articles if a["url"] not in posted_urls]
     if not candidates:
@@ -497,9 +545,10 @@ def _pick_article(articles, posted_urls):
         # Source quality: base from SOURCES config
         src_cfg = SOURCES.get(a["source"], {})
         source_quality = src_cfg.get("score", 5)
-        # Final score
-        a["_weight"] = eco_score + freshness + relevance + source_quality
-    # Sort by weight descending
+        # Learning is capped. It cannot rescue an editorially weak candidate.
+        learning = _learning_bonus(data or {}, a["source"], a.get("pattern"))
+        a["learning_bonus"] = learning
+        a["_weight"] = eco_score + freshness + relevance + source_quality + learning
     candidates.sort(key=lambda a: a["_weight"], reverse=True)
     log.debug("Top 5:")
     for i, a in enumerate(candidates[:5]):
@@ -1100,19 +1149,53 @@ def thread_contract_issues(posts, article_url):
     return issues
 
 
+def refresh_performance_metrics(data, now=None):
+    """Refresh published S1 metrics. API failure preserves prior data and never blocks publish."""
+    if not THREADS_TOKEN:
+        return False
+    now = now or time.time()
+    changed = False
+    for topic in data.get("topics", [])[:50]:
+        post_id = topic.get("post_id")
+        checked_at = topic.get("metrics_checked_at", 0)
+        if not post_id or now - checked_at < 6 * 3600:
+            continue
+        try:
+            response = httpx.get(
+                f"{GRAPH}/{post_id}/insights",
+                params={"access_token": THREADS_TOKEN,
+                        "metric": "likes,replies,reposts,views,quotes", "period": "lifetime"},
+                timeout=15,
+            )
+            if response.status_code != 200:
+                log.warning("Metrics %s: HTTP %s", post_id, response.status_code)
+                continue
+            metrics = {item.get("name"): item.get("values", [{}])[0].get("value", 0)
+                       for item in response.json().get("data", [])}
+            for name in ("likes", "replies", "reposts", "views", "quotes"):
+                topic[name] = metrics.get(name, topic.get(name) or 0)
+            topic["metrics_checked_at"] = now
+            changed = True
+        except (httpx.RequestError, ValueError, IndexError, TypeError) as exc:
+            log.warning("Metrics %s: %s", post_id, exc)
+    return changed
+
+
 def _compute_performance_stats(data):
-    """Engagement quality, not raw reach, drives future source/arc preference."""
-    buckets = {"source_avg": {}, "arc_avg": {}}
+    """Engagement quality, not raw reach, drives bounded source/arc preference."""
+    buckets = {"source_avg": {}, "arc_avg": {}, "source_count": {}}
     grouped = {"source_avg": {}, "arc_avg": {}}
     for topic in data.get("topics", []):
         views = topic.get("views") or 0
-        if views <= 0:
+        if views < 100:
             continue
-        score = ((topic.get("likes") or 0) + 2 * (topic.get("replies") or 0) + 3 * (topic.get("reposts") or 0)) / views
+        score = ((topic.get("likes") or 0) + 2 * (topic.get("replies") or 0)
+                 + 3 * (topic.get("reposts") or 0) + 2 * (topic.get("quotes") or 0)) / views
         grouped["source_avg"].setdefault(topic.get("article_source", ""), []).append(score)
         grouped["arc_avg"].setdefault(topic.get("arc", ""), []).append(score)
     for name, values in grouped.items():
         buckets[name] = {key: sum(items) / len(items) for key, items in values.items() if key}
+    buckets["source_count"] = {key: len(items) for key, items in grouped["source_avg"].items() if key}
     return buckets
 
 
@@ -1173,26 +1256,20 @@ SYSTEM_PROMPT = """# RYANHADIII EKONOMI — WRITER
 
 Balas JSON valid saja. Tidak ada markdown, penjelasan, atau code fence.
 
-Peran: writer Threads @ryanhadiii. Ryan praktisi pengolah data bisnis, bukan ekonom atau penasihat investasi. Terjemahkan satu berita ekonomi menjadi arti nyata bagi biaya hidup, pekerjaan, pendapatan, cicilan, pajak, atau layanan publik. Memihak pengalaman masyarakat biasa dan kelas pekerja, tanpa propaganda, tuduhan motif, atau klaim tanpa bukti.
-
-Ubah satu artikel ekonomi Indonesia menjadi tepat 6 post Threads. Pakai gua–lu, kalimat pendek, bahasa awam. Satu post 1–2 kalimat. S1 maksimal 140 karakter; S2–S6 maksimal 300 karakter. S1–S5 tanpa pertanyaan. S6 satu pertanyaan spesifik dan URL sumber akan ditambahkan sistem.
-
-## DAMPAK
-S1 mulai dari dampak, kerugian, atau kejanggalan manusiawi yang literal dari sumber, bukan pengantar berita. S2 kunci 1–3 angka/fakta dengan periode dan satuan persis dari sumber. S3 jelaskan mekanisme yang tertulis dalam bahasa awam. S4 sebut pihak terdampak atau pihak penerima manfaat yang eksplisit. S5 beri konteks atau counterpoint yang juga ada di sumber. S6 simpulan terbuka dan pertanyaan substantif, bukan engagement bait.
+Ubah satu ISI ARTIKEL menjadi tepat 6 post Threads. Pakai gua–lu, kalimat pendek, bahasa awam. S1 maksimal 140 karakter; S2–S6 maksimal 300 karakter. S1 satu kalimat. S2–S5 masing-masing tepat dua kalimat: kalimat kedua menerangkan atau mempersempit fakta di kalimat pertama, bukan mengulangnya. S1–S5 tanpa pertanyaan. S6 satu pertanyaan spesifik. URL sumber ditambahkan sistem.
 
 ## SUMBER ADALAH BATAS
-- ISI ARTIKEL satu-satunya sumber fakta. Judul, URL, pengetahuan umum, asumsi, dan contoh imajiner dilarang.
-- Semua angka, tanggal, nama, lembaga, lokasi, kutipan, status, pihak terdampak, sebab-akibat, dan prediksi wajib literal di isi artikel.
-- Nama/lembaga wajib salin persis sebagai rangkaian kata utuh dari isi artikel. Jangan singkat, perluas, terjemahkan, gabungkan jabatan dengan nama, atau menambah kata seperti "kata" sebelum nama.
-- Jangan menambah dampak, profesi, angka, atau skenario agar thread terasa lebih dramatis.
+- ISI ARTIKEL satu-satunya sumber. Judul, URL, pengetahuan umum, asumsi, contoh imajiner, dan pengalaman pribadi dilarang.
+- Ambil semua kata isi dari ISI ARTIKEL: angka, nama, lembaga, lokasi, kebijakan, status, waktu, kutipan, pihak, sebab-akibat, konsekuensi, dan prediksi. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna.
+- Nama/lembaga wajib salin persis sebagai rangkaian kata utuh dari isi artikel. Jangan singkat, perluas, terjemahkan, atau gabungkan jabatan dengan nama.
+- Jangan menambah dampak, profesi, angka, skenario, penilaian, atau pertanyaan yang premisnya tidak literal di artikel. Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali istilah dan faktanya literal di artikel.
 - Jangan mengubah rencana, kemungkinan, atau proyeksi menjadi kepastian.
-- Topik hukum/dugaan: pakai status dan atribusi persis dari artikel; larang vonis bersalah, tuduhan baru, doxxing, atau ajakan menghukum/persekusi.
 - Bila sumber tidak cukup untuk enam post akurat, balas {"status":"error","message":"insufficient_evidence"}.
 
 ## ALUR
-S1 fakta pemicu atau perubahan konkret. S2 bukti utama. S3 konteks atau penjelasan istilah yang tertulis. S4 fakta lanjutan, aturan, atau kutipan. S5 konsekuensi atau pihak yang disebut artikel. S6 hal literal yang patut dipantau lalu CTA spesifik.
+S1 fakta pemicu atau perubahan konkret. S2 angka atau keputusan inti yang belum dipakai S1. S3 tujuan, alasan, atau mekanisme yang tertulis. S4 progres, status, atau kutipan yang belum dipakai. S5 contoh konkret dari artikel. S6 merangkum satu fakta yang belum dipakai menjadi pertanyaan spesifik; jangan bikin janji waktu, hasil, atau dampak baru.
 
-Setiap slide membuka fakta atau sudut baru dari artikel. Boleh punya pendapat singkat hanya bila jelas sebagai pembacaan atas fakta literal, bukan klaim baru. Jangan pakai label-colon, hashtag, jargon birokratis, template AI, atau deskripsi gambar. Hindari akselerasi, mitigasi, implementasi, optimalisasi, signifikan, komprehensif.
+Jangan ulang angka, fakta, atau contoh dari slide sebelumnya. Setiap slide membuka bukti baru dan urutannya harus terasa: keputusan, ukuran, penjelasan, progres, contoh, hal yang dipantau. Jangan pakai label-colon, hashtag, jargon birokratis, template AI, atau deskripsi gambar.
 
 ## OUTPUT
 {"status":"success","angle":"sudut pandang yang didukung artikel","post_1":"...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
@@ -1200,7 +1277,9 @@ Setiap slide membuka fakta atau sudut baru dari artikel. Boleh punya pendapat si
 
 REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah field lain. Balas JSON lengkap dengan field yang sudah diperbaiki.
 
-Issues: {revision_notes}"""
+Issues: {revision_notes}
+
+Untuk tiap issue grounding: hapus atau ganti dengan fakta yang muncul literal di ISI ARTIKEL. Jangan menambah dampak/CTA baru. Jika tidak ada enam post yang bisa dipertahankan akurat, balas {{\"status\":\"error\",\"message\":\"insufficient_evidence\"}}."""
 
 def build_user_prompt(article):
     """Build user prompt with article content, image context, and summarized body."""
@@ -1291,6 +1370,21 @@ def deterministic_validate(posts):
             warnings.append(f"{k}: too many questions")
         if i == 6 and outside.count("?") > 1:
             warnings.append(f"{k}: too many CTA questions")
+    return warnings
+
+
+def _duplicate_fact_warnings(posts):
+    """Flag repeated material numbers so six slides use distinct article evidence."""
+    warnings = []
+    seen = {}
+    for i in range(1, 7):
+        key = f"post_{i}"
+        numbers = set(re.findall(r"\b\d{2,}(?:[.,]\d+)?\b", posts.get(key, "")))
+        repeated = sorted(number for number in numbers if number in seen)
+        if repeated:
+            warnings.append(f"{key}: repeats material numbers from {seen[repeated[0]]}")
+        for number in numbers:
+            seen.setdefault(number, key)
     return warnings
 
 
@@ -1500,7 +1594,7 @@ def generate_thread(article):
             else:
                 posts["post_1"] = trunc.rsplit(".", 1)[0] + "." if "." in trunc else trunc
         # Style issues are revision cues. Fact checks remain publish blockers.
-        style_warnings = deterministic_validate(posts)
+        style_warnings = deterministic_validate(posts) + _duplicate_fact_warnings(posts)
         noun_warnings = _validate_proper_nouns(posts, article["body"])
         missing = [f"{k}: empty" for k, v in posts.items() if not v.strip()]
         claim_warnings = _validate_claim_markers(posts, article["body"])
@@ -1518,7 +1612,7 @@ def generate_thread(article):
                 try:
                     d2 = json.loads(c2)
                     p2 = {k: _convert_pov(d2.get(k, "")) for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
-                    style_w2 = deterministic_validate(p2)
+                    style_w2 = deterministic_validate(p2) + _duplicate_fact_warnings(p2)
                     noun_w2 = _validate_proper_nouns(p2, article["body"])
                     w2 = [f"{k}: empty" for k, v in p2.items() if not v.strip()]
                     claim_w2 = _validate_claim_markers(p2, article["body"])
@@ -1666,7 +1760,11 @@ def post_to_threads(article_title, posts, image_url=None, inflight=None):
 # ══════════════════════════════════════════════
 
 def main():
+    started_at = time.monotonic()
     data = load_data()
+    # Dry-run must not write analytics or alter future selection.
+    if not DRY_RUN and refresh_performance_metrics(data):
+        save_data(data)
     inflight = load_inflight()
     if inflight:
         posts = inflight["posts"]
@@ -1687,6 +1785,8 @@ def main():
             INFLIGHT_FILE.unlink(missing_ok=True)
             PREPARED_ARTICLE_FILE.unlink(missing_ok=True)
             log.info(f"Posted: {pub['post_ids'][0]}")
+            send_success_report(article["title"], article.get("pattern", "UNKNOWN"),
+                                time.monotonic() - started_at, threads_permalink(pub["post_ids"][0]))
         elif pub and pub.get("error"):
             log.error(f"Post error: {pub['error']}")
         return
@@ -1725,7 +1825,7 @@ def main():
     skipped_urls = set()
     candidate_limit = len(articles) if not article else 0
     for _ in range(candidate_limit):
-        candidate = _pick_article(articles, posted_urls | skipped_urls)
+        candidate = _pick_article(articles, posted_urls | skipped_urls, data)
         if not candidate:
             break
         is_repeat, shared_entities, shared_words = _is_repeat_issue(candidate["title"], recent_topics)
@@ -1796,7 +1896,7 @@ def main():
         # Try next-best candidate from remaining pool (fast retry)
         retry_article = None
         for _ in range(candidate_limit):
-            retry_article = _pick_article(articles, posted_urls | skipped_urls)
+            retry_article = _pick_article(articles, posted_urls | skipped_urls, data)
             if retry_article is None:
                 break
             log.info(f"  Retry candidate: {retry_article['title'][:80]}")
@@ -1859,7 +1959,7 @@ def main():
                 "angle": result.get("angle", ""), "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+07:00"),
                 "eco_score": article.get("eco_score"), "selection_weight": article.get("_weight"),
                 "pattern": article.get("pattern"), "arc": result.get("arc", ""), "slides": posts,
-                "likes": None, "replies": None,
+ "likes": None, "replies": None, "reposts": None, "views": None, "quotes": None,
             },
         }
         save_inflight(inflight)
@@ -1881,6 +1981,9 @@ def main():
                 "slides": posts,
                 "likes": None,
                 "replies": None,
+                "reposts": None,
+                "views": None,
+                "quotes": None,
             }
             data.setdefault("topics", []).insert(0, topic)
             rc = data.setdefault("recent_content", {})
@@ -1891,6 +1994,8 @@ def main():
             save_data(data)
             PREPARED_ARTICLE_FILE.unlink(missing_ok=True)
             INFLIGHT_FILE.unlink(missing_ok=True)
+            send_success_report(article["title"], article.get("pattern", "UNKNOWN"),
+                                time.monotonic() - started_at, threads_permalink(pub["post_ids"][0]))
         elif pub and pub.get("error"):
             log.error(f"Post error: {pub['error']}")
     else:
