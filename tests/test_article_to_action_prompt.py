@@ -25,7 +25,7 @@ def test_system_prompt_is_source_only_article_to_action_contract():
     assert '"post_1"' in prompt
     assert '"post_6"' in prompt
     assert '"error"' in prompt
-    assert "ke Lo." in prompt
+    assert "gua–lu" in prompt
 
 
 def test_system_prompt_does_not_embed_fictional_facts_as_examples():

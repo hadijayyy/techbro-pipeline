@@ -28,9 +28,9 @@ DRY_RUN = "--dry-run" in sys.argv
 BASE = Path(__file__).parent
 POSTED_FILE = BASE / "posted_topics_v2.json"
 KEYWORDS_FILE = BASE / "keywords.json"
-DYNAMIC_KEYWORDS_FILE = BASE / "dynamic_keywords.json"
 SOURCES_FILE = BASE / "sources.json"
 PREPARED_ARTICLE_FILE = BASE / "prepared_article.json"
+INFLIGHT_FILE = BASE / "inflight_chain.json"
 
 # ── Env ───────────────────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ logging.basicConfig(level=logging.INFO,
     datefmt="%Y-%m-%d %H:%M:%S")
 log = logging.getLogger("techbro-v3")
 
-# ── Dynamic Keywords Loader ────────────────────────────────────────────────────
+# ── Keyword Loader ───────────────────────────────────────────────────────────
 
 def load_keywords():
     """Load scoring keywords from keywords.json. Returns dict with all keyword lists."""
@@ -83,18 +83,7 @@ def load_keywords():
     return defaults
 
 
-def load_dynamic_keywords():
-    """Load vetted, expiring topic terms; stale terms never affect ranking."""
-    try:
-        data = json.loads(DYNAMIC_KEYWORDS_FILE.read_text())
-        if time.time() - data.get("updated_at", 0) > 86400:
-            return []
-        return [str(x).lower() for x in data.get("keywords", []) if len(str(x)) >= 3]
-    except (OSError, json.JSONDecodeError, TypeError):
-        return []
-
 KW = load_keywords()
-DYNAMIC_KEYWORDS = load_dynamic_keywords()
 
 # ── Economy Sources ──────────────────────────────────────────────────────────
 
@@ -153,6 +142,18 @@ def save_data(data):
     tmp = POSTED_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False))
     tmp.replace(POSTED_FILE)
+
+def load_inflight():
+    try:
+        data = json.loads(INFLIGHT_FILE.read_text())
+        return data if isinstance(data, dict) and data.get("posts") else None
+    except (OSError, json.JSONDecodeError):
+        return None
+
+def save_inflight(data):
+    tmp = INFLIGHT_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    tmp.replace(INFLIGHT_FILE)
 
 
 def _publish_complete(pub, posts):
@@ -436,24 +437,9 @@ def _score_article(article):
     if '%' in title:
         score += 3
 
-    # Dynamic terms are ranking hints only; body gates remain mandatory.
-    dynamic_hits = sum(_matches_keyword(tl, kw) for kw in DYNAMIC_KEYWORDS)
-    score += min(dynamic_hits * 5, 15)
+    # ponytail: dynamic keyword overlay retired; add back only with a maintained source and regression coverage.
+    dynamic_hits = 0
 
-    # Hot-topic briefing: public money, mass impact, and final decisions.
-    # Title only ranks candidates; article body remains the fact source.
-    hot_signals = (
-        (25, ("putusan mk", "putusan ma", "mahkamah konstitusi", "mahkamah agung", "audit bpk", "dpr setujui", "disahkan")),
-        (20, ("apbn", "anggaran", "pajak", "subsidi", "bansos")),
-        (15, ("dialihkan", "dipisah", "dipotong", "ditambah", "alokasi dana")),
-        (20, ("bbm", "listrik", "sekolah", "kesehatan", "pangan", "transportasi", "upah", "pekerja")),
-        (15, ("resmi", "ditetapkan", "berlaku", "putusan", "disahkan")),
-    )
-    for bonus, keywords in hot_signals:
-        if any(_matches_keyword(tl, kw) for kw in keywords):
-            score += bonus
-    if re.search(r"\bberlaku\b.*\b\d{1,2}\b|\b\d{1,2}\s+(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\b", tl):
-        score += 10
 
     # Daily market moves are low-value unless title also signals policy or public impact.
     technical = any(_matches_keyword(tl, kw) for kw in ("rupiah", "ihsg", "saham", "harga emas", "harga minyak"))
@@ -479,26 +465,13 @@ def _score_article(article):
 
     return (score, f"cats={categories_hit} sig={signals} dyn={dynamic_hits}")
 
-def _load_hot_econ():
-    """Load viral-econ-hunter output (hot_econ.json) if fresh (same day)."""
-    try:
-        data = json.loads((BASE / "hot_econ.json").read_text())
-        if data.get("date") != datetime.now(WIB).strftime("%Y-%m-%d"):
-            return [], []
-        stories = data.get("stories", [])
-        boosts = {s["rank"]: s for s in stories if s.get("rank")}
-        return stories, boosts
-    except (OSError, json.JSONDecodeError):
-        return [], []
-
-
 def _pick_article(articles, posted_urls):
     """Pick best unscraped economy article. Uses category-based scoring + freshness + source quality."""
     now = time.time()
     candidates = [a for a in articles if a["url"] not in posted_urls]
     if not candidates:
         return None
-    hot_stories, _ = _load_hot_econ()
+
     # Clean title
     for a in candidates:
         a["title"] = re.sub(r'^\d+', '', a["title"]).strip()
@@ -507,30 +480,6 @@ def _pick_article(articles, posted_urls):
     # Score each candidate
     for a in candidates:
         eco_score, reason = _score_article(a)
-        # Viral-econ hunter merge: match by domain + published-ts window (±2h)
-        # because gnews URLs are JS redirect stubs, not real article URLs.
-        hot_boost = 0
-        a_domain = urllib.parse.urlparse(a["url"]).netloc.lower().lstrip("www.")
-        a_tokens = set(re.findall(r"[a-z]{4,}", a["title"].lower()))
-        a_tokens -= {"yang", "dengan", "untuk", "akan", "pada", "saat", "para", "dari", "ke",
-                     "di", "dan", "ini", "itu", "hari", "terbaru", "baru", "resmi", "sebut",
-                     "pastikan", "catat", "soal", "dalam", "per", "juta", "ribu", "miliar",
-                     "triliun", "rp", "agus", "agustus", "september", "oktober", "indonesia"}
-        for hs in hot_stories:
-            h_ts = hs.get("published_ts") or 0
-            # story domains = all outlets covering it (pipeline feed may be any)
-            h_domains = {d.lower().lstrip("www.") for d in hs.get("sources") or []}
-            domain_ok = a_domain in h_domains or any(d in a_domain for d in h_domains if d)
-            overlap = len(a_tokens & set(hs.get("title_tokens") or []))
-            if (domain_ok and h_ts and overlap >= 3
-                    and abs(a["ts"] - h_ts) < 7200):
-                hot_boost = max(hot_boost, max(40 - (hs.get("rank", 5) - 1) * 8, 8))
-                if h_ts:
-                    a["ts"] = min(a["ts"], h_ts)  # use hunter publish time if earlier
-        if hot_boost:
-            eco_score += hot_boost
-            reason += f" hot={hot_boost}"
-            log.info(f"  Hot-econ boost: {a['title'][:50]} (+{hot_boost})")
         a["eco_score"] = eco_score
         a["_reason"] = reason
         # Freshness: 24h = +15, 25-48h = +10, 3-7d = +5, >7d = 0, republish = -30
@@ -628,6 +577,40 @@ def _image_hint(url):
         return ""
 
 
+def _published_timestamp(soup):
+    """Read standard article publication fields; unknown formats remain untrusted."""
+    values = [
+        tag.get("content") for tag in soup.find_all("meta")
+        if re.search(r"(?:publishdate|datepublished|pubdate|published_time)",
+                     str(tag.get("name") or tag.get("property") or ""), re.I)
+    ]
+    values += [tag.get("datetime") for tag in soup.find_all("time")]
+    for tag in soup.find_all("script", type="application/ld+json"):
+        try:
+            data = json.loads(tag.string or tag.get_text())
+        except (TypeError, json.JSONDecodeError):
+            continue
+        items = data if isinstance(data, list) else [data]
+        for item in items:
+            if isinstance(item, dict) and item.get("datePublished"):
+                values.append(item["datePublished"])
+    for value in values:
+        if not value:
+            continue
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            return (parsed if parsed.tzinfo else parsed.replace(tzinfo=WIB)).timestamp()
+        except ValueError:
+            try:
+                return parsedate_to_datetime(str(value)).timestamp()
+            except (TypeError, ValueError):
+                try:
+                    return datetime.strptime(str(value), "%Y/%m/%d %H:%M:%S").replace(tzinfo=WIB).timestamp()
+                except ValueError:
+                    pass
+    return 0
+
+
 def _fetch_article_body(url):
     """Fetch article HTML, extract clean text + og:image + source publish time."""
     og_image = None
@@ -638,15 +621,7 @@ def _fetch_article_body(url):
         if code != 200:
             return "", None, 0
         soup = BeautifulSoup(raw, "html.parser")
-        date_tag = soup.find("meta", attrs={"name": re.compile(r"(?:publishdate|datePublished|pubdate)", re.I)})
-        if date_tag and date_tag.get("content"):
-            try:
-                published_ts = parsedate_to_datetime(date_tag["content"]).timestamp()
-            except (TypeError, ValueError):
-                try:
-                    published_ts = datetime.strptime(str(date_tag["content"]), "%Y/%m/%d %H:%M:%S").replace(tzinfo=WIB).timestamp()
-                except ValueError:
-                    pass
+        published_ts = _published_timestamp(soup)
         # og:image — logos are not lead images, fall through to body images.
         og_tag = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
         if og_tag and og_tag.get("content"):
@@ -830,28 +805,14 @@ def _is_routine_market_story(title, body):
 
 
 # ── Pressbox-style Pattern Classification ──────────────────────────────────────
-# 5 economy patterns with keyword triggers + priority ordering.
-# Priority: DOMPET > KORUPSI > KEBIJAKAN > PROYEK > PASAR
+# 4 PINDAR patterns with keyword triggers + priority ordering.
+# Priority: KORUPSI > KEBIJAKAN > PROYEK > PASAR
 # Pattern determines candidate selection priority AND S1 hook style in LLM prompt.
 
 ECONOMY_PATTERNS = {
-    "DOMPET": {
-        "priority": 1,
-        "label": "Dompet Kejepit",
-        "desc": "Harga naik, tarif, pajak, subsidi, BBM — dampak langsung ke kantong rakyat",
-        "keywords": [
-            "harga naik", "tarif naik", "bbm naik", "harga bbm", "bbm turun", "pajak naik", "subsidi dipotong", "harga turun", "harga anjlok", "harga melonjak",
-            "inflasi", "daya beli", "biaya hidup", "harga pangan", "sembako",
-            "tarif listrik", "tarif air", "iuran bpjs", "tarif tol", "tarif parkir",
-            "upah minimum", "umr", "umk", "gaji", "tunjangan",
-            "bansos", "blt", "pkh", "bpn", "kartu prakerja",
-            "ppn", "pph", "bea", "cukai", "pungutan",
-            "kpr", "cicilan", "kredit rumah", "pinjaman",
-            "biaya sekolah", "spp", "uang kuliah",
-        ],
-    },
+
     "KORUPSI": {
-        "priority": 2,
+        "priority": 1,
         "label": "Korupsi & Skandal",
         "desc": "Korupsi, suap, gratifikasi, temuan BPK, rugikan negara — viral, high engagement",
         "keywords": [
@@ -868,7 +829,7 @@ ECONOMY_PATTERNS = {
         ],
     },
     "KEBIJAKAN": {
-        "priority": 3,
+        "priority": 2,
         "label": "Kebijakan & Aturan Baru",
         "desc": "Peraturan, putusan, kebijakan pemerintah — siapa kena dampak",
         "keywords": [
@@ -884,7 +845,7 @@ ECONOMY_PATTERNS = {
         ],
     },
     "PROYEK": {
-        "priority": 4,
+        "priority": 3,
         "label": "Proyek & Infrastruktur",
         "desc": "Proyek besar, infrastruktur, investasi asing — lapangan kerja & kontrak",
         "keywords": [
@@ -902,7 +863,7 @@ ECONOMY_PATTERNS = {
         ],
     },
     "PASAR": {
-        "priority": 5,
+        "priority": 4,
         "label": "Pasar & Keuangan",
         "desc": "Saham, IHSG, rupiah, bursa, obligasi — investor & pelaku pasar",
         "keywords": [
@@ -942,13 +903,12 @@ def _classify_pattern(title, body):
     for name, cfg in sorted(ECONOMY_PATTERNS.items(), key=lambda x: x[1]["priority"]):
         hits = sum(1 for kw in cfg["keywords"] if re.search(rf"\b{re.escape(kw)}\b", text))
         # Confidence = hits weighted by priority (higher priority = more generous)
-        # DOMPET: hits/4, KORUPSI: hits/3, KEBIJAKAN: hits/3, PROYEK: hits/4, PASAR: hits/3
-        thresholds = {"DOMPET": 6, "KORUPSI": 5, "KEBIJAKAN": 5, "PROYEK": 6, "PASAR": 5}
+        thresholds = {"KORUPSI": 5, "KEBIJAKAN": 5, "PROYEK": 6, "PASAR": 5}
         divisor = thresholds.get(name, 4)
         confidence = min(hits / divisor, 1.0)
 
         # Higher-priority patterns need fewer hits to qualify
-        min_hits = {1: 2, 2: 2, 3: 2, 4: 3, 5: 3}.get(cfg["priority"], 3)
+        min_hits = {1: 2, 2: 2, 3: 3, 4: 3}.get(cfg["priority"], 3)
         if hits >= min_hits and confidence > best_confidence:
             # Priority-weighted: higher priority gets bonus
             priority_bonus = (6 - cfg["priority"]) * 0.06
@@ -1048,7 +1008,7 @@ def _is_empty_commentary(title, body):
 # ── POV Helpers ──────────────────────────────────────────────────────────────
 
 def _convert_pov(text):
-    """Keep Techbro's conversational 'lo' voice; only remove markup."""
+    """Keep conversational voice; only remove markup."""
     return re.sub(r'(?<!\w)[*_]+([^*_\n]+)[*_]+', r'\1', text)
 
 def _format_sentence_blanks(text):
@@ -1089,16 +1049,25 @@ def deterministic_grounding_validate(article, posts):
 
 
 def grounding_validate(article, posts):
-    """Independent verifier failure blocks publish; its result is advisory only when available."""
+    """Independent factual verifier; outage or unsupported fact blocks publish."""
     deterministic = deterministic_grounding_validate(article, posts)
-    verifier_prompt = """Audit ketat. Jawab PASS hanya bila setiap klaim, peran, dampak, evaluasi, dan pertanyaan CTA draft didukung literal oleh SUMBER. Jawab FAIL bila draft menambah opini evaluatif, pilihan retoris, dampak pekerja/publik, atau frasa seperti efisiensi atau potong kompas yang tidak tertulis. Jawab satu kata saja: PASS atau FAIL."""
+    verifier_prompt = """Audit fakta dengan standar fail-closed. Jawab PASS hanya bila setiap pernyataan deklaratif dalam DRAFT didukung literal oleh SUMBER: angka, tanggal, nama, lembaga, status, pihak terdampak, sebab-akibat, konsekuensi, prediksi, perbandingan, penilaian ekonomi, dan kesimpulan. Jawab FAIL untuk inferensi atau tafsir baru, termasuk mengubah surplus menjadi klaim untung bersih, dampak ke kantong/pekerja, atau manfaat/rugi yang tidak dikatakan SUMBER. Gaya bahasa, hook, dan pertanyaan CTA boleh hanya bila tidak menyatakan premis fakta baru. Jika ragu, FAIL. Jawab satu kata saja: PASS atau FAIL."""
     draft = "\n".join(posts.values())
-    verdict, error = _call_llm(verifier_prompt, f"SUMBER:\n{article.get('body', '')[:6000]}\nDRAFT:\n{draft}", max_retries=1)
+    verdict, error = _call_llm(
+        verifier_prompt,
+        f"SUMBER:\n{article.get('body', '')[:6000]}\nDRAFT:\n{draft}",
+        max_retries=1,
+        temperature=0,
+    )
     if error or not verdict:
         return deterministic + ["grounding: verifier unavailable"]
     if verdict.strip().upper() != "PASS":
         deterministic.append("grounding: verifier rejected draft")
     return deterministic
+
+
+def is_rate_limit_error(error):
+    return bool(error and "rate limit 429" in error.lower())
 
 
 def hook_issues(hook, body):
@@ -1162,7 +1131,7 @@ def _get_api_key():
             return key
     return None
 
-def _call_llm(system, user, model="mistral-large-latest", max_retries=3):
+def _call_llm(system, user, model="mistral-large-latest", max_retries=3, temperature=None):
     api_key = _get_api_key()
     if not api_key:
         return None, "No API key found"
@@ -1171,8 +1140,8 @@ def _call_llm(system, user, model="mistral-large-latest", max_retries=3):
     payload = {
         "model": model,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        "temperature": random.uniform(0.7, 0.9),
-        "max_tokens": 1500,
+        "temperature": random.uniform(0.7, 0.9) if temperature is None else temperature,
+        "max_tokens": 4000,
     }
     last_error = ""
     for attempt in range(1, max_retries + 1):
@@ -1184,10 +1153,8 @@ def _call_llm(system, user, model="mistral-large-latest", max_retries=3):
             elif r.status_code == 401:
                 return None, f"Auth error {r.status_code}"
             elif r.status_code == 429:
-                last_error = f"Rate limit {r.status_code}"
-                if attempt < max_retries:
-                    # Rate windows need real cooldown; fast retries only burn quota.
-                    time.sleep(30 * attempt)
+                # Let wrapper apply one real cooldown; candidate churn burns quota.
+                return None, f"Rate limit {r.status_code}"
             else:
                 last_error = f"HTTP {r.status_code}: {r.text[:120]}"
                 if attempt < max_retries:
@@ -1202,11 +1169,16 @@ def _call_llm(system, user, model="mistral-large-latest", max_retries=3):
 #   SYSTEM PROMPT — 7 Arc + Aturan Bahasa + Quality Gate
 # ══════════════════════════════════════════════
 
-SYSTEM_PROMPT = """# TECHBRO EKONOMI — WRITER
+SYSTEM_PROMPT = """# RYANHADIII EKONOMI — WRITER
 
 Balas JSON valid saja. Tidak ada markdown, penjelasan, atau code fence.
 
-Ubah satu artikel ekonomi Indonesia menjadi tepat 6 post Threads. Bahasa Indonesia lisan, tajam, natural, seperti teman pintar bicara ke Lo. Satu slide 1–2 kalimat. S1 maksimal 140 karakter; S2–S6 maksimal 300 karakter. S1–S5 tanpa pertanyaan. S6 satu pertanyaan spesifik dan URL sumber akan ditambahkan sistem.
+Peran: writer Threads @ryanhadiii. Ryan praktisi pengolah data bisnis, bukan ekonom atau penasihat investasi. Terjemahkan satu berita ekonomi menjadi arti nyata bagi biaya hidup, pekerjaan, pendapatan, cicilan, pajak, atau layanan publik. Memihak pengalaman masyarakat biasa dan kelas pekerja, tanpa propaganda, tuduhan motif, atau klaim tanpa bukti.
+
+Ubah satu artikel ekonomi Indonesia menjadi tepat 6 post Threads. Pakai gua–lu, kalimat pendek, bahasa awam. Satu post 1–2 kalimat. S1 maksimal 140 karakter; S2–S6 maksimal 300 karakter. S1–S5 tanpa pertanyaan. S6 satu pertanyaan spesifik dan URL sumber akan ditambahkan sistem.
+
+## DAMPAK
+S1 mulai dari dampak, kerugian, atau kejanggalan manusiawi yang literal dari sumber, bukan pengantar berita. S2 kunci 1–3 angka/fakta dengan periode dan satuan persis dari sumber. S3 jelaskan mekanisme yang tertulis dalam bahasa awam. S4 sebut pihak terdampak atau pihak penerima manfaat yang eksplisit. S5 beri konteks atau counterpoint yang juga ada di sumber. S6 simpulan terbuka dan pertanyaan substantif, bukan engagement bait.
 
 ## SUMBER ADALAH BATAS
 - ISI ARTIKEL satu-satunya sumber fakta. Judul, URL, pengetahuan umum, asumsi, dan contoh imajiner dilarang.
@@ -1416,7 +1388,7 @@ def _validate_claim_markers(posts, body):
         "menyebab", "memicu", "berdampak", "imbas", "mengakibatkan", "berarti",
         "kebablasan", "coo bp bumn", "sudah kena", "tinggal tunggu giliran",
         "lapangan kerja", "layanan publik", "nasib karyawan", "skema penempatan ulang",
-        "kompensasi",
+        "kompensasi", "untung bersih", "kantong kita",
     )
     for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
         text = posts.get(key, "").lower()
@@ -1445,7 +1417,7 @@ def _validate_sensitive_language(posts, body):
 def _voice_warnings(posts):
     """Flag synthetic/report-template phrasing for prompt revision, not rejection."""
     warnings = []
-    patterns = r"\b(?:gua|gw|lu)\b|(?:^|[.!?]\s*)(?:fakta|aturan bilang|pemerintah bilang|yang perlu dicatat|perlu diketahui|artinya)\s*:"
+    patterns = r"(?:^|[.!?]\s*)(?:fakta|aturan bilang|pemerintah bilang|yang perlu dicatat|perlu diketahui|artinya)\s*:"
     for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
         if re.search(patterns, posts.get(key, ""), re.I):
             warnings.append(f"{key}: rewrite synthetic voice/template")
@@ -1496,6 +1468,8 @@ def generate_thread(article):
         content, error = _call_llm(SYSTEM_PROMPT, user, max_retries=2)
         if error:
             log.warning(f"  LLM attempt {attempt}/2 — {error[:80]}")
+            if is_rate_limit_error(error):
+                return None, error
             if attempt < 2:
                 time.sleep(3)
             continue
@@ -1532,13 +1506,6 @@ def generate_thread(article):
         claim_warnings = _validate_claim_markers(posts, article["body"])
         voice_warnings = _voice_warnings(posts)
         warnings = missing + grounding_validate(article, posts) + noun_warnings + claim_warnings
-        # Viral driver: S1 must have concrete tension marker or trigger revision.
-        s1 = posts.get("post_1", "").lower()
-        viral_markers = ["tapi", "padahal", "sementara", "malah", "naik", "turun",
-                         "dipotong", "ditambah", "dialihkan", "ditetapkan", "berlaku",
-                         "putusan", "wajib", "hingga", "mulai"]
-        if not any(m in s1 for m in viral_markers):
-            warnings.append("S1: no concrete viral driver — add contrast/tension marker")
         if style_warnings or claim_warnings or voice_warnings:
             log.info(f"  Soft style/claim warnings: {style_warnings + claim_warnings + voice_warnings}")
         if warnings:
@@ -1595,8 +1562,8 @@ def generate_thread(article):
 #   THREADS PUBLISHER
 # ══════════════════════════════════════════════
 
-def post_to_threads(article_title, posts, image_url=None, pov_image_url=None):
-    """Post chain to Threads via v1.0 Graph API. Slide 1 = article image, slide 7 = POV image."""
+def post_to_threads(article_title, posts, image_url=None, inflight=None):
+    """Post a six-slide chain to Threads via v1.0 Graph API. Slide 1 uses article image."""
     if not THREADS_TOKEN or not THREADS_USER_ID:
         log.error("No THREADS_ACCESS_TOKEN or THREADS_USER_ID")
         return None
@@ -1604,22 +1571,21 @@ def post_to_threads(article_title, posts, image_url=None, pov_image_url=None):
         log.info("DRY RUN — skipping post")
         return None
     uid = THREADS_USER_ID
-    published_ids = []
-    last_post_id = None
+    published_ids = list((inflight or {}).get("post_ids", []))
+    last_post_id = published_ids[-1] if published_ids else None
     image_used = False
     slide_keys = sorted([k for k in posts if k.startswith("post_")], key=lambda x: int(x.split("_")[1]))
-    for key in slide_keys:
+    for key in slide_keys[len(published_ids):]:
         text = posts.get(key, "")
         if not text:
             continue
         i = int(key.split("_")[1])
         is_first = (i == 1)
-        is_last = (i == 7)
-        use_image = (is_first and image_url and not image_used) or (is_last and pov_image_url)
+        use_image = is_first and image_url and not image_used
         data = {"user_id": uid, "media_type": "IMAGE" if use_image else "TEXT",
                 "text": text, "access_token": THREADS_TOKEN}
         if use_image:
-            data["image_url"] = pov_image_url if is_last else image_url
+            data["image_url"] = image_url
         if last_post_id:
             data["reply_to_id"] = last_post_id
         container_id = None
@@ -1688,6 +1654,9 @@ def post_to_threads(article_title, posts, image_url=None, pov_image_url=None):
             return {"error": f"{key} publish failed", "post_ids": published_ids}
         published_ids.append(post_id)
         last_post_id = post_id
+        if inflight is not None:
+            inflight["post_ids"] = published_ids
+            save_inflight(inflight)
         log.info(f"  {key} {'IMAGE' if use_image else 'TEXT'} → {post_id}")
         time.sleep(2)
     return {"post_ids": published_ids, "media_ids": published_ids}
@@ -1698,6 +1667,29 @@ def post_to_threads(article_title, posts, image_url=None, pov_image_url=None):
 
 def main():
     data = load_data()
+    inflight = load_inflight()
+    if inflight:
+        posts = inflight["posts"]
+        article = inflight["article"]
+        log.warning(f"Resuming partial chain from S{len(inflight.get('post_ids', [])) + 1}")
+        pub = post_to_threads(article["title"], posts, inflight.get("image_url"), inflight)
+        if _publish_complete(pub, posts):
+            topic = inflight["topic"]
+            topic["post_id"] = pub["post_ids"][0]
+            topic["media_id"] = pub["media_ids"][0] if pub.get("media_ids") else None
+            data.setdefault("topics", []).insert(0, topic)
+            rc = data.setdefault("recent_content", {})
+            rc.setdefault("openings", []).insert(0, posts.get("post_1", "")[:100])
+            rc.setdefault("ctas", []).insert(0, posts.get("post_6", "")[:100])
+            for k in ["openings", "ctas"]:
+                rc[k] = rc[k][:10]
+            save_data(data)
+            INFLIGHT_FILE.unlink(missing_ok=True)
+            PREPARED_ARTICLE_FILE.unlink(missing_ok=True)
+            log.info(f"Posted: {pub['post_ids'][0]}")
+        elif pub and pub.get("error"):
+            log.error(f"Post error: {pub['error']}")
+        return
     posted_urls = {t.get("article_url", t.get("title", "")) for t in data.get("topics", [])}
     recent_topics = data.get("topics", [])
 
@@ -1797,6 +1789,9 @@ def main():
     result, error = generate_thread(article)
     if error:
         log.error(f"Generation failed: {error}")
+        if is_rate_limit_error(error):
+            log.error("Generation stopped: provider rate limit; skip candidate churn")
+            return
         skipped_urls.add(article["url"])
         # Try next-best candidate from remaining pool (fast retry)
         retry_article = None
@@ -1835,12 +1830,15 @@ def main():
             result, error = generate_thread(retry_article)
             if error:
                 log.error(f"Retry generation also failed: {error}")
+                if is_rate_limit_error(error):
+                    log.error("Generation stopped: provider rate limit; skip candidate churn")
+                    return
                 skipped_urls.add(retry_article["url"])
                 continue
             article = retry_article  # update article ref for downstream use
             break
         if not result:
-            log.error("No valid generation after retry")
+            log.error("Generation failed: no verified LLM draft after retry")
             return
 
     if not result:
@@ -1852,28 +1850,20 @@ def main():
         first_line = posts.get(f"post_{i}", "").split("\n")[0][:80] or "(empty)"
         log.info(f"  S{i}: {first_line}")
 
-    # ── Slide 7: POV affiliate (rotate per post) ──
-    _pov_path = BASE / "pov_affiliate.json"
-    _pov_image_url = None
-    try:
-        _pov_data = json.loads(_pov_path.read_text())
-        _povs = _pov_data.get("povs", [])
-        _idx = _pov_data.get("current_index", 0)
-        if _povs:
-            _pov_text = _povs[_idx % len(_povs)]
-            _pov_link = _pov_data.get("link", "")
-            posts["post_7"] = _pov_text + ("\n\n" + _pov_link if _pov_link else "")
-            if not DRY_RUN:
-                _pov_data["current_index"] = (_idx + 1) % len(_povs)
-                _pov_path.write_text(json.dumps(_pov_data, indent=2))
-            log.info(f"  S7: {_pov_text.split(chr(10))[0][:60]}...")
-        _pov_image_url = _pov_data.get("image_url", "") or None
-    except Exception as _e:
-        log.warning(f"POV affiliate slide failed: {_e}")
-
     # Step 6: Post
     if not DRY_RUN:
-        pub = post_to_threads(article["title"], posts, image_url=image_url, pov_image_url=_pov_image_url)
+        inflight = {
+            "article": article, "posts": posts, "post_ids": [], "image_url": image_url,
+            "topic": {
+                "title": article["title"], "article_url": article["url"], "article_source": article["source"],
+                "angle": result.get("angle", ""), "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+07:00"),
+                "eco_score": article.get("eco_score"), "selection_weight": article.get("_weight"),
+                "pattern": article.get("pattern"), "arc": result.get("arc", ""), "slides": posts,
+                "likes": None, "replies": None,
+            },
+        }
+        save_inflight(inflight)
+        pub = post_to_threads(article["title"], posts, image_url=image_url, inflight=inflight)
         if _publish_complete(pub, posts):
             log.info(f"Posted: {pub['post_ids'][0]}")
             topic = {
@@ -1900,11 +1890,12 @@ def main():
                 rc[k] = rc[k][:10]
             save_data(data)
             PREPARED_ARTICLE_FILE.unlink(missing_ok=True)
+            INFLIGHT_FILE.unlink(missing_ok=True)
         elif pub and pub.get("error"):
             log.error(f"Post error: {pub['error']}")
     else:
         print()
-        for i in range(1, 8):
+        for i in range(1, 7):
             if f"post_{i}" not in posts:
                 continue
             print(f"--- S{i} ---")

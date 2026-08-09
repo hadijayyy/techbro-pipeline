@@ -2,6 +2,7 @@
 """Regression tests for Techbro v3 factual grounding and engagement scoring."""
 import json
 import importlib.util
+from datetime import datetime, timezone
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location(
@@ -32,10 +33,86 @@ def test_source_claim_plan_uses_article_sentences_only():
     assert "Kalimat pendek." not in plan
 
 
+def test_inflight_chain_round_trip_preserves_partial_post_ids(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, "INFLIGHT_FILE", tmp_path / "inflight_chain.json")
+    state = {"article": {"url": "https://example.test/a"}, "posts": {"post_1": "one"}, "post_ids": ["p1"]}
+    pipeline.save_inflight(state)
+    assert pipeline.load_inflight() == state
+
+
+def test_llm_has_room_for_complete_six_post_json():
+    class Response:
+        status_code = 200
+
+        def json(self):
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+    captured = {}
+
+    def fake_post(*args, **kwargs):
+        captured.update(kwargs["json"])
+        return Response()
+
+    original = pipeline.httpx.post
+    pipeline.httpx.post = fake_post
+    try:
+        content, error = pipeline._call_llm("system", "user", max_retries=1)
+    finally:
+        pipeline.httpx.post = original
+
+    assert (content, error) == ("ok", None)
+    assert captured["max_tokens"] == 4000
+
+
 def test_grounding_verifier_error_blocks_publish(monkeypatch):
-    monkeypatch.setattr(pipeline, "_call_llm", lambda *args, **kwargs: (None, "timeout"))
+    captured = {}
+
+    def fake_llm(*args, **kwargs):
+        captured.update(kwargs)
+        return None, "timeout"
+
+    monkeypatch.setattr(pipeline, "_call_llm", fake_llm)
     issues = pipeline.grounding_validate({"title": "T", "body": "B"}, {"post_1": "T."})
     assert issues == ["grounding: verifier unavailable"], issues
+    assert captured["temperature"] == 0
+
+
+def test_claim_markers_block_unsupported_wallet_conclusion():
+    issues = pipeline._validate_claim_markers(
+        {"post_1": "Surplus ini bukan untung bersih buat kantong kita."},
+        "Perdagangan mencatat surplus US$1 miliar.",
+    )
+    assert "unsupported claim marker 'untung bersih'" in issues[0]
+
+
+def test_grounding_verifier_checks_facts_not_cta_or_editorial_shape(monkeypatch):
+    captured = {}
+
+    def fake_llm(system, *args, **kwargs):
+        captured["system"] = system
+        return "PASS", None
+
+    monkeypatch.setattr(pipeline, "_call_llm", fake_llm)
+    assert pipeline.grounding_validate({"body": "Nilai mencapai Rp1 miliar."}, {"post_1": "Nilai Rp1 miliar."}) == []
+    assert "standar fail-closed" in captured["system"]
+    assert "mengubah surplus menjadi klaim untung bersih" in captured["system"]
+
+
+def test_rate_limit_error_stops_candidate_churn(monkeypatch):
+    class Response:
+        status_code = 429
+
+    calls = []
+    monkeypatch.setattr(pipeline.httpx, "post", lambda *args, **kwargs: calls.append(1) or Response())
+    monkeypatch.setattr(pipeline, "_get_api_key", lambda: "test-key")
+    assert pipeline._call_llm("system", "user", max_retries=3) == (None, "Rate limit 429")
+    assert calls == [1]
+
+    article = {"body": "Nilai mencapai Rp1 miliar. " * 60}
+    monkeypatch.setattr(pipeline, "_call_llm", lambda *args, **kwargs: (None, "LLM failed: Rate limit 429"))
+    assert pipeline.is_rate_limit_error("LLM failed: Rate limit 429")
+    assert pipeline.generate_thread(article) == (None, "LLM failed: Rate limit 429")
+    assert not pipeline.is_rate_limit_error("LLM failed: HTTP 500")
 
 
 def test_revision_requires_independent_grounding_verifier(monkeypatch):
@@ -166,8 +243,15 @@ def test_proper_noun_validation_blocks_reporting_prefix_with_invented_name():
 
 def test_story_prompt_requires_source_anchored_story_arc():
     assert "SUMBER ADALAH BATAS" in pipeline.SYSTEM_PROMPT
+    assert "## DAMPAK" in pipeline.SYSTEM_PROMPT
+    assert "gua–lu" in pipeline.SYSTEM_PROMPT
     assert "Jangan menambah dampak, profesi, angka, atau skenario" in pipeline.SYSTEM_PROMPT
     assert "S1 fakta pemicu atau perubahan konkret" in pipeline.SYSTEM_PROMPT
+
+
+def test_ryanhadiii_voice_allows_gua_lu():
+    posts = {"post_1": "Gua dan lu sama-sama lihat harga naik."}
+    assert pipeline._voice_warnings(posts) == []
 
 
 def test_political_title_without_economy_signal_is_not_candidate():
@@ -200,6 +284,45 @@ def test_keyword_fallback_cannot_approve_article_without_pindar_pattern():
     assert pipeline._topic_score(title, body)[0] >= 7
     assert pipeline._classify_pattern(title, body) == (None, 0)
     assert pipeline._is_eligible_candidate(title, body, "cnn_ekonomi")[0] is False
+
+
+def test_mass_layoff_is_not_a_candidate_without_remaining_pindar_pattern():
+    title = "Bank Besar Mau PHK Massal, Ini Biang Keroknya"
+    body = ("Perusahaan menghadapi PHK massal yang mengancam pekerja dan upah. " * 30)
+    assert pipeline._classify_pattern(title, body)[0] is None
+
+
+def test_source_verbatim_fallback_is_retired():
+    assert not hasattr(pipeline, "source_fallback_thread")
+    assert "source_fallback_thread" not in Path(pipeline.__file__ or "").read_text()
+
+
+def test_fetch_article_body_reads_article_published_time(monkeypatch):
+    html = '''<html><head><meta property="article:published_time" content="2026-08-09T10:30:00+07:00"></head><article><p>''' + ("Bukti ekonomi resmi. " * 20) + "</p></article></html>"
+    monkeypatch.setattr(pipeline, "_http_get", lambda *_args, **_kwargs: (200, html))
+
+    body, _, published_ts = pipeline._fetch_article_body("https://example.com/article")
+
+    assert len(body) > 200
+    assert published_ts == datetime(2026, 8, 9, 3, 30, tzinfo=timezone.utc).timestamp()
+
+
+def test_fetch_article_body_reads_jsonld_date_published(monkeypatch):
+    html = '''<html><head><script type="application/ld+json">{"datePublished":"2026-08-09T10:30:00+07:00"}</script></head><article><p>''' + ("Bukti ekonomi resmi. " * 20) + "</p></article></html>"
+    monkeypatch.setattr(pipeline, "_http_get", lambda *_args, **_kwargs: (200, html))
+
+    _, _, published_ts = pipeline._fetch_article_body("https://example.com/article")
+
+    assert published_ts == datetime(2026, 8, 9, 3, 30, tzinfo=timezone.utc).timestamp()
+
+
+def test_fetch_article_body_reads_time_datetime(monkeypatch):
+    html = '''<html><body><time datetime="2026-08-09T10:30:00+07:00"></time><article><p>''' + ("Bukti ekonomi resmi. " * 20) + "</p></article></body></html>"
+    monkeypatch.setattr(pipeline, "_http_get", lambda *_args, **_kwargs: (200, html))
+
+    _, _, published_ts = pipeline._fetch_article_body("https://example.com/article")
+
+    assert published_ts == datetime(2026, 8, 9, 3, 30, tzinfo=timezone.utc).timestamp()
 
 
 def test_pattern_label_has_safe_fallback_for_unclassified_article():
