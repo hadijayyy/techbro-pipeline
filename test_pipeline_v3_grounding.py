@@ -217,6 +217,17 @@ def test_deterministic_validate_rejects_slide_with_one_sentence():
     assert "post_6: only 1 sentences" in pipeline.deterministic_validate(posts)
 
 
+def test_quality_gate_blocks_revision_style_violation():
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk memenuhi batas minimum. Konteks sumber menambah rincian berbeda." for i in range(1, 7)}
+    posts["post_1"] = "x" * 141
+    assert not pipeline._quality_gate({}, {"status": "success"}, posts, [])
+
+
+def test_quality_gate_blocks_missing_s6_cta():
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk memenuhi batas minimum. Konteks sumber menambah rincian berbeda." for i in range(1, 7)}
+    assert not pipeline._quality_gate({}, {"status": "success"}, posts, [])
+
+
 def test_hook_allows_supported_policy_change_without_forced_number_or_contradiction():
     assert not pipeline.hook_issues("Pemerintah ubah aturan PPN minggu depan.", "Kebijakan berlaku 1 Agustus.")
 

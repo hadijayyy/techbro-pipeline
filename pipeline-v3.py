@@ -1520,6 +1520,8 @@ def deterministic_validate(posts):
             warnings.append(f"{k}: too many questions")
         if i == 6 and outside.count("?") > 1:
             warnings.append(f"{k}: too many CTA questions")
+        if i == 6 and not any(qt in outside.lower() for qt in ["?", "menurut", "pilih"]):
+            warnings.append(f"{k}: no CTA found")
     return warnings
 
 
@@ -1672,6 +1674,8 @@ def _quality_gate(article, data, posts, warnings):
     """Quality gate: 12 checks from doc. Return True = pass, False = block."""
     if data.get("status") != "success" or not posts:
         return False
+    if deterministic_validate(posts):
+        return False
     # 1. Article eligibility is decided from full body before generation.
     # RSS/title eco_score is only a ranking hint and may be zero for valid articles.
     # 2. Impact to Indonesia clear (local source assumed)
@@ -1696,6 +1700,7 @@ def _quality_gate(article, data, posts, warnings):
     s6 = posts.get("post_6", "").lower()
     if not any(qt in s6 for qt in ["?", "menurut", "pilih"]):
         warnings.append("S6: no CTA found")
+        return False
     # 11. No banned words (deterministic_validate handles)
     # 12. No fabricated facts (can't verify programmatically)
     return True
@@ -1750,12 +1755,12 @@ def generate_thread(article):
         missing = [f"{k}: empty" for k, v in posts.items() if not v.strip()]
         claim_warnings = _validate_claim_markers(posts, article["body"])
         voice_warnings = _voice_warnings(posts)
-        warnings = missing + grounding_validate(article, posts) + noun_warnings + claim_warnings
+        warnings = missing + grounding_validate(article, posts) + noun_warnings + claim_warnings + style_warnings + voice_warnings
         if style_warnings or claim_warnings or voice_warnings:
             log.info(f"  Soft style/claim warnings: {style_warnings + claim_warnings + voice_warnings}")
         if warnings:
             log.warning(f"  Hard validation: {warnings}")
-            revision_notes = '; '.join(warnings + style_warnings + claim_warnings + voice_warnings)
+            revision_notes = '; '.join(warnings)
             rev_user = user + f"\n\n{REVISION_PROMPT.format(revision_notes=revision_notes)}"
             c2, e2 = _call_llm(SYSTEM_PROMPT, rev_user, max_retries=1)
             if c2:
@@ -1773,12 +1778,12 @@ def generate_thread(article):
                     voice_w2 = _voice_warnings(p2)
                     if style_w2 or voice_w2:
                         log.info(f"  Soft style warnings after revision: {style_w2 + voice_w2}")
-                    if d2.get("status") == "success" and not w2:
+                    if d2.get("status") == "success" and not (w2 or style_w2 or voice_w2):
                         data, posts = d2, p2
                         warnings = []
                         log.info("  Revision fixed validation")
                     else:
-                        log.warning(f"  Revision blocked: {w2}")
+                        log.warning(f"  Revision blocked: {w2 + style_w2 + voice_w2}")
                 except json.JSONDecodeError:
                     log.warning("  Revision blocked: bad JSON")
             if warnings:

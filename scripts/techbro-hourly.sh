@@ -26,7 +26,8 @@ if echo "$publish_output" | grep -q 'Posted:'; then
   echo "✅ Techbro posted: $post_id"
 fi
 
-# Refill next slot separately. Budget: writer/verifier plus revision/verifier.
+# Pressbox pattern: retry one transient provider failure before no-post.
+# Invalid drafts stay fail-closed; do not rerun them.
 for attempt in 1 2; do
   prepare_output=$(python3 pipeline-v3.py --prepare-next 2>&1) || true
   prepare_output=$(printf '%s\n' "$prepare_output" | redact_output)
@@ -34,10 +35,10 @@ for attempt in 1 2; do
   if echo "$prepare_output" | grep -q 'Prepared:'; then
     exit 0
   fi
-  if ! echo "$prepare_output" | grep -q 'Rate limit'; then
+  if ! echo "$prepare_output" | grep -Eq 'Rate limit|Writer request failed'; then
     break
   fi
-  [ "$attempt" -eq 1 ] && sleep 120
+  [ "$attempt" -eq 1 ] && sleep 60
 done
 
 echo "ℹ️ Techbro no validated next draft; fail-closed no-post"
