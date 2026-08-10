@@ -1,6 +1,32 @@
 {
   "topics": [
     {
+      "title": "Buruh Mau Demo Akhir Agustus, Bawa Isu Upah Minimum-Outsourcing",
+      "article_url": "https://finance.detik.com/berita-ekonomi-bisnis/d-8611894/buruh-mau-demo-akhir-agustus-bawa-isu-upah-minimum-outsourcing",
+      "article_source": "detik_finance",
+      "angle": "usulan reformasi ketenagakerjaan oleh Konfederasi Serikat Pekerja Nusantara (KSPN) melalui aksi unjuk rasa dan rancangan Undang-Undang Ketenagakerjaan baru",
+      "post_id": "17892620103399255",
+      "media_id": "17892620103399255",
+      "timestamp": "2026-08-10T13:34:19+07:00",
+      "eco_score": 55,
+      "selection_weight": 89.99332861691643,
+      "pattern": "KEBIJAKAN",
+      "arc": "market_shock",
+      "slides": {
+        "post_1": "Puluhan ribu buruh KSPN dan Serikat Pekerja mandiri akan unjuk rasa di DPR dan Istana Negara.",
+        "post_2": "UMK Kota Bekasi Rp 5,99 juta, dua kali lipat UMK Yogyakarta Rp 2,8 juta. KSPN sebut ketimpangan ini tidak adil bagi pekerja dengan kompetensi dan jam kerja sama.",
+        "post_3": "KSPN usulkan sistem Upah Minimum Sektoral Nasional satu jenis dan skala usaha sama, upah minimum sama di seluruh Indonesia. Usulan ini berdasarkan kemampuan perusahaan, bukan lokasi.",
+        "post_4": "Pelanggaran aturan ketenagakerjaan masih marak, seperti upah di bawah minimum dan jaminan sosial tak tercover. Pegawai Pengawas Ketenagakerjaan dinilai tak maksimal karena kurang petugas dan wewenang.",
+        "post_5": "KSPN usulkan Pegawai Pengawas Ketenagakerjaan dibentuk jadi Badan Pengawas Ketenagakerjaan Nasional (BPKN) di bawah Presiden. Badan ini butuh kewenangan dan anggaran lebih memadai.",
+        "post_6": "KSPN minta outsourcing dihapus, hubungan kerja kontrak dibatasi jenis dan waktu. Menurutmu, mana yang lebih mendesak aturan outsourcing atau upah minimum sektoral nasional?\n\nhttps://finance.detik.com/berita-ekonomi-bisnis/d-8611894/buruh-mau-demo-akhir-agustus-bawa-isu-upah-minimum-outsourcing"
+      },
+      "likes": null,
+      "replies": null,
+      "reposts": null,
+      "views": null,
+      "quotes": null
+    },
+    {
       "title": "Bos Danantara Bocorkan Soal Streamlining BUMN, 652 Perusahaan Dihapus",
       "article_url": "https://www.cnbcindonesia.com/market/20260809113237-17-757713/bos-danantara-bocorkan-soal-streamlining-bumn-652-perusahaan-dihapus",
       "article_source": "cnbc_market",
@@ -20,12 +46,12 @@
         "post_5": "Contoh konsolidasi PT Telkom Indonesia akan pangkas 34 anak usaha. PT Pupuk Indonesia juga kurangi 42 entitas jadi 15 perusahaan.",
         "post_6": "Apa dampak positif transformasi BUMN yang sudah mulai dirasakan di sejumlah perusahaan?\n\nhttps://www.cnbcindonesia.com/market/20260809113237-17-757713/bos-danantara-bocorkan-soal-streamlining-bumn-652-perusahaan-dihapus"
       },
-      "likes": 1,
+      "likes": 5,
       "replies": 5,
       "reposts": 0,
-      "views": 463,
+      "views": 1966,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Bank Besar Mau PHK Massal, Ini Biang Keroknya",
@@ -50,9 +76,9 @@
       "likes": 0,
       "replies": 5,
       "reposts": 0,
-      "views": 317,
+      "views": 388,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Bank Pollux Hormati Putusan Pengadilan Negeri Semarang",
@@ -126,9 +152,9 @@
       "likes": 3,
       "replies": 6,
       "reposts": 0,
-      "views": 663,
+      "views": 725,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Jurus RI Bidik Pasar Karbon hingga Perdagangan Global dari Sektor Kehutanan",
@@ -154,9 +180,9 @@
       "likes": 0,
       "replies": 6,
       "reposts": 0,
-      "views": 170,
+      "views": 172,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "MSCI Umumkan Rebalancing Saham 12 Agustus",
@@ -182,9 +208,9 @@
       "likes": 84,
       "replies": 11,
       "reposts": 0,
-      "views": 19815,
+      "views": 19929,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Ekonomi RI Tumbuh 5,29 Persen, Saatnya Investasi atau Tahan Dulu?",
@@ -210,9 +236,9 @@
       "likes": 1,
       "replies": 6,
       "reposts": 0,
-      "views": 160,
+      "views": 161,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Bank Kasikorn (BMAS) Galang Rights Issue Jumbo, Duitnya Buat Ini",
@@ -238,9 +264,9 @@
       "likes": 1,
       "replies": 6,
       "reposts": 0,
-      "views": 487,
+      "views": 491,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Danantara Telah Pangkas 274 BUMN",
@@ -266,9 +292,9 @@
       "likes": 8,
       "replies": 8,
       "reposts": 0,
-      "views": 2087,
+      "views": 2090,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Harga Batu Bara Acuan Turun Jadi US$ 124,4/Ton",
@@ -281,9 +307,9 @@
       "likes": 0,
       "replies": 6,
       "reposts": 0,
-      "views": 262,
+      "views": 266,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Prabowo Sudah Panggil Calon-calon Bos BI, Destry Damayanti Masuk Radar",
@@ -296,9 +322,9 @@
       "likes": 14,
       "replies": 6,
       "reposts": 0,
-      "views": 6420,
+      "views": 6432,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Investasi di Produsen Protein Global, Danantara Rogoh Rp 44,6 Triliun",
@@ -311,9 +337,9 @@
       "likes": 598,
       "replies": 105,
       "reposts": 21,
-      "views": 100448,
+      "views": 100551,
       "quotes": 1,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Stres Belajar, Kronologi Siswa 14 Tahun Tembak Sekolah dan Bunuh Guru",
@@ -359,9 +385,9 @@
       "likes": 0,
       "replies": 6,
       "reposts": 0,
-      "views": 366,
+      "views": 367,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "IMF Akui Utang Luar Negeri RI Aman, Terhindar dari Risiko Gagal Bayar",
@@ -376,7 +402,7 @@
       "reposts": 0,
       "views": 200,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Catatan Kritis Ekonom Soal Capaian Ekonomi RI 5,29% di Kuartal II-2026",
@@ -391,7 +417,7 @@
       "reposts": 0,
       "views": 193,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Konsumsi Listrik SPKLU Melonjak, PLN Perluas Infrastruktur Pengisian EV",
@@ -406,7 +432,7 @@
       "reposts": 0,
       "views": 723,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Kemenhub Audit Sistem Manajemen Keselamatan usai Kebakaran KMP Mutiara",
@@ -438,12 +464,12 @@
       "post_id": "17891963967669162",
       "media_id": "17891963967669162",
       "timestamp": "2026-08-07T11:57:29+07:00",
-      "likes": 311,
+      "likes": 312,
       "replies": 65,
       "reposts": 24,
-      "views": 51516,
+      "views": 51584,
       "quotes": 2,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Alarm Berbunyi di Rusia, Bank-bank Mulai Krisis Uang Tunai!",
@@ -458,7 +484,7 @@
       "reposts": 0,
       "views": 140,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Impor RI Naik Tajam, Ini Biang Keroknya",
@@ -473,7 +499,7 @@
       "reposts": 0,
       "views": 125,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "DBS Insights Forum: Solusi DBS Bantu Nasabah Ambil Keputusan Finansial",
@@ -486,9 +512,9 @@
       "likes": 18,
       "replies": 9,
       "reposts": 0,
-      "views": 3661,
+      "views": 3665,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "BSI-Danantara Bangun Ekosistem UMKM, Bukan Sekadar Pembiayaan",
@@ -503,7 +529,7 @@
       "reposts": 1,
       "views": 4538,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Deposito Jadi Andalan Buat Cari DPK, Bank Kecil Kerek Suku BungaMarket14 jam yang lalu",
@@ -518,7 +544,7 @@
       "reposts": 0,
       "views": 1125,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Pengunjung Islamic Travel Connect Incar Umrah Akhir Tahun",
@@ -531,9 +557,9 @@
       "likes": 1,
       "replies": 6,
       "reposts": 0,
-      "views": 260,
+      "views": 263,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Perluas Akses Hunian, BNI Dukung Akad Massal 62.710 KPR Rumah Subsidi",
@@ -548,7 +574,7 @@
       "reposts": 0,
       "views": 406,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "BNI Dukung Akad Massal 62.710 KPR Rumah Subsidi",
@@ -563,7 +589,7 @@
       "reposts": 0,
       "views": 334,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Amran Ancam Cabut Izin hingga Penjarakan Mafia Beras Fortifikasi",
@@ -578,7 +604,7 @@
       "reposts": 0,
       "views": 892,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "KUR di Bawah Rp 100 Juta Dilarang Pakai Jaminan!",
@@ -593,7 +619,7 @@
       "reposts": 0,
       "views": 458,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Amran Ajak Organisasi Pemuda 'Gebuk' Dugaan Mafia Beras Fortifikasi",
@@ -608,7 +634,7 @@
       "reposts": 0,
       "views": 472,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Mentan dan Organisasi Pemuda Sepakat \"Gebuk\" Pelaku Beras Fortifikasi",
@@ -623,7 +649,7 @@
       "reposts": 0,
       "views": 251,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Transformasi Danantara & TLKM30: Pendapatan & Laba Telkom Tumbuh KuatMarket1 hari yang lalu",
@@ -638,7 +664,7 @@
       "reposts": 0,
       "views": 427,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Bantuan Beras Disalurkan Serentak 17 Agustus!",
@@ -653,7 +679,7 @@
       "reposts": 0,
       "views": 119,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "VIDEOVideo: Adopsi Alat Berat EV, Kontraktor Tambang Minta Keringanan PajakMarket18 jam yang lalu",
@@ -668,7 +694,7 @@
       "reposts": 0,
       "views": 357,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Telkomsel Tumbuh Sehat Semester I 2026, Transformasi Perkuat Layanan",
@@ -683,7 +709,7 @@
       "reposts": 0,
       "views": 343,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Pemerintah Hapus Kelas 1, 2, 3 BPJS Kesehatan, Ini Iuran per 2 Agustus",
@@ -696,9 +722,9 @@
       "likes": 2,
       "replies": 6,
       "reposts": 0,
-      "views": 662,
+      "views": 669,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Tito Groundbreaking Sekolah Rakyat di Biak Numfor Papua",
@@ -713,7 +739,7 @@
       "reposts": 0,
       "views": 189,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Purbaya Gencarkan Penagihan Pajak, Tepis Libatkan Babinsa",
@@ -728,7 +754,7 @@
       "reposts": 0,
       "views": 480,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Mendagri Gelar Groundbreaking Sekolah Rakyat di Biak Numfor Papua",
@@ -743,7 +769,7 @@
       "reposts": 0,
       "views": 589,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Tampang Mobil Listrik Termurah dan Mungil Mejeng-Dikerumuni di GIIAS",
@@ -758,7 +784,7 @@
       "reposts": 0,
       "views": 195,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Mitos vs Fakta Megathrust, Pakar Beri Jurus Selamat dari Gempa-Tsunami",
@@ -771,9 +797,9 @@
       "likes": 18,
       "replies": 9,
       "reposts": 0,
-      "views": 3985,
+      "views": 3988,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Terminal LPG Tanjung Sekong Jaga Pasokan 40% Kebutuhan LPG",
@@ -788,7 +814,7 @@
       "reposts": 0,
       "views": 1098,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "AAJI: PSAK 117 Ubah Total Cara Menilai Kinerja Perusahaan Asuransi",
@@ -814,7 +840,7 @@
       "reposts": 0,
       "views": 4049,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Kementerian ESDM Setujui 664 RKAB Tambang Minerba",
@@ -827,9 +853,9 @@
       "likes": 2,
       "replies": 6,
       "reposts": 0,
-      "views": 545,
+      "views": 550,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Purbaya Janji Nggak Ada Kenaikan Pajak, tapi Kejar Penunggak",
@@ -844,7 +870,7 @@
       "reposts": 1,
       "views": 6400,
       "quotes": 0,
-      "metrics_checked_at": 1786274973.2535913
+      "metrics_checked_at": 1786334459.0734687
     },
     {
       "title": "Pemprov Jatim Lakukan Pemutihan Pajak Kendaraan Sepanjang Agustus",
@@ -2672,6 +2698,7 @@
   ],
   "recent_content": {
     "openings": [
+      "Puluhan ribu buruh KSPN dan Serikat Pekerja mandiri akan unjuk rasa di DPR dan Istana Negara.",
       "BP BUMN dan BPI Danantara percepat pemangkasan 652 perusahaan pelat merah jadi 250.",
       "7.000 karyawan Standard Chartered bakal di-PHK dalam empat tahun gara-gara AI ganti posisi kerja man",
       "PT BPR Pollux mengapresiasi proses penegakan hukum dan putusan Pengadilan Negeri (PN) Semarang dalam",
@@ -2680,10 +2707,10 @@
       "4-5 Agustus 2026, Kemenhut gelar pelatihan diplomasi & negosiasi di Bandung buat 6 kementerian + Bap",
       "MSCI bakal umumin hasil rebalancing indeks Agustus 2026 tanggal 12 Agustus tapi Indonesia malah dibe",
       "Kuartal II 2026 ekonomi Indonesia tumbuh 5,29%. Angka ini bikin pasar seneng, tapi belum jadi lampu ",
-      "BMAS mau cetak 2,87 miliar saham baru lewat rights issue. Bisa naikin modal 15,88% dari total saham ",
-      "BUMN kita dipangkas habis-habisan 274 udah lenyap, 652 lagi bakal menyusul. Targetnya? Cuma sisain 2"
+      "BMAS mau cetak 2,87 miliar saham baru lewat rights issue. Bisa naikin modal 15,88% dari total saham "
     ],
     "ctas": [
+      "KSPN minta outsourcing dihapus, hubungan kerja kontrak dibatasi jenis dan waktu. Menurutmu, mana yan",
       "Apa dampak positif transformasi BUMN yang sudah mulai dirasakan di sejumlah perusahaan?\n\nhttps://www",
       "Kalau lo kerja di back-office bank multinasional, gimana lo ngeyakinin bos kalau skill lo masih wort",
       "Kasus ini menjadi bukti nyata komitmen kami dalam melindungi aset perusahaan dan dana nasabah dari t",
@@ -2692,8 +2719,7 @@
       "Apa yang bakal jadi fokus Kemenhut setelah pelatihan ini untuk dorong pengakuan internasional terhad",
       "Yang perlu lo pantau apakah ada saham RI yang bakal kena delete gara-gara High Shareholding Concentr",
       "Dandy lihat peluang di saham karena valuasi murah dan IHSG mulai uptrend. Tapi dia sarankan dollar c",
-      "Lo patut pantau kapan OJK kasih lampu hijau dan berapa harga saham baru yang bakal ditawarin? Cek up",
-      "250 BUMN tersisa tapi siapa aja yang bakal bertahan? Cek perkembangannya di sini https://finance.det"
+      "Lo patut pantau kapan OJK kasih lampu hijau dan berapa harga saham baru yang bakal ditawarin? Cek up"
     ],
     "analogies": [
       "Gw perhatiin, perubahan yang pelan banget kayak gini sering lu abaikan",

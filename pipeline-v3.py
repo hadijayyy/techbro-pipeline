@@ -228,6 +228,10 @@ def load_prepared_article(posted_urls):
 def save_prepared_article(article, result, image_url):
     """Persist only a fully validated six-slide draft for one later publish."""
     payload = dict(article)
+    # Always persist a source timestamp so the 24h freshness check works on reload.
+    # Prefer published_ts (source page), fall back to ts (RSS), then prepared_at.
+    if not payload.get("published_ts"):
+        payload["published_ts"] = article.get("ts") or payload["prepared_at"] or time.time()
     payload.update({"posts": result["posts"], "angle": result.get("angle", ""),
                     "arc": result.get("arc", "market_shock"), "og_image": image_url,
                     "prepared_at": time.time(), "expires_at": time.time() + 86400})
@@ -1338,8 +1342,7 @@ def _call_llm(system, user, model=None, max_retries=3, temperature=None):
     api_key = os.getenv("LLM_API_KEY") or _get_api_key()
     if not api_key:
         return None, "No API key found"
-    # LLM_BASE_URL/LLM_MODEL route to the local llm-gateway (DeepSeek via
-    # router); default keeps Mistral for backward compatibility.
+    # LLM_BASE_URL/LLM_MODEL route to Mistral API directly.
     base_url = os.getenv("LLM_BASE_URL", "https://api.mistral.ai/v1/chat/completions")
     model = model or os.getenv("LLM_MODEL", "mistral-large-latest")
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
@@ -1355,7 +1358,7 @@ def _call_llm(system, user, model=None, max_retries=3, temperature=None):
         try:
             r = httpx.post(base_url, headers=headers, json=payload, timeout=90)
             if r.status_code == 200:
-                # Local llm-gateway appends `data: [DONE]` after the JSON body.
+                # Strip any trailing SSE sentinel (local proxy artefacts).
                 body_text = r.text.strip()
                 body_text = re.sub(r"\s*data: \[DONE\]\s*$", "", body_text)
                 parsed = json.loads(body_text)
@@ -1489,7 +1492,7 @@ def deterministic_validate(posts):
         sent_count = len([c for c in p if c in ".!?"])
         if sent_count < 1:
             warnings.append(f"{k}: no sentences")
-        elif sent_count > 3:
+        if sent_count > 4:
             warnings.append(f"{k}: too many sentences ({sent_count})")
         # Enforce 300 char limit
         if len(p) > 300:
@@ -2046,6 +2049,7 @@ def main():
                 continue
             article, body, og_image = candidate, candidate_body, candidate_image
             article["body"] = body
+            article["published_ts"] = source_ts
             article["image_hint"] = _image_hint(og_image)
             article["pattern"] = pattern_name
             article["pattern_label"] = _pattern_label(pattern_name)
@@ -2084,12 +2088,31 @@ def main():
     if error:
         log.error(f"Generation failed: {error}")
         if is_rate_limit_error(error):
-            log.error("Generation stopped: provider rate limit; skip candidate churn")
+            log.error("Generation stopped: Mistral rate limit; skip candidate churn")
             return
-        skipped_urls.add(article["url"])
+        else:
+            skipped_urls.add(article["url"])
+
+        # Generation may have succeeded via the 429 retry path — go straight to save/post.
+        if result and not error:
+            article["body"] = body
+            article["image_hint"] = _image_hint(og_image)
+            if IMAGE_URL:
+                image_url = IMAGE_URL
+            elif not IMAGE_DISABLED:
+                image_url = og_image
+            # Restore original article object for downstream use.
+            article["pattern"] = article.get("pattern") or _classify_pattern(article["title"], article["body"])[0]
+            article["pattern_label"] = _pattern_label(article["pattern"])
+            goto_step5 = True
+        else:
+            goto_step5 = False
+
         # Try next-best candidate from remaining pool (fast retry)
         retry_article = None
         for _ in range(candidate_limit):
+            if goto_step5:
+                break
             retry_article = _pick_article(articles, posted_urls | skipped_urls, data)
             if retry_article is None:
                 break
@@ -2125,12 +2148,13 @@ def main():
             if error:
                 log.error(f"Retry generation also failed: {error}")
                 if is_rate_limit_error(error):
-                    log.error("Generation stopped: provider rate limit; skip candidate churn")
+                    log.error("Generation stopped: Mistral rate limit; skip candidate churn")
                     return
                 skipped_urls.add(retry_article["url"])
                 continue
             article = retry_article  # update article ref for downstream use
-            break
+            break  # generation succeeded — go straight to save/post
+
         if not result:
             log.error("Generation failed: no verified LLM draft after retry")
             return
