@@ -559,8 +559,9 @@ def _indonesia_topic_relevance(title, body):
     return "national" if indonesia else None
 
 
-def scout_hot_topics(articles, now=None, limit=HOT_TOPIC_LIMIT, per_source_limit=2, data=None):
-    """Read-only body-verified top-15 ranking, one item per editorial cluster."""
+def scout_hot_topics(articles, now=None, limit=HOT_TOPIC_LIMIT, per_source_limit=2, data=None,
+                     allow_cluster_repeats=False):
+    """Read-only body-verified ranking; fallback may reuse a cluster after primary fails."""
     now = time.time() if now is None else now
     verified = []
     for candidate in articles:
@@ -595,7 +596,7 @@ def scout_hot_topics(articles, now=None, limit=HOT_TOPIC_LIMIT, per_source_limit
     for item in verified:
         if item["source"] in sources and sources[item["source"]] >= per_source_limit:
             continue
-        if item["cluster"] in clusters:
+        if not allow_cluster_repeats and item["cluster"] in clusters:
             continue
         sources[item["source"]] = sources.get(item["source"], 0) + 1
         clusters.add(item["cluster"])
@@ -613,11 +614,17 @@ def save_hot_topics(topics, generated_ts=None):
     tmp.replace(HOT_TOPICS_FILE)
 
 
-def _publish_candidates_from_hot_topics(articles, topics):
-    """Return only body-verified scout choices, in editorial rank order."""
+def _publish_candidates_from_hot_topics(articles, topics, fallback_topics=()):
+    """Return primary then fallback body-verified scout choices, in rank order."""
     by_url = {_canonical_url(article.get("url", "")): article for article in articles}
-    return [by_url[topic["canonical_url"]] for topic in topics
-            if topic.get("canonical_url") in by_url]
+    seen = set()
+    candidates = []
+    for topic in (*topics, *fallback_topics):
+        url = topic.get("canonical_url")
+        if url in by_url and url not in seen:
+            candidates.append(by_url[url])
+            seen.add(url)
+    return candidates
 
 
 def _pick_article(articles, posted_urls, data=None):
@@ -1975,12 +1982,15 @@ def main():
         log.info(f"  Got {len(articles)} raw articles")
         # Scout is the publisher's only candidate pool: five body-verified daily topics.
         hot_topics = scout_hot_topics(articles, data=data)
+        fallback_topics = scout_hot_topics(
+            articles, data=data, per_source_limit=6, allow_cluster_repeats=True,
+        )
         for topic in hot_topics:
             log.info(f"  Hot #{topic['rank']}: {topic['title'][:70]} (score={topic['hot_score']})")
         if not DRY_RUN:
             save_hot_topics(hot_topics)
-        articles = _publish_candidates_from_hot_topics(articles, hot_topics)
-        log.info(f"  Publisher pool: {len(articles)} body-verified hot topics")
+        articles = _publish_candidates_from_hot_topics(articles, hot_topics, fallback_topics)
+        log.info(f"  Publisher pool: {len(articles)} body-verified scout candidates")
 
     # Step 2: Search ranked pool. Like Pressbox, title ranks; body decides eligibility.
     skipped_urls = set()

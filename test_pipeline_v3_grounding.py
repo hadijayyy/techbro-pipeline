@@ -148,13 +148,15 @@ def test_rate_limit_error_retries_twice_with_cooldown_then_stops(monkeypatch):
     assert not pipeline.is_rate_limit_error("LLM failed: HTTP 500")
 
 
-def test_publish_candidates_are_limited_to_body_verified_hot_topics():
+def test_publish_candidates_append_only_body_verified_scout_fallbacks():
     articles = [
         {"url": "https://example.test/global", "title": "Global generic"},
         {"url": "https://example.test/indonesia", "title": "Dampak Indonesia"},
+        {"url": "https://example.test/fallback", "title": "Cadangan terverifikasi"},
     ]
     topics = [{"canonical_url": "https://example.test/indonesia", "rank": 1}]
-    assert pipeline._publish_candidates_from_hot_topics(articles, topics) == [articles[1]]
+    fallback_topics = [{"canonical_url": "https://example.test/fallback", "rank": 2}]
+    assert pipeline._publish_candidates_from_hot_topics(articles, topics, fallback_topics) == [articles[1], articles[2]]
 
 
 def test_revision_requires_independent_grounding_verifier(monkeypatch):
@@ -415,6 +417,23 @@ def test_hot_topics_are_body_verified_ranked_and_source_diverse(monkeypatch):
     assert [topic["canonical_url"] for topic in topics] == ["https://a.test/1", "https://b.test/1"]
     assert all(topic["body_verified"] for topic in topics)
     assert all("hot_score" in topic for topic in topics)
+
+
+def test_hot_topic_fallback_can_reuse_cluster_after_primary_rejects(monkeypatch):
+    now = 1_800_000_000
+    articles = [
+        {"title": f"Kebijakan APBN seri {i} Rp{i} triliun", "url": f"https://a.test/{i}", "source": "antara_ekonomi", "ts": now - i}
+        for i in range(3)
+    ]
+    body = "Pemerintah Indonesia menetapkan kebijakan APBN senilai Rp9 triliun untuk penerimaan negara. " * 12
+    monkeypatch.setattr(pipeline, "_fetch_article_body", lambda _url: (body, None, now - 60))
+
+    primary = pipeline.scout_hot_topics(articles, now=now, limit=15, per_source_limit=2)
+    fallback = pipeline.scout_hot_topics(articles, now=now, limit=15, per_source_limit=6, allow_cluster_repeats=True)
+
+    assert len(primary) == 1
+    assert len(fallback) == 3
+    assert all(topic["body_verified"] for topic in fallback)
 
 
 def test_hot_topic_default_pool_is_top_15_and_cluster_deduped(monkeypatch):
