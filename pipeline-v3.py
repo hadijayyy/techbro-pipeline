@@ -911,6 +911,16 @@ ECONOMY_SELECTION_SIGNALS = (
     "industri", "harga", "bbm", "listrik", "pangan", "kredit", "bank", "ojk", "kemenkeu",
     "kebijakan", "regulasi", "tarif", "insentif", "hilirisasi", "perdagangan", "keuangan",
     "penerimaan", "belanja", "pembiayaan", "perbankan", "asuransi", "koperasi",
+    # Tech/digital economy
+    "startup", "series a", "series b", "series c", "funding", "pendanaan",
+    "fintech", "edutech", "healthtech", "e-commerce", "ai ", "artificial intelligence",
+    "digital", "platform", "aplikasi", "data cent", "cloud", "indosat",
+    "telkom", "gojek", "tokopedia", "bukalapak", "unicorn", "decacorn",
+    "nvidia", "openai", "agentic", "ipo", "akuisisi", "merger",
+    "revenue", "profit", "laba", "ventura", "venture",
+    "data centre", "datacenter", "data center", "centres", "centers", "acquisition",
+    "acquires", "buys", "expands", "expansion", "ekspansi",
+    "raises", "raise", "ventures", "venture capital",
 )
 
 
