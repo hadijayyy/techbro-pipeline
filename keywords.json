@@ -25,17 +25,6 @@
         "bpjs",
         "subsidi",
         "bansos",
-        "harga pangan",
-        "harga beras",
-        "harga minyak",
-        "harga bbm",
-        "tarif listrik",
-        "tarif tol",
-        "biaya sekolah",
-        "kpr",
-        "cicilan",
-        "pinjol",
-        "bunga kredit",
         "daya beli",
         "inflasi"
       ]
@@ -73,7 +62,6 @@
         "neraca perdagangan",
         "bea masuk",
         "bea keluar",
-        "tarif",
         "pdb",
         "pertumbuhan ekonomi",
         "konsumsi rumah tangga",
@@ -83,7 +71,9 @@
         "inflasi inti",
         "harga produsen",
         "bumn",
-        "tarif listrik"
+        "tarif impor",
+        "tarif ekspor",
+        "tarif dagang as"
       ]
     },
     {
@@ -104,7 +94,6 @@
         "bonus",
         "thr",
         "pesangon",
-        "pabrik tutup",
         "efisiensi karyawan",
         "rekrutmen",
         "pekerja informal",
@@ -176,13 +165,35 @@
     },
     {
       "name": "pasar_investasi",
-      "max_score": 8,
+      "max_score": 25,
       "keywords": [
         "rupiah",
         "dolar",
         "capital outflow",
         "capital inflow",
-        "investor asing"
+        "investor asing",
+        "rupiah menguat",
+        "rupiah melemah",
+        "rupiah anjlok",
+        "rupiah bangkit",
+        "emas",
+        "etf",
+        "saham",
+        "ihsg",
+        "obligasi",
+        "reksadana",
+        "bullion",
+        "bullion bank",
+        "bursa efek",
+        "indeks saham",
+        "pasar modal",
+        "capital market",
+        "valuasi",
+        "melantai",
+        "ipo",
+        "listing",
+        "merger",
+        "akuisisi"
       ]
     },
     {

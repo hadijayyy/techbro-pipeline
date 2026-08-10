@@ -512,7 +512,7 @@ def _score_article(article):
 
     # Daily market moves are low-value unless title also signals policy or public impact.
     technical = any(_matches_keyword(tl, kw) for kw in ("rupiah", "ihsg", "saham", "harga emas", "harga minyak"))
-    public_angle = any(_matches_keyword(tl, kw) for kw in ("kebijakan", "bi", "bank indonesia", "apbn", "pajak", "subsidi", "anggaran", "berlaku", "ditetapkan"))
+    public_angle = any(_matches_keyword(tl, kw) for kw in ("kebijakan", "bi", "bank indonesia", "apbn", "pajak", "subsidi", "anggaran", "berlaku", "ditetapkan", "kenapa", "penyebab", "alasannya", "ini"))
     if technical and not public_angle:
         score -= 30
 
