@@ -1460,7 +1460,7 @@ Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Alur: S1 kejutan → 
 - Istilah teknis DIJELASKAN pas muncul: "IPO (jual saham pertama kali)", "konsolidasi (ngebersihin struktur dulu)"
 - Singkatan dikepanjangin: "BEI (Bursa Efek Indonesia, tempat jual-beli saham)"
 - Nama + jabatan singkat: "Pandu Sjahrir (kepala investasi Danantara)"
-- GAK BOLEH: jargon tanpa penjelasan. IPO/BUMN/BEI/konsolidasi/likuiditas/kapitalisasi/restrukturisasi/holding/obligasi/derivatif/inflasi/defisit/fiskal/moneter — kecuali langsung dijelaskan.
+- GAK BOLEH: jargon tanpa penjelasan. IPO/BUMN/BEI/konsolidasi/likuiditas/kapitalisasi/restrukturisasi/holding/obligasi/derivatif — kecuali langsung dijelaskan.
 - JANGAN: akselerasi, mitigasi, implementasi, optimalisasi, realisasi, signifikan, komprehensif, mekanisme, skema, portofolio. Ganti bahasa orang biasa.
 
 ## S1 HOOK (max 100 char)
@@ -1797,7 +1797,7 @@ def _validate_jargon(posts, body):
             continue
         outside = re.sub(r'"[^\"]*"', "", text)
         # Bureaucratic words that the prompt forbids
-        for word in ["akselerasi", "mitigasi", "implementasi", "optimalisasi", "realisasi", "signifikan", "komprehensif", "mekanisme", "skema", "portofolio", "holding", "obligasi", "derivatif", "inflasi", "defisit", "fiskal", "moneter"]:
+        for word in ["akselerasi", "mitigasi", "implementasi", "optimalisasi", "realisasi", "signifikan", "komprehensif", "mekanisme", "skema", "portofolio", "holding", "obligasi", "derivatif"]:
             if re.search(rf"\b{word}\b", outside.lower()):
                 issues.append(f"{key}: hard word '{word}'")
         # Unexplained acronyms — only flag if NOT in source body
