@@ -22,11 +22,15 @@ for i, a in enumerate(sys.argv):
         break
 IMAGE_DISABLED = "--no-image" in sys.argv
 DRY_RUN = "--dry-run" in sys.argv
+PREPARE_NEXT = "--prepare-next" in sys.argv
+HOT_TOPIC_LIMIT = 15
+LLM_REQUEST_BUDGET = 4  # writer/verifier plus one revision/verifier; transport retries disabled.
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 
 BASE = Path(__file__).parent
 POSTED_FILE = BASE / "posted_topics_v2.json"
+HOT_TOPICS_FILE = BASE / "hot_today.json"
 KEYWORDS_FILE = BASE / "keywords.json"
 SOURCES_FILE = BASE / "sources.json"
 PREPARED_ARTICLE_FILE = BASE / "prepared_article.json"
@@ -61,6 +65,8 @@ if THREADS_TOKEN and not DRY_RUN:
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S")
+# httpx logs full request URLs at INFO, which leaks access_token in query strings.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 log = logging.getLogger("techbro-v3")
 
 # ── Keyword Loader ───────────────────────────────────────────────────────────
@@ -182,7 +188,7 @@ def send_success_report(title, pattern, elapsed, permalink):
         if result.get("ok"):
             log.info("Success report sent to @szejay_bot")
             return True
-        log.warning("Success report rejected by Telegram")
+        log.warning("Success report rejected by Telegram: %s", result.get("description"))
     except Exception as e:
         log.warning(f"Success report failed: {e}")
     return False
@@ -200,17 +206,34 @@ def threads_permalink(post_id):
 
 
 def load_prepared_article(posted_urls):
-    """One-shot editor-selected article for the next scheduled run."""
+    """Load one immutable, validated draft; stale data never reaches publishing."""
     try:
         article = json.loads(PREPARED_ARTICLE_FILE.read_text())
-        if article.get("url") in posted_urls or time.time() > article.get("expires_at", 0):
-            PREPARED_ARTICLE_FILE.unlink(missing_ok=True)
+        stale = article.get("url") in posted_urls or time.time() > article.get("expires_at", 0)
+        if stale:
+            if not DRY_RUN:
+                PREPARED_ARTICLE_FILE.unlink(missing_ok=True)
             return None
-        if not all(article.get(k) for k in ("title", "url", "body", "og_image")):
+        required = ("title", "url", "body", "og_image", "posts", "prepared_at", "expires_at")
+        if not all(article.get(k) for k in required):
+            return None
+        posts = article["posts"]
+        if not isinstance(posts, dict) or deterministic_validate(posts) or deterministic_grounding_validate(article, posts):
             return None
         return article
     except (OSError, json.JSONDecodeError, TypeError):
         return None
+
+
+def save_prepared_article(article, result, image_url):
+    """Persist only a fully validated six-slide draft for one later publish."""
+    payload = dict(article)
+    payload.update({"posts": result["posts"], "angle": result.get("angle", ""),
+                    "arc": result.get("arc", "market_shock"), "og_image": image_url,
+                    "prepared_at": time.time(), "expires_at": time.time() + 86400})
+    tmp = PREPARED_ARTICLE_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+    tmp.replace(PREPARED_ARTICLE_FILE)
 
 
 def _topic_entities(title):
@@ -513,6 +536,90 @@ def _learning_bonus(data, source, pattern=None):
     return max(-0.06, min(0.06, (score - baseline) * 2))
 
 
+def _hot_topic_cluster(title, pattern):
+    """Stable, explainable cluster key; never creates a claim from article text."""
+    entities = sorted(_topic_entities(title))
+    if entities:
+        return "/".join(entities)
+    words = sorted(_title_words(title))[:4]
+    return "/".join(words) or (pattern or "other").lower()
+
+
+def _indonesia_topic_relevance(title, body):
+    """Classify body-backed national relevance; global stories need explicit Indonesia impact."""
+    text = f"{title} {body}".lower()
+    global_story = bool(re.search(r"\b(federal reserve|the fed|ecb|bank of japan|boj|pboc|opec|"
+                                  r"minyak dunia|tarif dagang|perang dagang|sanksi ekonomi|"
+                                  r"resesi global|ekonomi global|perdagangan global)\b", text))
+    indonesia = bool(re.search(r"\b(indonesia|ri|rupiah|apbn|bank indonesia|bi|kemenkeu|ojk)\b", body, re.I))
+    impact = bool(re.search(r"\b(dampak|berdampak|risiko|harga|inflasi|daya beli|ekspor|impor|"
+                            r"investasi|konsumen|masyarakat|industri|bbm)\b", body, re.I))
+    if global_story:
+        return "global_indonesia_impact" if indonesia and impact else None
+    return "national" if indonesia else None
+
+
+def scout_hot_topics(articles, now=None, limit=HOT_TOPIC_LIMIT, per_source_limit=2, data=None):
+    """Read-only body-verified top-15 ranking, one item per editorial cluster."""
+    now = time.time() if now is None else now
+    verified = []
+    for candidate in articles:
+        title, url, source = candidate.get("title", ""), candidate.get("url", ""), candidate.get("source", "")
+        if not title or not url or not source:
+            continue
+        body, image, published_ts = _fetch_article_body(url)
+        if not published_ts or published_ts > now + 300 or now - published_ts > 86400:
+            continue
+        eligible, reason = _is_eligible_candidate(title, body, source)
+        if not eligible:
+            continue
+        indonesia_relevance = _indonesia_topic_relevance(title, body)
+        if not indonesia_relevance:
+            continue
+        pattern, confidence = _classify_pattern(title, body)
+        topic_score, economy_score, impact_score = _topic_score(title, body)
+        source_quality = SOURCES.get(source, {}).get("score", candidate.get("score", 0))
+        freshness = max(0.0, 24 - ((now - published_ts) / 3600)) / 24
+        # Body evidence drives ranking. Source/learning cannot rescue weak evidence.
+        hot_score = round(topic_score * 10 + confidence * 10 + freshness * 10 + source_quality + _learning_bonus(data or {}, source, pattern), 3)
+        verified.append({
+            "cluster": _hot_topic_cluster(title, pattern), "title": title,
+            "canonical_url": _canonical_url(url), "source": source,
+            "published_ts": published_ts, "pattern": pattern, "pattern_confidence": round(confidence, 3),
+            "topic_score": topic_score, "economy_score": economy_score, "impact_score": impact_score,
+            "hot_score": hot_score, "body_verified": True, "image_available": bool(image),
+            "indonesia_relevance": indonesia_relevance, "reason": reason,
+        })
+    verified.sort(key=lambda item: item["hot_score"], reverse=True)
+    selected, sources, clusters = [], {}, set()
+    for item in verified:
+        if item["source"] in sources and sources[item["source"]] >= per_source_limit:
+            continue
+        if item["cluster"] in clusters:
+            continue
+        sources[item["source"]] = sources.get(item["source"], 0) + 1
+        clusters.add(item["cluster"])
+        item["rank"] = len(selected) + 1
+        selected.append(item)
+        if len(selected) == limit:
+            break
+    return selected
+
+
+def save_hot_topics(topics, generated_ts=None):
+    payload = {"generated_ts": generated_ts or time.time(), "topics": topics}
+    tmp = HOT_TOPICS_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+    tmp.replace(HOT_TOPICS_FILE)
+
+
+def _publish_candidates_from_hot_topics(articles, topics):
+    """Return only body-verified scout choices, in editorial rank order."""
+    by_url = {_canonical_url(article.get("url", "")): article for article in articles}
+    return [by_url[topic["canonical_url"]] for topic in topics
+            if topic.get("canonical_url") in by_url]
+
+
 def _pick_article(articles, posted_urls, data=None):
     """Pick best unscraped economy article. Learning only makes a bounded ranking adjustment."""
     now = time.time()
@@ -801,9 +908,10 @@ def _is_eligible_candidate(title, body, source):
         return False, "not techbro relevant"
     topic_score, economy_score, impact_score = _topic_score(title, body)
     pattern_name, pattern_confidence = _classify_pattern(title, body)
-    if pattern_name is None or pattern_confidence < 0.33:
-        return False, f"no qualifying PINDAR pattern (topic={topic_score}/10, economy={economy_score}, impact={impact_score})"
-    return True, f"pattern={pattern_name} conf={pattern_confidence:.2f} topic={topic_score}"
+    # ponytail: patterns rank/hooks only; evidence gates above decide eligibility.
+    pattern_reason = (f"pattern={pattern_name} conf={pattern_confidence:.2f}"
+                      if pattern_name else "pattern=none")
+    return True, f"{pattern_reason} topic={topic_score} economy={economy_score} impact={impact_score}"
 
 
 def _is_techbro_relevant(body):
@@ -1256,7 +1364,7 @@ SYSTEM_PROMPT = """# RYANHADIII EKONOMI — WRITER
 
 Balas JSON valid saja. Tidak ada markdown, penjelasan, atau code fence.
 
-Ubah satu ISI ARTIKEL menjadi tepat 6 post Threads. Pakai gua–lu, kalimat pendek, bahasa awam. S1 maksimal 140 karakter; S2–S6 maksimal 300 karakter. S1 satu kalimat. S2–S5 masing-masing tepat dua kalimat: kalimat kedua menerangkan atau mempersempit fakta di kalimat pertama, bukan mengulangnya. S1–S5 tanpa pertanyaan. S6 satu pertanyaan spesifik. URL sumber ditambahkan sistem.
+Ubah satu ISI ARTIKEL menjadi tepat 6 post Threads. Pakai gua–lu, kalimat pendek, bahasa awam. S1 80–140 karakter. S2–S6 maksimal 300 karakter. S1–S6 masing-masing minimal dua kalimat: kalimat kedua menerangkan atau mempersempit fakta di kalimat pertama, bukan mengulangnya. S1–S5 tanpa pertanyaan. S6 wajib punya satu pertanyaan spesifik, utuh, dan mudah dijawab dari perkembangan fakta artikel. URL sumber ditambahkan sistem.
 
 ## SUMBER ADALAH BATAS
 - ISI ARTIKEL satu-satunya sumber. Judul, URL, pengetahuan umum, asumsi, contoh imajiner, dan pengalaman pribadi dilarang.
@@ -1266,10 +1374,12 @@ Ubah satu ISI ARTIKEL menjadi tepat 6 post Threads. Pakai gua–lu, kalimat pend
 - Jangan mengubah rencana, kemungkinan, atau proyeksi menjadi kepastian.
 - Bila sumber tidak cukup untuk enam post akurat, balas {"status":"error","message":"insufficient_evidence"}.
 
-## ALUR
-S1 fakta pemicu atau perubahan konkret. S2 angka atau keputusan inti yang belum dipakai S1. S3 tujuan, alasan, atau mekanisme yang tertulis. S4 progres, status, atau kutipan yang belum dipakai. S5 contoh konkret dari artikel. S6 merangkum satu fakta yang belum dipakai menjadi pertanyaan spesifik; jangan bikin janji waktu, hasil, atau dampak baru.
+## ALUR YANG BIKIN ORANG LANJUT BACA
+Buka dengan fakta paling mahal: keputusan, perubahan, angka, atau kutipan paling konkret dari artikel. Jangan memancing dengan teka-teki, pertanyaan, skenario pembaca, atau opini. Tegangan hanya boleh datang dari perbandingan atau perubahan yang literal di artikel.
 
-Jangan ulang angka, fakta, atau contoh dari slide sebelumnya. Setiap slide membuka bukti baru dan urutannya harus terasa: keputusan, ukuran, penjelasan, progres, contoh, hal yang dipantau. Jangan pakai label-colon, hashtag, jargon birokratis, template AI, atau deskripsi gambar.
+Setelah pembuka, susun bukti agar pembaca makin paham: apa yang berubah, ukuran atau pihak yang terkait, alasan atau mekanisme yang tertulis, lalu status/kutipan/contoh paling konkret. Tidak perlu memaksa satu jenis fakta ke slide tertentu. Pilih urutan yang paling jelas dari bukti yang tersedia. S6 menutup dengan satu pertanyaan spesifik dari fakta yang belum dipakai; jangan bikin janji waktu, hasil, dampak, atau premis baru.
+
+Setiap slide wajib membawa bukti baru; jangan ulang angka, fakta, atau contoh. Buat kalimat pertama menyampaikan fakta, kalimat kedua menambah konteks yang belum ada. Jangan pakai label-colon, hashtag, jargon birokratis, template AI, deskripsi gambar, slogan, kalimat motivasi, atau kesimpulan yang terdengar besar.
 
 ## OUTPUT
 {"status":"success","angle":"sudut pandang yang didukung artikel","post_1":"...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
@@ -1279,22 +1389,22 @@ REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah fie
 
 Issues: {revision_notes}
 
-Untuk tiap issue grounding: hapus atau ganti dengan fakta yang muncul literal di ISI ARTIKEL. Jangan menambah dampak/CTA baru. Jika tidak ada enam post yang bisa dipertahankan akurat, balas {{\"status\":\"error\",\"message\":\"insufficient_evidence\"}}."""
+Untuk tiap issue grounding: hapus seluruh frasa yang disebut issue, lalu hapus atau ganti dengan fakta yang muncul literal di ISI ARTIKEL. Jangan menambah dampak/CTA baru. Jika tidak ada enam post yang bisa dipertahankan akurat, balas {{\"status\":\"error\",\"message\":\"insufficient_evidence\"}}."""
+
+def literal_fact_allowlist(body):
+    """Literal body sentences are the only permitted facts for writer and revision."""
+    sentences = re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", body).strip())
+    return [sentence for sentence in sentences if len(sentence) >= 20][:80]
+
 
 def build_user_prompt(article):
-    """Build user prompt with article content, image context, and summarized body."""
-    title = article.get("title", "")
+    """Build source-only prompt with a literal fact allowlist."""
     body = article.get("body", "")
-    url = article.get("url", "")
-    source = article.get("source", "")
-    image_hint = article.get("image_hint", "")
-
-    # ponytail: full body avoids dropping evidence; add bounded extraction only if provider context requires it.
+    facts = literal_fact_allowlist(body)
     parts = [
-        "**Isi Artikel:**",
-        body,
-        "",
-        "⚠️ INTERNAL: Ekstrak fakta (angka, nama, lembaga, tanggal) dari body. Lalu tulis 6 post HANYA dari fakta yang ada. Kalau gak cukup -> insufficient_evidence. Output HANYA JSON — gak ada teks lain.",
+        "**ISI ARTIKEL:**", body, "", "**ALLOWLIST FAKTA LITERAL:**",
+        *[f"- {fact}" for fact in facts], "",
+        "⚠️ INTERNAL: Setiap nama, angka, lembaga, tanggal, status, dan sebab-akibat harus diambil persis dari ALLOWLIST FAKTA LITERAL. Jangan membuat fakta baru atau menggabungkan fakta menjadi klaim baru. Kalau tidak cukup untuk enam post, balas insufficient_evidence. Output HANYA JSON.",
     ]
     return "\n".join(parts)
 
@@ -1318,21 +1428,18 @@ def deterministic_validate(posts):
         if not p.strip():
             warnings.append(f"{k}: empty")
             continue
-        # Min length — S1 is compact; body slides need enough context.
+        # Min length — each slide needs enough source-backed context.
         min_len = 50 if i == 6 else 80
         if len(p) < min_len:
             warnings.append(f"{k}: too short ({len(p)} chars, min {min_len})")
         if i == 1 and len(p) > 140:
             warnings.append(f"{k}: too long ({len(p)} chars, max 140)")
-        # S1 and S6 are intentionally one sentence; S2-S5 need at least two.
-        if i not in (1, 6):
-            sent_count = len([c for c in p if c in ".!?"])
-            if sent_count < 2:
-                warnings.append(f"{k}: only {sent_count} sentences")
-        if i == 1:
-            sent_count = len([c for c in p if c in ".!?"])
-            if sent_count > 2:
-                warnings.append(f"{k}: too many sentences ({sent_count})")
+        # Every slide needs a fact plus source-backed context.
+        sent_count = len([c for c in p if c in ".!?"])
+        if sent_count < 2:
+            warnings.append(f"{k}: only {sent_count} sentences")
+        elif sent_count > 2:
+            warnings.append(f"{k}: too many sentences ({sent_count})")
         # Enforce 300 char limit
         if len(p) > 300:
             # Truncate at last period within limit
@@ -1558,10 +1665,11 @@ def generate_thread(article):
     if evidence_error:
         return None, evidence_error
     user = build_user_prompt(article)
-    for attempt in range(1, 3):
-        content, error = _call_llm(SYSTEM_PROMPT, user, max_retries=2)
+    # One writer plus one revision caps each candidate at two provider requests.
+    for attempt in range(1, 2):
+        content, error = _call_llm(SYSTEM_PROMPT, user, max_retries=1)
         if error:
-            log.warning(f"  LLM attempt {attempt}/2 — {error[:80]}")
+            log.warning(f"  Writer request failed — {error[:80]}")
             if is_rate_limit_error(error):
                 return None, error
             if attempt < 2:
@@ -1793,12 +1901,15 @@ def main():
     posted_urls = {t.get("article_url", t.get("title", "")) for t in data.get("topics", [])}
     recent_topics = data.get("topics", [])
 
-    # Step 1: Editor may lock one vetted article for the next scheduled run.
+    # Step 1: Normal runs publish only a prepared immutable draft.
     article = body = og_image = None
+    prepared_result = None
     articles = []
     article = load_prepared_article(posted_urls)
     if article:
         body, og_image = article["body"], article["og_image"]
+        prepared_result = {"posts": article["posts"], "angle": article.get("angle", ""),
+                           "arc": article.get("arc", "market_shock")}
         prepared_ok, prepared_reason = _is_eligible_candidate(article["title"], body, article.get("source", "prepared"))
         if article.get("published_ts", 0) <= 0 or time.time() - article["published_ts"] > 86400:
             prepared_ok, prepared_reason = False, "prepared article missing/failing 24h published_ts"
@@ -1816,10 +1927,24 @@ def main():
             article["image_hint"] = _image_hint(og_image)
             log.info(f"Prepared article: {article['title']}")
         articles = []
+    if article and PREPARE_NEXT:
+        log.info("Prepared draft already valid; leave immutable draft unchanged")
+        return
+    if not article and not PREPARE_NEXT:
+        log.info("No valid prepared draft; no-post. Run --prepare-next to create one.")
+        return
     if not article:
         log.info("Scraping economy sources...")
         articles = scrape_all()
         log.info(f"  Got {len(articles)} raw articles")
+        # Scout is the publisher's only candidate pool: five body-verified daily topics.
+        hot_topics = scout_hot_topics(articles, data=data)
+        for topic in hot_topics:
+            log.info(f"  Hot #{topic['rank']}: {topic['title'][:70]} (score={topic['hot_score']})")
+        if not DRY_RUN:
+            save_hot_topics(hot_topics)
+        articles = _publish_candidates_from_hot_topics(articles, hot_topics)
+        log.info(f"  Publisher pool: {len(articles)} body-verified hot topics")
 
     # Step 2: Search ranked pool. Like Pressbox, title ranks; body decides eligibility.
     skipped_urls = set()
@@ -1881,12 +2006,17 @@ def main():
     else:
         log.info("  Image: disabled via --no-image")
 
-    # Step 5: Generate (with retry on next candidate if hallucination fails)
-    log.info("Generating thread...")
+    # Step 5: Prepared drafts are never regenerated; new drafts use bounded requests.
+    result = prepared_result
+    error = None
     recent_openings = data.get("recent_content", {}).get("openings", [])
-    if recent_openings:
-        article["recent_openings"] = recent_openings[:5]
-    result, error = generate_thread(article)
+    if result:
+        log.info("Using immutable prepared draft...")
+    else:
+        log.info("Generating thread...")
+        if recent_openings:
+            article["recent_openings"] = recent_openings[:5]
+        result, error = generate_thread(article)
     if error:
         log.error(f"Generation failed: {error}")
         if is_rate_limit_error(error):
@@ -1946,6 +2076,13 @@ def main():
         return
 
     posts = result["posts"]
+    if PREPARE_NEXT:
+        if DRY_RUN:
+            log.info("DRY RUN — validated draft not persisted")
+        else:
+            save_prepared_article(article, result, image_url)
+            log.info(f"Prepared: {article['title']}")
+        return
     for i in range(1, 7):
         first_line = posts.get(f"post_{i}", "").split("\n")[0][:80] or "(empty)"
         log.info(f"  S{i}: {first_line}")

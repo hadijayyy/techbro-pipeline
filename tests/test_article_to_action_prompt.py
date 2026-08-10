@@ -26,6 +26,12 @@ def test_system_prompt_is_source_only_article_to_action_contract():
     assert '"post_6"' in prompt
     assert '"error"' in prompt
     assert "gua–lu" in prompt
+    assert "Buka dengan fakta paling mahal" in prompt
+    assert "Tegangan hanya boleh datang dari perbandingan atau perubahan yang literal di artikel" in prompt
+    assert "Jangan memancing dengan teka-teki" in prompt
+    assert "Tidak perlu memaksa satu jenis fakta ke slide tertentu" in prompt
+    assert "Jangan pakai label-colon, hashtag, jargon birokratis, template AI" in prompt
+    assert "slogan, kalimat motivasi, atau kesimpulan yang terdengar besar" in prompt
 
 
 def test_system_prompt_does_not_embed_fictional_facts_as_examples():

@@ -34,12 +34,12 @@ assert score("Gempa Guncang Jakarta") == 0, "out_of_scope"
 
 # Clean posts pass deterministic validation
 posts = {
-    "post_1": "Minyak Rp100 ribu per barel menekan ongkos impor Indonesia, tapi harga BBM belum tentu langsung naik.",
+    "post_1": "Minyak Rp100 ribu per barel menekan ongkos impor Indonesia. Harga BBM belum tentu langsung naik.",
     "post_2": "Harga minyak memengaruhi biaya energi dan pengiriman bagi perusahaan yang memakai solar. Stok lama bisa menahan dampaknya sementara.",
     "post_3": "Dampaknya ke harga barang bergantung pada stok, kurs, dan keputusan tiap penjual. Tidak semua harga langsung berubah.",
     "post_4": "Usaha yang banyak memakai logistik perlu memantau biaya kirim dan kontrak pembelian berikutnya. Solar ikut menentukan ongkosnya.",
     "post_5": "Cek porsi ongkir dan solar dalam biaya usaha sebelum mengubah harga ke pelanggan. Margin perlu dihitung ulang.",
-    "post_6": "Biaya harian lu yang paling cepat terasa saat harga energi naik apa?",
+    "post_6": "Harga energi naik bisa terasa di biaya harian lu. Biaya mana yang paling cepat lu rasakan?",
 }
 assert not m.deterministic_validate(posts), "clean posts should pass"
 

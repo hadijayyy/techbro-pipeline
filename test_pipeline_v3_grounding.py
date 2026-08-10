@@ -139,6 +139,15 @@ def test_rate_limit_error_stops_candidate_churn(monkeypatch):
     assert not pipeline.is_rate_limit_error("LLM failed: HTTP 500")
 
 
+def test_publish_candidates_are_limited_to_body_verified_hot_topics():
+    articles = [
+        {"url": "https://example.test/global", "title": "Global generic"},
+        {"url": "https://example.test/indonesia", "title": "Dampak Indonesia"},
+    ]
+    topics = [{"canonical_url": "https://example.test/indonesia", "rank": 1}]
+    assert pipeline._publish_candidates_from_hot_topics(articles, topics) == [articles[1]]
+
+
 def test_revision_requires_independent_grounding_verifier(monkeypatch):
     article = {"body": "Nilai mencapai Rp1 miliar. " * 60}
     revised = {
@@ -160,7 +169,8 @@ def test_revision_requires_independent_grounding_verifier(monkeypatch):
 
 def test_writer_prompt_forbids_unsourced_worker_impact_and_revision_stays_literal():
     assert "Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang" in pipeline.SYSTEM_PROMPT
-    assert "hapus atau ganti dengan fakta yang muncul literal di ISI ARTIKEL" in pipeline.REVISION_PROMPT
+    assert "hapus seluruh frasa yang disebut issue" in pipeline.REVISION_PROMPT
+    assert "fakta yang muncul literal di ISI ARTIKEL" in pipeline.REVISION_PROMPT
 
 
 def test_writer_prompt_uses_full_body_without_title_or_hook_instructions():
@@ -179,6 +189,21 @@ def test_writer_prompt_uses_full_body_without_title_or_hook_instructions():
     assert "Judul yang tidak boleh dipakai" not in prompt
     assert "https://example.test/untrusted" not in prompt
     assert "instruksi palsu" not in prompt
+
+
+def test_writer_prompt_requires_two_sentences_on_every_slide():
+    assert "S1 80–140 karakter" in pipeline.SYSTEM_PROMPT
+    assert "S1–S6 masing-masing minimal dua kalimat" in pipeline.SYSTEM_PROMPT
+
+
+def test_deterministic_validate_rejects_slide_with_one_sentence():
+    complete = "Fakta sumber cukup panjang untuk memenuhi batas minimum setiap slide. Konteks sumber menambah rincian yang berbeda."
+    posts = {f"post_{i}": complete for i in range(1, 7)}
+    posts["post_1"] = "Fakta sumber cukup panjang untuk memenuhi batas minimum tetapi tetap hanya satu kalimat."
+    assert "post_1: only 1 sentences" in pipeline.deterministic_validate(posts)
+    posts["post_1"] = complete
+    posts["post_6"] = "Fakta sumber cukup panjang untuk memenuhi batas minimum tetapi tetap hanya satu kalimat."
+    assert "post_6: only 1 sentences" in pipeline.deterministic_validate(posts)
 
 
 def test_hook_allows_supported_policy_change_without_forced_number_or_contradiction():
@@ -305,10 +330,10 @@ def test_story_prompt_requires_body_only_story_arc():
     assert "Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna" in pipeline.SYSTEM_PROMPT
     assert "gua–lu" in pipeline.SYSTEM_PROMPT
     assert "Jangan menambah dampak, profesi, angka, skenario, penilaian" in pipeline.SYSTEM_PROMPT
-    assert "S1 fakta pemicu atau perubahan konkret" in pipeline.SYSTEM_PROMPT
-    assert "S2–S5 masing-masing tepat dua kalimat" in pipeline.SYSTEM_PROMPT
-    assert "Jangan ulang angka, fakta, atau contoh dari slide sebelumnya" in pipeline.SYSTEM_PROMPT
-    assert "S6 merangkum satu fakta yang belum dipakai" in pipeline.SYSTEM_PROMPT
+    assert "Buka dengan fakta paling mahal" in pipeline.SYSTEM_PROMPT
+    assert "Buat kalimat pertama menyampaikan fakta" in pipeline.SYSTEM_PROMPT
+    assert "jangan ulang angka, fakta, atau contoh" in pipeline.SYSTEM_PROMPT
+    assert "S6 menutup dengan satu pertanyaan spesifik" in pipeline.SYSTEM_PROMPT
     assert "## DAMPAK" not in pipeline.SYSTEM_PROMPT
 
 
@@ -348,18 +373,97 @@ def test_utility_and_ceremony_titles_fail_full_economy_gate():
         assert pipeline._is_eligible_candidate(title, body, "cnbc_market")[0] is False
 
 
-def test_keyword_fallback_cannot_approve_article_without_pindar_pattern():
+def test_keyword_fallback_can_approve_body_verified_article_without_pattern():
     body = "Koperasi, ekonomi, anggaran, pajak, subsidi, investasi, pemerintah, masyarakat, dan UMKM menjadi perhatian. " * 30
-    title = "Semangat Koperasi Berhembus di Festival Lembah Baliem"
+    title = "Koperasi Jadi Perhatian Pemerintah"
     assert pipeline._topic_score(title, body)[0] >= 7
     assert pipeline._classify_pattern(title, body) == (None, 0)
-    assert pipeline._is_eligible_candidate(title, body, "cnn_ekonomi")[0] is False
+    assert pipeline._is_eligible_candidate(title, body, "cnn_ekonomi")[0] is True
 
 
 def test_mass_layoff_is_not_a_candidate_without_remaining_pindar_pattern():
     title = "Bank Besar Mau PHK Massal, Ini Biang Keroknya"
     body = ("Perusahaan menghadapi PHK massal yang mengancam pekerja dan upah. " * 30)
     assert pipeline._classify_pattern(title, body)[0] is None
+
+
+def test_hot_topics_are_body_verified_ranked_and_source_diverse(monkeypatch):
+    now = 1_800_000_000
+    articles = [
+        {"title": "Pajak dan APBN Resmi Ditetapkan Rp9 Triliun", "url": "https://a.test/1", "source": "cnn_ekonomi", "ts": now - 60},
+        {"title": "Aturan APBN Baru Berlaku", "url": "https://a.test/2", "source": "cnn_ekonomi", "ts": now - 120},
+        {"title": "Proyek Infrastruktur dan Investasi Baru", "url": "https://b.test/1", "source": "antara_ekonomi", "ts": now - 180},
+    ]
+    bodies = {
+        "https://a.test/1": "Pemerintah menetapkan kebijakan pajak dan APBN senilai Rp9 triliun untuk penerimaan negara Indonesia. " * 12,
+        "https://a.test/2": "Pemerintah menetapkan kebijakan APBN dan peraturan baru untuk anggaran negara Indonesia. " * 12,
+        "https://b.test/1": "Pemerintah Indonesia menandatangani kontrak proyek infrastruktur dan investasi senilai Rp8 triliun. " * 12,
+    }
+    monkeypatch.setattr(pipeline, "_fetch_article_body", lambda url: (bodies[url], None, now - 60))
+
+    topics = pipeline.scout_hot_topics(articles, now=now, limit=5, per_source_limit=1)
+
+    assert [topic["canonical_url"] for topic in topics] == ["https://a.test/1", "https://b.test/1"]
+    assert all(topic["body_verified"] for topic in topics)
+    assert all("hot_score" in topic for topic in topics)
+
+
+def test_hot_topic_default_pool_is_top_15_and_cluster_deduped(monkeypatch):
+    now = 1_800_000_000
+    articles = [
+        {"title": f"Rupiah bergerak seri {i} Rp{i} triliun", "url": f"https://r.test/{i}", "source": "cnn_ekonomi", "ts": now - i}
+        for i in range(3)
+    ] + [
+        {"title": f"Kebijakan APBN seri {i} Rp{i} triliun", "url": f"https://a.test/{i}", "source": "antara_ekonomi", "ts": now - i}
+        for i in range(20)
+    ]
+    body = "Pemerintah Indonesia menetapkan kebijakan APBN senilai Rp9 triliun untuk penerimaan negara. " * 12
+    monkeypatch.setattr(pipeline, "_fetch_article_body", lambda _url: (body, None, now - 60))
+
+    topics = pipeline.scout_hot_topics(articles, now=now, per_source_limit=20)
+
+    assert pipeline.HOT_TOPIC_LIMIT == 15
+    assert len(topics) <= 15
+    assert len({topic["cluster"] for topic in topics}) == len(topics)
+
+
+def test_literal_fact_allowlist_is_embedded_in_writer_prompt():
+    body = "Bank Indonesia menetapkan suku bunga menjadi 5 persen. Nilai rupiah tercatat Rp17.000 per dolar AS."
+    prompt = pipeline.build_user_prompt({"body": body})
+    assert "ALLOWLIST FAKTA LITERAL" in prompt
+    assert "Bank Indonesia menetapkan suku bunga menjadi 5 persen." in prompt
+    assert "Jangan membuat fakta baru" in prompt
+
+
+def test_prepared_article_requires_unexpired_validated_posts(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, "PREPARED_ARTICLE_FILE", tmp_path / "prepared.json")
+    pipeline.PREPARED_ARTICLE_FILE.write_text(json.dumps({"title": "T", "url": "u", "body": "b", "og_image": "i", "posts": {}, "prepared_at": 1, "expires_at": 9_999_999_999}))
+    assert pipeline.load_prepared_article(set()) is None
+
+
+def test_hot_topic_scout_rejects_global_story_without_indonesia_connection(monkeypatch):
+    now = 1_800_000_000
+    article = {"title": "The Fed Naikkan Suku Bunga, Pasar Global Bergejolak", "url": "https://global.test/1", "source": "cnn_global", "ts": now - 60}
+    body = "Federal Reserve menaikkan suku bunga dan pasar global bereaksi terhadap inflasi Amerika Serikat. " * 12
+    monkeypatch.setattr(pipeline, "_fetch_article_body", lambda _url: (body, None, now - 60))
+
+    assert pipeline.scout_hot_topics([article], now=now) == []
+
+
+def test_hot_topic_scout_accepts_global_story_with_indonesia_impact(monkeypatch):
+    now = 1_800_000_000
+    global_article = {"title": "OPEC Pangkas Produksi Minyak, Pemerintah Indonesia Siapkan Kebijakan BBM", "url": "https://global.test/1", "source": "cnn_global", "ts": now - 60}
+    domestic_article = {"title": "Proyek Infrastruktur dan Investasi Baru", "url": "https://local.test/1", "source": "antara_ekonomi", "ts": now - 60}
+    bodies = {
+        global_article["url"]: "OPEC memangkas produksi minyak dunia. Pemerintah Indonesia menyiapkan kebijakan dan peraturan BBM untuk merespons inflasi yang berdampak pada daya beli masyarakat Indonesia. " * 10,
+        domestic_article["url"]: "Pemerintah Indonesia menandatangani kontrak proyek infrastruktur dan investasi senilai Rp8 triliun. " * 12,
+    }
+    monkeypatch.setattr(pipeline, "_fetch_article_body", lambda url: (bodies[url], None, now - 60))
+
+    topics = pipeline.scout_hot_topics([domestic_article, global_article], now=now)
+
+    global_topic = next(topic for topic in topics if topic["canonical_url"] == global_article["url"])
+    assert global_topic["indonesia_relevance"] == "global_indonesia_impact"
 
 
 def test_source_verbatim_fallback_is_retired():
