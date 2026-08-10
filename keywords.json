@@ -1,10 +1,10 @@
 {
-  "_note": "TechBro V3 dynamic keywords \u2014 edit this file to update scoring without code changes.",
+  "_note": "TechBro V3 dynamic keywords — edit this file to update scoring without code changes.",
   "_version": 3,
   "score_categories": [
     {
       "name": "dampak_dompet",
-      "max_score": 30,
+      "max_score": 35,
       "keywords": [
         "gaji",
         "upah",
@@ -88,7 +88,7 @@
     },
     {
       "name": "tenaga_kerja",
-      "max_score": 25,
+      "max_score": 35,
       "keywords": [
         "phk massal",
         "pemutusan hubungan kerja",
@@ -107,12 +107,20 @@
         "pabrik tutup",
         "efisiensi karyawan",
         "rekrutmen",
-        "pekerja informal"
+        "pekerja informal",
+        "outsourcing",
+        "alih daya",
+        "vendor outsourcing",
+        "pekerja kontrak",
+        "kontrak kerja",
+        "project based",
+        "pekerja harian",
+        "pekerja lepas"
       ]
     },
     {
       "name": "harga_kebutuhan",
-      "max_score": 25,
+      "max_score": 30,
       "keywords": [
         "harga beras",
         "harga gabah",
@@ -213,7 +221,7 @@
     },
     {
       "name": "makro_global",
-      "max_score": 18,
+      "max_score": 10,
       "keywords": [
         "federal reserve",
         "the fed",
@@ -330,7 +338,16 @@
     "kompetisi",
     "penghargaan",
     "ekspo",
-    "event"
+    "event",
+    "asam urat",
+    "kesehatan mental",
+    "self improvement",
+    "quarter life",
+    "shio",
+    "brigade",
+    "militer",
+    "chef",
+    "ramalan"
   ],
   "soft_reject": [
     "pilkada",

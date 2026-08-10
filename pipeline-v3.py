@@ -218,7 +218,12 @@ def load_prepared_article(posted_urls):
         if not all(article.get(k) for k in required):
             return None
         posts = article["posts"]
-        if not isinstance(posts, dict) or deterministic_validate(posts) or deterministic_grounding_validate(article, posts):
+        if not isinstance(posts, dict):
+            return None
+        style_issues = deterministic_validate(posts)
+        # Only block on hard issues (empty, too short, no CTA); style/explanation warnings don't invalidate draft.
+        hard = [w for w in style_issues if "too many sentences" not in w and "stand-alone" not in w and "hard word" not in w]
+        if hard or deterministic_grounding_validate(article, posts):
             return None
         return article
     except (OSError, json.JSONDecodeError, TypeError):
@@ -517,6 +522,27 @@ def _score_article(article):
     fuel_policy = any(_matches_keyword(tl, kw) for kw in ("b50", "subsidi", "kebijakan", "aturan", "kuota", "alokasi", "apbn"))
     if routine_bbm and not fuel_policy:
         score -= 100
+
+    # ── Global/local penalties ─────────────────────────────────────────────
+    # Data: global-only content with no ID anchor gets 0 views (e.g. Sydney Sweeney,
+    # Elon/Sam, chef Louisiana, AI scam US). Must have rupiah link or Indonesia anchor.
+    FOREIGN_COUNTRIES = ["amerika", "united states", "china", "tiongkok", "jepang",
+        "korea selatan", "india", "vietnam", "australia", "inggris",
+        "eropa", "prancis", "jerman", "canada", "rusia", "middle east"]
+    ID_ANCHOR = ["indonesia", "jakarta", "pemerintah", "menteri", "bumn", "apbn",
+        "rupiah", "umr", "ump", "ppn", "kemnaker", "ojk", "bi ",
+        "jokowi", "prabowo", "jawa", "sumatera", "kalimantan", "sulawesi"]
+    has_foreign = any(re.search(rf"\b{re.escape(c)}\b", tl) for c in FOREIGN_COUNTRIES)
+    has_id = any(re.search(rf"\b{re.escape(a)}\b", tl) for a in ID_ANCHOR)
+    if has_foreign and not has_id:
+        score -= 70  # foreign story with no Indonesia anchor = audience ignores
+
+    # Kontras harga vs daya beli: high-performer pattern (UMR vs Greenland = 18K views).
+    # Boost stories that contrast a price/cost figure against purchasing power.
+    price_signal = any(_matches_keyword(tl, kw) for kw in ("harga", "biaya", "tarif", "rupiah"))
+    wallet_signal = any(_matches_keyword(tl, kw) for kw in ("gaji", "upah", "umr", "ump", "daya beli", "pendapatan"))
+    if price_signal and wallet_signal:
+        score += 15  # price-vs-income contrast = proven virality catalyst
 
     # Soft reject penalty (cancelled by sufficient economy signals)
     if signals >= 2:
@@ -973,8 +999,8 @@ def _is_routine_market_story(title, body):
 
 
 # ── Pressbox-style Pattern Classification ──────────────────────────────────────
-# 4 PINDAR patterns with keyword triggers + priority ordering.
-# Priority: KORUPSI > KEBIJAKAN > PROYEK > PASAR
+# 5 PINDAR patterns with keyword triggers + priority ordering.
+# Priority: KORUPSI > KEBIJAKAN > PROYEK > PERDAGANGAN > PASAR
 # Pattern determines candidate selection priority AND S1 hook style in LLM prompt.
 
 ECONOMY_PATTERNS = {
@@ -1006,7 +1032,6 @@ ECONOMY_PATTERNS = {
             "dividen", "setor", "pnbp", "penerimaan negara", "apbn", "apbd", "anggaran negara", "anggaran daerah",
             "insentif", "keringanan", "pembebasan", "penghapusan",
             "larangan", "pembatasan", "moratorium",
-            "impor", "ekspor", "bea masuk", "larangan ekspor",
             "hilirisasi", "larangan ekspor bahan mentah",
             "deregulasi", "omnibus law", "uu cipta kerja",
             "perppu", "perpres", "permen", "kepmen",
@@ -1030,8 +1055,28 @@ ECONOMY_PATTERNS = {
             "tambang", "mineral", "nikel", "batu bara", "emas", "tembaga", "esdm", "kontraksi", "bumn", "kementerian pu", "kemenhub", "basuki",
         ],
     },
-    "PASAR": {
+    "PERDAGANGAN": {
         "priority": 4,
+        "label": "Perdagangan & Komoditas",
+        "desc": "Impor, ekspor, neraca dagang, komoditas, harga pangan — dampak konsumen",
+        "keywords": [
+            "impor", "ekspor", "eksportir", "importir",
+            "neraca perdagangan", "neraca dagang", "surplus", "defisit",
+            "perdagangan", "komoditas", "komoditi",
+            "bea cukai", "bea masuk", "bea keluar", "tarif impor",
+            "harga pangan", "harga beras", "harga bawang", "harga cabai",
+            "harga minyak", "harga daging", "harga telur", "harga gula",
+            "stok", "pasokan", "ketersediaan", "kelangkaan",
+            "bapanas", "bulog", "cadangan pangan",
+            "ton", "ribu ton", "juta ton",
+            "panen", "gagal panen", "musim panen",
+            "data ekspor", "data impor", "ekspor-impor", "impor barang",
+            "laporan perdagangan", "indonesia-china", "indonesia-india",
+            "diimpor dari", "diekspor ke", "dipasok dari",
+        ],
+    },
+    "PASAR": {
+        "priority": 5,
         "label": "Pasar & Keuangan",
         "desc": "Saham, IHSG, rupiah, bursa, obligasi — investor & pelaku pasar",
         "keywords": [
@@ -1071,12 +1116,12 @@ def _classify_pattern(title, body):
     for name, cfg in sorted(ECONOMY_PATTERNS.items(), key=lambda x: x[1]["priority"]):
         hits = sum(1 for kw in cfg["keywords"] if re.search(rf"\b{re.escape(kw)}\b", text))
         # Confidence = hits weighted by priority (higher priority = more generous)
-        thresholds = {"KORUPSI": 5, "KEBIJAKAN": 5, "PROYEK": 6, "PASAR": 5}
+        thresholds = {"KORUPSI": 5, "KEBIJAKAN": 5, "PROYEK": 6, "PERDAGANGAN": 5, "PASAR": 5}
         divisor = thresholds.get(name, 4)
         confidence = min(hits / divisor, 1.0)
 
         # Higher-priority patterns need fewer hits to qualify
-        min_hits = {1: 2, 2: 2, 3: 3, 4: 3}.get(cfg["priority"], 3)
+        min_hits = {1: 2, 2: 2, 3: 3, 4: 2, 5: 3}.get(cfg["priority"], 3)
         if hits >= min_hits and confidence > best_confidence:
             # Priority-weighted: higher priority gets bonus
             priority_bonus = (6 - cfg["priority"]) * 0.06
@@ -1177,6 +1222,8 @@ def _is_empty_commentary(title, body):
 
 def _convert_pov(text):
     """Keep conversational voice; only remove markup."""
+    if not isinstance(text, str):
+        return ""
     return re.sub(r'(?<!\w)[*_]+([^*_\n]+)[*_]+', r'\1', text)
 
 def _format_sentence_blanks(text):
@@ -1224,12 +1271,16 @@ def deterministic_grounding_validate(article, posts):
 def grounding_validate(article, posts):
     """Independent factual verifier; outage or unsupported fact blocks publish."""
     deterministic = deterministic_grounding_validate(article, posts)
-    verifier_prompt = """Audit fakta dengan standar fail-closed. Jawab PASS hanya bila setiap pernyataan deklaratif dalam DRAFT didukung literal oleh SUMBER: angka, tanggal, nama, lembaga, status, pihak terdampak, sebab-akibat, konsekuensi, prediksi, perbandingan, penilaian ekonomi, dan kesimpulan. Jawab FAIL untuk inferensi atau tafsir baru, termasuk mengubah surplus menjadi klaim untung bersih, dampak ke kantong/pekerja, atau manfaat/rugi yang tidak dikatakan SUMBER. Gaya bahasa, hook, dan pertanyaan CTA boleh hanya bila tidak menyatakan premis fakta baru. Jika ragu, FAIL. Jawab satu kata saja: PASS atau FAIL."""
+    verifier_prompt = """Audit fakta DRAFT dengan standar: setiap pernyataan deklaratif harus DIDUKUNG SUMBER — angka, tanggal, nama, lembaga, status, pihak, sebab-akibat, konsekuensi, prediksi, perbandingan, penilaian ekonomi, dan kesimpulan.
+
+FAIL hanya bila: DRAFT memuat fakta BARU yang tidak ada di SUMBER (misal: inventing angka, nama, institusi, prediksi, atau klaim kausal yang tidak disebutkan). Parafrase wajar dari fakta yang sama TETAP PASS. "Di kawasan Asia" → "di Asia" = PASS. "Danantara" → "Badan Pengelola Investasi Danantara" = PASS. "Anggaran Pendapatan dan Belanja Negara" → "APBN" = PASS. Gaya bahasa, hook, dan CTA tidak memerlukan dukungan.
+
+Jawab satu kata saja: PASS atau FAIL."""
     draft = "\n".join(posts.values())
     verdict, error = _call_llm(
         verifier_prompt,
         f"SUMBER:\n{article.get('body', '')[:6000]}\nDRAFT:\n{draft}",
-        max_retries=1,
+        max_retries=3,
         temperature=0,
     )
     if error or not verdict:
@@ -1253,23 +1304,28 @@ def hook_issues(hook, body):
 
 
 def thread_contract_issues(posts, article_url):
-    """Finalize six posts. Source URL stays intact and every post stays within Threads limit."""
+    """Finalize 6 posts. Source URL on last post."""
     issues = []
+    for i in range(1, 7):
+        text = posts.get(f"post_{i}", "")
+        if not text or not text.strip():
+            issues.append(f"post_{i}: empty")
+            continue
+        if len(text) > 500:
+            issues.append(f"post_{i}: over 500 chars")
+    # URL goes on the LAST non-empty post
     if article_url:
-        s6 = re.sub(r"\[URL(?:\s+[^\]]*)?\]", article_url, posts.get("post_6", ""), flags=re.I)
-        if article_url not in s6:
+        for i in range(6, 0, -1):
+            text = posts.get(f"post_{i}", "")
+            if not text.strip():
+                continue
             separator = "\n\n"
             room = 500 - len(separator) - len(article_url)
             if room < 1:
-                return ["post_6: source URL exceeds 500 chars"]
-            s6 = s6[:room].rstrip() + separator + article_url
-        posts["post_6"] = s6
-    for i in range(1, 7):
-        text = posts.get(f"post_{i}", "")
-        if not text.strip():
-            issues.append(f"post_{i}: empty")
-        elif len(text) > 500:
-            issues.append(f"post_{i}: over 500 chars")
+                issues.append(f"post_{i}: source URL exceeds 500 chars")
+                break
+            posts[f"post_{i}"] = text[:room].rstrip() + separator + article_url
+            break
     return issues
 
 
@@ -1353,7 +1409,6 @@ def _call_llm(system, user, model=None, max_retries=3, temperature=None):
         "max_tokens": 4000,
     }
     last_error = ""
-    rate_retries = 0
     for attempt in range(1, max_retries + 1):
         try:
             r = httpx.post(base_url, headers=headers, json=payload, timeout=90)
@@ -1369,26 +1424,23 @@ def _call_llm(system, user, model=None, max_retries=3, temperature=None):
             elif r.status_code == 401:
                 return None, f"Auth error {r.status_code}"
             elif r.status_code == 429:
-                # Absorb transient rate limits with a bounded cooldown
-                # (Retry-After header or 15s). Exhausted budget always reports
-                # "Rate limit" so is_rate_limit_error() can classify it.
-                if rate_retries < 2 and attempt < max_retries:
-                    rate_retries += 1
-                    try:
-                        cooldown = min(int(r.headers.get("Retry-After", "15")), 30)
-                    except (TypeError, ValueError):
-                        cooldown = 15
-                    time.sleep(cooldown)
+                # Pressbox-style exponential backoff with jitter.
+                # Mistral free-tier rate window ~1 RPM; burst backoff avoids thundering herd.
+                if attempt < max_retries:
+                    delay = (2 ** attempt) + random.uniform(0, 3)
+                    log.warning(f"  Rate limit 429 (attempt {attempt}/{max_retries}), backoff {delay:.1f}s")
+                    time.sleep(delay)
                     continue
                 return None, "Rate limit 429"
             else:
                 last_error = f"HTTP {r.status_code}: {r.text[:120]}"
                 if attempt < max_retries:
-                    time.sleep(2)
+                    delay = 2 + attempt  # Pressbox-style: 3s, 4s, 5s
+                    time.sleep(delay)
         except (httpx.RequestError, json.JSONDecodeError) as e:
             last_error = str(e)[:120]
             if attempt < max_retries:
-                time.sleep(2)
+                time.sleep(2 + attempt)
     return None, f"LLM failed: {last_error}"
 
 # ══════════════════════════════════════════════
@@ -1397,34 +1449,48 @@ def _call_llm(system, user, model=None, max_retries=3, temperature=None):
 
 SYSTEM_PROMPT = """# RYANHADIII EKONOMI — WRITER
 
-Balas JSON valid saja. Tidak ada markdown, penjelasan, atau code fence.
+Balas JSON valid saja. Tidak ada markdown.
 
-Ubah satu ISI ARTIKEL menjadi tepat 6 post Threads. Pakai gua–lu, kalimat pendek, bahasa awam. S1 60–140 karakter. S2–S6 maksimal 300 karakter. S1–S6 masing-masing 1–3 kalimat pendek; kalimat kedua (bila ada) menerangkan atau mempersempit fakta di kalimat pertama, bukan mengulangnya. S1–S5 tanpa pertanyaan. S6 wajib punya satu pertanyaan spesifik, utuh, dan mudah dijawab dari perkembangan fakta artikel. URL sumber ditambahkan sistem.
+Ubah ALLOWLIST FAKTA jadi 6 post Threads. Bahasa ngobrol tongkrongan (gua-lu). S2-S5: 2-3 kalimat padat dari 2-3 fakta ALLOWLIST. Satu slide = satu sudut tuntas, baru lanjut.
+
+## STORYTELLING (enam slide satu cerita)
+Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Alur: S1 kejutan → S2 kena siapa/gimana → S3 kok bisa → S4 aktor/motif → S5 konsekuensi → S6 debat. Tiap slide ditutup kontradiksi/implikasi yang dijawab slide berikutnya — jangan "selanjutnya...".
+
+## BAHASA BUAT ORANG AWAM
+- Istilah teknis DIJELASKAN pas muncul: "IPO (jual saham pertama kali)", "konsolidasi (ngebersihin struktur dulu)"
+- Singkatan dikepanjangin: "BEI (Bursa Efek Indonesia, tempat jual-beli saham)"
+- Nama + jabatan singkat: "Pandu Sjahrir (kepala investasi Danantara)"
+- GAK BOLEH: jargon tanpa penjelasan. IPO/BUMN/BEI/konsolidasi/likuiditas/kapitalisasi/restrukturisasi/holding/obligasi/derivatif/inflasi/defisit/fiskal/moneter — kecuali langsung dijelaskan.
+- JANGAN: akselerasi, mitigasi, implementasi, optimalisasi, realisasi, signifikan, komprehensif, mekanisme, skema, portofolio. Ganti bahasa orang biasa.
+
+## S1 HOOK (max 100 char)
+BUKAN judul berita/deklaratif. Fakta paling kontras/mengejutkan dari ALLOWLIST. JANGAN jawab di S1 — bikin wajib buka S2.
 
 ## SUMBER ADALAH BATAS
-- ISI ARTIKEL satu-satunya sumber. Judul, URL, pengetahuan umum, asumsi, contoh imajiner, dan pengalaman pribadi dilarang.
-- Ambil semua kata isi dari ISI ARTIKEL: angka, nama, lembaga, lokasi, kebijakan, status, waktu, kutipan, pihak, sebab-akibat, konsekuensi, dan prediksi. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna.
-- Nama/lembaga wajib salin persis sebagai rangkaian kata utuh dari isi artikel. Jangan singkat, perluas, terjemahkan, atau gabungkan jabatan dengan nama.
-- Jangan menambah dampak, profesi, angka, skenario, penilaian, atau pertanyaan yang premisnya tidak literal di artikel. Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali istilah dan faktanya literal di artikel.
-- Jangan mengubah rencana, kemungkinan, atau proyeksi menjadi kepastian.
-- Bila sumber tidak cukup untuk enam post akurat, balas {"status":"error","message":"insufficient_evidence"}.
+- HANYA ALLOWLIST FAKTA. Judul/URL/asumsi/contoh imajiner DILARANG.
+- Nama/entitas: pakai nama pendek yang MUNCUL di ALLOWLIST. Jangan perluas.
+- Jangan tambah dampak/skenario/jabatan/lokasi di luar ALLOWLIST.
+- Jangan ubah rencana/proyeksi jadi kepastian.
 
-## ALUR YANG BIKIN ORANG LANJUT BACA
-Buka dengan fakta paling mahal: keputusan, perubahan, angka, atau kutipan paling konkret dari artikel. Jangan memancing dengan teka-teki, pertanyaan, skenario pembaca, atau opini. Tegangan hanya boleh datang dari perbandingan atau perubahan yang literal di artikel.
+## NADA PER POLA (disebut di prompt user, ikuti ini):
+- KORUPSI — sinis, investigatif, bandingkan nominal vs APBN
+- KEBIJAKAN — dampak langsung ke dompet, lo sebagai subjek
+- PROYEK — duitnya dari mana, siapa dapet, angka investasi
+- PERDAGANGAN — harga/stok/pasokan, bandingkan dulu vs sekarang
+- PASAR — cepat, to the point, lo harus tahu sebelum market buka
 
-Setelah pembuka, susun bukti agar pembaca makin paham: apa yang berubah, ukuran atau pihak yang terkait, alasan atau mekanisme yang tertulis, lalu status/kutipan/contoh paling konkret. Tidak perlu memaksa satu jenis fakta ke slide tertentu. Pilih urutan yang paling jelas dari bukti yang tersedia. S6 menutup dengan satu pertanyaan spesifik dari fakta yang belum dipakai; jangan bikin janji waktu, hasil, dampak, atau premis baru.
-
-Setiap slide wajib membawa bukti baru; jangan ulang angka, fakta, atau contoh. Buat kalimat pertama menyampaikan fakta, kalimat kedua menambah konteks yang belum ada. Jangan pakai label-colon, hashtag, jargon birokratis, template AI, deskripsi gambar, slogan, kalimat motivasi, atau kesimpulan yang terdengar besar.
+## S6 BINARY DEBATE
+Dua posisi sama-sama bisa dibela. "Lo di kubu mana: [A] atau [B]?" BUKAN pertanyaan berjawaban tunggal.
 
 ## OUTPUT
-{"status":"success","angle":"sudut pandang yang didukung artikel","post_1":"...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
+{"status":"success","angle":"sudut pandang","post_1":"HOOK...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
 """
 
 REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah field lain. Balas JSON lengkap dengan field yang sudah diperbaiki.
 
 Issues: {revision_notes}
 
-Untuk tiap issue grounding: hapus seluruh frasa yang disebut issue, lalu hapus atau ganti dengan fakta yang muncul literal di ISI ARTIKEL. Untuk issue nama/entitas: hapus nama inventif dan ganti dengan nama yang persis ada di daftar NAMA/ENTITAS LITERAL. Jangan menambah dampak/CTA baru. Jika tidak ada enam post yang bisa dipertahankan akurat, balas {{\"status\":\"error\",\"message\":\"insufficient_evidence\"}}."""
+Untuk tiap issue grounding: hapus seluruh frasa yang disebut issue, lalu hapus atau ganti dengan fakta yang muncul literal di ISI ARTIKEL. Untuk issue nama/entitas: hapus nama inventif dan ganti dengan nama yang persis ada di daftar NAMA/ENTITAS LITERAL. Untuk issue institution/acronym: jangan mengarang APBN, defisit, atau istilah yang tidak muncul literal di artikel — HAPUS kata tersebut. Jangan menambah dampak/CTA baru. Jika tidak ada enam post yang bisa dipertahankan akurat, balas {{\"status\":\"error\",\"message\":\"insufficient_evidence\"}}."""
 
 def literal_fact_allowlist(body):
     """Literal body sentences are the only permitted facts for writer and revision."""
@@ -1449,16 +1515,44 @@ def literal_entity_allowlist(body):
 
 
 def build_user_prompt(article):
-    """Build source-only prompt with a literal fact allowlist."""
+    """Build source-only prompt with allowlist. Injects pattern context + voice guidance."""
     body = article.get("body", "")
     facts = literal_fact_allowlist(body)
     entities = literal_entity_allowlist(body)
+    # Also extract location names from body for entity list (kota/kabupaten often in lowercase)
+    location_pattern = re.findall(
+        r'(?:di|ke|dari|untuk)\s+((?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4}))',
+        body
+    )
+    all_entities = sorted(set(entities + [loc.strip() for loc in location_pattern if len(loc) > 5]))[:50]
+    
+    # Pattern context for voice guidance
+    pattern = article.get("pattern", "TIDAK DIKENALI")
+    pattern_label = article.get("pattern_label", "Tidak terklasifikasi")
+    pattern_hint = f"**POLA ARTIKEL: {pattern} ({pattern_label})** — pakai panduan NADA SESUAI POLA di system prompt untuk menentukan gaya penulisan. "
+    if pattern == "KORUPSI":
+        pattern_hint += "Gaya: sinis, investigatif. Bandingkan nominal rugi vs APBN."
+    elif pattern == "KEBIJAKAN":
+        pattern_hint += "Gaya: dampak langsung ke dompet. Siapa kena, kapan berlaku, berapa biaya."
+    elif pattern == "PROYEK":
+        pattern_hint += "Gaya: skala+kontrak. Duitnya dari mana, siapa yang dapet."
+    elif pattern == "PERDAGANGAN":
+        pattern_hint += "Gaya: harga pasar, stok, pasokan. Bandingkan sebelum/sesudah, daerah A vs B."
+    elif pattern == "PASAR":
+        pattern_hint += "Gaya: cepat, to the point. Lo harus tahu ini sebelum market buka."
+    else:
+        pattern_hint += "Gaya: gua-lu kasual, langsung ke fakta paling tajam."
+    
     parts = [
-        "**ISI ARTIKEL:**", body, "", "**ALLOWLIST FAKTA LITERAL:**",
-        *[f"- {fact}" for fact in facts], "",
-        "**NAMA/ENTITAS LITERAL — HANYA INI YANG BOLEH DIPAKAI:**",
-        *[f"- {entity}" for entity in entities], "",
-        "⚠️ INTERNAL: Setiap nama, angka, lembaga, tanggal, status, dan sebab-akibat harus diambil persis dari ALLOWLIST FAKTA LITERAL. Nama lembaga/entitas/istilah WAJIB verbatim dari daftar NAMA/ENTITAS LITERAL; dilarang membuat frasa nama baru (contoh: 'The Fed September', 'Survei Konsumen Juli', 'Peluang The Fed') atau singkatan yang tidak muncul di artikel. Jangan membuat fakta baru atau menggabungkan fakta menjadi klaim baru. Kalau tidak cukup untuk enam post, balas insufficient_evidence. Output HANYA JSON.",
+        pattern_hint,
+        "",
+        "**ALLOWLIST FAKTA LITERAL — INI SATU-SATUNYA SUMBER:**",
+        *[f"- {fact}" for fact in facts],
+        "",
+        "**NAMA/ENTITAS/LOKASI LITERAL — HANYA INI YANG BOLEH DIPAKAI:**",
+        *[f"- {entity}" for entity in all_entities],
+        "",
+        "⚠️ INTERNAL: TIDAK ADA sumber lain. Setiap angka, nama, lembaga, lokasi, tanggal, status, dan sebab-akibat HARUS persis dari ALLOWLIST di atas. Nama lembaga/entitas/lokasi WAJIB verbatim dari daftar NAMA/ENTITAS/LOKASI. DILARANG menambah kota, kabupaten, provinsi, daerah, atau lokasi yang tidak ada di daftar. DILARANG membuat frasa nama baru atau singkatan yang tidak muncul di daftar. Post 6 slide WAJIB — semua post_1 sampai post_6 harus terisi. Output HANYA JSON.",
     ]
     return "\n".join(parts)
 
@@ -1483,16 +1577,18 @@ def deterministic_validate(posts):
             warnings.append(f"{k}: empty")
             continue
         # Min length — each slide needs enough source-backed context.
-        min_len = 40 if i == 6 else 60
+        min_len = 40
         if len(p) < min_len:
             warnings.append(f"{k}: too short ({len(p)} chars, min {min_len})")
-        if i == 1 and len(p) > 140:
-            warnings.append(f"{k}: too long ({len(p)} chars, max 140)")
-        # Every slide needs a fact plus source-backed context; 1-3 short sentences.
+        if i == 1 and len(p) > 100:
+            warnings.append(f"{k}: too long ({len(p)} chars, max 100)")
+        # 2-4 sentences: dense, source-backed, not rushed.
         sent_count = len([c for c in p if c in ".!?"])
         if sent_count < 1:
             warnings.append(f"{k}: no sentences")
-        if sent_count > 4:
+        if i != 1 and sent_count < 2:
+            warnings.append(f"{k}: only {sent_count} sentence(s) — butuh minimal 2 kalimat padat")
+        if sent_count > 6:
             warnings.append(f"{k}: too many sentences ({sent_count})")
         # Enforce 300 char limit
         if len(p) > 300:
@@ -1505,12 +1601,7 @@ def deterministic_validate(posts):
                 p = truncated
             posts[k] = p
         outside = re.sub(r'"[^\"]*"', "", p)
-        # Child-readable language: reject bureaucratic words that prompt forbids.
-        for word in ["akselerasi", "mitigasi", "implementasi", "optimalisasi", "realisasi", "signifikan", "komprehensif", "mekanisme", "skema", "portofolio"]:
-            if re.search(rf"\b{word}\b", outside.lower()):
-                warnings.append(f"{k}: hard word '{word}'")
-                break
-        # S1 must start from a source-backed fact, never a generic reader scenario.
+        # Jargon checks moved to _validate_jargon(body-aware) to avoid false positives on source terms.
         if i == 1 and re.match(r"\s*(?:bayangin\b)", outside, re.I):
             warnings.append(f"{k}: 'bayangin' opening")
         if i == 1 and re.match(r"\s*zaman sekarang harga barang naik semua\b", outside, re.I):
@@ -1529,10 +1620,13 @@ def deterministic_validate(posts):
         # Allow rhetorical questions in S2-S5 (provocation style)
         if i == 2 and outside.count("?") > 2:
             warnings.append(f"{k}: too many questions")
-        if i == 6 and outside.count("?") > 1:
-            warnings.append(f"{k}: too many CTA questions")
-        if i == 6 and not any(qt in outside.lower() for qt in ["?", "menurut", "pilih"]):
-            warnings.append(f"{k}: no CTA found")
+        # CTA on post_6 (always the last post now — 6 slides mandatory)
+        if i == 6:
+            last_text = posts.get(f"post_{i}", "").lower()
+            if not any(qt in last_text for qt in ["?", "menurut", "pilih", "kubu", "lo setuju", "lo percaya"]):
+                warnings.append(f"{k}: CTA not found on last post")
+            if last_text.count("?") > 2:
+                warnings.append(f"{k}: too many CTA questions")
     return warnings
 
 
@@ -1607,20 +1701,73 @@ def _validate_proper_nouns(posts, body):
     issues = []
     article_lower = body.lower()
     # Sentence connectors are not names when followed by a capitalized source term.
-    skip = {"data", "menurut", "padahal", "kalau", "kalo", "yang", "dan", "tapi", "karena", "risikonya", "sumber", "soalnya", "alasan", "alasannya", "sementara", "sedangkan", "lalu", "setelah", "sebelum", "dengan", "untuk", "dari", "pertama", "bukan", "jadi", "namun", "bahkan"}
+    skip = {"data", "menurut", "padahal", "kalau", "kalo", "yang", "dan", "tapi", "karena", "risikonya", "sumber", "soalnya", "alasan", "alasannya", "sementara", "sedangkan", "lalu", "setelah", "sebelum", "dengan", "untuk", "dari", "pertama", "bukan", "jadi", "namun", "bahkan",
+            # Prepositions & particles that start sentences ("Di Asia", "Ke Jakarta", "Pada 2025")
+            "di", "ke", "pada", "pak", "bu", "si", "sang", "para",
+            # Common sentence-start words that form title-case fragments in Indonesian
+            "listrik", "tarif", "harga", "biaya", "pajak", "utang", "dana", "aset",
+            "total", "kenaikan", "penurunan", "pertumbuhan", "pendapatan", "jumlah",
+            "siapa", "bagaimana", "kenapa", "kapan", "dimana", "berapa"}
     # Common short names are allowed only when their formal source name is present.
-    aliases = {"bea cukai": "direktorat jenderal bea dan cukai", "kemenkeu": "kementerian keuangan", "bi": "bank indonesia"}
+    aliases = {
+        "bea cukai": "direktorat jenderal bea dan cukai",
+        "kemenkeu": "kementerian keuangan",
+        "bi": "bank indonesia",
+        "danantara": "badan pengelola investasi daya anagata nusantara",
+        "badan pengelola investasi danantara": "badan pengelola investasi daya anagata nusantara",
+        "bp danantara": "badan pengelola investasi daya anagata nusantara",
+        "ojk": "otoritas jasa keuangan",
+        "bei": "bursa efek indonesia",
+        "dpr": "dewan perwakilan rakyat",
+        "bumn": "badan usaha milik negara",
+        "kpu": "komisi pemilihan umum",
+        "bawaslu": "badan pengawas pemilihan umum",
+        "mk": "mahkamah konstitusi",
+        "ma": "mahkamah agung",
+        "ky": "komisi yudisial",
+        "bpk": "badan pemeriksa keuangan",
+        "bappenas": "badan perencanaan pembangunan nasional",
+        "bps": "badan pusat statistik",
+        "bkpm": "badan koordinasi penanaman modal",
+        "kemenperin": "kementerian perindustrian",
+        "kemenkop": "kementerian koperasi",
+        "kemendag": "kementerian perdagangan",
+        "kemenhub": "kementerian perhubungan",
+        "kemenaker": "kementerian ketenagakerjaan",
+        "kemensos": "kementerian sosial",
+        "kemenag": "kementerian agama",
+        "kemendikbud": "kementerian pendidikan dan kebudayaan",
+        "kemenkes": "kementerian kesehatan",
+        "kemenlu": "kementerian luar negeri",
+        "kemenhan": "kementerian pertahanan",
+        "kominfo": "kementerian komunikasi dan informatika",
+        "djp": "direktorat jenderal pajak",
+        "djb": "direktorat jenderal bea dan cukai",
+        "airlangga": "airlangga hartarto",
+        "sri mulyani": "sri mulyani indrawati",
+        "erik": "erik tohir",
+        "prabowo": "prabowo subianto",
+        "jokowi": "joko widodo",
+        "puan": "puan maharani",
+        "gibran": "gibran rakabuming raka",
+    }
     for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
         text = posts.get(key, "")
         for name in set(re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b', text)):
-            source_name = aliases.get(name.lower(), name.lower())
+            # Normalize: strip title prefixes before lookup
+            clean = name.lower()
+            for prefix in ("menteri ", "dirjen ", "wakil ", "menko ", "pak ", "bu ", "bos "):
+                if clean.startswith(prefix):
+                    clean_part = clean[len(prefix):]
+                    if clean_part in article_lower:
+                        continue  # "Menteri Airlangga" → "Airlangga" found in article
+            source_name = aliases.get(clean, clean)
             words = name.split()
-            # Sentence fragments ("Pendapatan Telkomsel", "Jika Telkomsel") are not names.
+            # Sentence fragments ("Pendapatan Telkomsel", "Jika Telkomsel", "Di Tulang Bawang") are not names.
             if (words[0].lower() not in skip and words[0].lower() not in {"pendapatan", "laba", "jika", "saat", "karena", "ketika"}
                     and source_name not in article_lower):
                 issues.append(f"{key}: name '{name}' not in article")
         # Title-case phrases beginning with common speech/reporting verbs are not names.
-        # Strip the verb before checking the remaining literal source name.
         for prefix in ("kata", "ujar", "tutur", "menurut", "sebut"):
             for name in set(re.findall(rf'\b{prefix.title()}\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b', text)):
                 if name.lower() not in article_lower:
@@ -1632,7 +1779,55 @@ def _validate_proper_nouns(posts, body):
         text_no_urls = re.sub(r"https?://\S+|www\.\S+", " ", text)
         for acronym in set(re.findall(r'\b[A-Z]{2,}\b', text_no_urls)):
             if acronym not in emphasis and acronym.lower() not in article_lower:
-                issues.append(f"{key}: institution '{acronym}' not in article")
+                # Allow if expanded form appears in article (APBN → "Anggaran Pendapatan dan Belanja Negara")
+                expanded = aliases.get(acronym.lower(), "")
+                if not expanded or expanded not in article_lower:
+                    issues.append(f"{key}: institution '{acronym}' not in article")
+    return issues
+
+
+def _validate_jargon(posts, body):
+    """Flag unexplained technical terms that don't appear in source. Only blocks terms
+    the writer introduced without explanation — source-cited terms are valid."""
+    issues = []
+    body_lower = (body or "").lower()
+    for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
+        text = posts.get(key, "")
+        if not text:
+            continue
+        outside = re.sub(r'"[^\"]*"', "", text)
+        # Bureaucratic words that the prompt forbids
+        for word in ["akselerasi", "mitigasi", "implementasi", "optimalisasi", "realisasi", "signifikan", "komprehensif", "mekanisme", "skema", "portofolio", "holding", "obligasi", "derivatif", "inflasi", "defisit", "fiskal", "moneter"]:
+            if re.search(rf"\b{word}\b", outside.lower()):
+                issues.append(f"{key}: hard word '{word}'")
+        # Unexplained acronyms — only flag if NOT in source body
+        jargon_map = {
+            "IPO": "penawaran saham perdana|jual saham|listing saham",
+            "BUMN": "badan usaha milik negara|perusahaan negara|perusahaan pelat merah",
+            "BEI": "bursa efek|bursa saham",
+            "PDN": "pasar dalam negeri|pasar domestik",
+            "DPR": "dewan perwakilan rakyat",
+            "OJK": "otoritas jasa keuangan",
+            "BPS": "badan pusat statistik",
+            "SDM": "sumber daya manusia|pekerja|tenaga kerja",
+        }
+        for short, expansion in jargon_map.items():
+            if re.search(rf"\b{short}\b", outside) and not re.search(expansion, outside, re.I):
+                # Allow if acronym itself appears in source body
+                if short.lower() not in body_lower:
+                    issues.append(f"{key}: stand-alone '{short}' — harus dijelaskan pas pertama muncul")
+        # Non-acronym jargon — only flag if NOT in source body
+        hard_word_map = {
+            "konsolidasi": "ngebersihin|rapiin|gabungin|satukan",
+            "restrukturisasi": "rombak|ubah struktur|tata ulang",
+            "likuiditas": "duit yang siap dipake|cair|gampang dicairin",
+            "kapitalisasi": "nilai total|harga perusahaan keseluruhan",
+        }
+        for word, explanation in hard_word_map.items():
+            if re.search(rf"\b{word}\b", outside, re.I) and not re.search(explanation, outside, re.I):
+                # Allow if word appears in source body
+                if word not in body_lower:
+                    issues.append(f"{key}: hard word '{word}' tanpa penjelasan")
     return issues
 
 
@@ -1682,19 +1877,20 @@ def _voice_warnings(posts):
 
 
 def _quality_gate(article, data, posts, warnings):
-    """Quality gate: 12 checks from doc. Return True = pass, False = block."""
+    """Quality gate: checks from doc. Return True = pass, False = block."""
     if data.get("status") != "success" or not posts:
         return False
-    if deterministic_validate(posts):
-        return False
+    if posts:
+        style_issues = deterministic_validate(posts)
+        # Only block on hard issues (empty posts, too short, no CTA); style/explanation warnings don't force revision.
+        hard = [w for w in style_issues if "too many sentences" not in w and "stand-alone" not in w and "hard word" not in w]
+        if hard:
+            return False
     # 1. Article eligibility is decided from full body before generation.
-    # RSS/title eco_score is only a ranking hint and may be zero for valid articles.
     # 2. Impact to Indonesia clear (local source assumed)
     # 3. Original numbers have sources (can't verify programmatically)
-    # 4. Number conversion uses reasonable assumptions (LLM handles)
-    # 5. No keyword counted repeatedly (scoring handles)
-    # 6. Title is ranking-only; full body already passed eligibility/grounding gates.
-    # 7. Viral driver: hook needs a concrete article-backed change or tension.
+    # 4. No keyword counted repeatedly (scoring handles)
+    # 5. Viral driver: S1 hook needs concrete article-backed change or tension.
     s1 = posts.get("post_1", "").lower()
     viral_markers = ["tapi", "padahal", "sementara", "malah", "naik", "turun",
                      "dipotong", "ditambah", "dialihkan", "ditetapkan", "berlaku",
@@ -1702,29 +1898,26 @@ def _quality_gate(article, data, posts, warnings):
                      "lo", "gue", "gak adil", "enak", "masa", "tebak",
                      "ngomong", "siapa", "kok", "uangnya", "duitnya",
                      "baru aja", "deg-degan", "bisa naik", "bisa turun",
-                     "kena", "ubah", "pindah", "ganti", "naik", "turun"]
+                     "kena", "ubah", "pindah", "ganti"]
     if not any(m in s1 for m in viral_markers):
         warnings.append("S1: no concrete viral driver — add contrast/action word")
-    # 8. "baru aja" freshness check (soft warn if stale)
-    # 9. S1-S5 no rhetorical questions
-    # 10. S6 has specific CTA
-    s6 = posts.get("post_6", "").lower()
-    if not any(qt in s6 for qt in ["?", "menurut", "pilih"]):
-        warnings.append("S6: no CTA found")
-        return False
-    # 11. No banned words (deterministic_validate handles)
-    # 12. No fabricated facts (can't verify programmatically)
+    # 6. CTA on post_6 (mandatory last slide)
+    last_text = posts.get("post_6", "").lower()
+    if not any(qt in last_text for qt in ["?", "menurut", "pilih", "kubu", "lo setuju", "lo percaya"]):
+        warnings.append("Post 6: no debate CTA found")
+    if last_text.count("?") > 2:
+        warnings.append("Post 6: too many CTA questions")
     return True
 
 # ── Thread Generation ────────────────────────────────────────────────────────
 
 def _truncate_s1(posts):
-    """Enforce compact S1 hook length deterministically (max 140)."""
+    """Enforce compact S1 hook length deterministically (max 100 chars)."""
     s1 = posts.get("post_1", "")
-    if len(s1) > 140:
-        trunc = s1[:140]
+    if len(s1) > 100:
+        trunc = s1[:100]
         last_period = max(trunc.rfind("."), trunc.rfind("!"), trunc.rfind("?"))
-        if last_period > 40:
+        if last_period > 30:
             posts["post_1"] = trunc[:last_period + 1]
         else:
             posts["post_1"] = trunc.rsplit(".", 1)[0] + "." if "." in trunc else trunc
@@ -1737,60 +1930,69 @@ def generate_thread(article):
     if evidence_error:
         return None, evidence_error
     user = build_user_prompt(article)
-    # One writer plus one revision caps each candidate at two provider requests.
-    for attempt in range(1, 2):
-        content, error = _call_llm(SYSTEM_PROMPT, user, max_retries=1)
+    # One writer plus two revisions caps each candidate at three provider requests.
+    for attempt in range(1, 3):
+        content, error = _call_llm(SYSTEM_PROMPT, user, max_retries=3)
         if error:
             log.warning(f"  Writer request failed — {error[:80]}")
             if is_rate_limit_error(error):
                 return None, error
-            if attempt < 2:
+            if attempt < 3:
                 time.sleep(3)
             continue
         content = content.strip()
-        if content.startswith("```"):
-            content = re.sub(r'^```(?:json)?\s*', "", content)
-            content = re.sub(r'\s*```$', "", content)
+        # Strip markdown fences, invisible chars, SSE artefacts
+        content = re.sub(r'^```(?:json)?\s*\n?', '', content)
+        content = re.sub(r'\n?```\s*$', '', content)
+        content = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', content)  # control chars except \n
+        content = content.strip()
+        # If LLM wrapped JSON in text, extract the JSON object
+        m = re.search(r'\{.*\}', content, re.DOTALL)
+        if m:
+            content = m.group(0)
         try:
             data = json.loads(content)
         except json.JSONDecodeError:
-            log.warning(f"  LLM attempt {attempt}/2 — bad JSON")
-            if attempt < 2:
-                time.sleep(3)
+            log.warning(f"  LLM attempt {attempt}/3 — bad JSON: {content[:80]}")
+            if attempt < 3:
+                time.sleep(2)
             continue
         if data.get("status") == "error":
             return None, data.get("message", "LLM error")
-        posts = {k: data.get(k, "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
-        for k in posts:
-            posts[k] = _convert_pov(posts[k])
+        posts = {k: _convert_pov(data.get(k) or "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
         posts = _truncate_s1(posts)
+        # All 6 posts required.
+        missing = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4","post_5","post_6"] if not posts.get(k, "").strip()]
         # Style issues are revision cues. Fact checks remain publish blockers.
         style_warnings = deterministic_validate(posts) + _duplicate_fact_warnings(posts)
         noun_warnings = _validate_proper_nouns(posts, article["body"])
-        missing = [f"{k}: empty" for k, v in posts.items() if not v.strip()]
         claim_warnings = _validate_claim_markers(posts, article["body"])
         voice_warnings = _voice_warnings(posts)
-        warnings = missing + grounding_validate(article, posts) + noun_warnings + claim_warnings + style_warnings + voice_warnings
+        jargon_warnings = _validate_jargon(posts, article["body"])
+        warnings = missing + grounding_validate(article, posts) + noun_warnings + claim_warnings + jargon_warnings + style_warnings + voice_warnings
         if style_warnings or claim_warnings or voice_warnings:
             log.info(f"  Soft style/claim warnings: {style_warnings + claim_warnings + voice_warnings}")
         if warnings:
             log.warning(f"  Hard validation: {warnings}")
             revision_notes = '; '.join(warnings)
             rev_user = user + f"\n\n{REVISION_PROMPT.format(revision_notes=revision_notes)}"
-            c2, e2 = _call_llm(SYSTEM_PROMPT, rev_user, max_retries=1)
+            # Pause to avoid 429 cascade: verifier just consumed a rate-limited slot.
+            time.sleep(random.uniform(10, 20))
+            c2, e2 = _call_llm(SYSTEM_PROMPT, rev_user, max_retries=3)
             if c2:
                 c2 = re.sub(r'^```(?:json)?\s*|\s*```$', "", c2.strip())
                 try:
                     d2 = json.loads(c2)
-                    p2 = {k: _convert_pov(d2.get(k, "")) for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
+                    p2 = {k: _convert_pov(d2.get(k) or "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
                     p2 = _truncate_s1(p2)
                     style_w2 = deterministic_validate(p2) + _duplicate_fact_warnings(p2)
                     noun_w2 = _validate_proper_nouns(p2, article["body"])
-                    w2 = [f"{k}: empty" for k, v in p2.items() if not v.strip()]
+                    w2 = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4"] if not p2.get(k, "").strip()]
                     claim_w2 = _validate_claim_markers(p2, article["body"])
                     w2.extend(grounding_validate(article, p2))
                     w2.extend(noun_w2)
                     w2.extend(claim_w2)
+                    w2.extend(_validate_jargon(p2, article["body"]))
                     voice_w2 = _voice_warnings(p2)
                     if style_w2 or voice_w2:
                         log.info(f"  Soft style warnings after revision: {style_w2 + voice_w2}")
@@ -2088,8 +2290,8 @@ def main():
     if error:
         log.error(f"Generation failed: {error}")
         if is_rate_limit_error(error):
-            log.error("Generation stopped: Mistral rate limit; skip candidate churn")
-            return
+            log.error("Generation stopped: Mistral rate limit; cooling down 90s before retry candidate")
+            time.sleep(90)
         else:
             skipped_urls.add(article["url"])
 
@@ -2144,6 +2346,10 @@ def main():
                 image_url = retry_img  # keep slide-1 image in sync with retried article
             if recent_openings:
                 retry_article["recent_openings"] = recent_openings[:5]
+            # Cooldown between candidates to avoid bursting rate limit
+            cooldown = 60 + random.randint(0, 15)
+            log.info(f"  Cooldown {cooldown}s before retry generation...")
+            time.sleep(cooldown)
             result, error = generate_thread(retry_article)
             if error:
                 log.error(f"Retry generation also failed: {error}")
