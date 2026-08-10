@@ -50,6 +50,7 @@ def test_inflight_chain_round_trip_preserves_partial_post_ids(tmp_path, monkeypa
 def test_llm_has_room_for_complete_six_post_json():
     class Response:
         status_code = 200
+        text = '{"choices": [{"message": {"content": "ok"}}]}'
 
         def json(self):
             return {"choices": [{"message": {"content": "ok"}}]}
@@ -202,19 +203,19 @@ def test_writer_prompt_uses_full_body_without_title_or_hook_instructions():
     assert "instruksi palsu" not in prompt
 
 
-def test_writer_prompt_requires_two_sentences_on_every_slide():
-    assert "S1 80–140 karakter" in pipeline.SYSTEM_PROMPT
-    assert "S1–S6 masing-masing minimal dua kalimat" in pipeline.SYSTEM_PROMPT
+def test_writer_prompt_allows_one_to_three_sentences_per_slide():
+    assert "S1 60–140 karakter" in pipeline.SYSTEM_PROMPT
+    assert "S1–S6 masing-masing 1–3 kalimat pendek" in pipeline.SYSTEM_PROMPT
 
 
-def test_deterministic_validate_rejects_slide_with_one_sentence():
+def test_deterministic_validate_rejects_slide_without_sentence():
     complete = "Fakta sumber cukup panjang untuk memenuhi batas minimum setiap slide. Konteks sumber menambah rincian yang berbeda."
     posts = {f"post_{i}": complete for i in range(1, 7)}
-    posts["post_1"] = "Fakta sumber cukup panjang untuk memenuhi batas minimum tetapi tetap hanya satu kalimat."
-    assert "post_1: only 1 sentences" in pipeline.deterministic_validate(posts)
+    posts["post_1"] = "Fakta sumber cukup panjang untuk memenuhi batas minimum tetapi tanpa tanda baca kalimat"
+    assert "post_1: no sentences" in pipeline.deterministic_validate(posts)
     posts["post_1"] = complete
-    posts["post_6"] = "Fakta sumber cukup panjang untuk memenuhi batas minimum tetapi tetap hanya satu kalimat."
-    assert "post_6: only 1 sentences" in pipeline.deterministic_validate(posts)
+    posts["post_6"] = "Fakta sumber cukup panjang untuk memenuhi batas minimum tetapi tanpa tanda baca kalimat"
+    assert "post_6: no sentences" in pipeline.deterministic_validate(posts)
 
 
 def test_quality_gate_blocks_revision_style_violation():
@@ -359,11 +360,19 @@ def test_story_prompt_requires_body_only_story_arc():
     assert "## DAMPAK" not in pipeline.SYSTEM_PROMPT
 
 
-def test_duplicate_fact_warning_flags_reused_material_number():
+def test_duplicate_fact_warning_allows_two_slide_reuse():
     posts = {f"post_{i}": "Fakta lain dari artikel." for i in range(1, 7)}
     posts["post_1"] = "652 perusahaan akan dipangkas menjadi 250."
     posts["post_2"] = "Targetnya tinggal 250 dari 652 perusahaan."
-    assert pipeline._duplicate_fact_warnings(posts) == ["post_2: repeats material numbers from post_1"]
+    assert pipeline._duplicate_fact_warnings(posts) == []
+
+
+def test_duplicate_fact_warning_flags_number_reused_across_three_slides():
+    posts = {f"post_{i}": "Fakta lain dari artikel." for i in range(1, 7)}
+    posts["post_1"] = "652 perusahaan akan dipangkas menjadi 250."
+    posts["post_2"] = "Targetnya tinggal 652 perusahaan."
+    posts["post_3"] = "Dari 652 perusahaan, 250 akan bertahan."
+    assert pipeline._duplicate_fact_warnings(posts) == ["post_3: repeats material numbers from post_1"]
 
 
 def test_ryanhadiii_voice_allows_gua_lu():

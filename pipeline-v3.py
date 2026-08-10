@@ -1334,11 +1334,14 @@ def _get_api_key():
             return key
     return None
 
-def _call_llm(system, user, model="mistral-large-latest", max_retries=3, temperature=None):
-    api_key = _get_api_key()
+def _call_llm(system, user, model=None, max_retries=3, temperature=None):
+    api_key = os.getenv("LLM_API_KEY") or _get_api_key()
     if not api_key:
         return None, "No API key found"
-    base_url = "https://api.mistral.ai/v1/chat/completions"
+    # LLM_BASE_URL/LLM_MODEL route to the local llm-gateway (DeepSeek via
+    # router); default keeps Mistral for backward compatibility.
+    base_url = os.getenv("LLM_BASE_URL", "https://api.mistral.ai/v1/chat/completions")
+    model = model or os.getenv("LLM_MODEL", "mistral-large-latest")
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
     payload = {
         "model": model,
@@ -1350,26 +1353,31 @@ def _call_llm(system, user, model="mistral-large-latest", max_retries=3, tempera
     rate_retries = 0
     for attempt in range(1, max_retries + 1):
         try:
-            r = httpx.post(base_url, headers=headers, json=payload, timeout=60)
+            r = httpx.post(base_url, headers=headers, json=payload, timeout=90)
             if r.status_code == 200:
-                content = (r.json()["choices"][0]["message"].get("content") or "").strip()
+                # Local llm-gateway appends `data: [DONE]` after the JSON body.
+                body_text = r.text.strip()
+                body_text = re.sub(r"\s*data: \[DONE\]\s*$", "", body_text)
+                parsed = json.loads(body_text)
+                content = (parsed["choices"][0]["message"].get("content") or "").strip()
+                if content.startswith("data: "):
+                    content = content[len("data: "):].strip()
                 return content, None
             elif r.status_code == 401:
                 return None, f"Auth error {r.status_code}"
             elif r.status_code == 429:
                 # Absorb transient rate limits with a bounded cooldown
-                # (Retry-After header or 15s). Persistent 429 still returns an
-                # error; the wrapper sleeps 120s before retrying the slot.
-                if rate_retries < 2:
+                # (Retry-After header or 15s). Exhausted budget always reports
+                # "Rate limit" so is_rate_limit_error() can classify it.
+                if rate_retries < 2 and attempt < max_retries:
                     rate_retries += 1
-                    headers = getattr(r, "headers", None) or {}
                     try:
-                        cooldown = min(int(headers.get("Retry-After", "15")), 30)
+                        cooldown = min(int(r.headers.get("Retry-After", "15")), 30)
                     except (TypeError, ValueError):
                         cooldown = 15
                     time.sleep(cooldown)
                     continue
-                return None, f"Rate limit {r.status_code}"
+                return None, "Rate limit 429"
             else:
                 last_error = f"HTTP {r.status_code}: {r.text[:120]}"
                 if attempt < max_retries:
@@ -1388,7 +1396,7 @@ SYSTEM_PROMPT = """# RYANHADIII EKONOMI — WRITER
 
 Balas JSON valid saja. Tidak ada markdown, penjelasan, atau code fence.
 
-Ubah satu ISI ARTIKEL menjadi tepat 6 post Threads. Pakai gua–lu, kalimat pendek, bahasa awam. S1 80–140 karakter. S2–S6 maksimal 300 karakter. S1–S6 masing-masing minimal dua kalimat: kalimat kedua menerangkan atau mempersempit fakta di kalimat pertama, bukan mengulangnya. S1–S5 tanpa pertanyaan. S6 wajib punya satu pertanyaan spesifik, utuh, dan mudah dijawab dari perkembangan fakta artikel. URL sumber ditambahkan sistem.
+Ubah satu ISI ARTIKEL menjadi tepat 6 post Threads. Pakai gua–lu, kalimat pendek, bahasa awam. S1 60–140 karakter. S2–S6 maksimal 300 karakter. S1–S6 masing-masing 1–3 kalimat pendek; kalimat kedua (bila ada) menerangkan atau mempersempit fakta di kalimat pertama, bukan mengulangnya. S1–S5 tanpa pertanyaan. S6 wajib punya satu pertanyaan spesifik, utuh, dan mudah dijawab dari perkembangan fakta artikel. URL sumber ditambahkan sistem.
 
 ## SUMBER ADALAH BATAS
 - ISI ARTIKEL satu-satunya sumber. Judul, URL, pengetahuan umum, asumsi, contoh imajiner, dan pengalaman pribadi dilarang.
@@ -1472,16 +1480,16 @@ def deterministic_validate(posts):
             warnings.append(f"{k}: empty")
             continue
         # Min length — each slide needs enough source-backed context.
-        min_len = 50 if i == 6 else 80
+        min_len = 40 if i == 6 else 60
         if len(p) < min_len:
             warnings.append(f"{k}: too short ({len(p)} chars, min {min_len})")
         if i == 1 and len(p) > 140:
             warnings.append(f"{k}: too long ({len(p)} chars, max 140)")
-        # Every slide needs a fact plus source-backed context.
+        # Every slide needs a fact plus source-backed context; 1-3 short sentences.
         sent_count = len([c for c in p if c in ".!?"])
-        if sent_count < 2:
-            warnings.append(f"{k}: only {sent_count} sentences")
-        elif sent_count > 2:
+        if sent_count < 1:
+            warnings.append(f"{k}: no sentences")
+        elif sent_count > 3:
             warnings.append(f"{k}: too many sentences ({sent_count})")
         # Enforce 300 char limit
         if len(p) > 300:
@@ -1526,17 +1534,17 @@ def deterministic_validate(posts):
 
 
 def _duplicate_fact_warnings(posts):
-    """Flag repeated material numbers so six slides use distinct article evidence."""
+    """Flag material numbers repeated across 3+ slides so six slides use distinct article evidence."""
     warnings = []
-    seen = {}
+    per_number = {}
     for i in range(1, 7):
         key = f"post_{i}"
         numbers = set(re.findall(r"\b\d{2,}(?:[.,]\d+)?\b", posts.get(key, "")))
-        repeated = sorted(number for number in numbers if number in seen)
-        if repeated:
-            warnings.append(f"{key}: repeats material numbers from {seen[repeated[0]]}")
         for number in numbers:
-            seen.setdefault(number, key)
+            per_number.setdefault(number, []).append(key)
+    for number, keys in per_number.items():
+        if len(keys) >= 3:
+            warnings.append(f"{keys[-1]}: repeats material numbers from {keys[0]}")
     return warnings
 
 
@@ -1707,6 +1715,19 @@ def _quality_gate(article, data, posts, warnings):
 
 # ── Thread Generation ────────────────────────────────────────────────────────
 
+def _truncate_s1(posts):
+    """Enforce compact S1 hook length deterministically (max 140)."""
+    s1 = posts.get("post_1", "")
+    if len(s1) > 140:
+        trunc = s1[:140]
+        last_period = max(trunc.rfind("."), trunc.rfind("!"), trunc.rfind("?"))
+        if last_period > 40:
+            posts["post_1"] = trunc[:last_period + 1]
+        else:
+            posts["post_1"] = trunc.rsplit(".", 1)[0] + "." if "." in trunc else trunc
+    return posts
+
+
 def generate_thread(article):
     """Generate six source-grounded posts. Returns (data, error)."""
     evidence_error = article_evidence_gate(article)
@@ -1739,16 +1760,7 @@ def generate_thread(article):
         posts = {k: data.get(k, "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
         for k in posts:
             posts[k] = _convert_pov(posts[k])
-        # Enforce compact S1 hook length.
-        s1 = posts.get("post_1", "")
-        if len(s1) > 140:
-            # Truncate to last sentence boundary within 140 chars
-            trunc = s1[:140]
-            last_period = max(trunc.rfind("."), trunc.rfind("!"), trunc.rfind("?"))
-            if last_period > 40:
-                posts["post_1"] = trunc[:last_period + 1]
-            else:
-                posts["post_1"] = trunc.rsplit(".", 1)[0] + "." if "." in trunc else trunc
+        posts = _truncate_s1(posts)
         # Style issues are revision cues. Fact checks remain publish blockers.
         style_warnings = deterministic_validate(posts) + _duplicate_fact_warnings(posts)
         noun_warnings = _validate_proper_nouns(posts, article["body"])
@@ -1768,6 +1780,7 @@ def generate_thread(article):
                 try:
                     d2 = json.loads(c2)
                     p2 = {k: _convert_pov(d2.get(k, "")) for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
+                    p2 = _truncate_s1(p2)
                     style_w2 = deterministic_validate(p2) + _duplicate_fact_warnings(p2)
                     noun_w2 = _validate_proper_nouns(p2, article["body"])
                     w2 = [f"{k}: empty" for k, v in p2.items() if not v.strip()]
