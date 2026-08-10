@@ -703,7 +703,7 @@ def validate_article_image(url):
     try:
         response = httpx.get(url, timeout=15, follow_redirects=True)
         size = _image_size(response.content) if response.status_code == 200 else None
-        if size and size[0] >= 1200 and size[1] >= 670:
+        if size and size[0] >= 1200 and size[1] >= 669:
             return url
         log.warning(f"Reject non-HD article image: {size or 'unknown'} {url[:80]}")
     except httpx.RequestError as e:
@@ -1178,13 +1178,18 @@ def _format_sentence_blanks(text):
 
 
 def article_evidence_gate(article):
-    """Fail closed before LLM spend: body must support a factual economy thread."""
+    """Fail closed before LLM spend: body must support six non-repeated factual posts."""
     body = (article.get("body") or "").strip()
     if len(body) < 1000:
         return "body_under_1000_chars"
     has_number = bool(re.search(r"(?:rp\s*)?\d|\d+\s*(?:persen|%|miliar|juta|triliun)", body, re.I))
     has_quote = '"' in body or '“' in body
-    return None if has_number or has_quote else "no_numeric_or_quote_evidence"
+    if not (has_number or has_quote):
+        return "no_numeric_or_quote_evidence"
+    # Six slides require six article-backed factual units; reject thin sources before LLM.
+    if len(source_claim_plan(article).splitlines()) < 6:
+        return "insufficient_source_claims_for_six_posts"
+    return None
 
 
 def source_claim_plan(article):
@@ -1335,6 +1340,7 @@ def _call_llm(system, user, model="mistral-large-latest", max_retries=3, tempera
         "max_tokens": 4000,
     }
     last_error = ""
+    rate_retries = 0
     for attempt in range(1, max_retries + 1):
         try:
             r = httpx.post(base_url, headers=headers, json=payload, timeout=60)
@@ -1344,7 +1350,18 @@ def _call_llm(system, user, model="mistral-large-latest", max_retries=3, tempera
             elif r.status_code == 401:
                 return None, f"Auth error {r.status_code}"
             elif r.status_code == 429:
-                # Let wrapper apply one real cooldown; candidate churn burns quota.
+                # Absorb transient rate limits with a bounded cooldown
+                # (Retry-After header or 15s). Persistent 429 still returns an
+                # error; the wrapper sleeps 120s before retrying the slot.
+                if rate_retries < 2:
+                    rate_retries += 1
+                    headers = getattr(r, "headers", None) or {}
+                    try:
+                        cooldown = min(int(headers.get("Retry-After", "15")), 30)
+                    except (TypeError, ValueError):
+                        cooldown = 15
+                    time.sleep(cooldown)
+                    continue
                 return None, f"Rate limit {r.status_code}"
             else:
                 last_error = f"HTTP {r.status_code}: {r.text[:120]}"
@@ -1389,7 +1406,7 @@ REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah fie
 
 Issues: {revision_notes}
 
-Untuk tiap issue grounding: hapus seluruh frasa yang disebut issue, lalu hapus atau ganti dengan fakta yang muncul literal di ISI ARTIKEL. Jangan menambah dampak/CTA baru. Jika tidak ada enam post yang bisa dipertahankan akurat, balas {{\"status\":\"error\",\"message\":\"insufficient_evidence\"}}."""
+Untuk tiap issue grounding: hapus seluruh frasa yang disebut issue, lalu hapus atau ganti dengan fakta yang muncul literal di ISI ARTIKEL. Untuk issue nama/entitas: hapus nama inventif dan ganti dengan nama yang persis ada di daftar NAMA/ENTITAS LITERAL. Jangan menambah dampak/CTA baru. Jika tidak ada enam post yang bisa dipertahankan akurat, balas {{\"status\":\"error\",\"message\":\"insufficient_evidence\"}}."""
 
 def literal_fact_allowlist(body):
     """Literal body sentences are the only permitted facts for writer and revision."""
@@ -1397,14 +1414,33 @@ def literal_fact_allowlist(body):
     return [sentence for sentence in sentences if len(sentence) >= 20][:80]
 
 
+def literal_entity_allowlist(body):
+    """Proper nouns and institutions literally present in the article body.
+    Writer must reuse these verbatim; invented names fail noun validation."""
+    if not body:
+        return []
+    text = re.sub(r"https?://\S+|www\.\S+", " ", body)
+    entities = set(re.findall(r"\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", text))
+    entities |= set(re.findall(r"\b[A-Z]{2,}\b", text))
+    drop = {"Data", "Menurut", "Padahal", "Kalau", "Kalo", "Yang", "Dan", "Tapi",
+            "Karena", "Sumber", "Jadi", "Namun", "Bahkan", "Pertama", "Bukan",
+            "Setelah", "Sebelum", "Dengan", "Untuk", "Dari", "Lalu", "Sementara",
+            "Sedangkan", "Risikonya", "Soalnya", "Alasan", "Alasannya",
+            "URL", "HTTP", "HTTPS", "WWW", "COM", "CO", "ID", "ORG", "NET"}
+    return sorted(e for e in entities if e not in drop)[:40]
+
+
 def build_user_prompt(article):
     """Build source-only prompt with a literal fact allowlist."""
     body = article.get("body", "")
     facts = literal_fact_allowlist(body)
+    entities = literal_entity_allowlist(body)
     parts = [
         "**ISI ARTIKEL:**", body, "", "**ALLOWLIST FAKTA LITERAL:**",
         *[f"- {fact}" for fact in facts], "",
-        "⚠️ INTERNAL: Setiap nama, angka, lembaga, tanggal, status, dan sebab-akibat harus diambil persis dari ALLOWLIST FAKTA LITERAL. Jangan membuat fakta baru atau menggabungkan fakta menjadi klaim baru. Kalau tidak cukup untuk enam post, balas insufficient_evidence. Output HANYA JSON.",
+        "**NAMA/ENTITAS LITERAL — HANYA INI YANG BOLEH DIPAKAI:**",
+        *[f"- {entity}" for entity in entities], "",
+        "⚠️ INTERNAL: Setiap nama, angka, lembaga, tanggal, status, dan sebab-akibat harus diambil persis dari ALLOWLIST FAKTA LITERAL. Nama lembaga/entitas/istilah WAJIB verbatim dari daftar NAMA/ENTITAS LITERAL; dilarang membuat frasa nama baru (contoh: 'The Fed September', 'Survei Konsumen Juli', 'Peluang The Fed') atau singkatan yang tidak muncul di artikel. Jangan membuat fakta baru atau menggabungkan fakta menjadi klaim baru. Kalau tidak cukup untuk enam post, balas insufficient_evidence. Output HANYA JSON.",
     ]
     return "\n".join(parts)
 

@@ -23,7 +23,14 @@ def test_ungrounded_rupiah_range_is_rejected():
 def test_thin_article_is_rejected_before_generation():
     assert pipeline.article_evidence_gate({"body": "Fakta ekonomi."}) == "body_under_1000_chars"
     assert pipeline.article_evidence_gate({"body": "teks " * 250}) == "no_numeric_or_quote_evidence"
-    assert pipeline.article_evidence_gate({"body": "Nilai mencapai Rp17.976. " * 60}) is None
+    body = " ".join(f"Nilai bulan {month} mencapai Rp{month}." for month in range(1, 7)) * 12
+    assert pipeline.article_evidence_gate({"body": body}) is None
+
+
+def test_six_post_draft_requires_six_source_claims_before_llm():
+    body = ("Bank Indonesia menetapkan suku bunga menjadi 5 persen. "
+            + "Narasi tanpa fakta tambahan. " * 50)
+    assert pipeline.article_evidence_gate({"body": body}) == "insufficient_source_claims_for_six_posts"
 
 
 def test_source_claim_plan_uses_article_sentences_only():
@@ -122,15 +129,17 @@ def test_grounding_verifier_checks_facts_not_cta_or_editorial_shape(monkeypatch)
     assert "mengubah surplus menjadi klaim untung bersih" in captured["system"]
 
 
-def test_rate_limit_error_stops_candidate_churn(monkeypatch):
+def test_rate_limit_error_retries_twice_with_cooldown_then_stops(monkeypatch):
     class Response:
         status_code = 429
+        headers = {"Retry-After": "0"}
 
     calls = []
     monkeypatch.setattr(pipeline.httpx, "post", lambda *args, **kwargs: calls.append(1) or Response())
     monkeypatch.setattr(pipeline, "_get_api_key", lambda: "test-key")
     assert pipeline._call_llm("system", "user", max_retries=3) == (None, "Rate limit 429")
-    assert calls == [1]
+    # initial call + 2 bounded cooldown retries, then error propagates
+    assert calls == [1, 1, 1]
 
     article = {"body": "Nilai mencapai Rp1 miliar. " * 60}
     monkeypatch.setattr(pipeline, "_call_llm", lambda *args, **kwargs: (None, "LLM failed: Rate limit 429"))
@@ -435,6 +444,18 @@ def test_literal_fact_allowlist_is_embedded_in_writer_prompt():
     assert "Jangan membuat fakta baru" in prompt
 
 
+def test_literal_entity_allowlist_rejects_invented_names():
+    body = "The Fed menahan suku bunga. Survei konsumen menunjukkan optimisme. Rupiah menguat."
+    entities = pipeline.literal_entity_allowlist(body)
+    assert "The Fed" in entities
+    assert "Survei Konsumen Juli" not in entities
+    assert "Peluang The Fed" not in entities
+    prompt = pipeline.build_user_prompt({"body": body})
+    assert "NAMA/ENTITAS LITERAL" in prompt
+    assert "The Fed" in prompt
+    assert "dilarang membuat frasa nama baru" in prompt
+
+
 def test_prepared_article_requires_unexpired_validated_posts(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "PREPARED_ARTICLE_FILE", tmp_path / "prepared.json")
     pipeline.PREPARED_ARTICLE_FILE.write_text(json.dumps({"title": "T", "url": "u", "body": "b", "og_image": "i", "posts": {}, "prepared_at": 1, "expires_at": 9_999_999_999}))
@@ -497,6 +518,15 @@ def test_fetch_article_body_reads_time_datetime(monkeypatch):
     _, _, published_ts = pipeline._fetch_article_body("https://example.com/article")
 
     assert published_ts == datetime(2026, 8, 9, 3, 30, tzinfo=timezone.utc).timestamp()
+
+
+def test_article_image_accepts_1200x669_cdn_rounding(monkeypatch):
+    monkeypatch.setattr(pipeline.httpx, "get", lambda *_args, **_kwargs: type("Response", (), {
+        "status_code": 200, "content": b"image"
+    })())
+    monkeypatch.setattr(pipeline, "_image_size", lambda _content: (1200, 669))
+
+    assert pipeline.validate_article_image("https://example.test/image.jpg")
 
 
 def test_pattern_label_has_safe_fallback_for_unclassified_article():
