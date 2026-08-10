@@ -1463,8 +1463,8 @@ Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Alur: S1 kejutan → 
 - GAK BOLEH: jargon tanpa penjelasan. IPO/BUMN/BEI/konsolidasi/likuiditas/kapitalisasi/restrukturisasi/holding/obligasi/derivatif — kecuali langsung dijelaskan.
 - JANGAN: akselerasi, mitigasi, implementasi, optimalisasi, realisasi, signifikan, komprehensif, mekanisme, skema, portofolio. Ganti bahasa orang biasa.
 
-## S1 HOOK (max 100 char)
-BUKAN judul berita/deklaratif. Fakta paling kontras/mengejutkan dari ALLOWLIST. JANGAN jawab di S1 — bikin wajib buka S2.
+## S1 HOOK (min 2 kalimat, max 150 char)
+BUKAN judul berita/deklaratif. WAJIB 2 kalimat — kalimat pertama buka dengan angka spesifik, kalimat kedua kasih konteks. Fakta paling kontras/mengejutkan dari ALLOWLIST. JANGAN jawab di S1 — bikin wajib buka S2.
 
 ## SUMBER ADALAH BATAS
 - HANYA ALLOWLIST FAKTA. Judul/URL/asumsi/contoh imajiner DILARANG.
@@ -1479,8 +1479,8 @@ BUKAN judul berita/deklaratif. Fakta paling kontras/mengejutkan dari ALLOWLIST. 
 - PERDAGANGAN — harga/stok/pasokan, bandingkan dulu vs sekarang
 - PASAR — cepat, to the point, lo harus tahu sebelum market buka
 
-## S6 BINARY DEBATE
-Dua posisi sama-sama bisa dibela. "Lo di kubu mana: [A] atau [B]?" BUKAN pertanyaan berjawaban tunggal.
+## S6 BINARY DEBATE (max 500 char — URL HARUS UTUH)
+Dua posisi sama-sama bisa dibela. "Lo di kubu mana: [A] atau [B]?" BUKAN pertanyaan berjawaban tunggal. Akhiri dengan URL sumber lengkap di paragraf terpisah.
 
 ## OUTPUT
 {"status":"success","angle":"sudut pandang","post_1":"HOOK...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
@@ -1580,25 +1580,50 @@ def deterministic_validate(posts):
         min_len = 40
         if len(p) < min_len:
             warnings.append(f"{k}: too short ({len(p)} chars, min {min_len})")
-        if i == 1 and len(p) > 100:
-            warnings.append(f"{k}: too long ({len(p)} chars, max 100)")
+        if i == 1 and len(p) > 150:
+            warnings.append(f"{k}: too long ({len(p)} chars, max 150)")
         # 2-4 sentences: dense, source-backed, not rushed.
         sent_count = len([c for c in p if c in ".!?"])
         if sent_count < 1:
             warnings.append(f"{k}: no sentences")
+        if i == 1 and sent_count < 2:
+            warnings.append(f"{k}: only {sent_count} sentence(s) — S1 WAJIB minimal 2 kalimat")
         if i != 1 and sent_count < 2:
             warnings.append(f"{k}: only {sent_count} sentence(s) — butuh minimal 2 kalimat padat")
         if sent_count > 6:
             warnings.append(f"{k}: too many sentences ({sent_count})")
-        # Enforce 300 char limit
-        if len(p) > 300:
-            # Truncate at last period within limit
-            truncated = p[:300]
-            last_dot = truncated.rfind(".")
-            if last_dot > 50:
-                p = truncated[:last_dot+1]
+        # Enforce char limits: S6 gets 500 (URL-safe), others 300
+        limit = 500 if i == 6 else 300
+        if len(p) > limit:
+            # For S6: preserve trailing URL by truncating before it
+            if i == 6:
+                url_match = re.search(r'https?://\S+', p)
+                if url_match:
+                    url_start = url_match.start()
+                    available = limit - (len(p) - url_start) - 1  # -1 for space
+                    if available > 80:
+                        truncated = p[:available]
+                        last_dot = truncated.rfind(".")
+                        if last_dot > 50:
+                            p = truncated[:last_dot+1] + " " + url_match.group()
+                        else:
+                            p = truncated + " " + url_match.group()
+                    else:
+                        # URL too long, just truncate early
+                        p = p[:limit]
+                        last_dot = p.rfind(".")
+                        p = p[:last_dot+1] if last_dot > 50 else p[:limit]
+                else:
+                    truncated = p[:limit]
+                    last_dot = truncated.rfind(".")
+                    p = truncated[:last_dot+1] if last_dot > 50 else truncated
             else:
-                p = truncated
+                truncated = p[:300]
+                last_dot = truncated.rfind(".")
+                if last_dot > 50:
+                    p = truncated[:last_dot+1]
+                else:
+                    p = truncated
             posts[k] = p
         outside = re.sub(r'"[^\"]*"', "", p)
         # Jargon checks moved to _validate_jargon(body-aware) to avoid false positives on source terms.
@@ -1912,15 +1937,19 @@ def _quality_gate(article, data, posts, warnings):
 # ── Thread Generation ────────────────────────────────────────────────────────
 
 def _truncate_s1(posts):
-    """Enforce compact S1 hook length deterministically (max 100 chars)."""
+    """Enforce S1 hook length deterministically (min 2 kalimat, max 150 chars)."""
     s1 = posts.get("post_1", "")
-    if len(s1) > 100:
-        trunc = s1[:100]
+    if len(s1) > 150:
+        trunc = s1[:150]
         last_period = max(trunc.rfind("."), trunc.rfind("!"), trunc.rfind("?"))
-        if last_period > 30:
+        if last_period > 40:
             posts["post_1"] = trunc[:last_period + 1]
         else:
             posts["post_1"] = trunc.rsplit(".", 1)[0] + "." if "." in trunc else trunc
+    # Warn if only 1 sentence
+    sent_count = len([c for c in posts.get("post_1", "") if c in ".!?"])
+    if sent_count < 2:
+        log.warning("  S1: only %d sentence(s) — butuh min 2 kalimat", sent_count)
     return posts
 
 
