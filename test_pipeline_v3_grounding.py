@@ -112,6 +112,14 @@ def test_writer_prompt_contains_source_claims():
     assert "Jangan menambah klaim di luar CLAIM MAP" in prompt
 
 
+def test_policy_prompt_encodes_verified_high_perform_arc():
+    prompt = pipeline.SYSTEM_PROMPT
+    assert "opsi resmi + kelompok terdampak + status belum final" in prompt
+    assert "pembagian kewenangan serta dasar aturan" in prompt
+    assert "hitung-hitungan pelaksanaan dan biaya" in prompt
+    assert "beban/keuntungan antar pihak" in prompt
+
+
 def test_inflight_chain_round_trip_preserves_partial_post_ids(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "INFLIGHT_FILE", tmp_path / "inflight_chain.json")
     state = {"article": {"url": "https://example.test/a"}, "posts": {"post_1": "one"}, "post_ids": ["p1"]}

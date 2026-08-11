@@ -975,6 +975,7 @@ ECONOMY_SELECTION_SIGNALS = (
     "rupiah", "dolar", "saham", "ihsg", "bi rate", "suku bunga", "apbn", "apbd", "bumn",
     "investasi", "ekspor", "impor", "phk", "pekerja", "buruh", "upah", "gaji", "pabrik",
     "industri", "harga", "bbm", "listrik", "pangan", "kredit", "bank", "ojk", "kemenkeu",
+    "asn", "pppk", "guru", "tenaga pendidik", "aparatur sipil negara",
     "kebijakan", "regulasi", "tarif", "insentif", "hilirisasi", "perdagangan", "keuangan",
     "penerimaan", "belanja", "pembiayaan", "perbankan", "asuransi", "koperasi",
     # Tech/digital economy
@@ -1758,7 +1759,7 @@ Balas JSON valid saja. Tidak ada markdown.
 Ubah satu ISI ARTIKEL menjadi 6 post Threads. Bahasa ngobrol tongkrongan (gua-lu). S2-S5: 2-3 kalimat padat dari 2-3 fakta ALLOWLIST. Satu slide = satu sudut tuntas, baru lanjut.
 
 ## STORYTELLING (enam slide satu cerita)
-ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Bahasa gua–lu. Alur: S1 perubahan/fakta utama → S2 pihak dan tindakan yang disebut sumber → S3 rincian pelaksanaan → S4 angka, alasan, atau ketentuan yang tertulis → S5 data dan batasan sumber → S6 pertanyaan netral berbasis fakta terakhir. Buka dengan fakta paling mahal dan fakta paling kuat; buat kalimat pertama menyampaikan fakta. Jangan menambah dampak, profesi, angka, skenario, penilaian; jangan ulang angka, fakta, atau contoh. S6 menutup dengan satu pertanyaan spesifik. Jangan membuat kontradiksi atau implikasi baru.
+ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Bahasa gua–lu. Alur: S1 perubahan/fakta utama → S2 pihak dan tindakan yang disebut sumber → S3 rincian pelaksanaan → S4 angka, alasan, atau ketentuan yang tertulis → S5 data dan batasan sumber → S6 pertanyaan netral berbasis fakta terakhir. Untuk KEBIJAKAN, utamakan pola opsi resmi + kelompok terdampak + status belum final bila ketiganya literal di artikel: S1 sebut perubahan/status dan novelty resmi; S2 jelaskan pembagian kewenangan serta dasar aturan; S3 buka hitung-hitungan pelaksanaan dan biaya; S4 jelaskan tujuan serta timeline; S5 benturkan beban/keuntungan antar pihak dan sisakan hal yang belum jelas. Buka dengan fakta paling mahal dan fakta paling kuat; buat kalimat pertama menyampaikan fakta. Jangan menambah dampak, profesi, angka, skenario, penilaian; jangan ulang angka, fakta, atau contoh. S6 menutup dengan satu pertanyaan spesifik. Jangan membuat kontradiksi atau implikasi baru.
 
 ## BAHASA BUAT ORANG AWAM
 - Istilah teknis dijelaskan saat muncul dengan kata sederhana dari artikel.
@@ -1797,7 +1798,7 @@ BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di ant
 
 ## NADA PER POLA (disebut di prompt user, ikuti ini):
 - KORUPSI — sinis, investigatif, bandingkan nominal vs APBN
-- KEBIJAKAN — dampak langsung ke dompet, lo sebagai subjek
+- KEBIJAKAN — status/opsi resmi, pembagian kewenangan, kelompok terdampak, biaya, dan hal yang belum final
 - PROYEK — duitnya dari mana, siapa dapet, angka investasi
 - PERDAGANGAN — harga/stok/pasokan, bandingkan dulu vs sekarang
 - PASAR — cepat, to the point, lo harus tahu sebelum market buka
