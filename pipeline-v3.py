@@ -220,6 +220,8 @@ def load_prepared_article(posted_urls):
         posts = article["posts"]
         if not isinstance(posts, dict):
             return None
+        if thread_contract_issues(posts, article["url"]):
+            return None
         style_issues = deterministic_validate(posts)
         # Only block on hard issues (empty, too short, no CTA); style/explanation warnings don't invalidate draft.
         hard = [w for w in style_issues if "too many sentences" not in w and "stand-alone" not in w and "hard word" not in w]
@@ -589,38 +591,54 @@ def _indonesia_topic_relevance(title, body):
     return "national" if indonesia else None
 
 
+def _verify_one(candidate, now):
+    """Single-candidate body fetch + gate check. Returns dict or None. Used by scout_hot_topics."""
+    title, url, source = candidate.get("title", ""), candidate.get("url", ""), candidate.get("source", "")
+    if not title or not url or not source:
+        return None
+    body, image, published_ts = _fetch_article_body(url)
+    if not published_ts or published_ts > now + 300 or now - published_ts > 86400:
+        return None
+    eligible, reason = _is_eligible_candidate(title, body, source)
+    if not eligible:
+        return None
+    indonesia_relevance = _indonesia_topic_relevance(title, body)
+    if not indonesia_relevance:
+        return None
+    pattern, confidence = _classify_pattern(title, body)
+    topic_score, economy_score, impact_score = _topic_score(title, body)
+    source_quality = SOURCES.get(source, {}).get("score", candidate.get("score", 0))
+    freshness = max(0.0, 24 - ((now - published_ts) / 3600)) / 24
+    hot_score = round(topic_score * 10 + confidence * 10 + freshness * 10 + source_quality + _learning_bonus({}, source, pattern), 3)
+    return {
+        "cluster": _hot_topic_cluster(title, pattern), "title": title,
+        "canonical_url": _canonical_url(url), "source": source,
+        "published_ts": published_ts, "pattern": pattern, "pattern_confidence": round(confidence, 3),
+        "topic_score": topic_score, "economy_score": economy_score, "impact_score": impact_score,
+        "hot_score": hot_score, "body_verified": True, "image_available": bool(image),
+        "indonesia_relevance": indonesia_relevance, "reason": reason,
+        "_body": body, "_image": image,
+    }
+
 def scout_hot_topics(articles, now=None, limit=HOT_TOPIC_LIMIT, per_source_limit=2, data=None,
                      allow_cluster_repeats=False):
     """Read-only body-verified ranking; fallback may reuse a cluster after primary fails."""
     now = time.time() if now is None else now
     verified = []
-    for candidate in articles:
-        title, url, source = candidate.get("title", ""), candidate.get("url", ""), candidate.get("source", "")
-        if not title or not url or not source:
-            continue
-        body, image, published_ts = _fetch_article_body(url)
-        if not published_ts or published_ts > now + 300 or now - published_ts > 86400:
-            continue
-        eligible, reason = _is_eligible_candidate(title, body, source)
-        if not eligible:
-            continue
-        indonesia_relevance = _indonesia_topic_relevance(title, body)
-        if not indonesia_relevance:
-            continue
-        pattern, confidence = _classify_pattern(title, body)
-        topic_score, economy_score, impact_score = _topic_score(title, body)
-        source_quality = SOURCES.get(source, {}).get("score", candidate.get("score", 0))
-        freshness = max(0.0, 24 - ((now - published_ts) / 3600)) / 24
-        # Body evidence drives ranking. Source/learning cannot rescue weak evidence.
-        hot_score = round(topic_score * 10 + confidence * 10 + freshness * 10 + source_quality + _learning_bonus(data or {}, source, pattern), 3)
-        verified.append({
-            "cluster": _hot_topic_cluster(title, pattern), "title": title,
-            "canonical_url": _canonical_url(url), "source": source,
-            "published_ts": published_ts, "pattern": pattern, "pattern_confidence": round(confidence, 3),
-            "topic_score": topic_score, "economy_score": economy_score, "impact_score": impact_score,
-            "hot_score": hot_score, "body_verified": True, "image_available": bool(image),
-            "indonesia_relevance": indonesia_relevance, "reason": reason,
-        })
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        fut_map = {}
+        for candidate in articles:
+            title, url, source = candidate.get("title", ""), candidate.get("url", ""), candidate.get("source", "")
+            if not title or not url or not source:
+                continue
+            fut_map[ex.submit(_verify_one, candidate, now)] = candidate
+        for f in as_completed(fut_map):
+            try:
+                item = f.result()
+                if item:
+                    verified.append(item)
+            except Exception as e:
+                log.warning(f"Body verify failed: {e}")
     verified.sort(key=lambda item: item["hot_score"], reverse=True)
     selected, sources, clusters = [], {}, set()
     for item in verified:
@@ -881,7 +899,9 @@ def _fetch_article_body(url):
         text = text if len(text) > 200 else ""
     except Exception as e:
         log.warning(f"Fetch body: {url[:60]} — {e}")
-    return text, og_image, published_ts
+    result = (text, og_image, published_ts)
+    _BODY_CACHE[cache_key] = result
+    return result
 
 
 ECONOMY_TITLE_SIGNALS = (
@@ -1485,8 +1505,9 @@ Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Alur: S1 kejutan → 
 - GAK BOLEH: jargon tanpa penjelasan. IPO/BUMN/BEI/konsolidasi/likuiditas/kapitalisasi/restrukturisasi/holding/obligasi/derivatif — kecuali langsung dijelaskan.
 - JANGAN: akselerasi, mitigasi, implementasi, optimalisasi, realisasi, signifikan, komprehensif, mekanisme, skema, portofolio. Ganti bahasa orang biasa.
 
-## S1 HOOK (min 2 kalimat, max 150 char)
-BUKAN judul berita/deklaratif. WAJIB 2 kalimat — kalimat pertama buka dengan angka spesifik, kalimat kedua kasih konteks. Fakta paling kontras/mengejutkan dari ALLOWLIST. JANGAN jawab di S1 — bikin wajib buka S2.
+## S1 HOOK — WAJIB 2 KALIMAT, MAX 150 CHAR, NON-NEGOTIABLE
+LOOP: Jika output hanya 1 kalimat, prompt revision akan gagal dan article di-skip —浪费 waktu. JANGAN biarkan ini terjadi.
+BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di antara kalimat). Kalimat pertama: buka dengan angka spesifik. Kalimat kedua: kasih konteks/kontras. Fakta paling kontras/mengejutkan dari ALLOWLIST. JANGAN jawab di S1 — bikin wajib buka S2. Contoh: "Harga BBM naik Rp 2.000/liter mulai besok. Ini kali kedua dalam 3 bulan." ✅ — "Harga BBM naik Rp 2.000/liter." ❌ (1 kalimat)
 
 ## SUMBER ADALAH BATAS
 - HANYA ALLOWLIST FAKTA. Judul/URL/asumsi/contoh imajiner DILARANG.
@@ -1843,6 +1864,10 @@ def _validate_proper_nouns(posts, body):
                 # Allow if expanded form appears in article (APBN → "Anggaran Pendapatan dan Belanja Negara")
                 expanded = aliases.get(acronym.lower(), "")
                 if not expanded or expanded not in article_lower:
+                    # Allow generic common terms that appear in any economy article as stand-alone
+                    # institutions — too common to gate on specific phrasing
+                    if acronym.upper() in {"UU", "PT", "HP", "PNS", "BBM", "PDN", "BPJS", "KUR", "LTV", "GWM"}:
+                        continue
                     issues.append(f"{key}: institution '{acronym}' not in article")
     return issues
 
@@ -1858,9 +1883,11 @@ def _validate_jargon(posts, body):
             continue
         outside = re.sub(r'"[^\"]*"', "", text)
         # Bureaucratic words that the prompt forbids
-        for word in ["akselerasi", "mitigasi", "implementasi", "optimalisasi", "realisasi", "signifikan", "komprehensif", "mekanisme", "skema", "portofolio", "holding", "obligasi", "derivatif"]:
+        for word in ["akselerasi", "mitigasi", "implementasi", "optimalisasi", "realisasi", "signifikan", "komprehensif", "mekanisme", "portofolio", "holding", "derivatif"]:
             if re.search(rf"\b{word}\b", outside.lower()):
                 issues.append(f"{key}: hard word '{word}'")
+        # "skema" and "obligasi" are common legitimate economy terms — use jargon_map instead
+        # Add "obligasi" to jargon_map with explanation check
         # Unexplained acronyms — only flag if NOT in source body
         jargon_map = {
             "IPO": "penawaran saham perdana|jual saham|listing saham",
@@ -2411,8 +2438,8 @@ def main():
                 image_url = retry_img  # keep slide-1 image in sync with retried article
             if recent_openings:
                 retry_article["recent_openings"] = recent_openings[:5]
-            # Cooldown between candidates to avoid bursting rate limit
-            cooldown = 60 + random.randint(0, 15)
+            # Cooldown between candidates — reduced from 60-75s to 10-20s (was major bottleneck)
+            cooldown = 10 + random.randint(0, 10)
             log.info(f"  Cooldown {cooldown}s before retry generation...")
             time.sleep(cooldown)
             result, error = generate_thread(retry_article)

@@ -501,6 +501,20 @@ def test_prepared_article_requires_unexpired_validated_posts(tmp_path, monkeypat
     assert pipeline.load_prepared_article(set()) is None
 
 
+def test_prepared_article_normalizes_old_double_url_draft(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, "PREPARED_ARTICLE_FILE", tmp_path / "prepared.json")
+    posts = {f"post_{i}": "Dua fakta sumber. Fakta kedua lengkap." for i in range(1, 7)}
+    posts["post_1"] = "Angka sumber penting. Dampaknya perlu dilihat."
+    posts["post_6"] = "Dua posisi netral. Mana yang lebih masuk akal?\n\nhttps://tautan-lama.test"
+    article = {"title": "T", "url": "https://sumber.test", "body": "Dua fakta sumber. Fakta kedua lengkap.",
+               "og_image": "i", "posts": posts, "prepared_at": 1, "expires_at": 9_999_999_999}
+    pipeline.PREPARED_ARTICLE_FILE.write_text(json.dumps(article))
+    loaded = pipeline.load_prepared_article(set())
+    assert loaded is not None
+    assert loaded["posts"]["post_6"].count("http") == 1
+    assert loaded["posts"]["post_6"].endswith(article["url"])
+
+
 def test_hot_topic_scout_rejects_global_story_without_indonesia_connection(monkeypatch):
     now = 1_800_000_000
     article = {"title": "The Fed Naikkan Suku Bunga, Pasar Global Bergejolak", "url": "https://global.test/1", "source": "cnn_global", "ts": now - 60}
