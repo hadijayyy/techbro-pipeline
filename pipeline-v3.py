@@ -1932,17 +1932,11 @@ def _validate_jargon(posts, body):
         text = posts.get(key, "")
         if not text:
             continue
-        outside = re.sub(r'"[^\"]*"', "", text)
-        # Bureaucratic words that the prompt forbids
-        hard_banned = [
-            "akselerasi", "mitigasi", "implementasi", "optimalisasi", "realisasi",
-            "signifikan", "komprehensif", "mekanisme", "portofolio", "holding",
-            "derivatif", "padahal", "memang",
-        ]
-        for word in hard_banned:
-            if re.search(rf"\b{word}\b", outside.lower()):
-                issues.append(f"{key}: hard word '{word}'")
-        # "skema" and "obligasi" are common legitimate economy terms — use jargon_map instead
+        outside = re.sub(r'"[^"]*"', "", text)
+                # Hard word banned list removed per user decision 2026-08-11.
+                # Content quality is controlled via grounding validator + jargon_map
+                # + revision per-field revert. Individual vocabulary ban is overkill.
+                # "skema" and "obligasi" are common legitimate economy terms — use jargon_map instead
         # Add "obligasi" to jargon_map with explanation check
         # Unexplained acronyms — only flag if NOT in source body
         jargon_map = {
