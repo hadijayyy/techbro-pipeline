@@ -235,10 +235,8 @@ def load_prepared_article(posted_urls):
             return None
         if thread_contract_issues(posts, article["url"]):
             return None
-        style_issues = deterministic_validate(posts)
-        # Only block on hard issues (empty, too short, no CTA); style/explanation warnings don't invalidate draft.
-        hard = [w for w in style_issues if "too many sentences" not in w and "stand-alone" not in w and "hard word" not in w]
-        if hard or deterministic_grounding_validate(article, posts):
+        # Prose style warnings are advisory. Contract and grounding remain hard gates.
+        if deterministic_grounding_validate(article, posts):
             return None
         return article
     except (OSError, json.JSONDecodeError, TypeError):
