@@ -249,8 +249,11 @@ def save_prepared_article(article, result, image_url):
     # Prefer published_ts (source page), fall back to ts (RSS), then prepared_at.
     if not payload.get("published_ts"):
         payload["published_ts"] = article.get("ts") or payload["prepared_at"] or time.time()
+    pattern, arc, hook = _content_metadata(article.get("title", ""), article.get("body", ""))
     payload.update({"posts": result["posts"], "angle": result.get("angle", ""),
-                    "arc": result.get("arc", "market_shock"), "og_image": image_url,
+                    "pattern": article.get("pattern") or pattern,
+                    "arc": result.get("arc") or article.get("arc") or arc,
+                    "hook_pattern": article.get("hook_pattern") or hook, "og_image": image_url,
                     "prepared_at": time.time(), "expires_at": time.time() + 86400})
     tmp = PREPARED_ARTICLE_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -303,16 +306,22 @@ def _is_repeat_issue(title, topics, hours=72):
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 
 def _http_get(url, timeout=12):
-    try:
-        r = httpx.get(url, headers={"User-Agent": UA}, timeout=timeout, follow_redirects=True)
-        return r.status_code, r.text
-    except Exception:
+    """GET with one immediate fallback retry for flaky official pages."""
+    for attempt in range(2):
+        try:
+            r = httpx.get(url, headers={"User-Agent": UA}, timeout=timeout, follow_redirects=True)
+            if r.status_code == 200:
+                return r.status_code, r.text
+        except Exception:
+            pass
         req = urllib.request.Request(url, headers={"User-Agent": UA})
         try:
             r = urllib.request.urlopen(req, timeout=timeout)
             return r.status, r.read().decode("utf-8", errors="replace")
         except Exception:
-            return 0, ""
+            if attempt == 1:
+                return 0, ""
+    return 0, ""
 
 
 def _canonical_url(url):
@@ -524,7 +533,7 @@ def _score_article(article):
 
     # Daily market moves are low-value unless title also signals policy or public impact.
     technical = any(_matches_keyword(tl, kw) for kw in ("rupiah", "ihsg", "saham", "harga emas", "harga minyak"))
-    public_angle = any(_matches_keyword(tl, kw) for kw in ("kebijakan", "bi", "bank indonesia", "apbn", "pajak", "subsidi", "anggaran", "berlaku", "ditetapkan", "kenapa", "penyebab", "alasannya", "ini"))
+    public_angle = any(_matches_keyword(tl, kw) for kw in ("kebijakan", "bi", "bank indonesia", "apbn", "pajak", "subsidi", "anggaran", "berlaku", "ditetapkan", "kenapa", "penyebab", "alasannya"))
     if technical and not public_angle:
         score -= 30
 
@@ -556,6 +565,12 @@ def _score_article(article):
     if price_signal and wallet_signal:
         score += 15  # price-vs-income contrast = proven virality catalyst
 
+    # Concrete decision-maker + number + public consequence = strongest local hook.
+    actor = bool(re.search(r"\b(prabowo|jokowi|menteri|gubernur|kemenkeu|ojk|danantara|bumn|pemerintah)\b", tl))
+    consequence = any(_matches_keyword(tl, kw) for kw in ("beban", "gaji", "upah", "subsidi", "pajak", "apbn", "daya beli", "phk", "investasi"))
+    if actor and max_val > 0 and consequence:
+        score += 10
+
     # Soft reject penalty (cancelled by sufficient economy signals)
     if signals >= 2:
         pass  # strong signals override soft reject
@@ -575,7 +590,12 @@ def _learning_bonus(data, source, pattern=None):
         return 0.0
     baseline = sum(values) / len(values)
     score = stats["source_avg"].get(source, baseline)
-    return max(-0.06, min(0.06, (score - baseline) * 2))
+    bonus = (score - baseline) * 2
+    if pattern and stats["pattern_count"].get(pattern, 0) >= 3:
+        pvalues = list(stats["pattern_avg"].values())
+        pbaseline = sum(pvalues) / len(pvalues) if pvalues else 0.0
+        bonus += (stats["pattern_avg"].get(pattern, pbaseline) - pbaseline) * 2
+    return max(-0.06, min(0.06, bonus))
 
 
 def _hot_topic_cluster(title, pattern):
@@ -1188,6 +1208,48 @@ def _pattern_label(pattern_name):
     return ECONOMY_PATTERNS.get(pattern_name, {}).get("label", "Tidak terklasifikasi")
 
 
+def _content_metadata(title, body):
+    """Derive auditable content labels; never silently default every post."""
+    pattern, _ = _classify_pattern(title, body)
+    text = f"{title} {body}".lower()
+    if pattern is None:
+        if re.search(r"\b(rupiah|saham|ihsg|ipo|bursa|emiten|pasar modal|obligasi|dividen)\b", text):
+            pattern = "PASAR"
+        elif re.search(r"\b(impor|ekspor|harga pangan|pasokan|stok|komoditas)\b", text):
+            pattern = "PERDAGANGAN"
+        elif re.search(r"\b(kebijakan|aturan|peraturan|ditetapkan|berlaku|apbn|subsidi)\b", text):
+            pattern = "KEBIJAKAN"
+    amount = bool(re.search(r"(?:rp\s*)?\d[\d.,]*\s*(?:%|persen|triliun|miliar|juta|ribu)", text))
+    actor = bool(re.search(r"\b(prabowo|jokowi|menteri|gubernur|kemenkeu|ojk|danantara|bumn|pemerintah)\b", text))
+    wallet = bool(re.search(r"\b(harga|biaya|tarif|gaji|upah|umr|ump|subsidi|pajak|daya beli)\b", text))
+    decision = bool(re.search(r"\b(tetapkan|ditetapkan|berlaku|disahkan|targetkan|usulkan|batasi|larang|ubah)\b", text))
+    if amount and wallet:
+        hook = "wallet_impact"
+    elif amount:
+        hook = "number_shock"
+    elif actor and decision:
+        hook = "named_decision"
+    elif decision:
+        hook = "decision_impact"
+    else:
+        hook = "source_explainer"
+    if wallet and amount:
+        arc = "wallet_pressure"
+    elif pattern == "KORUPSI":
+        arc = "public_money_trail"
+    elif pattern == "KEBIJAKAN":
+        arc = "policy_bomb"
+    elif pattern == "PROYEK":
+        arc = "public_money_trail"
+    elif pattern == "PERDAGANGAN":
+        arc = "supply_shock"
+    elif pattern == "PASAR" and (actor or decision):
+        arc = "market_decision"
+    else:
+        arc = "market_shock" if pattern == "PASAR" else "source_explainer"
+    return pattern, arc, hook
+
+
 def _topic_score(title, body):
     """Score article relevance: 0-10. Primary: pattern classification. Fallback: editorial LLM."""
     text = f"{title} {body}".lower()
@@ -1314,7 +1376,8 @@ def source_claim_plan(article):
 def deterministic_grounding_validate(article, posts):
     body = article.get("body") or ""
     return (_validate_numbers(posts, body) + _validate_years(posts, body)
-            + _validate_proper_nouns(posts, body) + _validate_sensitive_language(posts, body))
+            + _validate_proper_nouns(posts, body) + _validate_claim_markers(posts, body)
+            + _validate_sensitive_language(posts, body))
 
 
 def grounding_validate(article, posts):
@@ -1322,7 +1385,7 @@ def grounding_validate(article, posts):
     deterministic = deterministic_grounding_validate(article, posts)
     verifier_prompt = """Audit fakta DRAFT dengan standar: setiap pernyataan deklaratif harus DIDUKUNG SUMBER — angka, tanggal, nama, lembaga, status, pihak, sebab-akibat, konsekuensi, prediksi, perbandingan, penilaian ekonomi, dan kesimpulan.
 
-FAIL hanya bila: DRAFT memuat fakta BARU yang tidak ada di SUMBER (misal: inventing angka, nama, institusi, prediksi, atau klaim kausal yang tidak disebutkan). Parafrase wajar dari fakta yang sama TETAP PASS. "Di kawasan Asia" → "di Asia" = PASS. "Danantara" → "Badan Pengelola Investasi Danantara" = PASS. "Anggaran Pendapatan dan Belanja Negara" → "APBN" = PASS. Gaya bahasa, hook, dan CTA tidak memerlukan dukungan.
+FAIL hanya bila: DRAFT memuat fakta BARU yang tidak ada di SUMBER (misal: inventing angka, nama, institusi, prediksi, atau klaim kausal yang tidak disebutkan). Parafrase wajar dari fakta yang sama TETAP PASS. Opini yang jelas ditandai sebagai opini, empati, dan pertanyaan CTA boleh selama tidak menyatakan dampak, motif, status, atau tuduhan baru. Prediksi hanya boleh bersyarat dan tidak boleh menyatakan hasil sebagai fakta. Insinuasi motif tersembunyi, proses tidak transparan, atau kepentingan tertentu = FAIL bila SUMBER tidak menyatakannya. "Di kawasan Asia" → "di Asia" = PASS. "Danantara" → "Badan Pengelola Investasi Danantara" = PASS. "Anggaran Pendapatan dan Belanja Negara" → "APBN" = PASS. Gaya bahasa dan hook tidak memerlukan dukungan; premise faktual CTA tetap wajib didukung.
 
 Jawab satu kata saja: PASS atau FAIL."""
     draft = "\n".join(posts.values())
@@ -1368,7 +1431,8 @@ def thread_contract_issues(posts, article_url):
             text = posts.get(f"post_{i}", "")
             if not text.strip():
                 continue
-            # Strip any URL the LLM already placed — we add the canonical article URL
+            # Strip LLM URL/placeholder — add canonical article URL exactly once.
+            text = re.sub(r'\[URL[^\]]*\]', '', text, flags=re.I)
             text = re.sub(r'\n*\s*https?://\S+', '', text).strip()
             posts[f"post_{i}"] = text
             separator = "\n\n"
@@ -1415,8 +1479,8 @@ def refresh_performance_metrics(data, now=None):
 
 def _compute_performance_stats(data):
     """Engagement quality, not raw reach, drives bounded source/arc preference."""
-    buckets = {"source_avg": {}, "source_count": {}}
-    grouped = {"source_avg": {}}
+    buckets = {"source_avg": {}, "source_count": {}, "pattern_avg": {}, "pattern_count": {}}
+    grouped = {"source_avg": {}, "pattern_avg": {}}
     for topic in data.get("topics", []):
         views = topic.get("views") or 0
         if views < 100:
@@ -1424,9 +1488,13 @@ def _compute_performance_stats(data):
         score = ((topic.get("likes") or 0) + 2 * (topic.get("replies") or 0)
                  + 3 * (topic.get("reposts") or 0) + 2 * (topic.get("quotes") or 0)) / views
         grouped["source_avg"].setdefault(topic.get("article_source", ""), []).append(score)
+        pattern = topic.get("pattern")
+        if pattern:
+            grouped["pattern_avg"].setdefault(pattern, []).append(score)
     for name, values in grouped.items():
         buckets[name] = {key: sum(items) / len(items) for key, items in values.items() if key}
     buckets["source_count"] = {key: len(items) for key, items in grouped["source_avg"].items() if key}
+    buckets["pattern_count"] = {key: len(items) for key, items in grouped["pattern_avg"].items() if key}
     return buckets
 
 
@@ -1516,13 +1584,22 @@ Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Alur: S1 kejutan → 
 
 ## S1 HOOK — WAJIB 2 KALIMAT, MAX 150 CHAR, NON-NEGOTIABLE
 LOOP: Jika output hanya 1 kalimat, prompt revision akan gagal dan article di-skip —浪费 waktu. JANGAN biarkan ini terjadi.
-BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di antara kalimat). Kalimat pertama: buka dengan angka spesifik. Kalimat kedua: kasih konteks/kontras. Fakta paling kontras/mengejutkan dari ALLOWLIST. JANGAN jawab di S1 — bikin wajib buka S2. Contoh: "Harga BBM naik Rp 2.000/liter mulai besok. Ini kali kedua dalam 3 bulan." ✅ — "Harga BBM naik Rp 2.000/liter." ❌ (1 kalimat)
+BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di antara kalimat). Kalimat pertama harus memakai salah satu: (1) angka spesifik, (2) keputusan resmi/perubahan kebijakan baru, atau (3) aktor berwenang + tindakan yang mengubah keadaan. Kalimat kedua kasih konteks/kontras atau novelty resmi. Fakta paling kontras/mengejutkan dari ALLOWLIST. JANGAN jawab di S1 — bikin wajib buka S2. Template non-numerik: "[Keputusan resmi] mengubah [status/kewenangan]. Ini pertama kalinya pemerintah membahas opsi ini secara resmi." ✅ — "[Keputusan resmi] mengubah [status/kewenangan]." ❌ (1 kalimat)
 
 ## SUMBER ADALAH BATAS
 - HANYA ALLOWLIST FAKTA. Judul/URL/asumsi/contoh imajiner DILARANG.
 - Nama/entitas: pakai nama pendek yang MUNCUL di ALLOWLIST. Jangan perluas.
-- Jangan tambah dampak/skenario/jabatan/lokasi di luar ALLOWLIST.
+- Opini/empati boleh bila jelas berupa sudut pandang atau pertanyaan pembaca, tanpa menambah dampak faktual. Prediksi wajib bersyarat ("kalau/jika") dan tidak boleh menyatakan hasil pasti. Jangan tambah jabatan/lokasi, motif, status, tuduhan, atau dampak faktual di luar ALLOWLIST.
+- Jangan pakai analogi, perbandingan sosial, atau inferensi seperti "lebih pelan dari inflasi", "tukang parkir", "gagal bayar", atau "gorengan" kecuali frasa/faktanya literal ada di ALLOWLIST.
 - Jangan ubah rencana/proyeksi jadi kepastian.
+- Jangan insinuasi motif tersembunyi: "ada apa di balik layar", "kepentingan tertentu", "cuma formalitas", atau proses "kurang transparan" kecuali literal ada di ALLOWLIST.
+
+## OPINI EMPATIK — BOLEH, TAPI JANGAN MENGHAKIMI
+- Saat artikel hanya memberi fakta/komentar, boleh tambahkan sudut pandang editorial yang jelas terasa sebagai opini atau pertanyaan; jangan menyamarkannya sebagai fakta.
+- Tulis dari sisi pembaca/kelompok terdampak dengan bahasa manusiawi: akui kebutuhan mereka memahami dampak, pilihan, atau ketidakpastian tanpa mengarang kerugian, motif, korban, atau emosi.
+- Ganti tuduhan dan insinuasi dengan pertanyaan terbuka: "Menurut lo, apa yang perlu dijelaskan?", "Hal apa yang paling penting dipantau?", atau "Kubu mana yang paling masuk akal buat lo?"
+- Hindari merendahkan pejabat, pelaku usaha, atau pembaca. Jangan pakai "ada apa di balik layar", "cuma formalitas", "akal-akalan", atau vonis moral kecuali artikel menyatakannya secara literal.
+- Contoh aman: "Destry disebut punya rekam jejak baik dan perhatian ke UMKM. Menurut lo, apa yang perlu publik lihat dari calon tunggal?"
 
 ## NADA PER POLA (disebut di prompt user, ikuti ini):
 - KORUPSI — sinis, investigatif, bandingkan nominal vs APBN
@@ -1811,7 +1888,16 @@ def _validate_numbers(posts, body):
             # Normalize thousand separator dots in raw number too
             raw_normal = re.sub(r'(\d)\.(\d{3})', r'\1\2', raw_normal)
             if raw_normal not in body_normal:
-                issues.append(f"{key}: '{raw}' not in article")
+                # Source may carry decimals while writer rounds to whole unit (1.948,72 T → 1.948 T).
+                rounded_ok = False
+                unit_match = re.search(r"(triliun|miliar|juta|ribu|persen|%)", raw_normal)
+                if unit_match:
+                    digits = re.search(r"\d+", raw_normal)
+                    if digits:
+                        unit = "persen" if unit_match.group(1) == "%" else unit_match.group(1)
+                        rounded_ok = bool(re.search(rf"{re.escape(digits.group(0))}(?:[.,]\d+)?\s*{unit}", body_normal))
+                if not rounded_ok:
+                    issues.append(f"{key}: '{raw}' not in article")
     return issues
 
 
@@ -1886,17 +1972,18 @@ def _validate_proper_nouns(posts, body):
     for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
         text = posts.get(key, "")
         for name in set(re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b', text)):
-            # Normalize: strip title prefixes before lookup
+            # Normalize title prefixes before lookup. Accept "Menteri Koordinator Airlangga"
+            # when substantive name "Airlangga" appears literally in source.
             clean = name.lower()
-            for prefix in ("menteri ", "dirjen ", "wakil ", "menko ", "pak ", "bu ", "bos "):
-                if clean.startswith(prefix):
-                    clean_part = clean[len(prefix):]
-                    if clean_part in article_lower:
-                        continue  # "Menteri Airlangga" → "Airlangga" found in article
+            known_name = False
+            for prefix in ("menteri koordinator ", "menteri ", "dirjen ", "wakil ", "menko ", "pak ", "bu ", "bos "):
+                if clean.startswith(prefix) and clean[len(prefix):] in article_lower:
+                    known_name = True
+                    break
             source_name = aliases.get(clean, clean)
             words = name.split()
             # Sentence fragments ("Pendapatan Telkomsel", "Jika Telkomsel", "Di Tulang Bawang") are not names.
-            if (words[0].lower() not in skip and words[0].lower() not in {"pendapatan", "laba", "jika", "saat", "karena", "ketika"}
+            if (not known_name and words[0].lower() not in skip and words[0].lower() not in {"pendapatan", "laba", "jika", "saat", "karena", "ketika"}
                     and source_name not in article_lower):
                 issues.append(f"{key}: name '{name}' not in article")
         # Title-case phrases beginning with common speech/reporting verbs are not names.
@@ -1977,12 +2064,16 @@ def _validate_claim_markers(posts, body):
         "menyebab", "memicu", "berdampak", "imbas", "mengakibatkan", "berarti",
         "kebablasan", "coo bp bumn", "sudah kena", "tinggal tunggu giliran",
         "lapangan kerja", "layanan publik", "nasib karyawan", "skema penempatan ulang",
-        "kompensasi", "untung bersih", "kantong kita",
+        "kompensasi", "untung bersih", "kantong kita", "tetangga", "nasi uduk",
+        "ngemis ke luar negeri", "akal-akalan", "pencucian uang", "investasi bodong",
+        "trauma", "citra", "pembangunan mandek", "siapa yang awasi",
+        "gorengan", "tukang parkir", "gagal bayar", "lebih pelan dari inflasi",
+
     )
     for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
         text = posts.get(key, "").lower()
         for marker in markers:
-            if re.search(rf"\b{re.escape(marker)}\b", text) and not re.search(rf"\b{re.escape(marker)}\b", source):
+            if marker in text and marker not in source:
                 issues.append(f"{key}: unsupported claim marker '{marker}'")
                 break
     return issues
@@ -2214,7 +2305,8 @@ def generate_thread(article):
             "article_url": article.get("url", ""),
             "article_source": article.get("source", ""),
             "angle": data.get("angle", ""),
-            "arc": data.get("arc", "market_shock"),
+            "arc": data.get("arc") or _content_metadata(article.get("title", ""), article.get("body", ""))[1],
+            "hook_pattern": _content_metadata(article.get("title", ""), article.get("body", ""))[2],
             "posts": posts,
         }, None
     return None, "LLM failed after 2 attempts"
@@ -2367,8 +2459,12 @@ def main():
     article = load_prepared_article(posted_urls)
     if article:
         body, og_image = article["body"], article["og_image"]
+        meta_pattern, meta_arc, meta_hook = _content_metadata(article["title"], body)
+        article["pattern"] = article.get("pattern") or meta_pattern
+        article["arc"] = article.get("arc") or meta_arc
+        article["hook_pattern"] = article.get("hook_pattern") or meta_hook
         prepared_result = {"posts": article["posts"], "angle": article.get("angle", ""),
-                           "arc": article.get("arc", "market_shock")}
+                           "arc": article["arc"]}
         prepared_ok, prepared_reason = _is_eligible_candidate(article["title"], body, article.get("source", "prepared"))
         if article.get("published_ts", 0) <= 0 or time.time() - article["published_ts"] > 86400:
             prepared_ok, prepared_reason = False, "prepared article missing/failing 24h published_ts"
@@ -2376,6 +2472,14 @@ def main():
             prepared_ok, prepared_reason = False, article_evidence_gate(article)
         elif not validate_article_image(og_image):
             prepared_ok, prepared_reason = False, "prepared article no valid HD image"
+        else:
+            prepared_copy = dict(article.get("posts") or {})
+            prepared_grounding = deterministic_grounding_validate(article, prepared_copy)
+            prepared_contract = thread_contract_issues(prepared_copy, article.get("url", ""))
+            if prepared_grounding:
+                prepared_ok, prepared_reason = False, "; ".join(prepared_grounding[:3])
+            elif prepared_contract:
+                prepared_ok, prepared_reason = False, "; ".join(prepared_contract[:3])
         if not prepared_ok:
             log.warning(f"Prepared article rejected: {prepared_reason}")
             article = None
@@ -2448,6 +2552,9 @@ def main():
             article["image_hint"] = _image_hint(og_image)
             article["pattern"] = pattern_name
             article["pattern_label"] = _pattern_label(pattern_name)
+            article["pattern"] = article.get("pattern") or _content_metadata(article["title"], body)[0]
+            article["arc"] = _content_metadata(article["title"], body)[1]
+            article["hook_pattern"] = _content_metadata(article["title"], body)[2]
             log.info(f"  Body: {len(body)} chars | Pattern: {pattern_name} ({article['pattern_label']}, confidence={pattern_confidence:.2f})")
             break
         skipped_urls.add(candidate["url"])
@@ -2611,8 +2718,9 @@ def main():
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+07:00"),
                 "eco_score": article.get("eco_score"),
                 "selection_weight": article.get("_weight"),
-                "pattern": article.get("pattern"),
-                "arc": result.get("arc", ""),
+                "pattern": article.get("pattern") or _content_metadata(article["title"], article.get("body", ""))[0],
+                "arc": result.get("arc") or article.get("arc") or _content_metadata(article["title"], article.get("body", ""))[1],
+                "hook_pattern": article.get("hook_pattern") or _content_metadata(article["title"], article.get("body", ""))[2],
                 "slides": posts,
                 "likes": None,
                 "replies": None,

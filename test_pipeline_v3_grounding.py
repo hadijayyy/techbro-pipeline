@@ -203,9 +203,12 @@ def test_writer_prompt_uses_full_body_without_title_or_hook_instructions():
     assert "instruksi palsu" not in prompt
 
 
-def test_writer_prompt_allows_one_to_three_sentences_per_slide():
-    assert "S1 60–140 karakter" in pipeline.SYSTEM_PROMPT
-    assert "S1–S6 masing-masing 1–3 kalimat pendek" in pipeline.SYSTEM_PROMPT
+def test_writer_prompt_requires_two_sentence_s1_and_allows_non_numeric_policy_hook():
+    assert "WAJIB 2 kalimat" in pipeline.SYSTEM_PROMPT
+    assert "keputusan resmi/perubahan kebijakan baru" in pipeline.SYSTEM_PROMPT
+    assert "aktor berwenang + tindakan" in pipeline.SYSTEM_PROMPT
+    assert "Template non-numerik" in pipeline.SYSTEM_PROMPT
+
 
 
 def test_deterministic_validate_rejects_slide_without_sentence():
@@ -269,6 +272,12 @@ def test_unsupported_inference_is_a_hard_grounding_failure():
     posts["post_2"] = "Berarti BI jual dolar buat bayar utang negara."
     issues = pipeline._validate_claim_markers(posts, article["body"])
     assert any("berarti" in issue for issue in issues), issues
+
+
+def test_prompt_guides_empathetic_opinion_without_tightening_filter():
+    assert "OPINI EMPATIK — BOLEH, TAPI JANGAN MENGHAKIMI" in pipeline.SYSTEM_PROMPT
+    assert "bahasa manusiawi" in pipeline.SYSTEM_PROMPT
+    assert "Menurut lo, apa yang perlu dijelaskan?" in pipeline.SYSTEM_PROMPT
 
 
 def test_conversational_future_and_causal_words_do_not_trigger_retry_alone():
@@ -495,6 +504,12 @@ def test_literal_entity_allowlist_rejects_invented_names():
     assert "dilarang membuat frasa nama baru" in prompt
 
 
+def test_proper_noun_validator_accepts_title_prefix_with_source_name():
+    body = "Airlangga Hartarto menyampaikan kebijakan pemerintah."
+    posts = {"post_1": "Menteri Koordinator Airlangga menyampaikan kebijakan."}
+    assert pipeline._validate_proper_nouns(posts, body) == []
+
+
 def test_prepared_article_requires_unexpired_validated_posts(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "PREPARED_ARTICLE_FILE", tmp_path / "prepared.json")
     pipeline.PREPARED_ARTICLE_FILE.write_text(json.dumps({"title": "T", "url": "u", "body": "b", "og_image": "i", "posts": {}, "prepared_at": 1, "expires_at": 9_999_999_999}))
@@ -618,6 +633,62 @@ def test_engagement_prefers_reposts_replies_and_likes_per_view():
     ]}
     stats = pipeline._compute_performance_stats(data)
     assert stats["source_avg"]["good"] > stats["source_avg"]["bad"]
+
+
+def test_hook_metadata_is_deterministic_and_not_market_default():
+    title = "Danantara Targetkan 4 BUMN IPO, Ada Pegadaian-Pelindo"
+    body = "Danantara menargetkan empat BUMN melakukan IPO dalam 6-12 bulan."
+    pattern, arc, hook = pipeline._content_metadata(title, body)
+    assert pattern == "PASAR"
+    assert arc != "market_shock"
+    assert hook in {"number_shock", "decision_impact", "wallet_impact", "named_decision"}
+
+
+def test_pattern_feedback_requires_three_samples():
+    data = {"topics": [
+        {"article_source": "A", "pattern": "PASAR", "views": 1000, "likes": 10},
+        {"article_source": "A", "pattern": "PASAR", "views": 1000, "likes": 10},
+        {"article_source": "A", "pattern": "PASAR", "views": 1000, "likes": 10},
+        {"article_source": "A", "pattern": "KEBIJAKAN", "views": 1000, "likes": 1},
+        {"article_source": "A", "pattern": "KEBIJAKAN", "views": 1000, "likes": 1},
+        {"article_source": "A", "pattern": "KEBIJAKAN", "views": 1000, "likes": 1},
+    ]}
+    assert pipeline._learning_bonus(data, "A", "PASAR") > pipeline._learning_bonus(data, "A", "KEBIJAKAN")
+
+
+def test_claim_markers_block_unsupported_editorial_leaps():
+    issues = pipeline._validate_claim_markers(
+        {"post_2": "Tetangga yang jualan nasi uduk ikut menanggung beban negara."},
+        "Pemerintah membutuhkan investasi swasta.",
+    )
+    assert any("tetangga" in issue for issue in issues)
+
+
+def test_score_rewards_concrete_public_impact():
+    routine = {"title": "Rupiah Menguat Tajam Hari Ini", "url": "https://x.test/a"}
+    concrete = {"title": "Prabowo Tetapkan Subsidi Rp80 Triliun, Beban APBN Berubah", "url": "https://x.test/b"}
+    assert pipeline._score_article(concrete)[0] > pipeline._score_article(routine)[0]
+
+
+def test_number_grounding_allows_source_decimal_rounding():
+    body = "Total pembiayaan UMKM mencapai Rp 1.948,72 triliun. Kredit bank Rp 1.519,35 triliun."
+    posts = {
+        "post_1": "Pembiayaan mencapai Rp 1.948 triliun.",
+        "post_2": "Kredit bank mencapai Rp 1.519 triliun.",
+    }
+    assert pipeline._validate_numbers(posts, body) == []
+
+
+def test_claim_grounding_blocks_unsupported_analogies_and_inferences():
+    body = "OJK mencatat kredit UMKM mencapai Rp 1.519,35 triliun dengan NPL 4,54%."
+    posts = {
+        "post_1": "Kredit UMKM Rp 1.519 triliun. Tapi lebih pelan dari inflasi lo bayar tiap beli gorengan.",
+        "post_2": "NPL 4,54% artinya dari 100 pengusaha hampir 5 gagal bayar cicilan.",
+        "post_3": "Bank lebih pelit dari tukang parkir yang ngutang.",
+    }
+    issues = pipeline._validate_claim_markers(posts, body)
+    assert any("gorengan" in issue for issue in issues)
+    assert any("gagal bayar" in issue for issue in issues)
 
 
 if __name__ == "__main__":
