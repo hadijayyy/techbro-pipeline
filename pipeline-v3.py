@@ -1522,6 +1522,20 @@ BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di ant
 - PERDAGANGAN — harga/stok/pasokan, bandingkan dulu vs sekarang
 - PASAR — cepat, to the point, lo harus tahu sebelum market buka
 
+## STOP-SLOP — JANGAN PAKAI INI (kalimat/struktur AI template)
+JANGAN tulis kalimat yang dimulai dengan:
+- "Yang perlu dicatat" / "Faktanya" / "Jadi intinya" / "Perlu kalian tahu"
+- "Bukan sekadar" / "Bukan hanya" / "Namun juga"
+- "Berikut adalah" / "Berikut caranya"
+- "Hal ini menunjukkan" / "Pada dasarnya" / "Dalam konteks ini"
+JANGAN pakai struktur:
+- "Yang X bukan Y, tapi Z" (formulaic contrast)
+- "Ada/beberapa/various faktor" (vague hedging)
+- Frasa "untuk itu", "dengan demikian", "oleh karena itu" (wordy transition)
+- Frasa "tapi ternyata", "padahal", "memang"
+- Reference ke gambar/foto yang AI gak bisa lihat ("terlihat di gambar", "nampak")
+JANGAN passive voice: ganti "dapat dimaksimalkan" jadi "maksimalkan", "harus dilakukan" jadi "lakukan".
+
 ## S6 BINARY DEBATE (max 500 char — SATU URL, TANPA LABEL)
 Dua posisi [A] dan [B] HARUS sama-sama bisa dibela. JANGAN framing satu kubu "baik" dan kubu lain "buruk" — pakai bahasa netral untuk kedua sisi. "Lo di kubu mana: [A] ... atau [B] ...?" BUKAN pertanyaan berjawaban tunggal. Akhiri dengan SATU URL sumber saja — jangan tulis "Sumber:", jangan tambah URL kedua, jangan ambil link dari dalam artikel.
 
@@ -1533,7 +1547,15 @@ REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah fie
 
 Issues: {revision_notes}
 
-Untuk tiap issue grounding: hapus seluruh frasa yang disebut issue, lalu hapus atau ganti dengan fakta yang muncul literal di ISI ARTIKEL. Untuk issue nama/entitas: hapus nama inventif dan ganti dengan nama yang persis ada di daftar NAMA/ENTITAS LITERAL. Untuk issue institution/acronym: jangan mengarang APBN, defisit, atau istilah yang tidak muncul literal di artikel — HAPUS kata tersebut. Jangan menambah dampak/CTA baru. Jika tidak ada enam post yang bisa dipertahankan akurat, balas {{\"status\":\"error\",\"message\":\"insufficient_evidence\"}}."""
+ATURAN KRITICAL — JANGAN LANGGAR:
+1.grounding: hapus seluruh frasa yang disebut issue, ganti dengan fakta literal dari ISI ARTIKEL.
+2.nama/entitas: HANYA pakai nama dari daftar NAMA/ENTITAS LITERAL. JANGAN tambah nama baru.
+3.institution/acronym: JANGAN mengarang istilah yang tidak ada di artikel — HAPUS saja.
+4.STOP-SLOP: JANGAN pakai "bayangin", "faktanya", "yang perlu dicatat", "untuk itu", "bukan sekadar", "tapi ternyata", "padahal", "hal ini menunjukkan", passive voice (harus/dapat harus...).
+5.TIDAK boleh menambah dampak/CTA baru, nama baru, atau fakta di luar ALLOWLIST.
+6.S1: WAJIB 2 kalimat penuh (titik di antara kalimat) — ini NON-NEGOTIABLE.
+
+Jika tidak ada enam post yang bisa dipertahankan akurat dan memenuhi aturan di atas, balas {{"status":"error","message":"insufficient_evidence"}}."""
 
 def literal_fact_allowlist(body):
     """Literal body sentences are the only permitted facts for writer and revision."""
@@ -1603,15 +1625,33 @@ def build_user_prompt(article):
 
 def deterministic_validate(posts):
     warnings = []
+    # STOP-SLOP patterns — 50+ Indonesian AI template phrases + structural tells
     slop_phrases = [
+        # Throat-clearing openers
         "tau gak sih", "gak bakal percaya", "coba resapin", "let that sink in",
         "bayangin", "yang rugi siapa", "patut dicatat",
-        "tapi ternyata", "faktanya", "nyatanya", "inilah yang", "inilah kenapa",
-        "sudah bukan rahasia lagi", "tak terelakkan", "perlu kalian tahu", "perlu diingat",
+        # Report-template framing (AI synthetic voice)
+        "faktanya", "nyatanya", "inilah yang", "inilah kenapa",
+        "yang perlu dicatat", "perlu kalian tahu", "perlu diingat",
+        "fakta-fakta menunjukkan", "data menunjukkan", "grafik menunjukkan",
+        "aturan bilang", "pemerintah bilang", "jaksa katakan", "menteri bilang",
+        "sudah bukan rahasia lagi", "tak terelakkan", "yang menarik",
+        # Hedging / vague AI language
+        "hal ini menunjukkan", "pada dasarnya", "dalam konteks ini",
+        "yang perlu diperhatikan", "sebagaimana diketahui",
+        "ada beberapa faktor", "berbagai aspek", "beragam faktor",
+        # Wordy transitions
+        "untuk itu", "dengan demikian", "oleh karena itu",
+        "dalam hal ini", "sehubungan dengan itu",
+        # Template fragments
         "coba kalian bayangin", "gimana menurut kalian", "termasuk kalian",
-        "itulah mengapa", "jadi intinya", "yang menarik",
+        "itulah mengapa", "jadi intinya",
+        # Image references (AI doesn't see)
         "foto ini", "terlihat", "di gambar", "nampak", "tampak",
-        "perlu diketahui", "sebagaimana", "perlu dicatat",
+        "seperti terlihat", "seperti tampak",
+        # Other slop
+        "tapi ternyata", "padahal", "memang", "sembari",
+        "bukan hanya", "namun juga", "baik itu",
     ]
     for i in range(1, 7):
         k = f"post_{i}"
@@ -1955,11 +1995,34 @@ def _validate_sensitive_language(posts, body):
 
 
 def _voice_warnings(posts):
-    """Flag synthetic/report-template phrasing for prompt revision, not rejection."""
+    """Flag structural AI/synthetic patterns — NOT in slop_phrases but equally damning.
+    These are architectural tells that slop_phrases doesn't catch."""
     warnings = []
-    patterns = r"(?:^|[.!?]\s*)(?:fakta|aturan bilang|pemerintah bilang|yang perlu dicatat|perlu diketahui|artinya)\s*:"
-    for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
-        if re.search(patterns, posts.get(key, ""), re.I):
+    structural = [
+        # "Yang X bukan Y, tapi Z" — formulaic contrast, cold open
+        (r'^yang\s+\S+\s+bukan\s+\S+[,，]\s+tapi\s+', 'rewrite contrast opener'),
+        # "Bukan sekadar X, tapi Y" — also formulaic
+        (r'bukan\s+sekadar\s+', 'rewrite "bukan sekadar"'),
+        # Passive voice with inanimate subject doing human verb
+        (r'\b(dapat|harus|dapat|perlu)\s+\S+\s+(menjadi|membuat|menghasilkan|memicu)', 'passive construction'),
+        # Vague quantified number leads: "Terdapat X yang..." / "Ada X..."
+        (r'^(?:terdapat|terdapatnya|terjadi|ada|terdapat)\s+\d+\s+\S+\s+(?:yang\s+)?', 'rewrite vague opener'),
+        # "Dalam pengembangan/pengujian/implementasi" — bureaucratic
+        (r'\bdalam\s+(?:tahap|fase|proses|rencana|masa)\s+\S+\b', 'rewrite "dalam tahap/fase"'),
+        # Meta-joiner: "Berikut adalah/caranya/penjelasannya"
+        (r'^berikut\s+(?:adalah|caranya|penjelasannya|detailnya)\s*[:.]?\s*', 'rewrite meta-joiner'),
+        # Consecutive short sentences (3+) that read like bullet points
+        (r'(?:[A-Z][^.!?]{1,30}[.!?]){3,}', 'rewrite bullet-sentence chain'),
+    ]
+    for key in [f"post_{i}" for i in range(1, 7)]:
+        text = posts.get(key, "")
+        for pat, label in structural:
+            if re.search(pat, text, re.I):
+                warnings.append(f"{key}: {label}")
+    # Also check for template framing patterns
+    report_patterns = r"(?:^|[.!?]\s*)(?:fakta|aturan bilang|pemerintah bilang|yang perlu dicatat|perlu diketahui|artinya)\s*:"
+    for key in [f"post_{i}" for i in range(1, 7)]:
+        if re.search(report_patterns, posts.get(key, ""), re.I):
             warnings.append(f"{key}: rewrite synthetic voice/template")
     return warnings
 
