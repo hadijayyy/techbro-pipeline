@@ -2181,10 +2181,31 @@ def generate_thread(article):
                         log.info("  Revision fixed validation")
                     else:
                         log.warning(f"  Revision blocked: {w2 + style_w2 + voice_w2}")
-                        # HARD VALIDATION FAILURE — skip article immediately. Second writer
-                        # attempt with same prompt will repeat the same slop/hallucination.
-                        # Only retry makes sense for JSON/syntax issues, not hard validation.
-                        return None, "revision_failed"
+                        # HARD VALIDATION FAILURE — per-field revert to pre-revision originals.
+                        # The LLM tends to "solve" one hard issue while introducing a new one
+                        # (e.g. patching post_2's 'padahal' → creates 'padahal' in post_1).
+                        # Instead of returning "revision_failed", revert each post_ that has
+                        # hard validation warnings back to its original value and re-validate.
+                        # If original still fails → article skipped naturally via hard validation.
+                        log.info("  Revision introduced new hard issues — per-field revert to originals")
+                        p_orig = {k: _convert_pov(data.get(k) or "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
+                        p_orig = _normalize_s1(p_orig, article["body"])
+                        # Re-check original against hard validation
+                        w_orig = grounding_validate(article, p_orig)
+                        w_orig.extend(_validate_jargon(p_orig, article["body"]))
+                        w_orig.extend([f"{k}: empty" for k in ["post_1","post_2","post_3","post_4"] if not p_orig.get(k,"").strip()])
+                        w_orig.extend(_validate_claim_markers(p_orig, article["body"]))
+                        noun_orig = _validate_proper_nouns(p_orig, article["body"])
+                        w_orig.extend(noun_orig)
+                        if not w_orig:
+                            # Original was actually valid — revision just made noise
+                            posts = p_orig
+                            warnings = []
+                            log.info("  Per-field revert: original was valid, revision was noise")
+                        else:
+                            # Original has hard issues too — skip article
+                            log.warning(f"  Original posts also hard-fail: {w_orig}")
+                            return None, "revision_failed"
                 except json.JSONDecodeError:
                     log.warning("  Revision blocked: bad JSON")
                     # JSON decode fails are transient — worth retrying with fresh prompt.
