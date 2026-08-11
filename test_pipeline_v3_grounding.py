@@ -41,6 +41,37 @@ def test_source_claim_plan_uses_article_sentences_only():
     assert "Kalimat pendek." not in plan
 
 
+def test_article_body_strips_detik_scroll_marker(monkeypatch):
+    class Response:
+        status_code = 200
+        content = b""
+
+    html = """<html><meta property='og:image' content='https://example.test/image.jpg'><article>
+    <p>Kalimat fakta pertama yang cukup panjang untuk diekstrak dari artikel dan menjadi bukti sumber yang valid.</p>
+    <p>SCROLL TO CONTINUE WITH CONTENT</p>
+    <p>Kalimat fakta kedua yang cukup panjang untuk diekstrak dari artikel dan tetap dipakai sebagai bukti sumber.</p>
+    </article></html>"""
+    monkeypatch.setattr(pipeline, "_http_get", lambda url, timeout=15: (200, html))
+    monkeypatch.setattr(pipeline, "validate_article_image", lambda url: None)
+    pipeline._BODY_CACHE.clear()
+    body, _, _ = pipeline._fetch_article_body("https://example.test/article")
+    assert "SCROLL TO CONTINUE WITH CONTENT" not in body
+    assert "Kalimat fakta pertama" in body
+    assert "Kalimat fakta kedua" in body
+
+
+def test_article_body_removes_embedded_detik_marker_before_source_join(monkeypatch):
+    html = """<html><article>
+    <p>Fakta artikel yang cukup panjang untuk lolos ekstraksi sebagai sumber utama dan menjadi bagian isi artikel yang benar.</p>
+    <p>SCROLL TO CONTINUE WITH CONTENT Fakta lanjutan artikel tetap harus dipertahankan sebagai fakta sumber yang sah dan tidak boleh hilang.</p>
+    </article></html>"""
+    monkeypatch.setattr(pipeline, "_http_get", lambda url, timeout=15: (200, html))
+    pipeline._BODY_CACHE.clear()
+    body, _, _ = pipeline._fetch_article_body("https://example.test/article-embedded")
+    assert "SCROLL TO CONTINUE WITH CONTENT" not in body
+    assert "Fakta lanjutan artikel tetap harus dipertahankan" in body
+
+
 def test_source_claim_map_ranks_and_assigns_source_sentences_to_slides():
     body = (
         "Pemerintah menetapkan kebijakan subsidi energi mulai Januari 2027. "

@@ -924,12 +924,17 @@ def _fetch_article_body(url):
         paras = []
         for p in body_el.find_all("p"):
             txt = p.get_text(separator=" ", strip=True)
+            # Remove publisher UI noise before paragraph enters source body/evidence.
+            txt = re.sub(r"(?i)^\s*scroll\s+to\s+continue\s+with\s+content\s*", "", txt).strip()
             if len(txt) > 20:
                 paras.append(txt)
         if not paras:
             raw = body_el.get_text(separator="\n", strip=True)
             paras = [l.strip() for l in raw.split("\n") if len(l.strip()) > 40]
         text = "\n".join(paras)
+        # Detik ad-insertion marker can survive paragraph extraction and must not
+        # become source evidence or generated slide text.
+        text = re.sub(r"(?im)^\s*scroll\s+to\s+continue\s+with\s+content\s*$\n?", "", text)
         # Strip inline "Baca juga"/"Baca juga artikel" + trailing URL from body
         # CNBC/detik often embed cross-links mid-paragraph that leak extra URLs into LLM context
         text = re.sub(r'\(?\s*Baca\s+(?:juga|artikel|tautan|terkait)\s*(?::|.*?)\s*(https?://\S+)', '', text, flags=re.I)
