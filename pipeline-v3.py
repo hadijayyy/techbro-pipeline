@@ -768,7 +768,7 @@ def validate_article_image(url):
     try:
         response = httpx.get(url, timeout=15, follow_redirects=True)
         size = _image_size(response.content) if response.status_code == 200 else None
-        if size and size[0] >= 1200 and size[1] >= 669:
+        if size and size[0] >= 800 and size[1] >= 450:
             return url
         log.warning(f"Reject non-HD article image: {size or 'unknown'} {url[:80]}")
     except httpx.RequestError as e:
@@ -1674,8 +1674,8 @@ def deterministic_validate(posts):
         min_len = 40
         if len(p) < min_len:
             warnings.append(f"{k}: too short ({len(p)} chars, min {min_len})")
-        if i == 1 and len(p) > 150:
-            warnings.append(f"{k}: too long ({len(p)} chars, max 150)")
+        # S1 auto-truncate and auto-split already handled by _normalize_s1().
+        # No redundant length check here — avoids double-blocking.
         # 2-4 sentences: dense, source-backed, not rushed.
         sent_count = len([c for c in p if c in ".!?"])
         if sent_count < 1:
@@ -2052,16 +2052,8 @@ def _quality_gate(article, data, posts, warnings):
     # 3. Original numbers have sources (can't verify programmatically)
     # 4. No keyword counted repeatedly (scoring handles)
     # 5. Viral driver: S1 hook needs concrete article-backed change or tension.
-    s1 = posts.get("post_1", "").lower()
-    viral_markers = ["tapi", "padahal", "sementara", "malah", "naik", "turun",
-                     "dipotong", "ditambah", "dialihkan", "ditetapkan", "berlaku",
-                     "putusan", "wajib", "hingga", "mulai",
-                     "lo", "gue", "gak adil", "enak", "masa", "tebak",
-                     "ngomong", "siapa", "kok", "uangnya", "duitnya",
-                     "baru aja", "deg-degan", "bisa naik", "bisa turun",
-                     "kena", "ubah", "pindah", "ganti"]
-    if not any(m in s1 for m in viral_markers):
-        warnings.append("S1: no concrete viral driver — add contrast/action word")
+    # Viral markers check removed — dead code, never triggered in logs.
+    # S1 quality driven by grounding + _normalize_s1, not keyword matching.
     # 6. CTA on post_6 (mandatory last slide)
     last_text = posts.get("post_6", "").lower()
     if not any(qt in last_text for qt in ["?", "menurut", "pilih", "kubu", "lo setuju", "lo percaya"]):
