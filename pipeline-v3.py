@@ -804,8 +804,14 @@ def _published_timestamp(soup):
     return 0
 
 
+# In-memory body cache — avoids double-fetch between scout_hot_topics and main()
+_BODY_CACHE = {}
+
 def _fetch_article_body(url):
     """Fetch article HTML, extract clean text + og:image + source publish time."""
+    cache_key = _canonical_url(url)
+    if cache_key in _BODY_CACHE:
+        return _BODY_CACHE[cache_key]
     og_image = None
     published_ts = 0
     text = ""
@@ -869,6 +875,9 @@ def _fetch_article_body(url):
             raw = body_el.get_text(separator="\n", strip=True)
             paras = [l.strip() for l in raw.split("\n") if len(l.strip()) > 40]
         text = "\n".join(paras)
+        # Strip inline "Baca juga"/"Baca juga artikel" + trailing URL from body
+        # CNBC/detik often embed cross-links mid-paragraph that leak extra URLs into LLM context
+        text = re.sub(r'\(?\s*Baca\s+(?:juga|artikel|tautan|terkait)\s*(?::|.*?)\s*(https?://\S+)', '', text, flags=re.I)
         text = text if len(text) > 200 else ""
     except Exception as e:
         log.warning(f"Fetch body: {url[:60]} — {e}")
@@ -1314,7 +1323,7 @@ def hook_issues(hook, body):
 
 
 def thread_contract_issues(posts, article_url):
-    """Finalize 6 posts. Source URL on last post."""
+    """Finalize 6 posts. Source URL on last post — strips any LLM-added URL first to avoid doubling."""
     issues = []
     for i in range(1, 7):
         text = posts.get(f"post_{i}", "")
@@ -1329,6 +1338,9 @@ def thread_contract_issues(posts, article_url):
             text = posts.get(f"post_{i}", "")
             if not text.strip():
                 continue
+            # Strip any URL the LLM already placed — we add the canonical article URL
+            text = re.sub(r'\n*\s*https?://\S+', '', text).strip()
+            posts[f"post_{i}"] = text
             separator = "\n\n"
             room = 500 - len(separator) - len(article_url)
             if room < 1:
@@ -1489,8 +1501,8 @@ BUKAN judul berita/deklaratif. WAJIB 2 kalimat — kalimat pertama buka dengan a
 - PERDAGANGAN — harga/stok/pasokan, bandingkan dulu vs sekarang
 - PASAR — cepat, to the point, lo harus tahu sebelum market buka
 
-## S6 BINARY DEBATE (max 500 char — URL HARUS UTUH)
-Dua posisi sama-sama bisa dibela. "Lo di kubu mana: [A] atau [B]?" BUKAN pertanyaan berjawaban tunggal. Akhiri dengan URL sumber lengkap di paragraf terpisah.
+## S6 BINARY DEBATE (max 500 char — SATU URL, TANPA LABEL)
+Dua posisi [A] dan [B] HARUS sama-sama bisa dibela. JANGAN framing satu kubu "baik" dan kubu lain "buruk" — pakai bahasa netral untuk kedua sisi. "Lo di kubu mana: [A] ... atau [B] ...?" BUKAN pertanyaan berjawaban tunggal. Akhiri dengan SATU URL sumber saja — jangan tulis "Sumber:", jangan tambah URL kedua, jangan ambil link dari dalam artikel.
 
 ## OUTPUT
 {"status":"success","angle":"sudut pandang","post_1":"HOOK...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
@@ -1662,6 +1674,20 @@ def deterministic_validate(posts):
                 warnings.append(f"{k}: CTA not found on last post")
             if last_text.count("?") > 2:
                 warnings.append(f"{k}: too many CTA questions")
+            # S6-specific: one URL only, no "Sumber:" label, no biased framing
+            urls = re.findall(r'https?://\S+', posts.get(f"post_{i}", ""))
+            if len(urls) > 1:
+                warnings.append(f"{k}: multiple URLs found ({len(urls)}) — harus SATU URL saja")
+            if re.search(r'\bSumber\s*:', posts.get(f"post_{i}", "")):
+                warnings.append(f"{k}: label 'Sumber:' — jangan pakai label, URL langsung")
+            # Detect biased [A]/[B] framing: "solusi cerdas"/"cuan" vs "akal-akalan"
+            s6_text = posts.get(f"post_{i}", "").lower()
+            if ('[a]' in s6_text and '[b]' in s6_text):
+                biased_frames = ['solusi cerdas', 'akal-akalan', 'solusi pintar', 'bantuan tulus']
+                for frame in biased_frames:
+                    if frame in s6_text:
+                        warnings.append(f"{k}: biased framing '{frame}' — kedua kubu harus netral")
+                        break
     return warnings
 
 
