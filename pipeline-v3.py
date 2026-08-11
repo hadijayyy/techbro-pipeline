@@ -1581,7 +1581,7 @@ def literal_entity_allowlist(body):
 
 def build_user_prompt(article):
     """Build source-only prompt with allowlist. Injects pattern context + voice guidance."""
-    body = article.get("body", "")
+    body = article.get("body", "")[:10000]  # cap at 10k chars before allowlist extraction
     facts = literal_fact_allowlist(body)
     entities = literal_entity_allowlist(body)
     # Also extract location names from body for entity list (kota/kabupaten often in lowercase)
@@ -2085,7 +2085,9 @@ def generate_thread(article):
     if evidence_error:
         return None, evidence_error
     user = build_user_prompt(article)
-    # One writer plus two revisions caps each candidate at three provider requests.
+    # One writer plus one revision. If revision fails with hard issues, skip immediately —
+    # second writer call with same prompt will generate same slop. Only retry (attempt 2)
+    # when revision fails due to JSON/syntax issues, not hard validation.
     for attempt in range(1, 3):
         content, error = _call_llm(SYSTEM_PROMPT, user, max_retries=3)
         if error:
@@ -2157,8 +2159,16 @@ def generate_thread(article):
                         log.info("  Revision fixed validation")
                     else:
                         log.warning(f"  Revision blocked: {w2 + style_w2 + voice_w2}")
+                        # HARD VALIDATION FAILURE — skip article immediately. Second writer
+                        # attempt with same prompt will repeat the same slop/hallucination.
+                        # Only retry makes sense for JSON/syntax issues, not hard validation.
+                        return None, "revision_failed"
                 except json.JSONDecodeError:
                     log.warning("  Revision blocked: bad JSON")
+                    # JSON decode fails are transient — worth retrying with fresh prompt.
+                    if attempt < 2:
+                        continue
+                    return None, "revision_json_error"
             if warnings:
                 continue
         # Quality gate: check article supports the thread
