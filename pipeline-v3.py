@@ -669,7 +669,9 @@ def scout_hot_topics(articles, now=None, limit=HOT_TOPIC_LIMIT, per_source_limit
                     verified.append(item)
             except Exception as e:
                 log.warning(f"Body verify failed: {e}")
-    verified.sort(key=lambda item: item["hot_score"], reverse=True)
+    # Futures finish nondeterministically; preserve feed order on equal scores.
+    feed_order = {_canonical_url(a.get("url", "")): i for i, a in enumerate(articles)}
+    verified.sort(key=lambda item: (-item["hot_score"], feed_order.get(item["canonical_url"], len(articles))))
     selected, sources, clusters = [], {}, set()
     for item in verified:
         if item["source"] in sources and sources[item["source"]] >= per_source_limit:
@@ -1385,7 +1387,7 @@ def grounding_validate(article, posts):
     deterministic = deterministic_grounding_validate(article, posts)
     verifier_prompt = """Audit fakta DRAFT dengan standar: setiap pernyataan deklaratif harus DIDUKUNG SUMBER — angka, tanggal, nama, lembaga, status, pihak, sebab-akibat, konsekuensi, prediksi, perbandingan, penilaian ekonomi, dan kesimpulan.
 
-FAIL hanya bila: DRAFT memuat fakta BARU yang tidak ada di SUMBER (misal: inventing angka, nama, institusi, prediksi, atau klaim kausal yang tidak disebutkan). Parafrase wajar dari fakta yang sama TETAP PASS. Opini yang jelas ditandai sebagai opini, empati, dan pertanyaan CTA boleh selama tidak menyatakan dampak, motif, status, atau tuduhan baru. Prediksi hanya boleh bersyarat dan tidak boleh menyatakan hasil sebagai fakta. Insinuasi motif tersembunyi, proses tidak transparan, atau kepentingan tertentu = FAIL bila SUMBER tidak menyatakannya. "Di kawasan Asia" → "di Asia" = PASS. "Danantara" → "Badan Pengelola Investasi Danantara" = PASS. "Anggaran Pendapatan dan Belanja Negara" → "APBN" = PASS. Gaya bahasa dan hook tidak memerlukan dukungan; premise faktual CTA tetap wajib didukung.
+standar fail-closed (STANDAR FAIL-CLOSED): FAIL hanya bila DRAFT memuat fakta BARU yang tidak ada di SUMBER (misal: mengubah surplus menjadi klaim untung bersih, mengarang angka, nama, institusi, prediksi, atau klaim kausal). Parafrase wajar dari fakta yang sama TETAP PASS. Opini yang jelas ditandai sebagai opini, empati, dan pertanyaan CTA boleh selama tidak menyatakan dampak, motif, status, atau tuduhan baru. Prediksi hanya boleh bersyarat dan tidak boleh menyatakan hasil sebagai fakta. Insinuasi motif tersembunyi, proses tidak transparan, atau kepentingan tertentu = FAIL bila SUMBER tidak menyatakannya. "Di kawasan Asia" → "di Asia" = PASS. "Danantara" → "Badan Pengelola Investasi Danantara" = PASS. "Anggaran Pendapatan dan Belanja Negara" → "APBN" = PASS. Gaya bahasa dan hook tidak memerlukan dukungan; premise faktual CTA tetap wajib didukung.
 
 Jawab satu kata saja: PASS atau FAIL."""
     draft = "\n".join(posts.values())
@@ -1570,10 +1572,10 @@ SYSTEM_PROMPT = """# RYANHADIII EKONOMI — WRITER
 
 Balas JSON valid saja. Tidak ada markdown.
 
-Ubah ALLOWLIST FAKTA jadi 6 post Threads. Bahasa ngobrol tongkrongan (gua-lu). S2-S5: 2-3 kalimat padat dari 2-3 fakta ALLOWLIST. Satu slide = satu sudut tuntas, baru lanjut.
+Ubah satu ISI ARTIKEL menjadi 6 post Threads. Bahasa ngobrol tongkrongan (gua-lu). S2-S5: 2-3 kalimat padat dari 2-3 fakta ALLOWLIST. Satu slide = satu sudut tuntas, baru lanjut.
 
 ## STORYTELLING (enam slide satu cerita)
-Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Alur: S1 kejutan → S2 kena siapa/gimana → S3 kok bisa → S4 aktor/motif → S5 konsekuensi → S6 debat. Tiap slide ditutup kontradiksi/implikasi yang dijawab slide berikutnya — jangan "selanjutnya...".
+ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Bahasa gua–lu. Alur: S1 kejutan → S2 kena siapa/gimana → S3 kok bisa → S4 aktor/motif → S5 konsekuensi → S6 debat. Buka dengan fakta paling mahal; Buat kalimat pertama menyampaikan fakta; jangan ulang angka, fakta, atau contoh. Buat kalimat pertama menyampaikan fakta. S6 menutup dengan satu pertanyaan spesifik. Tiap slide ditutup kontradiksi/implikasi yang dijawab slide berikutnya — jangan "selanjutnya...".
 
 ## BAHASA BUAT ORANG AWAM
 - Istilah teknis DIJELASKAN pas muncul: "IPO (jual saham pertama kali)", "konsolidasi (ngebersihin struktur dulu)"
@@ -1590,6 +1592,8 @@ BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di ant
 - HANYA ALLOWLIST FAKTA. Judul/URL/asumsi/contoh imajiner DILARANG.
 - Nama/entitas: pakai nama pendek yang MUNCUL di ALLOWLIST. Jangan perluas.
 - Opini/empati boleh bila jelas berupa sudut pandang atau pertanyaan pembaca, tanpa menambah dampak faktual. Prediksi wajib bersyarat ("kalau/jika") dan tidak boleh menyatakan hasil pasti. Jangan tambah jabatan/lokasi, motif, status, tuduhan, atau dampak faktual di luar ALLOWLIST.
+- Jangan membuat fakta baru. Jangan menambah dampak, profesi, angka, skenario, penilaian. Jangan menambah dampak, profesi, angka, skenario, atau penilaian sebagai fakta.
+- Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali literal ada di ALLOWLIST.
 - Jangan pakai analogi, perbandingan sosial, atau inferensi seperti "lebih pelan dari inflasi", "tukang parkir", "gagal bayar", atau "gorengan" kecuali frasa/faktanya literal ada di ALLOWLIST.
 - Jangan ubah rencana/proyeksi jadi kepastian.
 - Jangan insinuasi motif tersembunyi: "ada apa di balik layar", "kepentingan tertentu", "cuma formalitas", atau proses "kurang transparan" kecuali literal ada di ALLOWLIST.
@@ -1600,6 +1604,12 @@ BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di ant
 - Ganti tuduhan dan insinuasi dengan pertanyaan terbuka: "Menurut lo, apa yang perlu dijelaskan?", "Hal apa yang paling penting dipantau?", atau "Kubu mana yang paling masuk akal buat lo?"
 - Hindari merendahkan pejabat, pelaku usaha, atau pembaca. Jangan pakai "ada apa di balik layar", "cuma formalitas", "akal-akalan", atau vonis moral kecuali artikel menyatakannya secara literal.
 - Contoh aman: "Destry disebut punya rekam jejak baik dan perhatian ke UMKM. Menurut lo, apa yang perlu publik lihat dari calon tunggal?"
+
+## BATAS EDITORIAL
+- Tegangan hanya boleh datang dari perbandingan atau perubahan yang literal di artikel.
+- Jangan memancing dengan teka-teki. Jangan pakai label-colon, hashtag, jargon birokratis, template AI.
+- Tidak perlu memaksa satu jenis fakta ke slide tertentu.
+- Hindari slogan, kalimat motivasi, atau kesimpulan yang terdengar besar.
 
 ## NADA PER POLA (disebut di prompt user, ikuti ini):
 - KORUPSI — sinis, investigatif, bandingkan nominal vs APBN
@@ -1627,6 +1637,7 @@ Dua posisi [A] dan [B] HARUS sama-sama bisa dibela. JANGAN framing satu kubu "ba
 
 ## OUTPUT
 {"status":"success","angle":"sudut pandang","post_1":"HOOK...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
+Jika bukti tidak cukup, balas {"status":"error","message":"insufficient_evidence"}.
 """
 
 REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah field lain. Balas JSON lengkap dengan field yang sudah diperbaiki.
@@ -1634,7 +1645,7 @@ REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah fie
 Issues: {revision_notes}
 
 ATURAN KRITICAL — JANGAN LANGGAR:
-1.grounding: hapus seluruh frasa yang disebut issue, ganti dengan fakta literal dari ISI ARTIKEL.
+1.grounding: hapus seluruh frasa yang disebut issue, ganti dengan fakta literal dari ISI ARTIKEL; gunakan fakta yang muncul literal di ISI ARTIKEL.
 2.nama/entitas: HANYA pakai nama dari daftar NAMA/ENTITAS LITERAL. JANGAN tambah nama baru.
 3.institution/acronym: JANGAN mengarang istilah yang tidak ada di artikel — HAPUS saja.
 4.STOP-SLOP: JANGAN pakai "bayangin", "faktanya", "yang perlu dicatat", "untuk itu", "bukan sekadar", "tapi ternyata", "padahal", "hal ini menunjukkan", passive voice (harus/dapat harus...).
@@ -1648,6 +1659,33 @@ def literal_fact_allowlist(body):
     """Literal body sentences are the only permitted facts for writer and revision."""
     sentences = re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", body).strip())
     return [sentence for sentence in sentences if len(sentence) >= 20][:80]
+
+
+def source_slide_audit(body, posts):
+    """Soft lexical audit; reports source overlap without blocking publication."""
+    source_sentences = [s for s in re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", body).strip()) if len(s) >= 20]
+    stop = {"yang", "dan", "atau", "ini", "itu", "dari", "untuk", "dengan", "ke", "di", "sebuah", "ada", "lo", "gue", "gua", "menurut"}
+
+    def terms(text):
+        return {w for w in re.findall(r"[a-z0-9]{4,}", text.lower()) if w not in stop}
+
+    audit = {}
+    for key, post in posts.items():
+        post_terms = terms(post)
+        matches = []
+        shared = set()
+        for index, sentence in enumerate(source_sentences, 1):
+            overlap = post_terms & terms(sentence)
+            if len(overlap) >= 2:
+                matches.append(index)
+                shared.update(overlap)
+        audit[key] = {
+            "lexical_match": bool(matches),
+            "source_sentences": matches,
+            "shared_terms": sorted(shared),
+            "audit": "lexical overlap only; not a grounding verdict",
+        }
+    return audit
 
 
 def literal_entity_allowlist(body):
@@ -1701,10 +1739,10 @@ def build_user_prompt(article):
         "**ALLOWLIST FAKTA LITERAL — INI SATU-SATUNYA SUMBER:**",
         *[f"- {fact}" for fact in facts],
         "",
-        "**NAMA/ENTITAS/LOKASI LITERAL — HANYA INI YANG BOLEH DIPAKAI:**",
+        "**NAMA/ENTITAS LITERAL — HANYA NAMA, ENTITAS, DAN LOKASI INI YANG BOLEH DIPAKAI:**",
         *[f"- {entity}" for entity in all_entities],
         "",
-        "⚠️ INTERNAL: TIDAK ADA sumber lain. Setiap angka, nama, lembaga, lokasi, tanggal, status, dan sebab-akibat HARUS persis dari ALLOWLIST di atas. Nama lembaga/entitas/lokasi WAJIB verbatim dari daftar NAMA/ENTITAS/LOKASI. DILARANG menambah kota, kabupaten, provinsi, daerah, atau lokasi yang tidak ada di daftar. DILARANG membuat frasa nama baru atau singkatan yang tidak muncul di daftar. Post 6 slide WAJIB — semua post_1 sampai post_6 harus terisi. Output HANYA JSON.",
+        "⚠️ INTERNAL: TIDAK ADA sumber lain. Setiap angka, nama, lembaga, lokasi, tanggal, status, dan sebab-akibat HARUS persis dari ALLOWLIST di atas. Nama lembaga/entitas/lokasi WAJIB verbatim dari daftar NAMA/ENTITAS/LOKASI. DILARANG menambah kota, kabupaten, provinsi, daerah, atau lokasi yang tidak ada di daftar. DILARANG membuat frasa nama baru atau singkatan yang tidak muncul di daftar. Jangan membuat fakta baru. Jangan membuat frasa nama baru; dilarang membuat frasa nama baru. Post 6 slide WAJIB — semua post_1 sampai post_6 harus terisi. Output HANYA JSON.",
     ]
     return "\n".join(parts)
 
@@ -2296,6 +2334,8 @@ def generate_thread(article):
             return None, "quality_gate"
         for k in posts:
             posts[k] = _format_sentence_blanks(posts[k])
+        slide_audit = source_slide_audit(article.get("body", ""), posts)
+        log.info("  Source-slide audit: %s", {k: v["source_sentences"] for k, v in slide_audit.items()})
         contract_issues = thread_contract_issues(posts, article.get("url", ""))
         if contract_issues:
             log.warning(f"  Thread contract blocked: {contract_issues}")

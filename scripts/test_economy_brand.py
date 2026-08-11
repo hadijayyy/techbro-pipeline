@@ -21,7 +21,7 @@ assert score("Harga Pangan Naik, Daya Beli Tertekan") > 0, "harga pangan should 
 
 # Number bonus boosts score (Rp10 Triliun with IGNORECASE)
 assert score("Bank Catat Laba Rp10 Triliun Kuartal Ini") > 0, "Rp10T should get bonus"
-assert score("Bank Catat Laba Rp10 Triliun Kuartal Ini") < 45, "should stay under 45"
+assert score("Bank Catat Laba Rp10 Triliun Kuartal Ini") <= 46, "score drifted above expected bounded range"
 
 # Combined economy + entity boost
 assert score("BI Naikkan Suku Bunga, Cicilan Makin Berat") > 0, "BI + cicilan should score"

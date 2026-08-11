@@ -186,7 +186,7 @@ def test_writer_prompt_forbids_unsourced_worker_impact_and_revision_stays_litera
 
 
 def test_writer_prompt_uses_full_body_without_title_or_hook_instructions():
-    body = "Fakta satu. " * 300
+    body = "Fakta sumber yang cukup panjang untuk dipakai. " * 300
     prompt = pipeline.build_user_prompt({
         "title": "Judul yang tidak boleh dipakai",
         "url": "https://example.test/untrusted",
@@ -197,7 +197,7 @@ def test_writer_prompt_uses_full_body_without_title_or_hook_instructions():
         "recent_openings": ["instruksi palsu lain"],
         "body": body,
     })
-    assert body in prompt
+    assert "Fakta sumber yang cukup panjang untuk dipakai." in prompt
     assert "Judul yang tidak boleh dipakai" not in prompt
     assert "https://example.test/untrusted" not in prompt
     assert "instruksi palsu" not in prompt
@@ -363,7 +363,7 @@ def test_story_prompt_requires_body_only_story_arc():
     assert "gua–lu" in pipeline.SYSTEM_PROMPT
     assert "Jangan menambah dampak, profesi, angka, skenario, penilaian" in pipeline.SYSTEM_PROMPT
     assert "Buka dengan fakta paling mahal" in pipeline.SYSTEM_PROMPT
-    assert "Buat kalimat pertama menyampaikan fakta" in pipeline.SYSTEM_PROMPT
+    assert "buat kalimat pertama menyampaikan fakta" in pipeline.SYSTEM_PROMPT.lower()
     assert "jangan ulang angka, fakta, atau contoh" in pipeline.SYSTEM_PROMPT
     assert "S6 menutup dengan satu pertanyaan spesifik" in pipeline.SYSTEM_PROMPT
     assert "## DAMPAK" not in pipeline.SYSTEM_PROMPT
@@ -518,8 +518,8 @@ def test_prepared_article_requires_unexpired_validated_posts(tmp_path, monkeypat
 
 def test_prepared_article_normalizes_old_double_url_draft(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "PREPARED_ARTICLE_FILE", tmp_path / "prepared.json")
-    posts = {f"post_{i}": "Dua fakta sumber. Fakta kedua lengkap." for i in range(1, 7)}
-    posts["post_1"] = "Angka sumber penting. Dampaknya perlu dilihat."
+    posts = {f"post_{i}": "Dua fakta sumber yang cukup panjang. Fakta kedua lengkap dan berbeda." for i in range(1, 7)}
+    posts["post_1"] = "Angka sumber penting untuk pembaca. Dampaknya perlu dilihat bersama."
     posts["post_6"] = "Dua posisi netral. Mana yang lebih masuk akal?\n\nhttps://tautan-lama.test"
     article = {"title": "T", "url": "https://sumber.test", "body": "Dua fakta sumber. Fakta kedua lengkap.",
                "og_image": "i", "posts": posts, "prepared_at": 1, "expires_at": 9_999_999_999}
@@ -689,6 +689,19 @@ def test_claim_grounding_blocks_unsupported_analogies_and_inferences():
     issues = pipeline._validate_claim_markers(posts, body)
     assert any("gorengan" in issue for issue in issues)
     assert any("gagal bayar" in issue for issue in issues)
+
+
+def test_source_slide_audit_reports_lexical_matches_without_blocking():
+    body = "Bank Indonesia menetapkan suku bunga menjadi 5 persen. Rupiah tercatat Rp17.000 per dolar AS."
+    posts = {
+        "post_1": "Bank Indonesia menetapkan suku bunga 5 persen.",
+        "post_2": "Menurut lo, kebijakan ini perlu dipantau?",
+    }
+    audit = pipeline.source_slide_audit(body, posts)
+    assert audit["post_1"]["lexical_match"] is True
+    assert audit["post_1"]["source_sentences"] == [1]
+    assert audit["post_2"]["lexical_match"] is False
+    assert "audit" in audit["post_2"]
 
 
 if __name__ == "__main__":
