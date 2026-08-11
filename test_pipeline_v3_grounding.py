@@ -22,7 +22,7 @@ def test_ungrounded_rupiah_range_is_rejected():
 
 def test_thin_article_is_rejected_before_generation():
     assert pipeline.article_evidence_gate({"body": "Fakta ekonomi."}) == "body_under_1000_chars"
-    assert pipeline.article_evidence_gate({"body": "teks " * 250}) == "no_numeric_or_quote_evidence"
+    assert pipeline.article_evidence_gate({"body": "teks " * 250}) == "insufficient_source_claims_for_six_posts"
     body = " ".join(f"Nilai bulan {month} mencapai Rp{month}." for month in range(1, 7)) * 12
     assert pipeline.article_evidence_gate({"body": body}) is None
 
@@ -37,6 +37,7 @@ def test_source_claim_plan_uses_article_sentences_only():
     article = {"body": "Rupiah berada di Rp17.976 per dolar AS. Ekonom memproyeksikan pelemahan berlanjut. Kalimat pendek."}
     plan = pipeline.source_claim_plan(article)
     assert "Rp17.976" in plan
+    assert "pelemahan berlanjut" in plan
     assert "Kalimat pendek." not in plan
 
 
@@ -58,7 +59,7 @@ def test_source_claim_map_ranks_and_assigns_source_sentences_to_slides():
     assert len({c["sentence"] for claims in claim_map.values() for c in claims}) == 6
 
 
-def test_writer_prompt_contains_ranked_claim_map():
+def test_writer_prompt_contains_source_claims():
     body = "Pemerintah menetapkan kebijakan subsidi senilai Rp1 triliun. " * 10
     prompt = pipeline.build_user_prompt({"body": body})
     assert "CLAIM MAP S1-S6" in prompt
@@ -164,10 +165,13 @@ def test_rate_limit_error_retries_twice_with_cooldown_then_stops(monkeypatch):
     monkeypatch.setattr(pipeline.httpx, "post", lambda *args, **kwargs: calls.append(1) or Response())
     monkeypatch.setattr(pipeline, "_get_api_key", lambda: "test-key")
     assert pipeline._call_llm("system", "user", max_retries=3) == (None, "Rate limit 429")
-    # initial call + 2 bounded cooldown retries, then error propagates
-    assert calls == [1, 1, 1]
+    # Provider quota: stop immediately; no retry cascade.
+    assert calls == [1]
 
-    article = {"body": "Nilai mencapai Rp1 miliar. " * 60}
+    article = {"body": " ".join(
+        f"Fakta sumber unik nomor {i} menjelaskan perubahan kebijakan ekonomi."
+        for i in range(1, 7)
+    ) * 20}
     monkeypatch.setattr(pipeline, "_call_llm", lambda *args, **kwargs: (None, "LLM failed: Rate limit 429"))
     assert pipeline.is_rate_limit_error("LLM failed: Rate limit 429")
     assert pipeline.generate_thread(article) == (None, "LLM failed: Rate limit 429")
@@ -186,7 +190,14 @@ def test_publish_candidates_append_only_body_verified_scout_fallbacks():
 
 
 def test_revision_requires_independent_grounding_verifier(monkeypatch):
-    article = {"body": "Nilai mencapai Rp1 miliar. " * 60}
+    article = {"body": " ".join([
+        "Pemerintah menetapkan kebijakan baru.",
+        "Menteri Keuangan menjelaskan aturan tersebut.",
+        "Penyaluran dilakukan melalui basis data penerima.",
+        "Program mulai berlaku setelah pembahasan selesai.",
+        "Perubahan ini memengaruhi konsumen dan pelaku usaha.",
+        "Proses penetapan masih menunggu persetujuan.",
+    ]) * 20}
     revised = {
         "status": "success",
         **{f"post_{i}": "Fakta sumber yang cukup panjang." for i in range(1, 7)},
@@ -200,8 +211,8 @@ def test_revision_requires_independent_grounding_verifier(monkeypatch):
     monkeypatch.setattr(pipeline, "_call_llm", fake_llm)
     result, error = pipeline.generate_thread(article)
     assert result is None
-    assert error == "LLM failed after 2 attempts"
-    assert len(calls) >= 2
+    assert error == "generation_failed"
+    assert len(calls) == 3  # writer + verifier + one revision
 
 
 def test_writer_prompt_forbids_unsourced_worker_impact_and_revision_stays_literal():
@@ -244,6 +255,16 @@ def test_deterministic_validate_rejects_slide_without_sentence():
     posts["post_1"] = complete
     posts["post_6"] = "Fakta sumber cukup panjang untuk memenuhi batas minimum tetapi tanpa tanda baca kalimat"
     assert "post_6: no sentences" in pipeline.deterministic_validate(posts)
+
+
+def test_style_warnings_do_not_block_quality_gate():
+    posts = {f"post_{i}": "Fakta sumber cukup panjang dan lengkap untuk konteks." for i in range(1, 7)}
+    posts["post_1"] = "Fakta sumber cukup panjang dan lengkap untuk konteks. Bukti sumber menambah konteks."
+    posts["post_6"] = "Fakta sumber cukup panjang dan lengkap untuk konteks. Menurut lo?"
+    posts["post_2"] = "Padahal fakta sumber cukup panjang dan lengkap untuk konteks."
+    warnings = pipeline.deterministic_validate(posts)
+    assert any("slop 'padahal'" in item for item in warnings)
+    assert pipeline._quality_gate({"body": "x"}, {"status": "success"}, posts, []) is True
 
 
 def test_quality_gate_blocks_revision_style_violation():

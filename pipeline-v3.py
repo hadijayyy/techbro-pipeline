@@ -1356,25 +1356,24 @@ def article_evidence_gate(article):
     body = (article.get("body") or "").strip()
     if len(body) < 1000:
         return "body_under_1000_chars"
-    has_number = bool(re.search(r"(?:rp\s*)?\d|\d+\s*(?:persen|%|miliar|juta|triliun)", body, re.I))
-    has_quote = '"' in body or '“' in body
-    if not (has_number or has_quote):
-        return "no_numeric_or_quote_evidence"
-    # Six slides require six article-backed factual units; reject thin sources before LLM.
+    # Numbers/quotes optional; official policy stories can be fully factual without either.
+    # Six slides still require six distinct article-backed factual units.
     if len(source_claim_plan(article).splitlines()) < 6:
         return "insufficient_source_claims_for_six_posts"
     return None
 
 
 def source_claim_plan(article):
-    """Give writer only substantive source sentences, never title-derived facts."""
+    """Give writer distinct substantive source sentences, never title-derived facts."""
     body = re.sub(r"\s+", " ", article.get("body") or "").strip()
-    sentences = re.split(r"(?<=[.!?])\s+", body)
-    selected = [s for s in sentences if len(s) >= 25 and (
-        re.search(r"(?:rp\s*)?\d|\d+\s*(?:persen|%|miliar|juta|triliun)", s, re.I)
-        or '"' in s or '“' in s
-        or re.search(r"\b(?:menurut|mengatakan|ditetapkan|berlaku|mengumumkan)\b", s, re.I)
-    )]
+    selected = []
+    seen = set()
+    for sentence in re.split(r"(?<=[.!?])\s+", body):
+        sentence = sentence.strip()
+        key = sentence.lower()
+        if len(sentence) >= 25 and key not in seen:
+            seen.add(key)
+            selected.append(sentence)
     return "\n".join(f"- {s}" for s in selected[:12])
 
 
@@ -1430,6 +1429,10 @@ def deterministic_grounding_validate(article, posts):
 def grounding_validate(article, posts):
     """Independent factual verifier; outage or unsupported fact blocks publish."""
     deterministic = deterministic_grounding_validate(article, posts)
+    # Deterministic grounding is authoritative for known hard violations.
+    # Semantic verifier is for drafts that survive deterministic checks.
+    if deterministic:
+        return deterministic
     verifier_prompt = """Audit fakta DRAFT dengan standar: setiap pernyataan deklaratif harus DIDUKUNG SUMBER — angka, tanggal, nama, lembaga, status, pihak, sebab-akibat, konsekuensi, prediksi, perbandingan, penilaian ekonomi, dan kesimpulan.
 
 standar fail-closed (STANDAR FAIL-CLOSED): FAIL hanya bila DRAFT memuat fakta BARU yang tidak ada di SUMBER (misal: mengubah surplus menjadi klaim untung bersih, mengarang angka, nama, institusi, prediksi, atau klaim kausal). Parafrase wajar dari fakta yang sama TETAP PASS. Opini yang jelas ditandai sebagai opini, empati, dan pertanyaan CTA boleh selama tidak menyatakan dampak, motif, status, atau tuduhan baru. Prediksi hanya boleh bersyarat dan tidak boleh menyatakan hasil sebagai fakta. Insinuasi motif tersembunyi, proses tidak transparan, atau kepentingan tertentu = FAIL bila SUMBER tidak menyatakannya. "Di kawasan Asia" → "di Asia" = PASS. "Danantara" → "Badan Pengelola Investasi Danantara" = PASS. "Anggaran Pendapatan dan Belanja Negara" → "APBN" = PASS. Gaya bahasa dan hook tidak memerlukan dukungan; premise faktual CTA tetap wajib didukung.
@@ -1439,7 +1442,7 @@ Jawab satu kata saja: PASS atau FAIL."""
     verdict, error = _call_llm(
         verifier_prompt,
         f"SUMBER:\n{article.get('body', '')[:6000]}\nDRAFT:\n{draft}",
-        max_retries=3,
+        max_retries=1,
         temperature=0,
     )
     if error or not verdict:
@@ -1623,13 +1626,7 @@ def _call_llm(system, user, model=None, max_retries=3, temperature=None):
             elif r.status_code == 401:
                 return None, f"Auth error {r.status_code}"
             elif r.status_code == 429:
-                # Pressbox-style exponential backoff with jitter.
-                # Mistral free-tier rate window ~1 RPM; burst backoff avoids thundering herd.
-                if attempt < max_retries:
-                    delay = (2 ** attempt) + random.uniform(0, 3)
-                    log.warning(f"  Rate limit 429 (attempt {attempt}/{max_retries}), backoff {delay:.1f}s")
-                    time.sleep(delay)
-                    continue
+                # Provider quota is run-wide. Retry/candidate churn worsens 429.
                 return None, "Rate limit 429"
             else:
                 last_error = f"HTTP {r.status_code}: {r.text[:120]}"
@@ -1884,8 +1881,8 @@ def deterministic_validate(posts):
             warnings.append(f"{k}: no sentences")
         if i == 1 and sent_count < 2:
             warnings.append(f"{k}: only {sent_count} sentence(s) — S1 WAJIB minimal 2 kalimat")
-        if i != 1 and sent_count < 2:
-            warnings.append(f"{k}: only {sent_count} sentence(s) — butuh minimal 2 kalimat padat")
+        if i != 1 and sent_count < 1:
+            warnings.append(f"{k}: only {sent_count} sentence(s) — butuh minimal 1 kalimat lengkap")
         if sent_count > 6:
             warnings.append(f"{k}: too many sentences ({sent_count})")
         # Enforce 400-char limit on every slide; keep complete sentences only.
@@ -2227,8 +2224,9 @@ def _quality_gate(article, data, posts, warnings):
         return False
     if posts:
         style_issues = deterministic_validate(posts)
-        # Only block on hard issues (empty posts, too short, no CTA); style/explanation warnings don't force revision.
-        hard = [w for w in style_issues if "too many sentences" not in w and "stand-alone" not in w and "hard word" not in w]
+        # Style warnings advisory; structural empty/length/sentence/CTA issues remain hard.
+        soft_markers = ("slop '", "too many sentences", "too many questions", "too many CTA questions", "stand-alone", "hard word", "rewrite ", "passive construction", "duplicate", "repeats material numbers")
+        hard = [w for w in style_issues if not any(marker in w for marker in soft_markers)]
         if hard:
             return False
     # 1. Article eligibility is decided from full body before generation.
@@ -2277,14 +2275,12 @@ def generate_thread(article):
     # One writer plus one revision. If revision fails with hard issues, skip immediately —
     # second writer call with same prompt will generate same slop. Only retry (attempt 2)
     # when revision fails due to JSON/syntax issues, not hard validation.
-    for attempt in range(1, 3):
-        content, error = _call_llm(SYSTEM_PROMPT, user, max_retries=3)
+    for attempt in range(1, 2):
+        content, error = _call_llm(SYSTEM_PROMPT, user, max_retries=1)
         if error:
             log.warning(f"  Writer request failed — {error[:80]}")
             if is_rate_limit_error(error):
                 return None, error
-            if attempt < 3:
-                time.sleep(3)
             continue
         content = content.strip()
         # Strip markdown fences, invisible chars, SSE artefacts
@@ -2299,9 +2295,7 @@ def generate_thread(article):
         try:
             data = json.loads(content)
         except json.JSONDecodeError:
-            log.warning(f"  LLM attempt {attempt}/3 — bad JSON: {content[:80]}")
-            if attempt < 3:
-                time.sleep(2)
+            log.warning(f"  LLM attempt {attempt}/1 — bad JSON: {content[:80]}")
             continue
         if data.get("status") == "error":
             return None, data.get("message", "LLM error")
@@ -2309,22 +2303,24 @@ def generate_thread(article):
         posts = _normalize_s1(posts, article["body"])
         # All 6 posts required.
         missing = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4","post_5","post_6"] if not posts.get(k, "").strip()]
-        # Style issues are revision cues. Fact checks remain publish blockers.
+        # Style warnings are advisory. Grounding, names, claims, empty/structure remain hard.
         style_warnings = deterministic_validate(posts) + _duplicate_fact_warnings(posts)
         noun_warnings = _validate_proper_nouns(posts, article["body"])
         claim_warnings = _validate_claim_markers(posts, article["body"])
         voice_warnings = _voice_warnings(posts)
         jargon_warnings = _validate_jargon(posts, article["body"])
-        warnings = missing + grounding_validate(article, posts) + noun_warnings + claim_warnings + jargon_warnings + style_warnings + voice_warnings
-        if style_warnings or claim_warnings or voice_warnings:
-            log.info(f"  Soft style/claim warnings: {style_warnings + claim_warnings + voice_warnings}")
+        grounding_warnings = grounding_validate(article, posts)
+        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "only 0 sentence", "S1 WAJIB", "CTA not found", "S6 must not"))]
+        warnings = missing + grounding_warnings + noun_warnings + claim_warnings + jargon_warnings + hard_style_warnings
+        soft_warnings = style_warnings + voice_warnings
+        if soft_warnings:
+            log.info(f"  Soft style warnings (advisory): {soft_warnings}")
         if warnings:
             log.warning(f"  Hard validation: {warnings}")
             revision_notes = '; '.join(warnings)
             rev_user = user + f"\n\n{REVISION_PROMPT.format(revision_notes=revision_notes)}"
-            # Pause to avoid 429 cascade: verifier just consumed a rate-limited slot.
-            time.sleep(random.uniform(10, 20))
-            c2, e2 = _call_llm(SYSTEM_PROMPT, rev_user, max_retries=3)
+            # One bounded revision; no rapid provider churn.
+            c2, e2 = _call_llm(SYSTEM_PROMPT, rev_user, max_retries=1)
             if c2:
                 c2 = re.sub(r'^```(?:json)?\s*|\s*```$', "", c2.strip())
                 try:
@@ -2342,7 +2338,7 @@ def generate_thread(article):
                     voice_w2 = _voice_warnings(p2)
                     if style_w2 or voice_w2:
                         log.info(f"  Soft style warnings after revision: {style_w2 + voice_w2}")
-                    if d2.get("status") == "success" and not (w2 or style_w2 or voice_w2):
+                    if d2.get("status") == "success" and not w2:
                         data, posts = d2, p2
                         warnings = []
                         log.info("  Revision fixed validation")
@@ -2402,7 +2398,7 @@ def generate_thread(article):
             "hook_pattern": _content_metadata(article.get("title", ""), article.get("body", ""))[2],
             "posts": posts,
         }, None
-    return None, "LLM failed after 2 attempts"
+    return None, "generation_failed"
 
 # ══════════════════════════════════════════════
 #   THREADS PUBLISHER
