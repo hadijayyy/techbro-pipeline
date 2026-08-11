@@ -49,7 +49,8 @@ except Exception:
     pass
 
 SZEJAY_BOT_TOKEN = os.getenv("SZEJAY_BOT_TOKEN")
-SZEJAY_CHAT_ID = "8771306538"
+# Report destination: Hadijayyy Telegram DM, not bot's own ID.
+SZEJAY_CHAT_ID = "1022032312"
 
 log = logging.getLogger("techbro-v3")
 THREADS_USER_ID = None

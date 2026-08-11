@@ -395,7 +395,7 @@ def test_success_report_sends_expected_telegram_message(monkeypatch):
     monkeypatch.setattr(pipeline.urllib.request, "urlopen", fake_urlopen)
     assert pipeline.send_success_report("Judul", "FACT_FIRST", 142.0, "https://threads.test/post/1")
     assert captured["payload"] == {
-        "chat_id": "8771306538",
+        "chat_id": "1022032312",
         "text": "✅ v3 Posted @ " + pipeline.datetime.now(pipeline.WIB).strftime("%H:%M") + " WIB\nJudul\nPattern: FACT_FIRST | 142.0s\nhttps://threads.test/post/1",
     }
     assert captured["timeout"] == 10
