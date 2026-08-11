@@ -176,9 +176,11 @@ def save_inflight(data):
 
 
 def _publish_complete(pub, posts):
-    """Only a complete chain may enter dedup/analytics state."""
-    expected = sum(1 for text in posts.values() if text)
-    return bool(pub and not pub.get("error") and len(pub.get("post_ids", [])) == expected)
+    """Only a complete seven-post chain may enter dedup/analytics state."""
+    expected = 7
+    complete_posts = all(posts.get(f"post_{i}", "").strip() for i in range(1, expected + 1))
+    return bool(pub and not pub.get("error") and complete_posts
+                and len(pub.get("post_ids", [])) == expected)
 
 
 def send_success_report(title, pattern, elapsed, permalink):
@@ -243,7 +245,7 @@ def load_prepared_article(posted_urls):
 
 
 def save_prepared_article(article, result, image_url):
-    """Persist only a fully validated six-slide draft for one later publish."""
+    """Persist only a fully validated seven-post draft for one later publish."""
     payload = dict(article)
     # Always persist a source timestamp so the 24h freshness check works on reload.
     # Prefer published_ts (source page), fall back to ts (RSS), then prepared_at.
@@ -1375,6 +1377,48 @@ def source_claim_plan(article):
     return "\n".join(f"- {s}" for s in selected[:12])
 
 
+def source_claim_map(article):
+    """Rank distinct source sentences and assign one evidence unit to each slide."""
+    body = re.sub(r"\s+", " ", article.get("body") or "").strip()
+    sentences = []
+    seen = set()
+    for sentence in re.split(r"(?<=[.!?])\s+", body):
+        sentence = sentence.strip()
+        key = sentence.lower()
+        if len(sentence) >= 25 and key not in seen:
+            seen.add(key)
+            sentences.append(sentence)
+
+    slide_signals = {
+        "post_1": ("menetapkan", "ditetapkan", "resmi", "usulkan", "calon", "keputusan", "perubahan"),
+        "post_2": ("menteri", "ketua", "gubernur", "menurut", "mengatakan", "ujar", "dpr", "ojk", "bi"),
+        "post_3": ("melalui", "dilakukan", "penyaluran", "program", "kerja sama", "pembiayaan", "mengubah"),
+        "post_4": ("tujuan", "agar", "supaya", "mulai", "berlaku", "target", "menjaga", "hingga"),
+        "post_5": ("dampak", "memengaruhi", "mempengaruhi", "risiko", "biaya", "harga", "konsumen", "pelaku usaha"),
+        "post_6": ("menunggu", "belum", "proses", "pembahasan", "persetujuan", "ditentukan", "perlu"),
+    }
+
+    def score(sentence, signals):
+        text = sentence.lower()
+        value = 1
+        value += sum(2 for signal in signals if signal in text)
+        if re.search(r"(?:rp\s*)?\d|\d+\s*(?:persen|%|miliar|juta|triliun)", text, re.I):
+            value += 2
+        if '"' in sentence or '“' in sentence:
+            value += 1
+        return value
+
+    remaining = list(enumerate(sentences))
+    result = {}
+    for slide, signals in slide_signals.items():
+        if not remaining:
+            break
+        index, sentence = max(remaining, key=lambda item: (score(item[1], signals), -item[0]))
+        remaining = [(i, s) for i, s in remaining if i != index]
+        result[slide] = [{"sentence": sentence, "score": score(sentence, signals)}]
+    return result
+
+
 def deterministic_grounding_validate(article, posts):
     body = article.get("body") or ""
     return (_validate_numbers(posts, body) + _validate_years(posts, body)
@@ -1417,33 +1461,66 @@ def hook_issues(hook, body):
     return []
 
 
+SLIDE_CHAR_LIMIT = 400
+
+
+def _fit_complete_sentences(text, limit):
+    """Keep complete sentences only; never cut text at an arbitrary character."""
+    text = text.strip()
+    if len(text) <= limit:
+        return text
+    sentences = re.findall(r".*?[.!?](?=\s|$)", text, flags=re.S)
+    if not sentences:
+        return text
+    kept = []
+    for sentence in sentences:
+        candidate = " ".join(kept + [sentence.strip()])
+        if len(candidate) > limit:
+            break
+        kept.append(sentence.strip())
+    # One complete sentence is safer than an incomplete sentence. If it alone
+    # exceeds limit, keep it intact and let contract validation no-post it.
+    return " ".join(kept) or sentences[0].strip()
+
+
+def _fit_complete_sentences_with_url(text, limit):
+    """Fit prose and preserve URL without cutting either prose or URL."""
+    match = re.search(r"https?://\S+", text)
+    if not match:
+        return _fit_complete_sentences(text, limit)
+    url = match.group().rstrip(".,)")
+    prose = re.sub(r"\s*https?://\S+", "", text).strip()
+    room = limit - len(url) - 2
+    fitted = _fit_complete_sentences(prose, room)
+    return f"{fitted}\n\n{url}" if fitted else url
+
+
 def thread_contract_issues(posts, article_url):
-    """Finalize 6 posts. Source URL on last post — strips any LLM-added URL first to avoid doubling."""
+    """Finalize S1-S6 plus S7 source URL; strip legacy URLs from S6."""
     issues = []
     for i in range(1, 7):
         text = posts.get(f"post_{i}", "")
         if not text or not text.strip():
             issues.append(f"post_{i}: empty")
             continue
-        if len(text) > 500:
-            issues.append(f"post_{i}: over 500 chars")
-    # URL goes on the LAST non-empty post
+        # Content slides never carry URLs. Remove legacy S6 URLs before length validation.
+        text = re.sub(r'\[URL[^\]]*\]', '', text, flags=re.I)
+        text = re.sub(r'\n*\s*https?://\S+', '', text).strip()
+        posts[f"post_{i}"] = text
+        if len(text) > SLIDE_CHAR_LIMIT:
+            posts[f"post_{i}"] = _fit_complete_sentences(text, SLIDE_CHAR_LIMIT)
+            if len(posts[f"post_{i}"]) > SLIDE_CHAR_LIMIT:
+                issues.append(f"post_{i}: over {SLIDE_CHAR_LIMIT} chars")
+    # S6 is CTA only. Move every legacy/LLM URL out, then create S7.
     if article_url:
-        for i in range(6, 0, -1):
+        for i in range(1, 7):
             text = posts.get(f"post_{i}", "")
-            if not text.strip():
-                continue
-            # Strip LLM URL/placeholder — add canonical article URL exactly once.
-            text = re.sub(r'\[URL[^\]]*\]', '', text, flags=re.I)
-            text = re.sub(r'\n*\s*https?://\S+', '', text).strip()
-            posts[f"post_{i}"] = text
-            separator = "\n\n"
-            room = 500 - len(separator) - len(article_url)
-            if room < 1:
-                issues.append(f"post_{i}: source URL exceeds 500 chars")
-                break
-            posts[f"post_{i}"] = text[:room].rstrip() + separator + article_url
-            break
+            posts[f"post_{i}"] = text.strip()
+        posts["post_7"] = f"Sumber: {article_url}"
+        if len(posts["post_7"]) > SLIDE_CHAR_LIMIT:
+            issues.append(f"post_7: over {SLIDE_CHAR_LIMIT} chars")
+    elif "post_7" not in posts:
+        posts["post_7"] = ""
     return issues
 
 
@@ -1584,7 +1661,7 @@ ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengg
 - GAK BOLEH: jargon tanpa penjelasan. IPO/BUMN/BEI/konsolidasi/likuiditas/kapitalisasi/restrukturisasi/holding/obligasi/derivatif — kecuali langsung dijelaskan.
 - JANGAN: akselerasi, mitigasi, implementasi, optimalisasi, realisasi, signifikan, komprehensif, mekanisme, skema, portofolio. Ganti bahasa orang biasa.
 
-## S1 HOOK — WAJIB 2 KALIMAT, MAX 150 CHAR, NON-NEGOTIABLE
+## S1 HOOK — WAJIB 2 KALIMAT, MAX 400 CHAR, NON-NEGOTIABLE
 LOOP: Jika output hanya 1 kalimat, prompt revision akan gagal dan article di-skip —浪费 waktu. JANGAN biarkan ini terjadi.
 BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di antara kalimat). Kalimat pertama harus memakai salah satu: (1) angka spesifik, (2) keputusan resmi/perubahan kebijakan baru, atau (3) aktor berwenang + tindakan yang mengubah keadaan. Kalimat kedua kasih konteks/kontras atau novelty resmi. Fakta paling kontras/mengejutkan dari ALLOWLIST. JANGAN jawab di S1 — bikin wajib buka S2. Template non-numerik: "[Keputusan resmi] mengubah [status/kewenangan]. Ini pertama kalinya pemerintah membahas opsi ini secara resmi." ✅ — "[Keputusan resmi] mengubah [status/kewenangan]." ❌ (1 kalimat)
 
@@ -1632,8 +1709,8 @@ JANGAN pakai struktur:
 - Reference ke gambar/foto yang AI gak bisa lihat ("terlihat di gambar", "nampak")
 JANGAN passive voice: ganti "dapat dimaksimalkan" jadi "maksimalkan", "harus dilakukan" jadi "lakukan".
 
-## S6 BINARY DEBATE (max 500 char — SATU URL, TANPA LABEL)
-Dua posisi [A] dan [B] HARUS sama-sama bisa dibela. JANGAN framing satu kubu "baik" dan kubu lain "buruk" — pakai bahasa netral untuk kedua sisi. "Lo di kubu mana: [A] ... atau [B] ...?" BUKAN pertanyaan berjawaban tunggal. Akhiri dengan SATU URL sumber saja — jangan tulis "Sumber:", jangan tambah URL kedua, jangan ambil link dari dalam artikel.
+## S6 DEBAT NETRAL (max 400 char — TANPA URL)
+S6 wajib berupa kalimat debat netral yang mengikat kembali ketegangan S1. Tawarkan dua penilaian dalam bahasa natural, tanpa label [A]/[B]. Kedua posisi harus sama-sama bisa dibela; jangan framing satu kubu baik dan kubu lain buruk. Jangan tulis URL atau label sumber di S6.
 
 ## OUTPUT
 {"status":"success","angle":"sudut pandang","post_1":"HOOK...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
@@ -1709,6 +1786,12 @@ def build_user_prompt(article):
     body = article.get("body", "")[:10000]  # cap at 10k chars before allowlist extraction
     facts = literal_fact_allowlist(body)
     entities = literal_entity_allowlist(body)
+    claim_map = source_claim_map({"body": body})
+    claim_lines = []
+    for slide in [f"post_{i}" for i in range(1, 7)]:
+        claims = claim_map.get(slide, [])
+        if claims:
+            claim_lines.append(f"- {slide}: {claims[0]['sentence']} [nilai={claims[0]['score']}]")
     # Also extract location names from body for entity list (kota/kabupaten often in lowercase)
     location_pattern = re.findall(
         r'(?:di|ke|dari|untuk)\s+((?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4}))',
@@ -1742,7 +1825,11 @@ def build_user_prompt(article):
         "**NAMA/ENTITAS LITERAL — HANYA NAMA, ENTITAS, DAN LOKASI INI YANG BOLEH DIPAKAI:**",
         *[f"- {entity}" for entity in all_entities],
         "",
-        "⚠️ INTERNAL: TIDAK ADA sumber lain. Setiap angka, nama, lembaga, lokasi, tanggal, status, dan sebab-akibat HARUS persis dari ALLOWLIST di atas. Nama lembaga/entitas/lokasi WAJIB verbatim dari daftar NAMA/ENTITAS/LOKASI. DILARANG menambah kota, kabupaten, provinsi, daerah, atau lokasi yang tidak ada di daftar. DILARANG membuat frasa nama baru atau singkatan yang tidak muncul di daftar. Jangan membuat fakta baru. Jangan membuat frasa nama baru; dilarang membuat frasa nama baru. Post 6 slide WAJIB — semua post_1 sampai post_6 harus terisi. Output HANYA JSON.",
+        "**CLAIM MAP S1-S6 — FAKTA BERNILAI SUDAH DIRANKING:**",
+        *claim_lines,
+        "Gunakan CLAIM MAP sebagai tulang punggung slide. Jangan menambah klaim di luar CLAIM MAP atau ISI ARTIKEL.",
+        "",
+        "⚠️ INTERNAL: TIDAK ADA sumber lain. Setiap angka, nama, lembaga, lokasi, tanggal, status, dan sebab-akibat HARUS persis dari ALLOWLIST di atas. Nama lembaga/entitas/lokasi WAJIB verbatim dari daftar NAMA/ENTITAS/LOKASI. DILARANG menambah kota, kabupaten, provinsi, daerah, atau lokasi yang tidak ada di daftar. DILARANG membuat frasa nama baru atau singkatan yang tidak muncul di daftar. Jangan membuat fakta baru. Jangan membuat frasa nama baru; dilarang membuat frasa nama baru. Post 6 slide konten WAJIB — semua post_1 sampai post_6 harus terisi. Sistem menambahkan post_7 berisi URL sumber. Output HANYA JSON.",
     ]
     return "\n".join(parts)
 
@@ -1800,38 +1887,10 @@ def deterministic_validate(posts):
             warnings.append(f"{k}: only {sent_count} sentence(s) — butuh minimal 2 kalimat padat")
         if sent_count > 6:
             warnings.append(f"{k}: too many sentences ({sent_count})")
-        # Enforce char limits: S6 gets 500 (URL-safe), others 300
-        limit = 500 if i == 6 else 300
+        # Enforce 400-char limit on every slide; keep complete sentences only.
+        limit = SLIDE_CHAR_LIMIT
         if len(p) > limit:
-            # For S6: preserve trailing URL by truncating before it
-            if i == 6:
-                url_match = re.search(r'https?://\S+', p)
-                if url_match:
-                    url_start = url_match.start()
-                    available = limit - (len(p) - url_start) - 1  # -1 for space
-                    if available > 80:
-                        truncated = p[:available]
-                        last_dot = truncated.rfind(".")
-                        if last_dot > 50:
-                            p = truncated[:last_dot+1] + " " + url_match.group()
-                        else:
-                            p = truncated + " " + url_match.group()
-                    else:
-                        # URL too long, just truncate early
-                        p = p[:limit]
-                        last_dot = p.rfind(".")
-                        p = p[:last_dot+1] if last_dot > 50 else p[:limit]
-                else:
-                    truncated = p[:limit]
-                    last_dot = truncated.rfind(".")
-                    p = truncated[:last_dot+1] if last_dot > 50 else truncated
-            else:
-                truncated = p[:300]
-                last_dot = truncated.rfind(".")
-                if last_dot > 50:
-                    p = truncated[:last_dot+1]
-                else:
-                    p = truncated
+            p = _fit_complete_sentences_with_url(p, limit)
             posts[k] = p
         outside = re.sub(r'"[^\"]*"', "", p)
         # Jargon checks moved to _validate_jargon(body-aware) to avoid false positives on source terms.
@@ -1853,19 +1912,15 @@ def deterministic_validate(posts):
         # Allow rhetorical questions in S2-S5 (provocation style)
         if i == 2 and outside.count("?") > 2:
             warnings.append(f"{k}: too many questions")
-        # CTA on post_6 (always the last post now — 6 slides mandatory)
+        # S6 CTA; S7 is system-generated source URL and bypasses content validation.
         if i == 6:
             last_text = posts.get(f"post_{i}", "").lower()
             if not any(qt in last_text for qt in ["?", "menurut", "pilih", "kubu", "lo setuju", "lo percaya"]):
                 warnings.append(f"{k}: CTA not found on last post")
             if last_text.count("?") > 2:
                 warnings.append(f"{k}: too many CTA questions")
-            # S6-specific: one URL only, no "Sumber:" label, no biased framing
-            urls = re.findall(r'https?://\S+', posts.get(f"post_{i}", ""))
-            if len(urls) > 1:
-                warnings.append(f"{k}: multiple URLs found ({len(urls)}) — harus SATU URL saja")
-            if re.search(r'\bSumber\s*:', posts.get(f"post_{i}", "")):
-                warnings.append(f"{k}: label 'Sumber:' — jangan pakai label, URL langsung")
+            if re.search(r'https?://\S+|\bSumber\s*:', posts.get(f"post_{i}", ""), re.I):
+                warnings.append(f"{k}: S6 must not contain source URL")
             # Detect biased [A]/[B] framing: "solusi cerdas"/"cuan" vs "akal-akalan"
             s6_text = posts.get(f"post_{i}", "").lower()
             if ('[a]' in s6_text and '[b]' in s6_text):
@@ -2193,13 +2248,10 @@ def _quality_gate(article, data, posts, warnings):
 # ── Thread Generation ────────────────────────────────────────────────────────
 
 def _normalize_s1(posts, article_body):
-    """Enforce S1 hook: truncate at 150, auto-split 1-sentence, warn."""
+    """Enforce S1 hook: keep complete sentences within the shared 400-char limit."""
     s1 = posts.get("post_1", "")
-    # Truncate at 150 — split at sentence boundary
-    if len(s1) > 150:
-        trunc = s1[:150]
-        last_period = max(trunc.rfind("."), trunc.rfind("!"), trunc.rfind("?"))
-        posts["post_1"] = trunc[:last_period+1] if last_period > 40 else trunc.rsplit(".",1)[0]+"."
+    if len(s1) > SLIDE_CHAR_LIMIT:
+        posts["post_1"] = _fit_complete_sentences(s1, SLIDE_CHAR_LIMIT)
     # Auto-split 1-sentence S1 using article facts
     sent_count = len([c for c in posts.get("post_1","") if c in ".!?"])
     if sent_count < 2:
@@ -2356,7 +2408,7 @@ def generate_thread(article):
 # ══════════════════════════════════════════════
 
 def post_to_threads(article_title, posts, image_url=None, inflight=None):
-    """Post a six-slide chain to Threads via v1.0 Graph API. Slide 1 uses article image."""
+    """Post a seven-post chain to Threads; S1 uses article image, S7 carries source URL."""
     if not THREADS_TOKEN or not THREADS_USER_ID:
         log.error("No THREADS_ACCESS_TOKEN or THREADS_USER_ID")
         return None
@@ -2728,7 +2780,7 @@ def main():
             save_prepared_article(article, result, image_url)
             log.info(f"Prepared: {article['title']}")
         return
-    for i in range(1, 7):
+    for i in range(1, 8):
         first_line = posts.get(f"post_{i}", "").split("\n")[0][:80] or "(empty)"
         log.info(f"  S{i}: {first_line}")
 
@@ -2783,7 +2835,7 @@ def main():
             log.error(f"Post error: {pub['error']}")
     else:
         print()
-        for i in range(1, 7):
+        for i in range(1, 8):
             if f"post_{i}" not in posts:
                 continue
             print(f"--- S{i} ---")

@@ -40,6 +40,31 @@ def test_source_claim_plan_uses_article_sentences_only():
     assert "Kalimat pendek." not in plan
 
 
+def test_source_claim_map_ranks_and_assigns_source_sentences_to_slides():
+    body = (
+        "Pemerintah menetapkan kebijakan subsidi energi mulai Januari 2027. "
+        "Menteri Keuangan mengatakan aturan itu menyasar rumah tangga berpendapatan rendah. "
+        "Penyaluran dilakukan melalui basis data penerima yang sudah disiapkan. "
+        "Tujuannya menjaga anggaran dan bantuan mulai berlaku pada Januari 2027. "
+        "Perubahan ini memengaruhi konsumen dan pelaku usaha. "
+        "Proses penetapan masih menunggu pembahasan DPR."
+    )
+    claim_map = pipeline.source_claim_map({"body": body})
+
+    assert set(claim_map) == {f"post_{i}" for i in range(1, 7)}
+    assert claim_map["post_1"][0]["sentence"].startswith("Pemerintah menetapkan")
+    assert any("Menteri Keuangan" in c["sentence"] for c in claim_map["post_2"])
+    assert all(c["score"] > 0 for claims in claim_map.values() for c in claims)
+    assert len({c["sentence"] for claims in claim_map.values() for c in claims}) == 6
+
+
+def test_writer_prompt_contains_ranked_claim_map():
+    body = "Pemerintah menetapkan kebijakan subsidi senilai Rp1 triliun. " * 10
+    prompt = pipeline.build_user_prompt({"body": body})
+    assert "CLAIM MAP S1-S6" in prompt
+    assert "Jangan menambah klaim di luar CLAIM MAP" in prompt
+
+
 def test_inflight_chain_round_trip_preserves_partial_post_ids(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "INFLIGHT_FILE", tmp_path / "inflight_chain.json")
     state = {"article": {"url": "https://example.test/a"}, "posts": {"post_1": "one"}, "post_ids": ["p1"]}
@@ -236,26 +261,66 @@ def test_hook_allows_supported_policy_change_without_forced_number_or_contradict
     assert not pipeline.hook_issues("Pemerintah ubah aturan PPN minggu depan.", "Kebijakan berlaku 1 Agustus.")
 
 
-def test_thread_contract_keeps_source_url_within_500_char_limit():
+def test_thread_contract_moves_source_url_to_s7():
     posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
     posts["post_6"] = "Takeaway. Apa yang perlu dipantau?"
     issues = pipeline.thread_contract_issues(posts, "https://contoh.go.id/dokumen")
     assert issues == [], issues
-    assert posts["post_6"].endswith("https://contoh.go.id/dokumen")
+    assert posts["post_6"] == "Takeaway. Apa yang perlu dipantau?"
+    assert posts["post_7"] == "Sumber: https://contoh.go.id/dokumen"
 
 
-def test_thread_contract_replaces_url_placeholder_variants():
+def test_thread_contract_removes_legacy_url_from_s6_and_adds_s7():
     posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
-    posts["post_6"] = "Baca [URL sumber]."
-    pipeline.thread_contract_issues(posts, "https://contoh.go.id/dokumen")
+    posts["post_6"] = "Baca [URL sumber].\n\nhttps://tautan-lama.test"
+    issues = pipeline.thread_contract_issues(posts, "https://contoh.go.id/dokumen")
+    assert issues == [], issues
+    assert "http" not in posts["post_6"]
     assert "[URL" not in posts["post_6"]
-    assert posts["post_6"].count("https://contoh.go.id/dokumen") == 1
+    assert posts["post_7"] == "Sumber: https://contoh.go.id/dokumen"
+
+
+def test_thread_contract_rejects_source_slide_over_400_chars():
+    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
+    url = "https://contoh.go.id/" + "x" * 390
+    issues = pipeline.thread_contract_issues(posts, url)
+    assert any("post_7: over 400 chars" in issue for issue in issues)
+
+
+def test_publish_completion_requires_seven_posts():
+    posts = {f"post_{i}": "x" for i in range(1, 8)}
+    assert not pipeline._publish_complete({"post_ids": [str(i) for i in range(1, 7)]}, posts)
+    assert pipeline._publish_complete({"post_ids": [str(i) for i in range(1, 8)]}, posts)
 
 
 def test_thread_contract_rejects_over_limit_post():
     posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
-    posts["post_3"] = "x" * 501
-    assert "post_3: over 500 chars" in pipeline.thread_contract_issues(posts, "")
+    posts["post_3"] = "x" * 401
+    assert "post_3: over 400 chars" in pipeline.thread_contract_issues(posts, "")
+
+
+def test_normalize_s1_uses_400_limit_and_complete_sentences():
+    posts = {"post_1": "Kalimat pertama lengkap. " + "Kalimat kedua sangat panjang " * 30}
+    pipeline._normalize_s1(posts, "Fakta sumber cukup panjang. Fakta tambahan cukup panjang.")
+    assert len(posts["post_1"]) <= 400
+    assert posts["post_1"].endswith(".")
+
+
+def test_slide_limit_is_400_and_truncation_keeps_complete_sentences():
+    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
+    posts["post_2"] = "Kalimat pertama lengkap. " + "Kalimat kedua sangat panjang " * 30
+    issues = pipeline.deterministic_validate(posts)
+    assert len(posts["post_2"]) <= 400
+    assert posts["post_2"].endswith(".")
+    assert "Kalimat kedua sangat panjang Kalimat kedua sangat panjang Kalimat kedua sangat panjang" not in posts["post_2"]
+    assert not any("post_2: over" in issue for issue in issues)
+
+
+def test_thread_contract_all_slides_use_400_char_limit():
+    posts = {f"post_{i}": "Kalimat lengkap. " + "Konteks tambahan. " * 30 for i in range(1, 7)}
+    pipeline.thread_contract_issues(posts, "")
+    assert all(len(posts[f"post_{i}"]) <= 400 for i in range(1, 7))
+    assert all(posts[f"post_{i}"].endswith(".") for i in range(1, 7))
 
 
 def test_sensitive_content_blocks_categorical_verdict_even_if_source_mentions_case():
@@ -307,9 +372,9 @@ def test_unsourced_editorial_claims_are_hard_grounding_failures():
 
 
 def test_publish_completion_rejects_partial_chain():
-    posts = {"post_1": "a", "post_2": "b"}
-    assert not pipeline._publish_complete({"post_ids": ["1"], "error": "post_2 failed"}, posts)
-    assert pipeline._publish_complete({"post_ids": ["1", "2"]}, posts)
+    posts = {f"post_{i}": "x" for i in range(1, 8)}
+    assert not pipeline._publish_complete({"post_ids": [str(i) for i in range(1, 7)], "error": "post_7 failed"}, posts)
+    assert pipeline._publish_complete({"post_ids": [str(i) for i in range(1, 8)]}, posts)
 
 
 def test_success_report_sends_expected_telegram_message(monkeypatch):
@@ -526,8 +591,8 @@ def test_prepared_article_normalizes_old_double_url_draft(tmp_path, monkeypatch)
     pipeline.PREPARED_ARTICLE_FILE.write_text(json.dumps(article))
     loaded = pipeline.load_prepared_article(set())
     assert loaded is not None
-    assert loaded["posts"]["post_6"].count("http") == 1
-    assert loaded["posts"]["post_6"].endswith(article["url"])
+    assert "http" not in loaded["posts"]["post_6"]
+    assert loaded["posts"]["post_7"] == "Sumber: https://sumber.test"
 
 
 def test_hot_topic_scout_rejects_global_story_without_indonesia_connection(monkeypatch):
