@@ -51,14 +51,25 @@ except Exception:
 SZEJAY_BOT_TOKEN = os.getenv("SZEJAY_BOT_TOKEN")
 SZEJAY_CHAT_ID = "8771306538"
 
+log = logging.getLogger("techbro-v3")
 THREADS_USER_ID = None
+METRICS_TOKEN_OK = False
 if THREADS_TOKEN and not DRY_RUN:
     try:
         r = httpx.get(f"{GRAPH}/me?access_token={THREADS_TOKEN}", timeout=10)
         if r.status_code == 200:
             THREADS_USER_ID = r.json().get("id")
-    except Exception:
-        pass
+            log.info(f"Token: POST OK | user_id={THREADS_USER_ID}")
+            mr = httpx.get(f"{GRAPH}/{THREADS_USER_ID}/threads?access_token={THREADS_TOKEN}&limit=1", timeout=10)
+            if mr.status_code == 200:
+                METRICS_TOKEN_OK = True
+                log.info("Token: METRICS OK")
+            else:
+                log.warning(f"Token: METRICS HTTP {mr.status_code} — engagement tracking may fail")
+        else:
+            log.warning(f"Token: POST HTTP {r.status_code} — check THREADS_ACCESS_TOKEN")
+    except Exception as e:
+        log.warning(f"Token check failed: {e}")
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 
@@ -67,7 +78,6 @@ logging.basicConfig(level=logging.INFO,
     datefmt="%Y-%m-%d %H:%M:%S")
 # httpx logs full request URLs at INFO, which leaks access_token in query strings.
 logging.getLogger("httpx").setLevel(logging.WARNING)
-log = logging.getLogger("techbro-v3")
 
 # ── Keyword Loader ───────────────────────────────────────────────────────────
 
@@ -1554,6 +1564,7 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 4.STOP-SLOP: JANGAN pakai "bayangin", "faktanya", "yang perlu dicatat", "untuk itu", "bukan sekadar", "tapi ternyata", "padahal", "hal ini menunjukkan", passive voice (harus/dapat harus...).
 5.TIDAK boleh menambah dampak/CTA baru, nama baru, atau fakta di luar ALLOWLIST.
 6.S1: WAJIB 2 kalimat penuh (titik di antara kalimat) — ini NON-NEGOTIABLE.
+7.RETURN TO ORIGINAL: Jika tidak bisa perbaiki tanpa invent nama/angka/label baru, balikan ke value asli field tersebut. Jangan tambah apa-apa.
 
 Jika tidak ada enam post yang bisa dipertahankan akurat dan memenuhi aturan di atas, balas {{"status":"error","message":"insufficient_evidence"}}."""
 
@@ -1923,7 +1934,12 @@ def _validate_jargon(posts, body):
             continue
         outside = re.sub(r'"[^\"]*"', "", text)
         # Bureaucratic words that the prompt forbids
-        for word in ["akselerasi", "mitigasi", "implementasi", "optimalisasi", "realisasi", "signifikan", "komprehensif", "mekanisme", "portofolio", "holding", "derivatif"]:
+        hard_banned = [
+            "akselerasi", "mitigasi", "implementasi", "optimalisasi", "realisasi",
+            "signifikan", "komprehensif", "mekanisme", "portofolio", "holding",
+            "derivatif", "padahal", "memang",
+        ]
+        for word in hard_banned:
             if re.search(rf"\b{word}\b", outside.lower()):
                 issues.append(f"{key}: hard word '{word}'")
         # "skema" and "obligasi" are common legitimate economy terms — use jargon_map instead
@@ -2062,20 +2078,26 @@ def _quality_gate(article, data, posts, warnings):
 
 # ── Thread Generation ────────────────────────────────────────────────────────
 
-def _truncate_s1(posts):
-    """Enforce S1 hook length deterministically (min 2 kalimat, max 150 chars)."""
+def _normalize_s1(posts, article_body):
+    """Enforce S1 hook: truncate at 150, auto-split 1-sentence, warn."""
     s1 = posts.get("post_1", "")
+    # Truncate at 150 — split at sentence boundary
     if len(s1) > 150:
         trunc = s1[:150]
         last_period = max(trunc.rfind("."), trunc.rfind("!"), trunc.rfind("?"))
-        if last_period > 40:
-            posts["post_1"] = trunc[:last_period + 1]
-        else:
-            posts["post_1"] = trunc.rsplit(".", 1)[0] + "." if "." in trunc else trunc
-    # Warn if only 1 sentence
-    sent_count = len([c for c in posts.get("post_1", "") if c in ".!?"])
+        posts["post_1"] = trunc[:last_period+1] if last_period > 40 else trunc.rsplit(".",1)[0]+"."
+    # Auto-split 1-sentence S1 using article facts
+    sent_count = len([c for c in posts.get("post_1","") if c in ".!?"])
     if sent_count < 2:
-        log.warning("  S1: only %d sentence(s) — butuh min 2 kalimat", sent_count)
+        s1_text = posts["post_1"]
+        body_facts = literal_fact_allowlist(article_body)
+        for fact in body_facts:
+            if len(fact) > 20 and fact[:40] not in s1_text[:100]:
+                posts["post_1"] = f"{s1_text} {fact[:80]}."
+                break
+        sent_count = len([c for c in posts["post_1"] if c in ".!?"])
+        if sent_count < 2:
+            log.warning("  S1: still 1 sentence after auto-split — caller skips article")
     return posts
 
 
@@ -2117,7 +2139,7 @@ def generate_thread(article):
         if data.get("status") == "error":
             return None, data.get("message", "LLM error")
         posts = {k: _convert_pov(data.get(k) or "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
-        posts = _truncate_s1(posts)
+        posts = _normalize_s1(posts, article["body"])
         # All 6 posts required.
         missing = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4","post_5","post_6"] if not posts.get(k, "").strip()]
         # Style issues are revision cues. Fact checks remain publish blockers.
@@ -2141,7 +2163,7 @@ def generate_thread(article):
                 try:
                     d2 = json.loads(c2)
                     p2 = {k: _convert_pov(d2.get(k) or "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
-                    p2 = _truncate_s1(p2)
+                    p2 = _normalize_s1(p2, article["body"])
                     style_w2 = deterministic_validate(p2) + _duplicate_fact_warnings(p2)
                     noun_w2 = _validate_proper_nouns(p2, article["body"])
                     w2 = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4"] if not p2.get(k, "").strip()]
@@ -2445,6 +2467,8 @@ def main():
     result = prepared_result
     error = None
     recent_openings = data.get("recent_content", {}).get("openings", [])
+    # Failure fingerprint — track systemic writer failures to circuit-break candidate churn
+    failure_counts = {}  # {fingerprint: count}
     if result:
         log.info("Using immutable prepared draft...")
     else:
@@ -2453,7 +2477,10 @@ def main():
             article["recent_openings"] = recent_openings[:5]
         result, error = generate_thread(article)
     if error:
-        log.error(f"Generation failed: {error}")
+        # Track failure fingerprint for circuit-breaker
+        fprint = f"{error}"
+        failure_counts[fprint] = failure_counts.get(fprint, 0) + 1
+        log.error(f"Generation failed: {error} (fingerprint count: {failure_counts[fprint]})")
         if is_rate_limit_error(error):
             log.error("Generation stopped: Mistral rate limit; cooling down 90s before retry candidate")
             time.sleep(90)
@@ -2517,7 +2544,13 @@ def main():
             time.sleep(cooldown)
             result, error = generate_thread(retry_article)
             if error:
-                log.error(f"Retry generation also failed: {error}")
+                # Track failure fingerprint — if same issue repeats 3+ times, circuit-break
+                fprint = f"{error}"
+                failure_counts[fprint] = failure_counts.get(fprint, 0) + 1
+                log.error(f"Retry generation also failed: {error} (fingerprint count: {failure_counts[fprint]})")
+                if failure_counts[fprint] >= 3:
+                    log.error(f"CIRCUIT BREAK — same failure '{error}' seen {failure_counts[fprint]} times — stopping candidate churn")
+                    return
                 if is_rate_limit_error(error):
                     log.error("Generation stopped: Mistral rate limit; skip candidate churn")
                     return
