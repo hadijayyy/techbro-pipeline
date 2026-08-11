@@ -1415,8 +1415,8 @@ def refresh_performance_metrics(data, now=None):
 
 def _compute_performance_stats(data):
     """Engagement quality, not raw reach, drives bounded source/arc preference."""
-    buckets = {"source_avg": {}, "arc_avg": {}, "source_count": {}}
-    grouped = {"source_avg": {}, "arc_avg": {}}
+    buckets = {"source_avg": {}, "source_count": {}}
+    grouped = {"source_avg": {}}
     for topic in data.get("topics", []):
         views = topic.get("views") or 0
         if views < 100:
@@ -1424,7 +1424,6 @@ def _compute_performance_stats(data):
         score = ((topic.get("likes") or 0) + 2 * (topic.get("replies") or 0)
                  + 3 * (topic.get("reposts") or 0) + 2 * (topic.get("quotes") or 0)) / views
         grouped["source_avg"].setdefault(topic.get("article_source", ""), []).append(score)
-        grouped["arc_avg"].setdefault(topic.get("arc", ""), []).append(score)
     for name, values in grouped.items():
         buckets[name] = {key: sum(items) / len(items) for key, items in values.items() if key}
     buckets["source_count"] = {key: len(items) for key, items in grouped["source_avg"].items() if key}
