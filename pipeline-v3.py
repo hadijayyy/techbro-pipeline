@@ -42,6 +42,8 @@ GRAPH = "https://graph.threads.net/v1.0"
 THREADS_TOKEN = None
 try:
     from dotenv import load_dotenv
+    # Reuse Hermes custom-provider credential for local 9router LLM calls.
+    load_dotenv(Path.home() / ".hermes" / ".env", override=False)
     # Cron/Hermes may inherit stale secrets; project .env is source of truth.
     load_dotenv(BASE / ".env", override=True)
     THREADS_TOKEN = os.getenv("THREADS_ACCESS_TOKEN")
@@ -1468,7 +1470,9 @@ def _validate_source_evidence_map(posts, body):
             source_terms = _content_terms(sentence)
             overlap = post_terms & source_terms
             source_anchors = set(re.findall(r"\b(?:rp\s*)?\d[\d.,]*\b|\b[A-Z]{2,}\b", sentence))
-            if len(overlap) >= 3 or (len(overlap) >= 2 and anchors & source_anchors):
+            # Paraphrase can retain only two content terms. Numeric/acronym
+            # anchors still require an exact source match elsewhere.
+            if len(overlap) >= 2 and (len(overlap) >= 3 or anchors & source_anchors or any(len(term) >= 7 for term in overlap)):
                 supported = True
                 break
         if not supported:
@@ -1696,11 +1700,16 @@ def _get_api_key():
     return None
 
 def _call_llm(system, user, model=None, max_retries=3, temperature=None):
-    api_key = os.getenv("LLM_API_KEY") or _get_api_key()
+    # LLM_BASE_URL/LLM_MODEL route to Mistral API directly.
+    base_url = os.getenv("LLM_BASE_URL", "https://api.mistral.ai/v1/chat/completions").rstrip("/")
+    if base_url.endswith("/v1"):
+        base_url += "/chat/completions"
+    if "20128" in base_url:
+        api_key = os.getenv("HERMES_CUSTOM_43_157_200_187_20128_API_KEY") or os.getenv("LLM_API_KEY")
+    else:
+        api_key = os.getenv("LLM_API_KEY") or _get_api_key()
     if not api_key:
         return None, "No API key found"
-    # LLM_BASE_URL/LLM_MODEL route to Mistral API directly.
-    base_url = os.getenv("LLM_BASE_URL", "https://api.mistral.ai/v1/chat/completions")
     model = model or os.getenv("LLM_MODEL", "mistral-large-latest")
     headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
     payload = {
@@ -1804,7 +1813,7 @@ S6 wajib berupa kalimat debat netral yang mengikat kembali ketegangan S1. Tawark
 Jika bukti tidak cukup, balas {"status":"error","message":"insufficient_evidence"}.
 """
 
-REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah field lain. Balas JSON lengkap dengan field yang sudah diperbaiki.
+REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah field lain. JANGAN membuat ulang slide yang tidak disebut issue. Balas JSON lengkap dengan field yang sudah diperbaiki.
 
 Issues: {revision_notes}
 
@@ -1818,6 +1827,42 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 7.RETURN TO ORIGINAL: Jika tidak bisa perbaiki tanpa invent nama/angka/label baru, balikan ke value asli field tersebut. Jangan tambah apa-apa.
 
 Jika tidak ada enam post yang bisa dipertahankan akurat dan memenuhi aturan di atas, balas {{"status":"error","message":"insufficient_evidence"}}."""
+
+
+def build_revision_prompt(revision_notes, posts):
+    """Give revision model current draft so it patches, not rewrites, slides."""
+    draft = {"status": "success"}
+    draft.update({f"post_{i}": posts.get(f"post_{i}", "") for i in range(1, 7)})
+    return REVISION_PROMPT.format(revision_notes=revision_notes) + "\n\nDRAFT SAAT INI:\n" + json.dumps(draft, ensure_ascii=False)
+
+
+def _source_fallback_posts(article):
+    """Build no-invention six-post draft from distinct source sentences."""
+    sentences = [s for s in _source_sentences(article.get("body", "")) if len(s) <= SLIDE_CHAR_LIMIT]
+    if len(sentences) < 7:
+        return None
+    first_pair = next(
+        ((i, j) for i in range(len(sentences)) for j in range(i + 1, len(sentences))
+         if len(sentences[i]) + len(sentences[j]) + 1 <= SLIDE_CHAR_LIMIT),
+        None,
+    )
+    if first_pair is None:
+        return None
+    i, j = first_pair
+    chosen = [sentences[i], sentences[j]] + [s for n, s in enumerate(sentences) if n not in first_pair][:5]
+    if len(chosen) < 7:
+        return None
+    posts = {
+        "post_1": f"{chosen[0]} {chosen[1]}",
+        "post_2": chosen[2],
+        "post_3": chosen[3],
+        "post_4": chosen[4],
+        "post_5": chosen[5],
+        "post_6": f"{chosen[6]} Menurut lo, fakta ini perlu dipantau?",
+    }
+    if any(len(text) > SLIDE_CHAR_LIMIT for text in posts.values()):
+        return None
+    return posts
 
 def literal_fact_allowlist(body):
     """Literal body sentences are the only permitted facts for writer and revision."""
@@ -2408,7 +2453,7 @@ def generate_thread(article):
             log.warning(f"  Hard validation: {warnings}")
             # Do not feed validator marker vocabulary back to model; models mirror it.
             revision_notes = re.sub(r"'[^']*'", "'unsupported wording'", '; '.join(warnings))
-            rev_user = user + f"\n\n{REVISION_PROMPT.format(revision_notes=revision_notes)}"
+            rev_user = user + "\n\n" + build_revision_prompt(revision_notes, posts)
             # One bounded revision; no rapid provider churn.
             c2, e2 = _call_llm(SYSTEM_PROMPT, rev_user, max_retries=1)
             if c2:
@@ -2456,9 +2501,24 @@ def generate_thread(article):
                             warnings = []
                             log.info("  Per-field revert: original was valid, revision was noise")
                         else:
-                            # Original has hard issues too — skip article
+                            # Model can repeatedly invent names/quotes while repairing. Use
+                            # deterministic source-only fallback before rejecting candidate.
                             log.warning(f"  Original posts also hard-fail: {w_orig}")
-                            return None, "revision_failed"
+                            fallback_posts = _source_fallback_posts(article)
+                            if fallback_posts:
+                                fallback_posts = _normalize_s1(fallback_posts, article["body"])
+                                fallback_issues = deterministic_grounding_validate(article, fallback_posts)
+                                fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
+                                if not fallback_issues:
+                                    posts = fallback_posts
+                                    data = {"status": "success", "angle": "source-only fallback"}
+                                    warnings = []
+                                    log.info("  Source-only fallback passed deterministic validation")
+                                else:
+                                    log.warning(f"  Source-only fallback blocked: {fallback_issues[:3]}")
+                                    return None, "revision_failed"
+                            else:
+                                return None, "revision_failed"
                 except json.JSONDecodeError:
                     log.warning("  Revision blocked: bad JSON")
                     # JSON decode fails are transient — worth retrying with fresh prompt.

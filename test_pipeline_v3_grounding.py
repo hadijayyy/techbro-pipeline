@@ -59,6 +59,52 @@ def test_source_claim_map_ranks_and_assigns_source_sentences_to_slides():
     assert len({c["sentence"] for claims in claim_map.values() for c in claims}) == 6
 
 
+def test_s6_question_needs_only_one_source_anchor():
+    body = (
+        "Pemerintah menetapkan kebijakan subsidi energi mulai Januari 2027. "
+        "Menteri Keuangan mengatakan aturan itu menyasar rumah tangga berpendapatan rendah. "
+        "Penyaluran dilakukan melalui basis data penerima yang sudah disiapkan. "
+        "Tujuannya menjaga anggaran dan bantuan mulai berlaku pada Januari 2027. "
+        "Perubahan ini memengaruhi konsumen dan pelaku usaha. "
+        "Proses penetapan masih menunggu pembahasan DPR."
+    )
+    posts = {
+        "post_1": "Pemerintah menetapkan kebijakan subsidi energi mulai Januari 2027.",
+        "post_2": "Menteri Keuangan mengatakan aturan itu menyasar rumah tangga berpendapatan rendah.",
+        "post_3": "Penyaluran dilakukan melalui basis data penerima yang sudah disiapkan.",
+        "post_4": "Tujuannya menjaga anggaran dan bantuan mulai berlaku pada Januari 2027.",
+        "post_5": "Perubahan ini memengaruhi konsumen dan pelaku usaha.",
+        "post_6": "Proses penetapan masih menunggu pembahasan DPR. Menurut lo, proses ini perlu diawasi?",
+    }
+    assert not pipeline._validate_source_evidence_map(posts, body)
+
+
+def test_revision_prompt_contains_current_draft():
+    draft = {f"post_{i}": f"draft {i}" for i in range(1, 7)}
+    prompt = pipeline.build_revision_prompt("post_2: bad quote", draft)
+    assert '"post_2": "draft 2"' in prompt
+    assert "JANGAN membuat ulang slide yang tidak disebut issue" in prompt
+
+
+def test_source_fallback_builds_six_grounded_posts():
+    sentences = [
+        "Pemerintah menetapkan kebijakan subsidi energi mulai Januari 2027.",
+        "Menteri Keuangan mengatakan aturan itu menyasar rumah tangga berpendapatan rendah.",
+        "Penyaluran dilakukan melalui basis data penerima yang sudah disiapkan.",
+        "Tujuannya menjaga anggaran dan bantuan mulai berlaku pada Januari 2027.",
+        "Perubahan ini memengaruhi konsumen dan pelaku usaha.",
+        "Proses penetapan masih menunggu pembahasan DPR.",
+        "Pembahasan lanjutan dilakukan setelah persetujuan DPR diterima.",
+    ]
+    article = {"body": " ".join(sentences)}
+    posts = pipeline._source_fallback_posts(article)
+    assert posts is not None
+    assert set(posts) == {f"post_{i}" for i in range(1, 7)}
+    assert all(len(text) <= pipeline.SLIDE_CHAR_LIMIT for text in posts.values())
+    assert posts["post_1"].count(".") >= 2
+    assert not pipeline.deterministic_grounding_validate(article, posts)
+
+
 def test_writer_prompt_contains_source_claims():
     body = "Pemerintah menetapkan kebijakan subsidi senilai Rp1 triliun. " * 10
     prompt = pipeline.build_user_prompt({"body": body})
