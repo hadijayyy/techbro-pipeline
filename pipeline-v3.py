@@ -238,6 +238,8 @@ def load_prepared_article(posted_urls):
         # Prose style warnings are advisory. Contract and grounding remain hard gates.
         if deterministic_grounding_validate(article, posts):
             return None
+        if _validate_source_evidence_map(posts, article.get("body", "")):
+            return None
         return article
     except (OSError, json.JSONDecodeError, TypeError):
         return None
@@ -1417,11 +1419,110 @@ def source_claim_map(article):
     return result
 
 
+def _normalize_grounding_text(text):
+    """Normalize only whitespace/case; preserve words and numbers."""
+    return re.sub(r"\s+", " ", (text or "").lower()).strip()
+
+
+def _validate_quotes(posts, body):
+    """Quoted text must be an exact source quote, not a model-combined paraphrase."""
+    source = _normalize_grounding_text(body)
+    issues = []
+    quote_pattern = r'“([^”]{8,})”|"([^\"]{8,})"|\'([^\']{8,})\''
+    for key in [f"post_{i}" for i in range(1, 7)]:
+        text = posts.get(key, "")
+        for match in re.finditer(quote_pattern, text):
+            quote = next((part for part in match.groups() if part), "")
+            if _normalize_grounding_text(quote) not in source:
+                issues.append(f"{key}: quote not verbatim in article: {quote[:80]}")
+    return issues
+
+
+def _source_sentences(body):
+    body = re.sub(r"\s+", " ", body or "").strip()
+    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", body) if len(s.strip()) >= 20]
+
+
+def _content_terms(text):
+    stop = {
+        "yang", "dan", "atau", "ini", "itu", "dari", "untuk", "dengan", "ke", "di",
+        "sebuah", "ada", "akan", "sudah", "juga", "oleh", "pada", "dalam", "hingga",
+        "lebih", "hanya", "cuma", "jadi", "tapi", "karena", "kalau", "bukan", "yang",
+    }
+    return {w for w in re.findall(r"[a-z0-9]{4,}", (text or "").lower()) if w not in stop}
+
+
+def _validate_source_evidence_map(posts, body):
+    """Every content slide needs a concrete source-sentence anchor."""
+    required = [f"post_{i}" for i in range(1, 7)]
+    if not all((posts.get(key) or "").strip() for key in required):
+        return []
+    source_sentences = _source_sentences(body)
+    issues = []
+    for key in required:
+        text = posts.get(key, "")
+        post_terms = _content_terms(text)
+        anchors = set(re.findall(r"\b(?:rp\s*)?\d[\d.,]*\b|\b[A-Z]{2,}\b", text))
+        supported = False
+        for sentence in source_sentences:
+            source_terms = _content_terms(sentence)
+            overlap = post_terms & source_terms
+            source_anchors = set(re.findall(r"\b(?:rp\s*)?\d[\d.,]*\b|\b[A-Z]{2,}\b", sentence))
+            if len(overlap) >= 3 or (len(overlap) >= 2 and anchors & source_anchors):
+                supported = True
+                break
+        if not supported:
+            issues.append(f"{key}: no source-sentence evidence anchor")
+    return issues
+
+
+def _validate_unsupported_inferences(posts, body):
+    """Block high-risk combined meanings absent from source, even when tokens exist."""
+    source = _normalize_grounding_text(body)
+    patterns = (
+        (r"\bpertama kalinya?\b", "novelty claim"),
+        (r"\bhampir dua kali lipat\b", "derived ratio"),
+        (r"\bdalam dua tahun\b", "unsupported timeline"),
+        (r"\btarget resmi\b", "official-status claim"),
+        (r"\bmasih tinggi\b", "unsupported evaluation"),
+        (r"\btakut kredit macet\b", "unsupported motive"),
+        (r"\bbakal kesulitan\b", "unsupported consequence"),
+        (r"\bangka aman\b", "unsupported evaluation"),
+        (r"\b(?:biar|supaya|agar) gak boncos\b", "unsupported consequence"),
+        (r"\bhampir\s+(?:dua kali|separuh|setengah)\b", "derived comparison"),
+        (r"\bdua kali\s+lipat\b", "derived comparison"),
+        (r"\bsetara\b", "derived comparison"),
+    )
+    issues = []
+    for key in [f"post_{i}" for i in range(1, 7)]:
+        text = _normalize_grounding_text(posts.get(key, ""))
+        for pattern, label in patterns:
+            match = re.search(pattern, text)
+            if match and match.group(0) not in source:
+                issues.append(f"{key}: {label} not in article: '{match.group(0)}'")
+    return issues
+
+
+def _validate_range_direction(posts, body):
+    """Reject wording that reverses source range direction."""
+    source = _normalize_grounding_text(body)
+    issues = []
+    for key in [f"post_{i}" for i in range(1, 7)]:
+        text = _normalize_grounding_text(posts.get(key, ""))
+        for number in re.findall(r"(?:rp\s*)?\d[\d.,]*\s*(?:triliun|miliar|juta|ribu)?", text):
+            number = number.strip()
+            if re.search(rf"{re.escape(number)}\s+ke\s+atas", source) and re.search(rf"(?:sampai|maksimal|batas)\s+{re.escape(number)}", text):
+                issues.append(f"{key}: range direction reverses source near '{number}'")
+    return issues
+
+
 def deterministic_grounding_validate(article, posts):
     body = article.get("body") or ""
     return (_validate_numbers(posts, body) + _validate_years(posts, body)
             + _validate_proper_nouns(posts, body) + _validate_claim_markers(posts, body)
-            + _validate_sensitive_language(posts, body))
+            + _validate_sensitive_language(posts, body) + _validate_quotes(posts, body)
+            + _validate_unsupported_inferences(posts, body) + _validate_range_direction(posts, body)
+            + _validate_source_evidence_map(posts, body))
 
 
 def grounding_validate(article, posts):
@@ -1431,9 +1532,9 @@ def grounding_validate(article, posts):
     # Semantic verifier is for drafts that survive deterministic checks.
     if deterministic:
         return deterministic
-    verifier_prompt = """Audit fakta DRAFT dengan standar: setiap pernyataan deklaratif harus DIDUKUNG SUMBER — angka, tanggal, nama, lembaga, status, pihak, sebab-akibat, konsekuensi, prediksi, perbandingan, penilaian ekonomi, dan kesimpulan.
+    verifier_prompt = """Audit fakta DRAFT dengan standar fail-closed.
 
-standar fail-closed (STANDAR FAIL-CLOSED): FAIL hanya bila DRAFT memuat fakta BARU yang tidak ada di SUMBER (misal: mengubah surplus menjadi klaim untung bersih, mengarang angka, nama, institusi, prediksi, atau klaim kausal). Parafrase wajar dari fakta yang sama TETAP PASS. Opini yang jelas ditandai sebagai opini, empati, dan pertanyaan CTA boleh selama tidak menyatakan dampak, motif, status, atau tuduhan baru. Prediksi hanya boleh bersyarat dan tidak boleh menyatakan hasil sebagai fakta. Insinuasi motif tersembunyi, proses tidak transparan, atau kepentingan tertentu = FAIL bila SUMBER tidak menyatakannya. "Di kawasan Asia" → "di Asia" = PASS. "Danantara" → "Badan Pengelola Investasi Danantara" = PASS. "Anggaran Pendapatan dan Belanja Negara" → "APBN" = PASS. Gaya bahasa dan hook tidak memerlukan dukungan; premise faktual CTA tetap wajib didukung.
+Setiap pernyataan deklaratif wajib didukung SUMBER: angka, tanggal, nama, lembaga, status, pihak, sebab-akibat, konsekuensi, prediksi, perbandingan, penilaian ekonomi, dan premis CTA. Parafrase wajar boleh; fakta baru, rasio hasil hitung, quote gabungan, motif, status, timeline, dan dampak yang tidak tertulis wajib FAIL. Opini yang jelas ditandai boleh bila tidak menyisipkan premis faktual baru. Gaya bahasa tidak perlu dukungan; fakta di balik hook dan CTA wajib didukung.
 
 Jawab satu kata saja: PASS atau FAIL."""
     draft = "\n".join(posts.values())
@@ -1648,26 +1749,27 @@ Balas JSON valid saja. Tidak ada markdown.
 Ubah satu ISI ARTIKEL menjadi 6 post Threads. Bahasa ngobrol tongkrongan (gua-lu). S2-S5: 2-3 kalimat padat dari 2-3 fakta ALLOWLIST. Satu slide = satu sudut tuntas, baru lanjut.
 
 ## STORYTELLING (enam slide satu cerita)
-ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Bahasa gua–lu. Alur: S1 kejutan → S2 kena siapa/gimana → S3 kok bisa → S4 aktor/motif → S5 konsekuensi → S6 debat. Buka dengan fakta paling mahal; Buat kalimat pertama menyampaikan fakta; jangan ulang angka, fakta, atau contoh. Buat kalimat pertama menyampaikan fakta. S6 menutup dengan satu pertanyaan spesifik. Tiap slide ditutup kontradiksi/implikasi yang dijawab slide berikutnya — jangan "selanjutnya...".
+ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Bahasa gua–lu. Alur: S1 perubahan/fakta utama → S2 pihak dan tindakan yang disebut sumber → S3 rincian pelaksanaan → S4 angka, alasan, atau ketentuan yang tertulis → S5 data dan batasan sumber → S6 pertanyaan netral berbasis fakta terakhir. Buka dengan fakta paling mahal dan fakta paling kuat; buat kalimat pertama menyampaikan fakta. Jangan menambah dampak, profesi, angka, skenario, penilaian; jangan ulang angka, fakta, atau contoh. S6 menutup dengan satu pertanyaan spesifik. Jangan membuat kontradiksi atau implikasi baru.
 
 ## BAHASA BUAT ORANG AWAM
-- Istilah teknis DIJELASKAN pas muncul: "IPO (jual saham pertama kali)", "konsolidasi (ngebersihin struktur dulu)"
-- Singkatan dikepanjangin: "BEI (Bursa Efek Indonesia, tempat jual-beli saham)"
-- Nama + jabatan singkat: "Pandu Sjahrir (kepala investasi Danantara)"
+- Istilah teknis dijelaskan saat muncul dengan kata sederhana dari artikel.
+- Singkatan dikepanjangin hanya bila bentuk panjangnya ada di artikel.
+- Nama dan jabatan disalin dari artikel; jangan menambah jabatan.
 - GAK BOLEH: jargon tanpa penjelasan. IPO/BUMN/BEI/konsolidasi/likuiditas/kapitalisasi/restrukturisasi/holding/obligasi/derivatif — kecuali langsung dijelaskan.
 - JANGAN: akselerasi, mitigasi, implementasi, optimalisasi, realisasi, signifikan, komprehensif, mekanisme, skema, portofolio. Ganti bahasa orang biasa.
 
 ## S1 HOOK — WAJIB 2 KALIMAT, MAX 400 CHAR, NON-NEGOTIABLE
 LOOP: Jika output hanya 1 kalimat, prompt revision akan gagal dan article di-skip —浪费 waktu. JANGAN biarkan ini terjadi.
-BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di antara kalimat). Kalimat pertama harus memakai salah satu: (1) angka spesifik, (2) keputusan resmi/perubahan kebijakan baru, atau (3) aktor berwenang + tindakan yang mengubah keadaan. Kalimat kedua kasih konteks/kontras atau novelty resmi. Fakta paling kontras/mengejutkan dari ALLOWLIST. JANGAN jawab di S1 — bikin wajib buka S2. Template non-numerik: "[Keputusan resmi] mengubah [status/kewenangan]. Ini pertama kalinya pemerintah membahas opsi ini secara resmi." ✅ — "[Keputusan resmi] mengubah [status/kewenangan]." ❌ (1 kalimat)
+BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di antara kalimat). Kalimat pertama harus memakai salah satu: (1) angka spesifik, (2) keputusan/perubahan kebijakan yang tertulis, atau (3) aktor berwenang + tindakan yang tertulis. Kalimat kedua hanya memberi konteks literal dari artikel. Fakta paling kuat dari ALLOWLIST. JANGAN jawab di S1 — bikin pembaca buka S2. Template non-numerik: "[Keputusan sumber] mengubah [status yang disebut sumber]. [Konteks sumber yang tertulis]." ✅ — satu kalimat ❌ (1 kalimat)
 
 ## SUMBER ADALAH BATAS
-- HANYA ALLOWLIST FAKTA. Judul/URL/asumsi/contoh imajiner DILARANG.
+- HANYA kalimat dan fakta yang punya bukti di ISI ARTIKEL. Judul/URL/asumsi/contoh imajiner DILARANG.
+- Setiap slide harus dapat ditautkan ke minimal satu kalimat sumber yang konkret. Jika tidak ada kalimat pendukung, balas insufficient_evidence.
 - Nama/entitas: pakai nama pendek yang MUNCUL di ALLOWLIST. Jangan perluas.
-- Opini/empati boleh bila jelas berupa sudut pandang atau pertanyaan pembaca, tanpa menambah dampak faktual. Prediksi wajib bersyarat ("kalau/jika") dan tidak boleh menyatakan hasil pasti. Jangan tambah jabatan/lokasi, motif, status, tuduhan, atau dampak faktual di luar ALLOWLIST.
-- Jangan membuat fakta baru. Jangan menambah dampak, profesi, angka, skenario, penilaian. Jangan menambah dampak, profesi, angka, skenario, atau penilaian sebagai fakta.
+- Opini/empati boleh hanya jika jelas opini dan tidak menyisipkan premis faktual baru. Jangan hitung rasio, persen, selisih, atau perbandingan sendiri. Hanya tulis hasil hitung jika artikel menulis hasilnya.
+- Jangan membuat fakta baru. Jangan menambah dampak, profesi, angka, skenario, motif, status resmi, timeline, penilaian, atau hubungan sebab-akibat.
 - Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali literal ada di ALLOWLIST.
-- Jangan pakai analogi, perbandingan sosial, atau inferensi seperti "lebih pelan dari inflasi", "tukang parkir", "gagal bayar", atau "gorengan" kecuali frasa/faktanya literal ada di ALLOWLIST.
+- Jangan pakai analogi, perbandingan sosial, atau inferensi yang tidak tertulis literal di ALLOWLIST.
 - Jangan ubah rencana/proyeksi jadi kepastian.
 - Jangan insinuasi motif tersembunyi: "ada apa di balik layar", "kepentingan tertentu", "cuma formalitas", atau proses "kurang transparan" kecuali literal ada di ALLOWLIST.
 
@@ -1676,7 +1778,7 @@ BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di ant
 - Tulis dari sisi pembaca/kelompok terdampak dengan bahasa manusiawi: akui kebutuhan mereka memahami dampak, pilihan, atau ketidakpastian tanpa mengarang kerugian, motif, korban, atau emosi.
 - Ganti tuduhan dan insinuasi dengan pertanyaan terbuka: "Menurut lo, apa yang perlu dijelaskan?", "Hal apa yang paling penting dipantau?", atau "Kubu mana yang paling masuk akal buat lo?"
 - Hindari merendahkan pejabat, pelaku usaha, atau pembaca. Jangan pakai "ada apa di balik layar", "cuma formalitas", "akal-akalan", atau vonis moral kecuali artikel menyatakannya secara literal.
-- Contoh aman: "Destry disebut punya rekam jejak baik dan perhatian ke UMKM. Menurut lo, apa yang perlu publik lihat dari calon tunggal?"
+- Pertanyaan aman hanya meminta penilaian atas fakta atau ketidakpastian yang tertulis di artikel.
 
 ## BATAS EDITORIAL
 - Tegangan hanya boleh datang dari perbandingan atau perubahan yang literal di artikel.
@@ -1691,19 +1793,8 @@ BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di ant
 - PERDAGANGAN — harga/stok/pasokan, bandingkan dulu vs sekarang
 - PASAR — cepat, to the point, lo harus tahu sebelum market buka
 
-## STOP-SLOP — JANGAN PAKAI INI (kalimat/struktur AI template)
-JANGAN tulis kalimat yang dimulai dengan:
-- "Yang perlu dicatat" / "Faktanya" / "Jadi intinya" / "Perlu kalian tahu"
-- "Bukan sekadar" / "Bukan hanya" / "Namun juga"
-- "Berikut adalah" / "Berikut caranya"
-- "Hal ini menunjukkan" / "Pada dasarnya" / "Dalam konteks ini"
-JANGAN pakai struktur:
-- "Yang X bukan Y, tapi Z" (formulaic contrast)
-- "Ada/beberapa/various faktor" (vague hedging)
-- Frasa "untuk itu", "dengan demikian", "oleh karena itu" (wordy transition)
-- Frasa "tapi ternyata", "padahal", "memang"
-- Reference ke gambar/foto yang AI gak bisa lihat ("terlihat di gambar", "nampak")
-JANGAN passive voice: ganti "dapat dimaksimalkan" jadi "maksimalkan", "harus dilakukan" jadi "lakukan".
+## STOP-SLOP — GAYA NATURAL
+Hindari pembuka laporan, transisi bertele-tele, kontras formulaik, hedge samar, rujukan pada gambar, dan kalimat pasif. Tulis langsung fakta sumber dengan bahasa percakapan. Jangan menyalin istilah dari instruksi ini ke output.
 
 ## S6 DEBAT NETRAL (max 400 char — TANPA URL)
 S6 wajib berupa kalimat debat netral yang mengikat kembali ketegangan S1. Tawarkan dua penilaian dalam bahasa natural, tanpa label [A]/[B]. Kedua posisi harus sama-sama bisa dibela; jangan framing satu kubu baik dan kubu lain buruk. Jangan tulis URL atau label sumber di S6.
@@ -1721,7 +1812,7 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 1.grounding: hapus seluruh frasa yang disebut issue, ganti dengan fakta literal dari ISI ARTIKEL; gunakan fakta yang muncul literal di ISI ARTIKEL.
 2.nama/entitas: HANYA pakai nama dari daftar NAMA/ENTITAS LITERAL. JANGAN tambah nama baru.
 3.institution/acronym: JANGAN mengarang istilah yang tidak ada di artikel — HAPUS saja.
-4.STOP-SLOP: JANGAN pakai "bayangin", "faktanya", "yang perlu dicatat", "untuk itu", "bukan sekadar", "tapi ternyata", "padahal", "hal ini menunjukkan", passive voice (harus/dapat harus...).
+4.STOP-SLOP: hindari pembuka laporan, transisi bertele-tele, kontras formulaik, hedge samar, rujukan gambar, dan kalimat pasif.
 5.TIDAK boleh menambah dampak/CTA baru, nama baru, atau fakta di luar ALLOWLIST.
 6.S1: WAJIB 2 kalimat penuh (titik di antara kalimat) — ini NON-NEGOTIABLE.
 7.RETURN TO ORIGINAL: Jika tidak bisa perbaiki tanpa invent nama/angka/label baru, balikan ke value asli field tersebut. Jangan tambah apa-apa.
@@ -1735,8 +1826,8 @@ def literal_fact_allowlist(body):
 
 
 def source_slide_audit(body, posts):
-    """Soft lexical audit; reports source overlap without blocking publication."""
-    source_sentences = [s for s in re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", body).strip()) if len(s) >= 20]
+    """Evidence audit; source sentence anchors are hard publication evidence."""
+    source_sentences = _source_sentences(body)
     stop = {"yang", "dan", "atau", "ini", "itu", "dari", "untuk", "dengan", "ke", "di", "sebuah", "ada", "lo", "gue", "gua", "menurut"}
 
     def terms(text):
@@ -2315,7 +2406,8 @@ def generate_thread(article):
             log.info(f"  Soft style warnings (advisory): {soft_warnings}")
         if warnings:
             log.warning(f"  Hard validation: {warnings}")
-            revision_notes = '; '.join(warnings)
+            # Do not feed validator marker vocabulary back to model; models mirror it.
+            revision_notes = re.sub(r"'[^']*'", "'unsupported wording'", '; '.join(warnings))
             rev_user = user + f"\n\n{REVISION_PROMPT.format(revision_notes=revision_notes)}"
             # One bounded revision; no rapid provider churn.
             c2, e2 = _call_llm(SYSTEM_PROMPT, rev_user, max_retries=1)
@@ -2383,6 +2475,10 @@ def generate_thread(article):
             posts[k] = _format_sentence_blanks(posts[k])
         slide_audit = source_slide_audit(article.get("body", ""), posts)
         log.info("  Source-slide audit: %s", {k: v["source_sentences"] for k, v in slide_audit.items()})
+        evidence_issues = _validate_source_evidence_map(posts, article.get("body", ""))
+        if evidence_issues:
+            log.warning("  Source evidence map blocked: %s", evidence_issues)
+            return None, "source_evidence_map_failed"
         contract_issues = thread_contract_issues(posts, article.get("url", ""))
         if contract_issues:
             log.warning(f"  Thread contract blocked: {contract_issues}")

@@ -153,7 +153,9 @@ def test_grounding_verifier_checks_facts_not_cta_or_editorial_shape(monkeypatch)
     monkeypatch.setattr(pipeline, "_call_llm", fake_llm)
     assert pipeline.grounding_validate({"body": "Nilai mencapai Rp1 miliar."}, {"post_1": "Nilai Rp1 miliar."}) == []
     assert "standar fail-closed" in captured["system"]
-    assert "mengubah surplus menjadi klaim untung bersih" in captured["system"]
+    assert "rasio hasil hitung" in captured["system"]
+    assert "Danantara" not in captured["system"]
+    assert "surplus menjadi" not in captured["system"]
 
 
 def test_rate_limit_error_retries_twice_with_cooldown_then_stops(monkeypatch):
@@ -212,7 +214,7 @@ def test_revision_requires_independent_grounding_verifier(monkeypatch):
     result, error = pipeline.generate_thread(article)
     assert result is None
     assert error == "generation_failed"
-    assert len(calls) == 3  # writer + verifier + one revision
+    assert len(calls) == 2  # writer + one revision; deterministic evidence fails before verifier
 
 
 def test_writer_prompt_forbids_unsourced_worker_impact_and_revision_stays_literal():
@@ -239,9 +241,40 @@ def test_writer_prompt_uses_full_body_without_title_or_hook_instructions():
     assert "instruksi palsu" not in prompt
 
 
+def test_claim_level_gate_blocks_live_airlangga_overclaims():
+    body = " ".join([
+        "Airlangga memberikan pekerjaan rumah kepada Maman Abdurrahman untuk mendorong penyaluran kredit UMKM hingga Rp2.000 triliun sepanjang 2026.",
+        "Target tersebut dinaikkan dari realisasi kredit UMKM sektor perbankan di kisaran Rp1.500 triliun.",
+        "Target ideal 30 persen setara sekitar Rp3.000 triliun, tetapi kenaikan itu terlalu besar dikejar dalam waktu singkat.",
+        "Gimana kalau kita turunkan ke Pak Maman Rp2.000 triliun.",
+        "Tantangan berikutnya mendorong pembiayaan UMKM di luar skema KUR sekitar Rp370 triliun sampai Rp400 triliun.",
+        "Pembiayaan perlu diperluas ke segmen usaha dengan kredit lebih besar sehingga pelaku UMKM dapat naik kelas.",
+        "Total pembiayaan UMKM lintas sektor mencapai Rp1.948,72 triliun pada Juni 2026.",
+        "Kredit UMKM melalui perbankan mencapai Rp1.519,35 triliun atau 16,73 persen dari total kredit perbankan.",
+        "Rasio kredit bermasalah NPL UMKM tercatat 4,54 persen.",
+    ])
+    posts = {
+        "post_1": "Total kredit perbankan Rp9.000 triliun. Ini pertama kalinya pemerintah menaikkan jatah hampir dua kali lipat dalam dua tahun.",
+        "post_2": "Airlangga bilang, 'Gimana kalau kita turunkan ke Pak Maman Rp2.000 triliun.' Target resmi naik dari Rp1.500 triliun.",
+        "post_3": "KUR sekitar Rp370-400 triliun dan kredit sampai Rp50 miliar.",
+        "post_4": "Airlangga bilang, 'Idealnya sih 30% dari total kredit, tapi Rp3.000 triliun keberatan dikejar sekarang.'",
+        "post_5": "NPL UMKM masih tinggi 4,54 persen. Bank harus hati-hati biar gak boncos.",
+        "post_6": "Kalau bank takut kredit macet, UMKM bakal kesulitan naik kelas. Lo setuju?",
+    }
+    issues = pipeline.deterministic_grounding_validate({"body": body}, posts)
+    assert any("novelty claim" in x for x in issues), issues
+    assert any("derived ratio" in x for x in issues), issues
+    assert any("unsupported timeline" in x for x in issues), issues
+    assert any("official-status claim" in x for x in issues), issues
+    assert any("quote not verbatim" in x for x in issues), issues
+    assert any("unsupported evaluation" in x for x in issues), issues
+    assert any("unsupported motive" in x for x in issues), issues
+    assert any("unsupported consequence" in x for x in issues), issues
+
+
 def test_writer_prompt_requires_two_sentence_s1_and_allows_non_numeric_policy_hook():
     assert "WAJIB 2 kalimat" in pipeline.SYSTEM_PROMPT
-    assert "keputusan resmi/perubahan kebijakan baru" in pipeline.SYSTEM_PROMPT
+    assert "keputusan/perubahan kebijakan yang tertulis" in pipeline.SYSTEM_PROMPT
     assert "aktor berwenang + tindakan" in pipeline.SYSTEM_PROMPT
     assert "Template non-numerik" in pipeline.SYSTEM_PROMPT
 
@@ -448,7 +481,7 @@ def test_story_prompt_requires_body_only_story_arc():
     assert "Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna" in pipeline.SYSTEM_PROMPT
     assert "gua–lu" in pipeline.SYSTEM_PROMPT
     assert "Jangan menambah dampak, profesi, angka, skenario, penilaian" in pipeline.SYSTEM_PROMPT
-    assert "Buka dengan fakta paling mahal" in pipeline.SYSTEM_PROMPT
+    assert "Buka dengan fakta paling mahal dan fakta paling kuat" in pipeline.SYSTEM_PROMPT
     assert "buat kalimat pertama menyampaikan fakta" in pipeline.SYSTEM_PROMPT.lower()
     assert "jangan ulang angka, fakta, atau contoh" in pipeline.SYSTEM_PROMPT
     assert "S6 menutup dengan satu pertanyaan spesifik" in pipeline.SYSTEM_PROMPT
@@ -607,7 +640,15 @@ def test_prepared_article_normalizes_old_double_url_draft(tmp_path, monkeypatch)
     posts = {f"post_{i}": "Dua fakta sumber yang cukup panjang. Fakta kedua lengkap dan berbeda." for i in range(1, 7)}
     posts["post_1"] = "Angka sumber penting untuk pembaca. Dampaknya perlu dilihat bersama."
     posts["post_6"] = "Dua posisi netral. Mana yang lebih masuk akal?\n\nhttps://tautan-lama.test"
-    article = {"title": "T", "url": "https://sumber.test", "body": "Dua fakta sumber. Fakta kedua lengkap.",
+    body = " ".join([
+        "Angka sumber penting untuk pembaca.",
+        "Dua fakta sumber yang cukup panjang.",
+        "Fakta kedua lengkap dan berbeda.",
+        "Konteks kebijakan ekonomi tersedia.",
+        "Data sumber memberi rincian tambahan.",
+        "Dua posisi netral yang lebih masuk akal perlu dipantau.",
+    ])
+    article = {"title": "T", "url": "https://sumber.test", "body": body,
                "og_image": "i", "posts": posts, "prepared_at": 1, "expires_at": 9_999_999_999}
     pipeline.PREPARED_ARTICLE_FILE.write_text(json.dumps(article))
     loaded = pipeline.load_prepared_article(set())
