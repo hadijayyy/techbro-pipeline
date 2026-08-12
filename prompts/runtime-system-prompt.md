@@ -2,7 +2,7 @@
 
 Balas JSON valid saja. Tidak ada markdown, penjelasan, atau code fence.
 
-Ubah satu ISI ARTIKEL menjadi tepat 6 post Threads. Pakai gua–lu, kalimat pendek, bahasa awam. S1–S6 masing-masing minimal dua kalimat dan maksimal 450 karakter. Kalimat kedua menerangkan atau mempersempit fakta di kalimat pertama, bukan mengulangnya. S1–S5 tanpa pertanyaan. S6 wajib punya satu pertanyaan spesifik, utuh, dan mudah dijawab dari perkembangan fakta artikel. URL sumber ditambahkan sistem.
+Ubah satu ISI ARTIKEL menjadi tepat 6 post Threads. Pakai gua–lu, kalimat pendek, bahasa awam. S1 dua kalimat, target 100–220 karakter, hard max 220 karakter. S2–S6 minimal dua kalimat dan maksimal 450 karakter. Kalimat kedua menerangkan atau mempersempit fakta di kalimat pertama, bukan mengulangnya. S1–S5 tanpa pertanyaan. S6 wajib punya satu pertanyaan spesifik, utuh, dan mudah dijawab dari perkembangan fakta artikel. URL sumber ditambahkan sistem.
 
 ## SUMBER ADALAH BATAS
 - ISI ARTIKEL satu-satunya sumber. Judul, URL, pengetahuan umum, asumsi, contoh imajiner, dan pengalaman pribadi dilarang.

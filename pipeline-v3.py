@@ -1575,6 +1575,7 @@ def hook_issues(hook, body):
 
 
 SLIDE_CHAR_LIMIT = 450
+S1_CHAR_LIMIT = 220
 
 
 def _sentence_count(text):
@@ -1625,7 +1626,11 @@ def thread_contract_issues(posts, article_url):
         text = re.sub(r'\[URL[^\]]*\]', '', text, flags=re.I)
         text = re.sub(r'\n*\s*https?://\S+', '', text).strip()
         posts[f"post_{i}"] = text
-        if len(text) > SLIDE_CHAR_LIMIT:
+        if i == 1 and len(text) > S1_CHAR_LIMIT:
+            posts[f"post_{i}"] = _fit_complete_sentences(text, S1_CHAR_LIMIT)
+            if len(posts[f"post_{i}"]) > S1_CHAR_LIMIT:
+                issues.append(f"post_{i}: over {S1_CHAR_LIMIT} char compact-hook limit")
+        elif len(text) > SLIDE_CHAR_LIMIT:
             posts[f"post_{i}"] = _fit_complete_sentences(text, SLIDE_CHAR_LIMIT)
             if len(posts[f"post_{i}"]) > SLIDE_CHAR_LIMIT:
                 issues.append(f"post_{i}: over {SLIDE_CHAR_LIMIT} chars")
@@ -1782,7 +1787,7 @@ ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengg
 
 ## S1-S6 — WAJIB MINIMAL 2 KALIMAT, MAX 450 CHAR, NON-NEGOTIABLE
 LOOP: Jika output hanya 1 kalimat, prompt revision akan gagal dan article di-skip —浪费 waktu. JANGAN biarkan ini terjadi.
-BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di antara kalimat). Kalimat pertama harus memakai salah satu: (1) angka spesifik, (2) keputusan/perubahan kebijakan yang tertulis, atau (3) aktor berwenang + tindakan yang tertulis. Kalimat kedua hanya memberi konteks literal dari artikel. Fakta paling kuat dari ALLOWLIST. JANGAN jawab di S1 — bikin pembaca buka S2. Template non-numerik: "[Keputusan sumber] mengubah [status yang disebut sumber]. [Konteks sumber yang tertulis]." ✅ — satu kalimat ❌ (1 kalimat)
+S1: WAJIB 2 kalimat, target 100–220 karakter, hard max 220. Langsung sebut keputusan/perubahan kebijakan yang tertulis, keputusan/wacana, aktor berwenang + tindakan, atau angka sumber; kalimat kedua memberi novelty/status. Template non-numerik tetap boleh. Detail masuk S2–S5. S2–S6: 2 kalimat dan max 450 karakter. BUKAN judul berita/deklaratif. Fakta paling kuat dari ALLOWLIST. JANGAN jawab di S1 — bikin pembaca buka S2. Template non-numerik: "[Keputusan sumber] mengubah [status yang disebut sumber]. [Konteks sumber yang tertulis]." ✅ — satu kalimat ❌ (1 kalimat)
 
 ## SUMBER ADALAH BATAS
 - HANYA kalimat dan fakta yang punya bukti di ISI ARTIKEL. Judul/URL/asumsi/contoh imajiner DILARANG.
@@ -1858,7 +1863,7 @@ def _source_fallback_posts(article):
         pair = next(
             ((i, j) for i in range(len(remaining))
              for j in range(i + 1, len(remaining))
-             if len(remaining[i]) + len(remaining[j]) + 1 <= SLIDE_CHAR_LIMIT),
+             if len(remaining[i]) + len(remaining[j]) + 1 <= (S1_CHAR_LIMIT if not pairs else SLIDE_CHAR_LIMIT)),
             None,
         )
         if pair is None:
@@ -2033,7 +2038,7 @@ def deterministic_validate(posts):
         if sent_count > 6:
             warnings.append(f"{k}: too many sentences ({sent_count})")
         # Enforce 450-char limit on every slide; keep complete sentences only.
-        limit = SLIDE_CHAR_LIMIT
+        limit = S1_CHAR_LIMIT if i == 1 else SLIDE_CHAR_LIMIT
         if len(p) > limit:
             p = _fit_complete_sentences_with_url(p, limit)
             posts[k] = p
@@ -2394,18 +2399,19 @@ def _quality_gate(article, data, posts, warnings):
 # ── Thread Generation ────────────────────────────────────────────────────────
 
 def _normalize_s1(posts, article_body):
-    """Enforce S1 hook: keep complete sentences within the shared 450-char limit."""
+    """Enforce compact S1 hook: keep complete sentences within 220 chars."""
     s1 = posts.get("post_1", "")
-    if len(s1) > SLIDE_CHAR_LIMIT:
-        posts["post_1"] = _fit_complete_sentences(s1, SLIDE_CHAR_LIMIT)
+    if len(s1) > S1_CHAR_LIMIT:
+        posts["post_1"] = _fit_complete_sentences(s1, S1_CHAR_LIMIT)
     # Auto-split 1-sentence S1 using article facts
     sent_count = _sentence_count(posts.get("post_1", ""))
     if sent_count < 2:
         s1_text = posts["post_1"]
         body_facts = literal_fact_allowlist(article_body)
         for fact in body_facts:
-            if len(fact) > 20 and fact[:40] not in s1_text[:100]:
-                posts["post_1"] = f"{s1_text} {fact[:80]}."
+            candidate = f"{s1_text} {fact}"
+            if len(fact) > 20 and fact[:40] not in s1_text[:100] and len(candidate) <= S1_CHAR_LIMIT:
+                posts["post_1"] = candidate
                 break
         sent_count = _sentence_count(posts["post_1"])
         if sent_count < 2:

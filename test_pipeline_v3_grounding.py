@@ -456,11 +456,24 @@ def test_thread_contract_rejects_over_limit_post():
     assert "post_3: over 450 chars" in pipeline.thread_contract_issues(posts, "")
 
 
-def test_normalize_s1_uses_450_limit_and_complete_sentences():
+def test_normalize_s1_uses_compact_limit_and_complete_sentences():
     posts = {"post_1": "Kalimat pertama lengkap. " + "Kalimat kedua sangat panjang " * 30}
     pipeline._normalize_s1(posts, "Fakta sumber cukup panjang. Fakta tambahan cukup panjang.")
-    assert len(posts["post_1"]) <= 450
+    assert len(posts["post_1"]) <= pipeline.S1_CHAR_LIMIT
     assert posts["post_1"].endswith(".")
+
+
+def test_normalize_s1_uses_compact_220_char_limit():
+    posts = {"post_1": "Kalimat hook pertama yang cukup panjang tetapi tetap lengkap. Konteks hook kedua juga harus tetap lengkap."}
+    pipeline._normalize_s1(posts, "Fakta sumber tambahan yang tidak boleh dipaksakan masuk ke hook.")
+    assert len(posts["post_1"]) <= pipeline.S1_CHAR_LIMIT
+
+
+def test_thread_contract_rejects_s1_over_compact_limit():
+    posts = {f"post_{i}": "Fakta pertama. Konteks kedua." for i in range(1, 7)}
+    posts["post_1"] = "Kalimat pertama " + "sangat panjang " * 30 + ". Kalimat kedua tetap bersumber."
+    issues = pipeline.thread_contract_issues(posts, "")
+    assert any("post_1: over 220 char compact-hook limit" in issue for issue in issues), issues
 
 
 def test_slide_limit_is_450_and_truncation_keeps_complete_sentences():
