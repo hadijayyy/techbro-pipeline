@@ -132,7 +132,7 @@ def test_source_fallback_builds_six_grounded_posts():
         "Kebijakan tersebut berlaku setelah pembahasan lanjutan selesai dilakukan.",
         "Pemerintah mencatat proses penetapan masih berjalan sesuai aturan.",
     ]
-    article = {"body": " ".join(sentences)}
+    article = {"body": " ".join(sentences), "pattern": "PROYEK"}
     posts = pipeline._source_fallback_posts(article)
     assert posts is not None
     assert set(posts) == {f"post_{i}" for i in range(1, 7)}
@@ -187,6 +187,70 @@ def test_policy_prompt_encodes_verified_high_perform_arc():
     assert "pembagian kewenangan serta dasar aturan" in prompt
     assert "hitung-hitungan pelaksanaan dan biaya" in prompt
     assert "beban/keuntungan antar pihak" in prompt
+
+
+def test_policy_winner_evidence_requires_six_roles():
+    body = " ".join([
+        "Pemerintah mengusulkan guru PPPK dipindahkan menjadi ASN pusat.",
+        "Menteri Pendidikan menyebut opsi itu dibahas bersama pemerintah daerah.",
+        "Pemindahan kewenangan mengikuti aturan yang berlaku.",
+        "Pemerintah menghitung anggaran dan jumlah guru yang terdampak.",
+        "Pembahasan dilakukan untuk pemerataan distribusi guru.",
+        "Langkah berikutnya menunggu rapat lanjutan pekan depan.",
+        "Perubahan ini mengurangi beban daerah tetapi menambah anggaran pusat.",
+        "Status guru yang sudah diangkat masih belum ditentukan.",
+        "Pemerintah menyiapkan bahan pembahasan bersama DPR.",
+        "Daerah masih menunggu pembagian kewenangan yang baru.",
+        "Anggaran pemindahan dibahas dalam rapat pemerintah.",
+        "Keputusan akhir belum diumumkan.",
+    ])
+    article = {"pattern": "KEBIJAKAN", "body": body}
+    evidence = pipeline.policy_winner_evidence(article)
+    assert all(evidence[f"post_{i}"] for i in range(1, 7))
+    posts = pipeline._source_fallback_posts(article)
+    assert posts is not None
+    assert not pipeline._validate_policy_winner_arc(article, posts)
+
+
+def test_policy_winner_gate_rejects_missing_tradeoff():
+    body = " ".join([
+        "Pemerintah mengusulkan guru PPPK dipindahkan menjadi ASN pusat.",
+        "Menteri Pendidikan menyebut opsi itu dibahas bersama pemerintah daerah.",
+        "Pemindahan kewenangan mengikuti aturan yang berlaku.",
+        "Pemerintah menghitung anggaran dan jumlah guru yang terdampak.",
+        "Pembahasan dilakukan untuk pemerataan distribusi guru.",
+        "Langkah berikutnya menunggu rapat lanjutan pekan depan.",
+        "Pemerintah menyiapkan bahan pembahasan bersama DPR.",
+        "Daerah masih menunggu pembagian kewenangan yang baru.",
+        "Anggaran pemindahan dibahas dalam rapat pemerintah.",
+        "Keputusan akhir belum diumumkan.",
+        "Pemerintah menyampaikan perkembangan aturan.",
+        "Rapat lanjutan akan digelar pekan depan.",
+    ])
+    posts = {f"post_{i}": "Fakta sumber yang cukup panjang untuk validasi. Fakta kedua juga ada." for i in range(1, 7)}
+    posts["post_1"] = "Pemerintah mengusulkan guru PPPK dipindahkan menjadi ASN pusat. Opsi ini dibahas resmi."
+    posts["post_2"] = "Menteri Pendidikan menyebut opsi itu dibahas bersama pemerintah daerah. Aturan berlaku."
+    posts["post_3"] = "Pemerintah menghitung anggaran dan jumlah guru yang terdampak. Anggaran dibahas."
+    posts["post_4"] = "Pembahasan dilakukan untuk pemerataan distribusi guru. Rapat lanjutan pekan depan."
+    posts["post_5"] = "Pemerintah menyiapkan bahan pembahasan bersama DPR. Daerah masih menunggu pembagian kewenangan."
+    posts["post_6"] = "Keputusan akhir belum diumumkan. Menurut lo, aturan atau pembahasan?"
+    issues = pipeline._validate_policy_winner_arc({"pattern": "KEBIJAKAN", "body": body}, posts)
+    assert any("post_5" in issue for issue in issues)
+
+
+def test_policy_article_evidence_gate_requires_status_gap_and_tradeoff():
+    base = " ".join(
+        f"Dokumen pemerintah nomor {i} memuat rincian pelaksanaan dan pembagian kewenangan untuk rapat resmi."
+        for i in range(1, 16)
+    ) + " " + ("Catatan administrasi disimpan untuk pemeriksaan pihak terkait. " * 20)
+    article = {"pattern": "KEBIJAKAN", "body": base}
+    assert pipeline.article_evidence_gate(article) == "policy_missing_literal_status_gap"
+
+    article["body"] = base + " Pemerintah sebelumnya menyerahkan kewenangan guru ke daerah, tetapi kini mengusulkan pemindahan ke pusat."
+    assert pipeline.article_evidence_gate(article) == "policy_missing_literal_tradeoff"
+
+    article["body"] = base + " Pemerintah sebelumnya menyerahkan kewenangan guru ke daerah, tetapi kini mengusulkan pemindahan ke pusat. Kebijakan ini mengurangi beban daerah tetapi menambah anggaran pusat."
+    assert pipeline.article_evidence_gate(article) is None
 
 
 def test_inflight_chain_round_trip_preserves_partial_post_ids(tmp_path, monkeypatch):

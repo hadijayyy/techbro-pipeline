@@ -1251,7 +1251,7 @@ def _content_metadata(title, body):
     elif pattern == "KORUPSI":
         arc = "public_money_trail"
     elif pattern == "KEBIJAKAN":
-        arc = "policy_bomb"
+        arc = "policy_decision_story"
     elif pattern == "PROYEK":
         arc = "public_money_trail"
     elif pattern == "PERDAGANGAN":
@@ -1368,6 +1368,11 @@ def article_evidence_gate(article):
     # Six slides still require six distinct article-backed factual units.
     if len(source_claim_plan(article).splitlines()) < 6:
         return "insufficient_source_claims_for_six_posts"
+    if article.get("pattern") == "KEBIJAKAN":
+        if not _policy_status_gap_sentence(body):
+            return "policy_missing_literal_status_gap"
+        if not _policy_tradeoff_sentence(body):
+            return "policy_missing_literal_tradeoff"
     return None
 
 
@@ -1425,6 +1430,95 @@ def source_claim_map(article):
         remaining = [(i, s) for i, s in remaining if i != index]
         result[slide] = [{"sentence": sentence, "score": score(sentence, signals)}]
     return result
+
+
+POLICY_WINNING_ROLES = {
+    "post_1": ("menetapkan", "ditetapkan", "resmi", "usulan", "mengusulkan", "opsi", "wacana", "bakal", "akan", "perubahan", "dialihkan", "dipindahkan"),
+    "post_2": ("menteri", "pemerintah", "pemda", "provinsi", "kabupaten", "kewenangan", "aturan", "undang", "uu", "dpr"),
+    "post_3": ("biaya", "anggaran", "jumlah", "kapasitas", "menghitung", "perhitungan", "pendanaan", "pembiayaan", "beban", "guru", "pegawai"),
+    "post_4": ("tujuan", "agar", "supaya", "pemerataan", "distribusi", "pembahasan", "pekan", "minggu", "selanjutnya", "rencana", "mulai"),
+    "post_5": ("beban", "biaya", "anggaran", "manfaat", "untung", "rugi", "daerah", "pusat", "belum", "masih", "status", "nasib"),
+    "post_6": ("belum", "masih", "menunggu", "pembahasan", "persetujuan", "ditentukan", "opsi", "pilih", "perlu", "keputusan"),
+}
+
+POLICY_TRADEOFF_MARKERS = ("tetapi", "namun", "sedangkan", "sementara", "di sisi lain", "mengurangi", "menambah")
+POLICY_TRADEOFF_TERMS = ("beban", "biaya", "anggaran", "manfaat", "untung", "rugi", "keuntungan")
+POLICY_STATUS_GAP_MARKERS = ("menjadi", "berubah", "beralih", "dipindahkan", "dialihkan", "ditarik", "kini", "sebelumnya", "dibanding", "opsi", "usul", "wacana", "bakal")
+
+
+def _policy_winner_enabled(article):
+    if article.get("pattern") != "KEBIJAKAN":
+        return False
+    text = f"{article.get('title', '')} {article.get('body', '')}".lower()
+    authority = re.search(r"\b(pemerintah|presiden|menteri|kementerian|dpr|gubernur|pemda|otoritas)\b", text)
+    policy_action = re.search(r"\b(menetapkan|ditetapkan|mengusulkan|usulan|opsi|wacana|aturan|peraturan|kebijakan|berlaku|kewenangan|dipindahkan|dialihkan|dilarang|subsidi|tarif)\b", text)
+    return bool(authority and policy_action)
+
+
+def _policy_tradeoff_sentence(body):
+    return next((sentence for sentence in _source_sentences(body)
+                 if any(marker in sentence.lower() for marker in POLICY_TRADEOFF_MARKERS)
+                 and sum(term in sentence.lower() for term in POLICY_TRADEOFF_TERMS) >= 2), None)
+
+
+def _policy_status_gap_sentence(body):
+    return next((sentence for sentence in _source_sentences(body)
+                 if any(marker in sentence.lower() for marker in POLICY_STATUS_GAP_MARKERS)
+                 and re.search(r"\b(akan|bakal|opsi|usul|wacana|menjadi|berubah|beralih|dipindahkan|dialihkan|ditarik|kini|sebelumnya|dibanding)\b", sentence.lower())), None)
+
+
+def policy_winner_evidence(article):
+    """Select literal evidence for policy decision arc; empty role blocks arc."""
+    if not _policy_winner_enabled(article):
+        return {}
+    result = {}
+    for slide, signals in POLICY_WINNING_ROLES.items():
+        ranked = []
+        for index, sentence in enumerate(_source_sentences(article.get("body", ""))):
+            text = sentence.lower()
+            score = sum(3 for signal in signals if signal in text)
+            if re.search(r"(?:rp\s*)?\d|\d+\s*(?:persen|%|miliar|juta|triliun)", text, re.I):
+                score += 2
+            if score:
+                ranked.append((score, -index, sentence))
+        result[slide] = [sentence for _, _, sentence in sorted(ranked, reverse=True)[:2]]
+    return result
+
+
+def _validate_policy_winner_arc(article, posts):
+    """Require source-backed six-slide policy decision story."""
+    evidence = policy_winner_evidence(article)
+    if not evidence:
+        return []
+    issues = []
+    status_gap_source = _policy_status_gap_sentence(article.get("body", ""))
+    tradeoff_source = _policy_tradeoff_sentence(article.get("body", ""))
+    if not status_gap_source:
+        issues.append("post_1: missing literal status-gap source")
+    if not tradeoff_source:
+        issues.append("post_5: missing literal trade-off source")
+    for slide, sentences in evidence.items():
+        if not sentences:
+            issues.append(f"{slide}: missing winning arc evidence")
+            continue
+        post_text = posts.get(slide, "")
+        if slide == "post_1" and not any(marker in post_text.lower() for marker in POLICY_STATUS_GAP_MARKERS):
+            issues.append("post_1: missing literal status-gap wording")
+        if slide == "post_5" and tradeoff_source and not any(term in post_text.lower() for term in POLICY_TRADEOFF_TERMS):
+            issues.append("post_5: missing source trade-off terms")
+        post_terms = _content_terms(post_text)
+        role_sentences = [
+            sentence for sentence in _source_sentences(article.get("body", ""))
+            if any(signal in sentence.lower() for signal in POLICY_WINNING_ROLES[slide])
+        ]
+        if not any(len(post_terms & _content_terms(sentence)) >= 2 for sentence in role_sentences):
+            issues.append(f"{slide}: does not follow policy winning arc")
+        if slide == "post_5":
+            text = post_text.lower()
+            if not (any(marker in text for marker in POLICY_TRADEOFF_MARKERS)
+                    and sum(term in text for term in POLICY_TRADEOFF_TERMS) >= 2):
+                issues.append("post_5: missing policy trade-off contrast")
+    return issues
 
 
 def _normalize_grounding_text(text):
@@ -1533,7 +1627,7 @@ def deterministic_grounding_validate(article, posts):
             + _validate_proper_nouns(posts, body) + _validate_claim_markers(posts, body)
             + _validate_sensitive_language(posts, body) + _validate_quotes(posts, body)
             + _validate_unsupported_inferences(posts, body) + _validate_range_direction(posts, body)
-            + _validate_source_evidence_map(posts, body))
+            + _validate_source_evidence_map(posts, body) + _validate_policy_winner_arc(article, posts))
 
 
 def grounding_validate(article, posts):
@@ -1863,14 +1957,17 @@ def _source_fallback_posts(article):
     if len(sentences) < 12:
         return None
     pattern = article.get("pattern", "")
-    roles = [
-        ("hook", ("menetapkan", "menargetkan", "mengungkapkan", "meminta", "dipastikan", "mencatat", "belum", "bakal", "resmi")),
-        ("actor", ("menteri", "presiden", "gubernur", "direktur", "mengatakan", "menurut", "ujar", "kata")),
-        ("action", ("melalui", "dilakukan", "penyaluran", "impor", "mencari", "meminta", "langkah", "proses")),
-        ("detail", ("rp", "persen", "%", "miliar", "juta", "triliun", "target", "mulai", "hingga", "kuota")),
-        ("tension", ("biaya", "kendala", "risiko", "belum", "lebih tinggi", "menunggu", "logistik", "dampak", "batasan")),
-        ("open", ("belum", "menunggu", "proses", "pembahasan", "biaya", "kendala", "risiko", "dampak")),
-    ]
+    if pattern == "KEBIJAKAN":
+        roles = [(slide, POLICY_WINNING_ROLES[slide]) for slide in ("post_1", "post_2", "post_3", "post_4", "post_5", "post_6")]
+    else:
+        roles = [
+            ("hook", ("menetapkan", "menargetkan", "mengungkapkan", "meminta", "dipastikan", "mencatat", "belum", "bakal", "resmi")),
+            ("actor", ("menteri", "presiden", "gubernur", "direktur", "mengatakan", "menurut", "ujar", "kata")),
+            ("action", ("melalui", "dilakukan", "penyaluran", "impor", "mencari", "meminta", "langkah", "proses")),
+            ("detail", ("rp", "persen", "%", "miliar", "juta", "triliun", "target", "mulai", "hingga", "kuota")),
+            ("tension", ("biaya", "kendala", "risiko", "belum", "lebih tinggi", "menunggu", "logistik", "dampak", "batasan")),
+            ("open", ("belum", "menunggu", "proses", "pembahasan", "biaya", "kendala", "risiko", "dampak")),
+        ]
 
     weak_prefixes = (
         "hal ini", "yang tak kalah", "yang tidak kalah", "misal ", "ujar ",
@@ -1886,25 +1983,37 @@ def _source_fallback_posts(article):
             value += 1
         if text.startswith(weak_prefixes):
             value -= 10
+        if pattern == "KEBIJAKAN" and signals == POLICY_WINNING_ROLES["post_5"]:
+            value += sum(4 for marker in POLICY_TRADEOFF_MARKERS if marker in text)
         return value
 
     remaining = list(sentences)
     pairs = []
-    for _, signals in roles:
+    reserved_tradeoff = None
+    if pattern == "KEBIJAKAN":
+        tradeoff_sentence = _policy_tradeoff_sentence(article.get("body", ""))
+        if tradeoff_sentence:
+            reserved_tradeoff = tradeoff_sentence
+    for slide, signals in roles:
         limit = S1_CHAR_LIMIT if not pairs else SLIDE_CHAR_LIMIT
+        pool = remaining
+        if reserved_tradeoff and slide != "post_5":
+            pool = [sentence for sentence in remaining if sentence != reserved_tradeoff]
         choices = [
             (score(a, signals) + score(b, signals), i, j, a, b)
-            for i, a in enumerate(remaining)
-            for j, b in enumerate(remaining[i + 1:], i + 1)
+            for i, a in enumerate(pool)
+            for j, b in enumerate(pool[i + 1:], i + 1)
             if len(a) + len(b) + 1 <= limit
         ]
+        if reserved_tradeoff and slide == "post_5" and reserved_tradeoff in remaining:
+            choices = [choice for choice in choices if reserved_tradeoff in choice[3:]] or choices
         if not choices:
             return None
         _, i, j, a, b = max(choices, key=lambda item: item[0])
         if score(b, signals) > score(a, signals):
             a, b = b, a
         pairs.append(f"{a} {b}")
-        remaining = [s for n, s in enumerate(remaining) if n not in {i, j}]
+        remaining = [s for s in remaining if s not in {a, b}]
 
     cta_terms = {
         "KEBIJAKAN": ("biaya", "anggaran", "aturan", "bantuan", "penyaluran", "pembahasan", "target"),
@@ -1915,7 +2024,17 @@ def _source_fallback_posts(article):
     }
     body_lower = article.get("body", "").lower()
     options = [term for term in cta_terms.get(pattern, ()) if re.search(r"\b" + re.escape(term) + r"\b", body_lower)]
-    if len(options) >= 2:
+    if pattern == "KEBIJAKAN":
+        cta_pairs = (("pusat", "daerah"), ("anggaran", "pemerataan"), ("biaya", "manfaat"),
+                     ("persetujuan", "pembahasan"), ("aturan", "pembahasan"))
+        pair = next((pair for pair in cta_pairs if all(re.search(r"\b" + re.escape(term) + r"\b", body_lower) for term in pair)), None)
+        if pair:
+            cta = f"Menurut lo, yang harus diprioritaskan: {pair[0]} atau {pair[1]}?"
+        elif len(options) >= 2:
+            cta = f"Menurut lo, yang harus diprioritaskan: {options[0]} atau {options[1]}?"
+        else:
+            return None
+    elif len(options) >= 2:
         cta = f"Menurut lo, yang harus diprioritaskan: {options[0]} atau {options[1]}?"
     else:
         cta = "Menurut lo, bagian mana yang paling perlu dijelaskan dari fakta ini?"
@@ -1981,6 +2100,7 @@ def build_user_prompt(article):
     facts = literal_fact_allowlist(body)
     entities = literal_entity_allowlist(body)
     claim_map = source_claim_map({"body": body})
+    policy_evidence = policy_winner_evidence(article)
     claim_lines = []
     for slide in [f"post_{i}" for i in range(1, 7)]:
         claims = claim_map.get(slide, [])
@@ -2022,6 +2142,10 @@ def build_user_prompt(article):
         "**CLAIM MAP S1-S6 — FAKTA BERNILAI SUDAH DIRANKING:**",
         *claim_lines,
         "Gunakan CLAIM MAP sebagai tulang punggung slide. Jangan menambah klaim di luar CLAIM MAP atau ISI ARTIKEL.",
+        "",
+        "**POLICY WINNING ARC — hanya untuk KEBIJAKAN:** S1 perubahan + novelty resmi; S2 aktor/kewenangan + dasar aturan; S3 hitung pelaksanaan/biaya; S4 alasan resmi + langkah berikutnya; S5 trade-off beban/manfaat + hal belum final; S6 CTA netral dua pilihan. Bukti role yang tersedia:",
+        *[f"- {slide}: {' | '.join(policy_evidence.get(slide, []))}" for slide in [f"post_{i}" for i in range(1, 7)] if policy_evidence.get(slide)],
+        "Jika role tidak punya bukti literal, balas insufficient_evidence. Jangan memaksa template.",
         "",
         "⚠️ INTERNAL: TIDAK ADA sumber lain. Setiap angka, nama, lembaga, lokasi, tanggal, status, dan sebab-akibat HARUS persis dari ALLOWLIST di atas. Nama lembaga/entitas/lokasi WAJIB verbatim dari daftar NAMA/ENTITAS/LOKASI. DILARANG menambah kota, kabupaten, provinsi, daerah, atau lokasi yang tidak ada di daftar. DILARANG membuat frasa nama baru atau singkatan yang tidak muncul di daftar. Jangan membuat fakta baru. Jangan membuat frasa nama baru; dilarang membuat frasa nama baru. Post 6 slide konten WAJIB — semua post_1 sampai post_6 harus terisi. Sistem menambahkan post_7 berisi URL sumber. Output HANYA JSON.",
     ]
@@ -2511,7 +2635,7 @@ def generate_thread(article):
         voice_warnings = _voice_warnings(posts)
         jargon_warnings = _validate_jargon(posts, article["body"])
         grounding_warnings = grounding_validate(article, posts)
-        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "weak winning hook", "generic winning CTA", "CTA not found", "S6 must not"))]
+        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "weak winning hook", "generic winning CTA", "CTA not found", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence"))]
         warnings = missing + grounding_warnings + noun_warnings + claim_warnings + jargon_warnings + hard_style_warnings
         soft_warnings = style_warnings + voice_warnings
         if soft_warnings:
