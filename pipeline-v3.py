@@ -4,7 +4,7 @@ Techbro v3 — EKONOMI NASIONAL + POV PRIBADI + 6 Script Hack Elements
 Article-based: scrape economy RSS/HTML → 6 threads with personal POV.
 """
 
-import html, httpx, json, logging, os, random, re, struct, sys, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET
+import html, httpx, json, logging, os, random, re, statistics, struct, sys, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 
@@ -256,6 +256,8 @@ def save_prepared_article(article, result, image_url):
         payload["published_ts"] = article.get("ts") or payload["prepared_at"] or time.time()
     pattern, arc, hook = _content_metadata(article.get("title", ""), article.get("body", ""))
     payload.update({"posts": result["posts"], "angle": result.get("angle", ""),
+                    "spine": result.get("spine") or story_spine(article),
+                    "story_functions": STORY_FUNCTIONS,
                     "pattern": article.get("pattern") or pattern,
                     "arc": result.get("arc") or article.get("arc") or arc,
                     "hook_pattern": article.get("hook_pattern") or hook, "og_image": image_url,
@@ -1368,7 +1370,7 @@ def article_evidence_gate(article):
     # Six slides still require six distinct article-backed factual units.
     if len(source_claim_plan(article).splitlines()) < 6:
         return "insufficient_source_claims_for_six_posts"
-    if article.get("pattern") == "KEBIJAKAN":
+    if _policy_winner_enabled(article):
         if not _policy_status_gap_sentence(body):
             return "policy_missing_literal_status_gap"
         if not _policy_tradeoff_sentence(body):
@@ -1421,6 +1423,8 @@ def source_claim_map(article):
             value += 1
         return value
 
+    if article.get("pattern") == "PASAR":
+        sentences = [s for s in sentences if "calon gubernur bi" not in s.lower()]
     remaining = list(enumerate(sentences))
     result = {}
     for slide, signals in slide_signals.items():
@@ -1430,6 +1434,60 @@ def source_claim_map(article):
         remaining = [(i, s) for i, s in remaining if i != index]
         result[slide] = [{"sentence": sentence, "score": score(sentence, signals)}]
     return result
+
+
+STORY_FUNCTIONS = {
+    "post_1": "hook_tension",
+    "post_2": "proof",
+    "post_3": "context_cause",
+    "post_4": "impact_stakes",
+    "post_5": "tradeoff_unknown",
+    "post_6": "judgment_cta",
+}
+
+
+def story_spine(article):
+    """Choose one source-backed tension; metadata guides LLM and audit only."""
+    sentences = _source_sentences(article.get("body", ""))
+    if not sentences:
+        return {"angle": "", "tension_type": "", "sentence": "", "excluded": []}
+    markers = (
+        ("contradiction", ("tetapi", "namun", "sedangkan", "meski", "padahal")),
+        ("status_gap", ("akan", "bakal", "wacana", "usulan", "opsi", "belum", "masih")),
+        ("detail_stakes", ("rp", "miliar", "juta", "triliun", "%", "biaya", "harga")),
+    )
+    title_terms = _content_terms(article.get("title", ""))
+    def score(sentence):
+        text = sentence.lower()
+        value = sum(3 for _, words in markers for word in words if word in text)
+        value += 2 * len(title_terms & _content_terms(sentence))
+        return value + (2 if re.search(r"\\d|rp\\s*\\d", text, re.I) else 0)
+    ranked = sorted(enumerate(sentences), key=lambda item: (score(item[1]), -item[0]), reverse=True)
+    short = [item for item in ranked if len(item[1]) <= S1_CHAR_LIMIT]
+    chosen = (short or ranked)[0][1]
+    tension = next((name for name, words in markers if any(w in chosen.lower() for w in words)), "fact_progression")
+    if article.get("pattern") == "PASAR":
+        angle = "market_pressure"
+    elif article.get("pattern") == "KEBIJAKAN":
+        angle = "policy_status_gap"
+    else:
+        angle = tension
+    excluded = [s for s in sentences if s != chosen and not any(w in s.lower() for w in chosen.lower().split() if len(w) > 5)]
+    return {"angle": angle, "tension_type": tension, "sentence": chosen, "sentences": sentences, "excluded": excluded[:5]}
+
+
+def _validate_story_spine(article, posts, metadata=None):
+    """Reject disconnected six-function drafts without inventing facts."""
+    spine = (metadata or {}).get("spine") or story_spine(article)
+    anchor = _content_terms(spine.get("sentence", ""))
+    if len(anchor) < 2:
+        return ["story_spine: insufficient source anchor"]
+    issues = []
+    if len(_content_terms(posts.get("post_1", "")) & anchor) < 2:
+        issues.append("post_1: does not establish selected story spine")
+    if len(_content_terms(posts.get("post_6", "")) & anchor) < 1:
+        issues.append("post_6: CTA does not return to selected story spine")
+    return issues
 
 
 POLICY_WINNING_ROLES = {
@@ -1443,16 +1501,22 @@ POLICY_WINNING_ROLES = {
 
 POLICY_TRADEOFF_MARKERS = ("tetapi", "namun", "sedangkan", "sementara", "di sisi lain", "mengurangi", "menambah")
 POLICY_TRADEOFF_TERMS = ("beban", "biaya", "anggaran", "manfaat", "untung", "rugi", "keuntungan")
-POLICY_STATUS_GAP_MARKERS = ("menjadi", "berubah", "beralih", "dipindahkan", "dialihkan", "ditarik", "kini", "sebelumnya", "dibanding", "opsi", "usul", "wacana", "bakal")
+POLICY_STATUS_GAP_MARKERS = ("menjadi", "berubah", "beralih", "dipindahkan", "dialihkan", "ditarik", "kini", "sebelumnya", "setelah", "dibanding", "opsi", "usul", "wacana", "bakal")
 
 
 def _policy_winner_enabled(article):
     if article.get("pattern") != "KEBIJAKAN":
         return False
-    text = f"{article.get('title', '')} {article.get('body', '')}".lower()
+    body = article.get("body", "")
+    text = f"{article.get('title', '')} {body}".lower()
     authority = re.search(r"\b(pemerintah|presiden|menteri|kementerian|dpr|gubernur|pemda|otoritas)\b", text)
     policy_action = re.search(r"\b(menetapkan|ditetapkan|mengusulkan|usulan|opsi|wacana|aturan|peraturan|kebijakan|berlaku|kewenangan|dipindahkan|dialihkan|dilarang|subsidi|tarif)\b", text)
-    return bool(authority and policy_action)
+    # Only decision/transition stories use status-gap + trade-off arc.
+    decision_trigger = re.search(
+        r"\b(opsi|usul|wacana|berubah|beralih|dipindahkan|dialihkan|"
+        r"ditarik|kini|sebelumnya|dibanding|mengusulkan)\b", body.lower()
+    )
+    return bool(authority and policy_action and decision_trigger)
 
 
 def _policy_tradeoff_sentence(body):
@@ -1758,8 +1822,9 @@ def refresh_performance_metrics(data, now=None):
         try:
             response = httpx.get(
                 f"{GRAPH}/{post_id}/insights",
+                # Media insights accepts metric list; period is for user insights.
                 params={"access_token": THREADS_TOKEN,
-                        "metric": "likes,replies,reposts,views,quotes", "period": "lifetime"},
+                        "metric": "likes,replies,reposts,views,quotes"},
                 timeout=15,
             )
             if response.status_code != 200:
@@ -1774,6 +1839,41 @@ def refresh_performance_metrics(data, now=None):
         except (httpx.RequestError, ValueError, IndexError, TypeError) as exc:
             log.warning("Metrics %s: %s", post_id, exc)
     return changed
+
+
+def evaluate_published_content(data, now=None):
+    """Score mature posts against same-cohort median; persist explainable evaluation."""
+    now = now or time.time()
+    scored = [t for t in data.get("topics", [])
+              if (t.get("views") or 0) >= 100 and t.get("likes") is not None]
+    if len(scored) < 3:
+        return False
+    rates = [((t.get("likes") or 0) + 2 * (t.get("replies") or 0)
+              + 3 * (t.get("reposts") or 0) + 2 * (t.get("quotes") or 0))
+             / max(t.get("views") or 1, 1) for t in scored]
+    baseline = statistics.median(rates)
+    changed = False
+    for topic, rate in zip(scored, rates):
+        if now - _topic_timestamp(topic) < 6 * 3600:
+            continue
+        evaluation = {
+            "engagement_rate": round(rate, 6),
+            "cohort_median": round(baseline, 6),
+            "relative_score": round(rate / baseline, 3) if baseline else 0.0,
+            "label": "strong" if rate >= baseline * 1.25 else "weak" if rate < baseline * 0.75 else "normal",
+            "evaluated_at": now,
+        }
+        if topic.get("performance_evaluation") != evaluation:
+            topic["performance_evaluation"] = evaluation
+            changed = True
+    return changed
+
+
+def _topic_timestamp(topic):
+    try:
+        return datetime.fromisoformat(topic.get("timestamp", "")).timestamp()
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
 
 
 def _compute_performance_stats(data):
@@ -1868,7 +1968,10 @@ SYSTEM_PROMPT = """# RYANHADIII EKONOMI — WRITER
 
 Balas JSON valid saja. Tidak ada markdown.
 
-Ubah satu ISI ARTIKEL menjadi 6 post Threads. Bahasa ngobrol tongkrongan (gua-lu). S1-S6: minimal 2 kalimat padat dari fakta ALLOWLIST. Satu slide = satu sudut tuntas, baru lanjut.
+Ubah satu ISI ARTIKEL menjadi 6 post Threads. Bahasa ngobrol tongkrongan (gua-lu). S1-S6: minimal 2 kalimat padat dari fakta ALLOWLIST. Satu rangkaian = satu story spine yang dipilih dari artikel, bukan enam fakta terbaik yang berdiri sendiri.
+
+## STORY SPINE + FUNGSI SLIDE
+Pilih satu tesis/ketegangan source-grounded. Outputkan spine sebagai kalimat yang muncul literal di artikel atau parafrase yang tidak menambah makna. S1 hook+tension; S2 proof; S3 konteks/penyebab; S4 dampak/stakes; S5 trade-off atau ketidakjelasan; S6 judgment CTA yang kembali ke tension S1. Jika artikel tidak menyediakan fungsi tertentu, balas insufficient_evidence. Jangan membuat subplot baru.
 
 ## STORYTELLING (enam slide satu cerita)
 ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Bahasa gua–lu. Ikuti winning-content arc: S1 status-gap hook (apa yang diumumkan/diwacanakan vs status nyatanya, hanya bila keduanya literal); kalimat kedua beri novelty resmi atau angka paling kuat. S2 sebut aktor, kewenangan, dan tindakan. S3 buka cara kerja, pelaksanaan, atau jalur keputusan; sertakan hitung-hitungan pelaksanaan dan biaya bila tertulis. S4 beri angka, timeline, dasar aturan, atau batas yang tertulis. S5 tampilkan trade-off konkret: pihak mana menanggung biaya/risiko dan pihak mana mendapat manfaat; jelaskan beban/keuntungan antar pihak bila literal di artikel, tanpa mengarang dampak. S6 tutup dengan CTA debat spesifik yang menguji dua pilihan nyata dari artikel. Untuk KEBIJAKAN, utamakan opsi resmi + kelompok terdampak + status belum final bila ketiganya literal di artikel; jelaskan pembagian kewenangan serta dasar aturan bila tertulis. Untuk PERDAGANGAN, pakai harga/pasokan/biaya dan benturkan solusi yang benar-benar disebut sumber. Untuk PROYEK, pakai duit, aktor, hasil, dan bukti pelaksanaan. Buka dengan fakta paling mahal dan fakta paling kuat, bukan pembuka artikel atau kalimat lanjutan; buat kalimat pertama menyampaikan fakta. Jangan menambah dampak, profesi, angka, skenario, penilaian; jangan ulang angka, fakta, atau contoh. S6 menutup dengan satu pertanyaan spesifik dan jangan pakai CTA generik seperti ‘fakta ini perlu dipantau’. Jangan membuat kontradiksi atau implikasi baru.
@@ -1922,8 +2025,44 @@ Hindari pembuka laporan, transisi bertele-tele, kontras formulaik, hedge samar, 
 S6 wajib berupa kalimat debat netral yang mengikat kembali ketegangan S1. Tawarkan dua penilaian dalam bahasa natural, tanpa label [A]/[B]. Kedua posisi harus sama-sama bisa dibela; jangan framing satu kubu baik dan kubu lain buruk. Jangan tulis URL atau label sumber di S6.
 
 ## OUTPUT
-{"status":"success","angle":"sudut pandang","post_1":"HOOK...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
+{"status":"success","angle":"sudut pandang","spine":{"sentence":"kalimat tesis dari artikel","tension_type":"contradiction"},"post_1":"HOOK...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
 Jika bukti tidak cukup, balas {"status":"error","message":"insufficient_evidence"}.
+"""
+
+# Active writer contract: RCTOE adapted to Techbro runtime and validators.
+SYSTEM_PROMPT = """# ROLE
+Kamu penulis konten ekonomi untuk akun Threads Indonesia @ryanhadiii.
+
+# CONTEXT
+Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi yang kaku menjadi cerita analitis santai dengan alur logis. Jelaskan istilah ekonomi saat pertama muncul. Kredibel, tidak clickbait, tidak lebay.
+
+# TASK
+Ubah satu artikel sumber menjadi 6 post Threads yang saling tersambung. Gunakan artikel sebagai satu-satunya sumber. Jelaskan sebab-akibat hanya jika hubungan itu tertulis atau jelas dinyatakan artikel; jika artikel tidak menjelaskan sebab atau dampak, nyatakan batas informasi tersebut, jangan mengarang.
+
+Fungsi post:
+1. HOOK — fakta atau pertanyaan source-grounded yang membuat pembaca berhenti; jangan mulai dengan lead berita biasa.
+2. LATAR BELAKANG — apa yang terjadi, kapan, dan siapa yang terlibat, hanya bila tertulis.
+3. SEBAB — pemicu atau mekanisme yang dijelaskan artikel. Jika tidak ada, gunakan konteks lain yang tersedia.
+4. AKIBAT/DAMPAK — dampak yang tertulis. Jangan membuat efek domino sendiri.
+5. RELEVANSI — kaitkan ke harga, gaji, cicilan, sewa, atau biaya hidup hanya jika artikel menyebut kaitannya; jika tidak, jelaskan bahwa kaitan belum dijelaskan.
+6. CLOSING — simpulan singkat + satu pertanyaan spesifik tentang fakta atau ketidakjelasan artikel.
+
+# RULES
+- Jangan menambah angka, nama, lokasi, tanggal, sebab-akibat, motif, prediksi, status resmi, dampak, atau kutipan.
+- Jangan mengubah satuan atau menghitung angka baru.
+- Parafrase boleh jika makna tetap sama.
+- Setiap post wajib 2 kalimat dan maksimal 450 karakter. Satu ide utama per post.
+- Istilah teknis wajib dijelaskan singkat saat pertama disebut, jika penjelasan tersedia di artikel.
+- Bahasa Indonesia santai, jelas, dan natural. Hindari jargon tanpa penjelasan, slogan, hashtag, URL, dan pembuka generik.
+- Jangan memaksa bagian sebab, dampak, atau relevansi jika bukti tidak tersedia.
+- Jangan menulis label slide di dalam teks post.
+- Balas JSON valid saja. Sistem menambahkan post_7 berisi sumber.
+
+# OUTPUT
+{"status":"success","angle":"sudut pandang","post_1":"...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
+
+Jika artikel tidak memiliki cukup bukti untuk 6 post akurat:
+{"status":"error","message":"insufficient_evidence"}
 """
 
 REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah field lain. JANGAN membuat ulang slide yang tidak disebut issue. Balas JSON lengkap dengan field yang sudah diperbaiki.
@@ -2038,6 +2177,15 @@ def _source_fallback_posts(article):
         cta = f"Menurut lo, yang harus diprioritaskan: {options[0]} atau {options[1]}?"
     else:
         cta = "Menurut lo, bagian mana yang paling perlu dijelaskan dari fakta ini?"
+    # Keep S1 on selected spine; policy uses literal status-gap evidence first.
+    spine = story_spine(article)
+    spine_sentence = (_policy_status_gap_sentence(article.get("body", ""))
+                      if pattern == "KEBIJAKAN" else spine.get("sentence", ""))
+    if spine_sentence:
+        first_pair = next((pair for pair in pairs if spine_sentence in pair), None)
+        if first_pair:
+            pairs.remove(first_pair)
+            pairs.insert(0, first_pair)
     posts = {f"post_{i}": pairs[i - 1] for i in range(1, 6)}
     posts["post_6"] = f"{pairs[5]} {cta}"
     if any(len(text) > SLIDE_CHAR_LIMIT for text in posts.values()):
@@ -2095,61 +2243,22 @@ def literal_entity_allowlist(body):
 
 
 def build_user_prompt(article):
-    """Build source-only prompt with allowlist. Injects pattern context + voice guidance."""
-    body = article.get("body", "")[:10000]  # cap at 10k chars before allowlist extraction
+    """Pass source facts only; code owns validation and URL injection."""
+    body = article.get("body", "")[:10000]
     facts = literal_fact_allowlist(body)
     entities = literal_entity_allowlist(body)
-    claim_map = source_claim_map({"body": body})
-    policy_evidence = policy_winner_evidence(article)
-    claim_lines = []
-    for slide in [f"post_{i}" for i in range(1, 7)]:
-        claims = claim_map.get(slide, [])
-        if claims:
-            claim_lines.append(f"- {slide}: {claims[0]['sentence']} [nilai={claims[0]['score']}]")
-    # Also extract location names from body for entity list (kota/kabupaten often in lowercase)
-    location_pattern = re.findall(
-        r'(?:di|ke|dari|untuk)\s+((?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,4}))',
-        body
-    )
-    all_entities = sorted(set(entities + [loc.strip() for loc in location_pattern if len(loc) > 5]))[:50]
-    
-    # Pattern context for voice guidance
-    pattern = article.get("pattern", "TIDAK DIKENALI")
-    pattern_label = article.get("pattern_label", "Tidak terklasifikasi")
-    pattern_hint = f"**POLA ARTIKEL: {pattern} ({pattern_label})** — pakai panduan NADA SESUAI POLA di system prompt untuk menentukan gaya penulisan. "
-    if pattern == "KORUPSI":
-        pattern_hint += "Gaya winning: hook status-gap, aktor/tindakan, aliran duit, trade-off, CTA dua pilihan spesifik dari artikel."
-    elif pattern == "KEBIJAKAN":
-        pattern_hint += "Gaya winning: status-gap, aktor/tindakan, cara kerja, biaya, trade-off, CTA dua pilihan spesifik dari artikel."
-    elif pattern == "PROYEK":
-        pattern_hint += "Gaya winning: status-gap, aktor/tindakan, cara kerja, duit, hasil, trade-off, CTA dua pilihan spesifik dari artikel."
-    elif pattern == "PERDAGANGAN":
-        pattern_hint += "Gaya winning: status-gap harga/pasokan, aktor/tindakan, cara kerja, biaya, trade-off, CTA dua pilihan spesifik dari artikel."
-    elif pattern == "PASAR":
-        pattern_hint += "Gaya winning: angka/perubahan paling tajam, aktor/tindakan, batas data, trade-off, CTA dua pilihan spesifik dari artikel."
-    else:
-        pattern_hint += "Gaya: gua-lu kasual, langsung ke fakta paling tajam."
-    
-    parts = [
-        pattern_hint,
+    return "\n".join([
+        "ARTIKEL SUMBER:",
         "",
-        "**ALLOWLIST FAKTA LITERAL — INI SATU-SATUNYA SUMBER:**",
+        "ALLOWLIST FAKTA LITERAL:",
         *[f"- {fact}" for fact in facts],
         "",
-        "**NAMA/ENTITAS LITERAL — HANYA NAMA, ENTITAS, DAN LOKASI INI YANG BOLEH DIPAKAI:**",
-        *[f"- {entity}" for entity in all_entities],
+        "NAMA/ENTITAS LITERAL:",
+        *[f"- {entity}" for entity in entities],
         "",
-        "**CLAIM MAP S1-S6 — FAKTA BERNILAI SUDAH DIRANKING:**",
-        *claim_lines,
-        "Gunakan CLAIM MAP sebagai tulang punggung slide. Jangan menambah klaim di luar CLAIM MAP atau ISI ARTIKEL.",
-        "",
-        "**POLICY WINNING ARC — hanya untuk KEBIJAKAN:** S1 perubahan + novelty resmi; S2 aktor/kewenangan + dasar aturan; S3 hitung pelaksanaan/biaya; S4 alasan resmi + langkah berikutnya; S5 trade-off beban/manfaat + hal belum final; S6 CTA netral dua pilihan. Bukti role yang tersedia:",
-        *[f"- {slide}: {' | '.join(policy_evidence.get(slide, []))}" for slide in [f"post_{i}" for i in range(1, 7)] if policy_evidence.get(slide)],
-        "Jika role tidak punya bukti literal, balas insufficient_evidence. Jangan memaksa template.",
-        "",
-        "⚠️ INTERNAL: TIDAK ADA sumber lain. Setiap angka, nama, lembaga, lokasi, tanggal, status, dan sebab-akibat HARUS persis dari ALLOWLIST di atas. Nama lembaga/entitas/lokasi WAJIB verbatim dari daftar NAMA/ENTITAS/LOKASI. DILARANG menambah kota, kabupaten, provinsi, daerah, atau lokasi yang tidak ada di daftar. DILARANG membuat frasa nama baru atau singkatan yang tidak muncul di daftar. Jangan membuat fakta baru. Jangan membuat frasa nama baru; dilarang membuat frasa nama baru. Post 6 slide konten WAJIB — semua post_1 sampai post_6 harus terisi. Sistem menambahkan post_7 berisi URL sumber. Output HANYA JSON.",
-    ]
-    return "\n".join(parts)
+        "ISI ARTIKEL:",
+        body,
+    ])
 
 # ── Validation ───────────────────────────────────────────────────────────────
 
@@ -2626,6 +2735,12 @@ def generate_thread(article):
             return None, data.get("message", "LLM error")
         posts = {k: _convert_pov(data.get(k) or "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
         posts = _normalize_s1(posts, article["body"])
+        llm_spine = data.get("spine") if isinstance(data.get("spine"), dict) else {}
+        source_spine = story_spine(article)
+        if (_normalize_grounding_text(llm_spine.get("sentence", "")) not in
+                _normalize_grounding_text(article.get("body", ""))):
+            llm_spine = source_spine
+        spine_warnings = _validate_story_spine(article, posts, {"spine": llm_spine})
         # All 6 posts required.
         missing = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4","post_5","post_6"] if not posts.get(k, "").strip()]
         # Style warnings are advisory. Grounding, names, claims, empty/structure remain hard.
@@ -2635,8 +2750,8 @@ def generate_thread(article):
         voice_warnings = _voice_warnings(posts)
         jargon_warnings = _validate_jargon(posts, article["body"])
         grounding_warnings = grounding_validate(article, posts)
-        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "weak winning hook", "generic winning CTA", "CTA not found", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence"))]
-        warnings = missing + grounding_warnings + noun_warnings + claim_warnings + jargon_warnings + hard_style_warnings
+        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "weak winning hook", "generic winning CTA", "CTA not found", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence", "story_spine:", "does not establish selected story spine", "does not return to selected story spine"))]
+        warnings = missing + spine_warnings + grounding_warnings + noun_warnings + claim_warnings + jargon_warnings + hard_style_warnings
         soft_warnings = style_warnings + voice_warnings
         if soft_warnings:
             log.info(f"  Soft style warnings (advisory): {soft_warnings}")
@@ -2699,6 +2814,7 @@ def generate_thread(article):
                             if fallback_posts:
                                 fallback_posts = _normalize_s1(fallback_posts, article["body"])
                                 fallback_issues = deterministic_grounding_validate(article, fallback_posts)
+                                fallback_issues += _validate_story_spine(article, fallback_posts)
                                 fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
                                 if not fallback_issues:
                                     posts = fallback_posts
@@ -2739,6 +2855,8 @@ def generate_thread(article):
             "article_url": article.get("url", ""),
             "article_source": article.get("source", ""),
             "angle": data.get("angle", ""),
+            "spine": llm_spine,
+            "story_functions": STORY_FUNCTIONS,
             "arc": data.get("arc") or _content_metadata(article.get("title", ""), article.get("body", ""))[1],
             "hook_pattern": _content_metadata(article.get("title", ""), article.get("body", ""))[2],
             "posts": posts,
@@ -2856,8 +2974,11 @@ def main():
     started_at = time.monotonic()
     data = load_data()
     # Dry-run must not write analytics or alter future selection.
-    if not DRY_RUN and refresh_performance_metrics(data):
-        save_data(data)
+    if not DRY_RUN:
+        metrics_changed = refresh_performance_metrics(data)
+        evaluation_changed = evaluate_published_content(data)
+        if metrics_changed or evaluation_changed:
+            save_data(data)
     inflight = load_inflight()
     if inflight:
         posts = inflight["posts"]
@@ -3031,6 +3152,7 @@ def main():
         if fallback_posts:
             fallback_posts = _normalize_s1(fallback_posts, article["body"])
             fallback_issues = deterministic_grounding_validate(article, fallback_posts)
+            fallback_issues += _validate_story_spine(article, fallback_posts)
             fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
             if not fallback_issues:
                 result = {"posts": fallback_posts, "angle": "source-only fallback",
@@ -3133,6 +3255,14 @@ def main():
         return
 
     posts = result["posts"]
+    if DRY_RUN:
+        print("\n=== TECHBRO DRY RUN ===")
+        print(f"TITLE: {article.get('title', '')}")
+        print(f"SPINE: {json.dumps(result.get('spine') or story_spine(article), ensure_ascii=False)}")
+        for i in range(1, 7):
+            print(f"S{i}: {posts.get(f'post_{i}', '')}")
+        print(f"S7: Sumber: {article.get('url', '')}")
+        print("=== END TECHBRO DRY RUN ===\n", flush=True)
     if PREPARE_NEXT:
         if DRY_RUN:
             log.info("DRY RUN — validated draft not persisted")
@@ -3150,7 +3280,9 @@ def main():
             "article": article, "posts": posts, "post_ids": [], "image_url": image_url,
             "topic": {
                 "title": article["title"], "article_url": article["url"], "article_source": article["source"],
-                "angle": result.get("angle", ""), "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+07:00"),
+                "angle": result.get("angle", ""), "spine": result.get("spine") or story_spine(article),
+                "story_functions": STORY_FUNCTIONS,
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+07:00"),
                 "eco_score": article.get("eco_score"), "selection_weight": article.get("_weight"),
                 "pattern": article.get("pattern"), "arc": result.get("arc", ""), "slides": posts,
  "likes": None, "replies": None, "reposts": None, "views": None, "quotes": None,

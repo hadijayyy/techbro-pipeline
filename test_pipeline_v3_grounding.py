@@ -90,6 +90,58 @@ def test_source_claim_map_ranks_and_assigns_source_sentences_to_slides():
     assert len({c["sentence"] for claims in claim_map.values() for c in claims}) == 6
 
 
+def test_story_spine_uses_one_source_tension():
+    article = {"body": "Harga BBM turun menjadi Rp10.000. Namun ongkos distribusi naik. Pemerintah masih membahas aturan baru."}
+    spine = pipeline.story_spine(article)
+    assert spine["tension_type"] in {"contradiction", "detail_stakes", "status_gap"}
+    assert spine["sentence"] in article["body"]
+
+
+def test_story_functions_and_spine_validator_require_s1_s6_continuity():
+    article = {"body": "Harga BBM turun menjadi Rp10.000. Namun ongkos distribusi naik. Pemerintah masih membahas aturan baru."}
+    assert pipeline.STORY_FUNCTIONS["post_1"] == "hook_tension"
+    posts = {f"post_{i}": "Kalimat fakta sumber yang cukup panjang. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
+    issues = pipeline._validate_story_spine(article, posts)
+    assert any("story spine" in issue for issue in issues)
+
+
+def test_story_spine_keeps_market_story_and_excludes_bi_side_story():
+    body = " ".join([
+        "Rupiah ditutup melemah 0,20% ke posisi Rp17.865/US$.",
+        "The Fed lebih mencemaskan inflasi daripada pelemahan pasar tenaga kerja.",
+        "Presiden mengusulkan Destry Damayanti sebagai calon tunggal gubernur BI.",
+        "Indeks dolar AS menguat 0,03% pada pukul 15.00 WIB.",
+        "Pasar memperhitungkan peluang The Fed mempertahankan suku bunga sebesar 52%.",
+        "Nama calon Deputi Gubernur BI masih menunggu pengumuman DPR.",
+    ])
+    spine = pipeline.story_spine({
+        "title": "Rupiah Ditutup Loyo, Dolar AS Naik ke Rp17.865",
+        "body": body,
+        "pattern": "PASAR",
+    })
+    assert spine["angle"] == "market_pressure"
+    assert any("Rupiah ditutup" in sentence for sentence in spine["sentences"])
+    assert any("calon tunggal" in sentence for sentence in spine["excluded"])
+
+
+def test_source_claim_map_uses_selected_story_spine():
+    body = " ".join([
+        "Rupiah ditutup melemah 0,20% ke posisi Rp17.865/US$.",
+        "The Fed lebih mencemaskan inflasi daripada pelemahan pasar tenaga kerja.",
+        "Indeks dolar AS menguat 0,03% pada pukul 15.00 WIB.",
+        "Pasar memperhitungkan peluang The Fed mempertahankan suku bunga sebesar 52%.",
+        "Harga minyak bergerak naik setelah serangan terhadap jalur pelayaran.",
+        "Pemerintah mengusulkan calon gubernur BI kepada DPR.",
+    ])
+    claim_map = pipeline.source_claim_map({
+        "title": "Rupiah Ditutup Loyo, Dolar AS Naik",
+        "body": body,
+        "pattern": "PASAR",
+    })
+    mapped = " ".join(item["sentence"] for claims in claim_map.values() for item in claims)
+    assert "calon gubernur BI" not in mapped
+
+
 def test_s6_question_needs_only_one_source_anchor():
     body = (
         "Pemerintah menetapkan kebijakan subsidi energi mulai Januari 2027. "
@@ -115,6 +167,27 @@ def test_revision_prompt_contains_current_draft():
     prompt = pipeline.build_revision_prompt("post_2: bad quote", draft)
     assert '"post_2": "draft 2"' in prompt
     assert "JANGAN membuat ulang slide yang tidak disebut issue" in prompt
+
+
+def test_source_fallback_starts_with_selected_story_spine():
+    body = " ".join([
+        "Rupiah ditutup melemah 0,20% ke posisi Rp17.865/US$.",
+        "Indeks dolar AS menguat 0,03% pada pukul 15.00 WIB.",
+        "Pasar memperhitungkan peluang The Fed mempertahankan suku bunga sebesar 52%.",
+        "Harga minyak bergerak naik setelah serangan terhadap jalur pelayaran.",
+        "Tekanan terhadap rupiah membesar dibandingkan posisi pembukaan.",
+        "Pemerintah mengumumkan data inflasi konsumen AS pada Rabu waktu setempat.",
+        "Pelaku pasar masih mencermati arah suku bunga bank sentral Amerika Serikat.",
+        "Risiko inflasi membuat pasar belum menutup peluang kenaikan suku bunga.",
+        "Nilai tukar rupiah kembali mengakhiri perdagangan di zona merah.",
+        "Perdagangan berlangsung pada Rabu 12 Agustus 2026.",
+        "Data pasar menjadi perhatian pelaku ekonomi sepanjang hari.",
+        "Perubahan tersebut memengaruhi pergerakan mata uang regional.",
+    ])
+    article = {"body": body, "pattern": "PASAR"}
+    posts = pipeline._source_fallback_posts(article)
+    assert posts is not None
+    assert "Rupiah ditutup melemah" in posts["post_1"]
 
 
 def test_source_fallback_builds_six_grounded_posts():
@@ -238,13 +311,28 @@ def test_policy_winner_gate_rejects_missing_tradeoff():
     assert any("post_5" in issue for issue in issues)
 
 
-def test_policy_article_evidence_gate_requires_status_gap_and_tradeoff():
+def test_generic_policy_article_skips_policy_winner_gate():
+    body = " ".join([
+        "Menteri Pertanian memastikan harga pakan ayam dijaga hingga akhir 2026.",
+        "Pemerintah mewajibkan dapur MBG menyerap telur dari peternak sesuai petunjuk teknis.",
+        "Kebijakan diambil saat pemerintah merespons keluhan peternak terkait biaya pakan.",
+        "Pemerintah memperkuat penyerapan telur melalui dapur SPPG.",
+        "Peternak meminta pemerintah membuka transparansi harga bahan baku pakan.",
+        "Mereka juga meminta penyerapan telur melalui program pemerintah diperbesar.",
+    ] * 4)
+    article = {"pattern": "KEBIJAKAN", "title": "Mentan jaga harga pakan ayam", "body": body}
+    assert not pipeline._policy_winner_enabled(article)
+    assert pipeline.article_evidence_gate(article) is None
+    assert pipeline._validate_policy_winner_arc(article, {}) == []
+
+
+def test_policy_article_evidence_gate_only_applies_to_decision_story():
     base = " ".join(
         f"Dokumen pemerintah nomor {i} memuat rincian pelaksanaan dan pembagian kewenangan untuk rapat resmi."
         for i in range(1, 16)
     ) + " " + ("Catatan administrasi disimpan untuk pemeriksaan pihak terkait. " * 20)
     article = {"pattern": "KEBIJAKAN", "body": base}
-    assert pipeline.article_evidence_gate(article) == "policy_missing_literal_status_gap"
+    assert pipeline.article_evidence_gate(article) is None
 
     article["body"] = base + " Pemerintah sebelumnya menyerahkan kewenangan guru ke daerah, tetapi kini mengusulkan pemindahan ke pusat."
     assert pipeline.article_evidence_gate(article) == "policy_missing_literal_tradeoff"
@@ -307,6 +395,33 @@ def test_refresh_metrics_preserves_data_on_api_failure(monkeypatch):
     monkeypatch.setattr(pipeline.httpx, "get", fail)
     assert pipeline.refresh_performance_metrics(data, now=999999) is False
     assert topic == {"post_id": "p1", "likes": 7}
+
+
+def test_metrics_request_omits_media_period(monkeypatch):
+    captured = {}
+    class Response:
+        status_code = 200
+        def json(self):
+            return {"data": [{"name": "views", "values": [{"value": 100}]}]}
+    def fake_get(*args, **kwargs):
+        captured.update(kwargs)
+        return Response()
+    topic = {"post_id": "p1", "timestamp": "2026-08-11T00:00:00+07:00"}
+    monkeypatch.setattr(pipeline, "THREADS_TOKEN", "token")
+    monkeypatch.setattr(pipeline.httpx, "get", fake_get)
+    assert pipeline.refresh_performance_metrics({"topics": [topic]}, now=999999) is True
+    assert "period" not in captured["params"]
+
+
+def test_performance_evaluator_labels_against_cohort_median():
+    topics = [{"views": 1000, "likes": 100, "replies": 10, "reposts": 5, "quotes": 0,
+               "timestamp": "2026-08-01T00:00:00+07:00"},
+              {"views": 1000, "likes": 1, "replies": 0, "reposts": 0, "quotes": 0,
+               "timestamp": "2026-08-01T00:00:00+07:00"},
+              {"views": 1000, "likes": 10, "replies": 1, "reposts": 0, "quotes": 0,
+               "timestamp": "2026-08-01T00:00:00+07:00"}]
+    assert pipeline.evaluate_published_content({"topics": topics}, now=9999999999) is True
+    assert {t["performance_evaluation"]["label"] for t in topics} == {"strong", "weak", "normal"}
 
 
 def test_grounding_verifier_error_blocks_publish(monkeypatch):
