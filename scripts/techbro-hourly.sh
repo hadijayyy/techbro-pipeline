@@ -42,4 +42,5 @@ for attempt in 1 2; do
 done
 
 echo "ℹ️ Techbro no validated next draft; fail-closed no-post"
+echo "NO_SAFE_CANDIDATE"
 exit 0

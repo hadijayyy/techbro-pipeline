@@ -1,6 +1,375 @@
 {
   "topics": [
     {
+      "title": "Pemerintah Janji Jaga Harga Pakan, Minta Dapur MBG Serap Telur Peternak",
+      "article_url": "https://finance.detik.com/berita-ekonomi-bisnis/d-8614483/pemerintah-janji-jaga-harga-pakan-minta-dapur-mbg-serap-telur-peternak",
+      "article_source": "detik_finance",
+      "angle": "kebijakan penyelamatan peternak rakyat melalui intervensi harga pakan dan penyerapan telur",
+      "post_id": "18385577890165947",
+      "media_id": "18385577890165947",
+      "timestamp": "2026-08-12T08:02:09+07:00",
+      "eco_score": 30,
+      "selection_weight": 64.98891283587551,
+      "pattern": "KEBIJAKAN",
+      "arc": "wallet_pressure",
+      "hook_pattern": "wallet_impact",
+      "slides": {
+        "post_1": "3,8 juta peternak rakyat di seluruh Indonesia jadi alasan Amran langsung terbang ke Surabaya tanpa nunggu rapat di Jakarta. Begitu denger ada demo, dia langsung gelar Rapat Koordinasi Perunggasan di sana, Selasa (11/8).",
+        "post_2": "Amran bilang, 'HPP untuk harga telur kita jaga, tetapi harga pakan juga harus kita jaga, jangan terlalu tinggi. Jangan mengambil kesempatan dalam kesempitan.' Dia denger langsung aspirasi peternak dari berbagai daerah dalam rapat itu.",
+        "post_3": "Dua hal yang dipastikan Amran harga pakan dijaga sampai akhir tahun, dan telur peternak wajib diserap lewat SPPG atau dapur MBG. Jadi, biaya produksi nggak melambung, tapi hasil ternak juga tetep laku.",
+        "post_4": "SPPG wajib menyerap telur sesuai juknis yang udah ditetapin. Amran udah kirim instruksi dan surat buat ini. Tujuannya biar peternak punya kepastian pasar, jadi usaha mereka bisa terus jalan.",
+        "post_5": "Amran juga dorong konsumsi telur di program MBG ditambah dari satu kali jadi dua-tiga kali seminggu. Katanya, ini bukan cuma soal gizi masyarakat, tapi juga buat kuatin pasar buat peternak rakyat.",
+        "post_6": "Menurut lo, lebih masuk akal mana nahan harga pakan biar biaya produksi stabil, atau tambahin penyerapan telur lewat SPPG dan MBG supaya peternak punya pasar pasti?",
+        "post_7": "Sumber: https://finance.detik.com/berita-ekonomi-bisnis/d-8614483/pemerintah-janji-jaga-harga-pakan-minta-dapur-mbg-serap-telur-peternak"
+      },
+      "likes": 0,
+      "replies": 6,
+      "reposts": 0,
+      "views": 0,
+      "quotes": 0,
+      "metrics_checked_at": 1786496531.3842642
+    },
+    {
+      "title": "Harga Pertalite Dijamin Tidak Naik sampai Desember",
+      "article_url": "https://finance.detik.com/energi/d-8614377/harga-pertalite-dijamin-tidak-naik-sampai-desember",
+      "article_source": "detik_finance",
+      "angle": "source-only fallback",
+      "post_id": "18115369495934736",
+      "media_id": "18115369495934736",
+      "timestamp": "2026-08-12T07:02:01+07:00",
+      "eco_score": 30,
+      "selection_weight": 64.98891283587551,
+      "pattern": "PERDAGANGAN",
+      "arc": "wallet_pressure",
+      "hook_pattern": "wallet_impact",
+      "slides": {
+        "post_1": "Menteri Koordinator Perekonomian Airlangga Hartarto memastikan harga bahan bakar minyak (BBM) subsidi seperti Pertalite dan Biodiesel aman sampai akhir tahun. Kepastian ini didapat di tengah ketidakpastian ekonomi global dan ancaman konflik militer di Selat Hormuz.",
+        "post_2": "Airlangga menjelaskan, pemerintah terus memantau pergerakan harga minyak dunia.",
+        "post_3": "Menurutnya saat ini harga minyak mentah dunia tidak di atas US$ 110/barel, sementara rata-rata pembelian minyak mentah oleh Indonesia masih US$ 91/barel \"Kita selalu melihat bahwa kalau harga minyak di atas US$ 110 per barel itu biasanya ada ceasefire.",
+        "post_4": "Jadi bagi Indonesia relatif masih melihat dengan situasi harga minyak yang tidak di atas US$ 100 per barel,\" ujar Airlangga di Jakarta, Selasa (11/8/2026).",
+        "post_5": "\"Artinya Indonesia sekarang pembelian minyaknya masih rata-rata di angka US$ 91 per barel.",
+        "post_6": "Itu relatif sampai akhir tahun at least Pertalite dan Biodiesel aman,\" sambung Airlangga. Menurut lo, fakta ini perlu dipantau?",
+        "post_7": "Sumber: https://finance.detik.com/energi/d-8614377/harga-pertalite-dijamin-tidak-naik-sampai-desember"
+      },
+      "likes": 0,
+      "replies": 6,
+      "reposts": 0,
+      "views": 0,
+      "quotes": 0,
+      "metrics_checked_at": 1786492924.2187092
+    },
+    {
+      "title": "Purbaya Ungkap Ada Ide Keuntungan Danantara Masuk APBN",
+      "article_url": "https://www.cnbcindonesia.com/market/20260811165448-17-758362/purbaya-ungkap-ada-ide-keuntungan-danantara-masuk-apbn",
+      "article_source": "cnbc_market",
+      "angle": "source-only fallback",
+      "post_id": "18075546545394373",
+      "media_id": "18075546545394373",
+      "timestamp": "2026-08-12T06:02:08+07:00",
+      "eco_score": 35,
+      "selection_weight": 68.95629759714835,
+      "pattern": "KEBIJAKAN",
+      "arc": "policy_bomb",
+      "hook_pattern": "number_shock",
+      "slides": {
+        "post_1": "Jakarta, CNBC Indonesia - Menteri Keuangan Purbaya Yudhi Sadewa mengungkapkan keuntungan yang diperoleh BPI Dananatra nantinya akan disalurkan kembali ke dalam Anggaran Pendapatan dan Belanja Negara (APBN). Hal ini disampaikannya saat menemui pewarta di Kantor Kemenkeu, Jakarta (11/8/2026).",
+        "post_2": "\"Nanti kita lihat, itu baru ide, jadi kontribusi Danantara ke saya, yang saya tahu seperti itu,\" ujar Purbaya.",
+        "post_3": "Adapun, pernyataan Purbaya ini terkait dengan ketentuan Peraturan Pemerintah (PP) Nomor 19 Tahun 2026 tentang Perubahan atas PP Nomor 10 Tahun 2025 mengenai Organisasi dan Tata Kelola Danantara yang telah ditandatangani Presiden Prabowo Subianto pada 8 April 2026.",
+        "post_4": "Dalam aturan ini, holding investasi yang dibentuk untuk mendukung pembangunan nasional dan pelayanan publik dapat menerima penyertaan modal negara (PMN).",
+        "post_5": "Dukungan pemerintah tersebut dapat berasal dari berbagai sumber, mulai dari dana tunai, barang milik negara, piutang negara kepada BUMN maupun perseroan terbatas, hingga aset negara lainnya.",
+        "post_6": "Sejauh ini, Presiden RI Prabowo Subianto mengaku mendapatkan laporan bahwa pendapatan Badan Pengelola Investasi (BPI) Danantara tercatat melonjak hingga 400%. Menurut lo, fakta ini perlu dipantau?",
+        "post_7": "Sumber: https://www.cnbcindonesia.com/market/20260811165448-17-758362/purbaya-ungkap-ada-ide-keuntungan-danantara-masuk-apbn"
+      },
+      "likes": 0,
+      "replies": 6,
+      "reposts": 0,
+      "views": 0,
+      "quotes": 0,
+      "metrics_checked_at": 1786489330.493114
+    },
+    {
+      "title": "Sederet Capaian Kinerja BUMN di Bawah Danantara",
+      "article_url": "https://finance.detik.com/berita-ekonomi-bisnis/d-8614307/sederet-capaian-kinerja-bumn-di-bawah-danantara",
+      "article_source": "detik_finance",
+      "angle": "source-only fallback",
+      "post_id": "18112344625993107",
+      "media_id": "18112344625993107",
+      "timestamp": "2026-08-12T04:16:58+07:00",
+      "eco_score": 35,
+      "selection_weight": 69.99080632366147,
+      "pattern": "PROYEK",
+      "arc": "public_money_trail",
+      "hook_pattern": "number_shock",
+      "slides": {
+        "post_1": "Kinerja positif sejumlah BUMN sepanjang semester pertama tahun ini menjadi salah satu prestasi yang paling disorot dari pemerintahan Presiden Prabowo Subianto. Program konsolidasi dan transformasi BUMN yang dijalankan Danantara sejak awal pembentukannya mulai menunjukkan hasil yang konkret.",
+        "post_2": "Hal ini tercermin dari lonjakan laba bersih di hampir seluruh sektor strategis BUMM.",
+        "post_3": "Managing Partner BUMN Research Group LM FEB UI Toto Pranoto mengatakan kinerja positif terlihat pada BUMN papan atas yang menunjukkan kinerja stabil.",
+        "post_4": "\"Menurut saya kinerja solid masih ditunjukan BUMN blue chips yang sedari dulu menjadi motor penggerak revenue dan profit total BUMN.",
+        "post_5": "Misal kinerja Himbara di sektor perbankan, sektor mineral dan hasil tambang, sektor telco dan Pertamina,\" ujar Toto dalam keterangan tertulis, di Jakarta, Selasa (11/8/2026).",
+        "post_6": "Menurut Toto, kinerja BUMN di bawah Danantara masih sangat berpotensi semakin meroket. Menurut lo, fakta ini perlu dipantau?",
+        "post_7": "Sumber: https://finance.detik.com/berita-ekonomi-bisnis/d-8614307/sederet-capaian-kinerja-bumn-di-bawah-danantara"
+      },
+      "likes": 0,
+      "replies": 6,
+      "reposts": 0,
+      "views": 0,
+      "quotes": 0,
+      "metrics_checked_at": 1786483022.046476
+    },
+    {
+      "title": "Purbaya Sebut Prabowo Ingin Sisihkan Cuan Danantara Buat Cadangan APBN",
+      "article_url": "https://www.cnnindonesia.com/ekonomi/20260811210652-532-1391224/purbaya-sebut-prabowo-ingin-sisihkan-cuan-danantara-buat-cadangan-apbn",
+      "article_source": "cnn_ekonomi",
+      "angle": "source-only fallback",
+      "post_id": "18111423772963411",
+      "media_id": "18111423772963411",
+      "timestamp": "2026-08-12T01:17:16+07:00",
+      "eco_score": 35,
+      "selection_weight": 69.99488799148071,
+      "pattern": "KEBIJAKAN",
+      "arc": "policy_bomb",
+      "hook_pattern": "number_shock",
+      "slides": {
+        "post_1": "Menteri Keuangan (Menkeu) Purbaya Yudhi Sadewa mengungkapkan rencana Presiden Prabowo Subianto untuk mengalihkan sebagian keuntungan Badan Pengelola Investasi (BPI) Danantara untuk mendukung Anggaran Pendapatan dan Belanja Negara (APBN). Keuntungan tersebut akan difungsikan sebagai cadangan di kas negara.",
+        "post_2": "\"Danantara kan menghasilkan juga keuntungan.",
+        "post_3": "Presiden merencanakan sebagian keuntungan sebagai cadangan untuk APBN,\" ujar Purbaya di kantor Kementerian Keuangan, Jakarta Pusat, Selasa (11/8).",
+        "post_4": "Purbaya mengatakan wacana pengalihan dana tersebut saat ini masih sebatas ide.",
+        "post_5": "Pemerintah masih perlu melakukan pembahasan lebih lanjut mengenai rencana ini bersama Danantara.",
+        "post_6": "\"Itu baru ide, masih dibicarakan dengan Danantara,\" ujar Purbaya. Menurut lo, fakta ini perlu dipantau?",
+        "post_7": "Sumber: https://www.cnnindonesia.com/ekonomi/20260811210652-532-1391224/purbaya-sebut-prabowo-ingin-sisihkan-cuan-danantara-buat-cadangan-apbn"
+      },
+      "likes": 0,
+      "replies": 8,
+      "reposts": 0,
+      "views": 2699,
+      "quotes": 1,
+      "metrics_checked_at": 1786496414.9539483
+    },
+    {
+      "title": "Rp 20,5 T Telah Mengalir ke 490 Pemda, Purbaya: Cukup untuk Bayar Gaji PPPK",
+      "article_url": "https://finance.detik.com/berita-ekonomi-bisnis/d-8614194/rp-20-5-t-telah-mengalir-ke-490-pemda-purbaya-cukup-untuk-bayar-gaji-pppk",
+      "article_source": "detik_finance",
+      "angle": "source-only fallback",
+      "post_id": "18129379249710634",
+      "media_id": "18129379249710634",
+      "timestamp": "2026-08-11T22:37:56+07:00",
+      "eco_score": 70,
+      "selection_weight": 104.9908372245251,
+      "pattern": "KEBIJAKAN",
+      "arc": "wallet_pressure",
+      "hook_pattern": "wallet_impact",
+      "slides": {
+        "post_1": "Rp20,5 triliun sudah dikucurkan ke 490 pemerintah daerah yang kesulitan keuangan. Dana ini dipakai membayar gaji ASN, termasuk PPPK dan tunjangan.",
+        "post_2": "Purbaya bilang dana disalurkan serentak, bukan melalui permohonan setiap daerah. Jadi, sumber dana tidak menunggu daerah mengajukan permintaan satu per satu.",
+        "post_3": "Besaran dana tiap daerah belum dirinci. Purbaya menyebut Kabupaten Kupang mendapat Rp193 miliar, sedangkan Kota Madya mendapat Rp17 miliar.",
+        "post_4": "Pembagian dana disesuaikan dengan kondisi masing-masing daerah. APBN dipelajari dulu sebelum dana didistribusikan.",
+        "post_5": "Jakarta tidak dianggap mendesak menerima tambahan dana karena kondisi fiskalnya baik. Purbaya menyebut Jakarta cukup kaya.",
+        "post_6": "Dana disalurkan tanpa menunggu permohonan daerah, tapi nominal tiap daerah belum dibuka. Menurut lo, mana yang lebih penting diawasi: kecepatan penyaluran atau rincian nominalnya?",
+        "post_7": "Sumber: https://finance.detik.com/berita-ekonomi-bisnis/d-8614194/rp-20-5-t-telah-mengalir-ke-490-pemda-purbaya-cukup-untuk-bayar-gaji-pppk"
+      },
+      "likes": 12,
+      "replies": 10,
+      "reposts": 0,
+      "views": 3450,
+      "quotes": 0,
+      "metrics_checked_at": 1786489213.558098
+    },
+    {
+      "title": "Airlangga Kasih PR ke Maman: Kredit UMKM Harus Tembus Rp2.000 T",
+      "article_url": "https://www.cnnindonesia.com/ekonomi/20260811132644-532-1390986/airlangga-kasih-pr-ke-maman-kredit-umkm-harus-tembus-rp2000-t",
+      "article_source": "cnn_ekonomi",
+      "angle": "target kredit UMKM yang naik drastis tapi masih di bawah ideal",
+      "post_id": "18111183899069455",
+      "media_id": "18111183899069455",
+      "timestamp": "2026-08-11T19:23:45+07:00",
+      "eco_score": 40,
+      "selection_weight": 74.99811391763187,
+      "pattern": null,
+      "arc": "source_explainer",
+      "hook_pattern": "number_shock",
+      "slides": {
+        "post_1": "Total kredit perbankan Rp9.000 triliun, tapi kredit UMKM baru Rp1.500 triliun. Ini pertama kalinya pemerintah ngasih target resmi naikin jatah buat 'wong cilik' hampir dua kali lipat dalam dua tahun.",
+        "post_2": "Airlangga bilang, 'Gimana kalau kita turunkan ke Pak Maman Rp2.000 triliun.' Jadi target resmi sekarang naikin kredit UMKM dari Rp1.500 triliun jadi Rp2.000 triliun sampai 2026. Masih di bawah angka ideal 30% dari total kredit, tapi udah lompatan gede.",
+        "post_3": "PR ini dikasih ke Menteri UMKM Maman Abdurrahman. Dia harus dorong bank-bank salurin kredit lebih banyak ke usaha kecil. Tapi bukan cuma KUR (Kredit Usaha Rakyat) aja yang tahun ini cuma Rp370-400 triliun tapi juga kredit gede sampe Rp50 miliar buat yang mau naik kelas.",
+        "post_4": "Kenapa targetnya cuma Rp2.000 triliun, bukan Rp3.000 triliun? Soalnya loncat dari Rp1.500 triliun ke Rp3.000 triliun itu naik 100%, keliatan berat banget. Airlangga sendiri bilang, 'Idealnya sih 30% dari total kredit, tapi itu Rp3.000 triliun keberatan dikejar sekarang.'",
+        "post_5": "Data OJK Juni 2026 total pembiayaan UMKM dari semua sektor jasa keuangan udah Rp1.948,72 triliun. Tapi yang lewat bank cuma Rp1.519,35 triliun cuma 16,73% dari total kredit perbankan. NPL (kredit macet) UMKM juga masih tinggi 4,54%. Jadi bank harus hati-hati ngasih pinjaman biar gak boncos.",
+        "post_6": "Jadi pertanyaannya target Rp2.000 triliun itu realistis atau cuma angka aman? Kalau bank takut kredit macet, gimana caranya dorong mereka salurin duit lebih banyak? Tapi kalau gak naikin target, UMKM bakal kesulitan naik kelas lo setuju yang mana?",
+        "post_7": "Sumber: https://www.cnnindonesia.com/ekonomi/20260811132644-532-1390986/airlangga-kasih-pr-ke-maman-kredit-umkm-harus-tembus-rp2000-t"
+      },
+      "likes": 7,
+      "replies": 7,
+      "reposts": 0,
+      "views": 2327,
+      "quotes": 1,
+      "metrics_checked_at": 1786482913.874315
+    },
+    {
+      "title": "Buruh Minta RUU Ketenagakerjaan Beri Rasa Keadilan",
+      "article_url": "https://finance.detik.com/berita-ekonomi-bisnis/d-8613529/buruh-minta-ruu-ketenagakerjaan-beri-rasa-keadilan",
+      "article_source": "detik_finance",
+      "angle": "perjuangan buruh mengawal RUU Ketenagakerjaan lewat jalur politik",
+      "post_id": "17963128284156702",
+      "media_id": "17963128284156702",
+      "timestamp": "2026-08-11T15:01:58+07:00",
+      "eco_score": 35,
+      "selection_weight": 69.99136926602931,
+      "pattern": null,
+      "arc": "source_explainer",
+      "hook_pattern": "source_explainer",
+      "slides": {
+        "post_1": "RUU Ketenagakerjaan dibahas lagi, tapi kali ini buruh bawa draft sendiri ke Menteri Cak Imin. Koalisi Besar Perjuangan Buruh Indonesia (KBPBI) bertemu Menteri Koordinator Bid.",
+        "post_2": "Yang dateng bukan buruh biasa delapan pimpinan konfederasi besar semua lengkap KSPSI, KASBI, KBMI, GSBI, SBSI, ASPIRASI, ASPEK. Andi Gani dari KSPSI bilang, mereka udah susun draft sendiri lewat Tim Perumus KBPBI. Ini bukan curhat, tapi usulan resmi yang mau disuntikkan ke DPR.",
+        "post_3": "Buruh ngapain sih minta dukungan partai? Andi Gani jelasin, mereka butuh PKB (partai Cak Imin) buat dorong usulan mereka masuk pembahasan di DPR. Tanpa dukungan fraksi, draft mereka bisa ngendap di laci. Makanya besok mereka juga ketemu Sufmi Dasco, Wakil Ketua DPR, buat lobi langsung.",
+        "post_4": "Cak Imin sendiri ngasih lampu hijau. Dia bilang PKB bakal dukung penuh draft buruh dan minta fraksinya di DPR ngobrol terus sama KBPBI. Tapi ini bukan cuma PKB sebelumnya buruh udah ketemu PDI, NasDem, Gerindra, PKS. Semua fraksi diajak ngomongin RUU ini, biar nggak ada yang kabur dari substansi.",
+        "post_5": "Konsekuensinya? Kalau semua fraksi serius, RUU ini bisa jadi UU yang lebih pro-buruh. Tapi kalau cuma formalitas, draft buruh bisa diubah seenak jidat di DPR. Andi Gani sendiri udah siapin ancaman mereka bakal terus mengawal sampai UU jadi. Artinya, demo atau lobi politik bakal makin sering.",
+        "post_6": "Lo di kubu mana percaya lobi politik buruh bakal berhasil bikin UU yang adil, atau khawatir draft mereka bakal diencerin di DPR demi kepentingan lain?\n\nhttps://finance.detik.com/berita-ekonomi-bisnis/d-8613529/buruh-minta-ruu-ketenagakerjaan-beri-rasa-keadilan"
+      },
+      "likes": 0,
+      "replies": 5,
+      "reposts": 0,
+      "views": 574,
+      "quotes": 0,
+      "metrics_checked_at": 1786482913.874315
+    },
+    {
+      "title": "Destry Jadi Calon Tunggal Gubernur BI, Ini Komentar Bos OJK",
+      "article_url": "https://www.cnbcindonesia.com/market/20260811114609-17-758209/destry-jadi-calon-tunggal-gubernur-bi-ini-komentar-bos-ojk",
+      "article_source": "cnbc_market",
+      "angle": "Dukungan OJK dan pemerintah terhadap Destry: rekam jejak, sinergi UMKM, dan status calon tunggal",
+      "timestamp": "2026-08-11T14:21:50+07:00",
+      "eco_score": 8,
+      "selection_weight": 98.098,
+      "pattern": "PASAR",
+      "arc": "market_decision",
+      "hook_pattern": "named_decision",
+      "slides": {
+        "post_1": "Destry Damayanti didukung OJK untuk jadi Gubernur BI menggantikan Perry Warjiyo. Rekam jejaknya di sektor keuangan jadi alasan dukungan.",
+        "post_2": "Ketua OJK Friderica menyebut rekam jejak Destry sangat baik setelah lama bekerja sama dengan OJK. Dukungan itu diberikan untuk pencalonan tunggalnya.",
+        "post_3": "Friderica menyoroti sinergi OJK dan BI dalam pengembangan UMKM. Kerja sama itu mencakup kurasi pelaku usaha dan pembiayaan kredit.",
+        "post_4": "Menteri UMKM Maman Abdurrahman ikut mendukung Destry. Ia menilai Destry sebagai figur di BI yang sangat concern terhadap UMKM berdasarkan pengalamannya selama hampir dua tahun sebagai menteri.",
+        "post_5": "Friderica menyebut pengembangan UMKM bukan cuma program BI dan OJK, tapi inisiatif nasional yang didukung banyak pihak. Dukungan ke Destry dibarengi harapan kerja sama itu terus berjalan.",
+        "post_6": "OJK dan Maman sama-sama melihat pengalaman serta perhatian Destry ke UMKM sebagai alasan dukungan. Status calon tunggal membuat proses penetapan tetap perlu dilihat publik. Menurut lu, rekam jejak cukup jadi dasar, atau alternatif calon juga penting?\n\nhttps://www.cnbcindonesia.com/market/20260811114609-17-758209/destry-jadi-calon-tunggal-gubernur-bi-ini-komentar-bos-ojk"
+      },
+      "likes": 3,
+      "replies": 5,
+      "reposts": 0,
+      "views": 2545,
+      "quotes": 0,
+      "post_id": "18112138366781301",
+      "media_id": "18112138366781301",
+      "metrics_checked_at": 1786482913.874315
+    },
+    {
+      "title": "Destry Jadi Calon Tunggal Gubernur BI, Ini Komentar Bos OJK",
+      "article_url": "https://www.cnbcindonesia.com/market/20260811114609-17-758209/destry-jadi-calon-tunggal-gubernur-bi-ini-komentar-bos-ojk",
+      "article_source": "cnbc_market",
+      "angle": "Dukungan OJK ke Destry Damayanti sebagai calon tunggal Gubernur BI: antara rekam jejak dan sinergi UMKM",
+      "post_id": "18109803986085812",
+      "media_id": "18109803986085812",
+      "timestamp": "2026-08-11T14:01:43+07:00",
+      "eco_score": 10,
+      "selection_weight": 43.96061117887516,
+      "pattern": null,
+      "arc": "source_explainer",
+      "hook_pattern": "source_explainer",
+      "slides": {
+        "post_1": "OJK resmi dukung Destry Damayanti jadi Gubernur BI menggantikan Perry Warjiyo. Jakarta, CNBC Indonesia - Otoritas Jasa Keuangan (OJK) mendukung pencalonan tung.",
+        "post_2": "Ketua OJK Friderica Widyasari bilang Destry punya rekam jejak bagus di sektor keuangan. Tapi dukungan ini bukan cuma soal track record ada alasan lain yang lebih gede UMKM.",
+        "post_3": "OJK dan BI udah lama kerja bareng soal UMKM, dari kurasi pelaku usaha sampe pembiayaan kredit. Destry disebut sebagai salah satu figur di BI yang paling peduli sama nasib UMKM selama ini.",
+        "post_4": "Menteri UMKM Maman Abdurrahman juga setuju banget, bilang Destry itu 'sakinah mawaddah warahmah' buat UMKM. Tapi kok bisa dua lembaga gede ini kompak banget dukung satu orang? Ada apa di balik layar?",
+        "post_5": "Konsekuensinya jelas kalau Destry jadi Gubernur BI, sinergi OJK-BI soal UMKM bakal makin kenceng. Tapi ini juga bikin pertanyaan apakah calon tunggal ini benar-benar pilihan terbaik, atau cuma cara biar prosesnya mulus?",
+        "post_6": "Lo di kubu mana [A] Dukungan OJK ke Destry itu langkah bagus karena dia punya rekam jejak dan komitmen ke UMKM, atau [B] Calon tunggal tanpa kompetisi bikin proses pemilihan jadi kurang transparan dan minim alternatif?\n\nhttps://www.cnbcindonesia.com/market/20260811114609-17-758209/destry-jadi-calon-tunggal-gubernur-bi-ini-komentar-bos-ojk"
+      },
+      "likes": 0,
+      "replies": 5,
+      "reposts": 0,
+      "views": 0,
+      "quotes": 0,
+      "metrics_checked_at": 1786431706.401874
+    },
+    {
+      "title": "Kenaikan Suku Bunga Jadi \"Momok\" buat Industri Multifinance",
+      "article_url": "https://www.cnbcindonesia.com/market/20260811110850-17-758195/kenaikan-suku-bunga-jadi-momok-buat-industri-multifinance",
+      "article_source": "cnbc_market",
+      "angle": "dampak kenaikan suku bunga BI ke dompet perusahaan multifinance dan nasib pinjaman masyarakat",
+      "post_id": "18145091311546775",
+      "media_id": "18145091311546775",
+      "timestamp": "2026-08-11T12:27:06+07:00",
+      "eco_score": 35,
+      "selection_weight": 68.96061117887517,
+      "pattern": "PASAR",
+      "arc": "market_shock",
+      "hook_pattern": "wallet_impact",
+      "slides": {
+        "post_1": "BI naikin suku bunga 3 kali tahun ini, total 100 bps. Sekarang BI-Rate di 5,75%, tapi biaya modal multifinance ikut ngelembung.",
+        "post_2": "Perusahaan multifinance kebanyakan duitnya dari bank. Pas bank naikin bunga, mereka kena getahnya biaya modal langsung naik, tapi gak bisa langsung naikin bunga ke nasabah.",
+        "post_3": "Jasmi dari OJK bilang, kenaikan suku bunga ini gak bisa dihindarin karena ekonomi global lagi gak pasti. Artinya, multifinance harus cari cara biar gak kolaps sambil nunggu BI turunin lagi.",
+        "post_4": "Motif BI naikin bunga jelas atasi inflasi dan stabilin rupiah. Tapi efek sampingnya, perusahaan pembiayaan jadi kesulitan dapet duit murah dari bank buat kasih pinjaman ke masyarakat.",
+        "post_5": "Konsekuensinya, multifinance bisa batasi pinjaman baru atau naikin bunga ke nasabah. Kalau daya beli masyarakat turun, cicilan motor atau barang elektronik jadi lebih berat.",
+        "post_6": "Lo di kubu mana [A] BI harus tetap naikin bunga biar inflasi turun, meski multifinance kesulitan, atau [B] BI harus tahan dulu biar perusahaan pembiayaan gak makin tercekik dan masyarakat bisa tetap pinjam?\n\nhttps://www.cnbcindonesia.com/market/20260811110850-17-758195/kenaikan-suku-bunga-jadi-momok-buat-industri-multifinance"
+      },
+      "likes": 1,
+      "replies": 5,
+      "reposts": 0,
+      "views": 694,
+      "quotes": 0,
+      "metrics_checked_at": 1786496414.9539483
+    },
+    {
+      "title": "Tito Buka Opsi Guru PPPK Jadi ASN Pusat, Beban APBD Bisa Berkurang",
+      "article_url": "https://www.cnbcindonesia.com/market/20260811071029-17-758120/tito-buka-opsi-guru-pppk-jadi-asn-pusat-beban-apbd-bisa-berkurang",
+      "article_source": "cnbc_market",
+      "angle": "wacana penarikan guru PPPK jadi ASN pusat sebagai solusi tumpang tindih kewenangan daerah",
+      "post_id": "18111067243815293",
+      "media_id": "18111067243815293",
+      "timestamp": "2026-08-11T10:01:40+07:00",
+      "eco_score": 35,
+      "selection_weight": 68.95937292689177,
+      "pattern": null,
+      "arc": "market_shock",
+      "slides": {
+        "post_1": "Guru PPPK bakal ditarik jadi ASN pusat. Ini pertama kalinya pemerintah pusat ngomongin opsi ini secara resmi.",
+        "post_2": "Tito Karnavian bilang, urusan guru SD-SMP sekarang jadi tanggung jawab kabupaten/kota, SMA/SMK provinsi. Tapi UU Pemda 23/2014 ternyata ngasih celah buat pusat ngurus guru juga.",
+        "post_3": "Pemerintah lagi hitung-hitungan berapa guru PPPK yang bisa ditarik, berapa biaya yang harus disiapin. Daerah juga diminta ngitung kesanggupannya kalau guru ditarik jadi ASN pusat.",
+        "post_4": "Motifnya biar guru nggak numpuk di satu daerah doang. Tito pengen guru bisa dipindahin ke tempat yang kekurangan tenaga pendidik. Minggu depan bakal ada pembahasan lanjutan soal status PPPK ini.",
+        "post_5": "Konsekuensinya gede kalau guru jadi ASN pusat, beban biaya daerah berkurang, tapi pusat harus siapin duit lebih. Belum jelas juga gimana nasib guru yang udah telanjur diangkat daerah.",
+        "post_6": "Lo di kubu mana [A] Guru PPPK harus jadi ASN pusat biar distribusi lebih adil dan gaji terjamin, atau [B] Tetap di daerah aja, biar pemerintah daerah yang tanggung jawab sesuai UU?\n\nhttps://www.cnbcindonesia.com/market/20260811071029-17-758120/tito-buka-opsi-guru-pppk-jadi-asn-pusat-beban-apbd-bisa-berkurang"
+      },
+      "likes": 603,
+      "replies": 123,
+      "reposts": 33,
+      "views": 111149,
+      "quotes": 2,
+      "metrics_checked_at": 1786489213.558098
+    },
+    {
+      "title": "Kemenkeu Minta Pasar Modal Biayai 91 Persen Investasi RI 2027",
+      "article_url": "https://www.cnnindonesia.com/ekonomi/20260810123954-92-1390536/kemenkeu-minta-pasar-modal-biayai-91-persen-investasi-ri-2027",
+      "article_source": "cnn_ekonomi",
+      "angle": "Pasar modal dipaksa jadi penyelamat pembangunan Indonesia—tapi APBN cuma sanggup kasih 5%, sisanya harus dari kantong lo semua",
+      "post_id": "18130068649723453",
+      "media_id": "18130068649723453",
+      "timestamp": "2026-08-11T08:01:51+07:00",
+      "eco_score": 46,
+      "selection_weight": 80.98921012592056,
+      "pattern": "PROYEK",
+      "arc": "market_shock",
+      "slides": {
+        "post_1": "Rp8.705 triliun butuhnya Indonesia buat bangun infrastruktur, energi, dan SDM di 2027.",
+        "post_2": "Juda dari Kemenkeu bilang, APBN gak bakal cukup. BUMN kasih Rp330 triliun, tapi sisanya Rp7.973 triliun harus dari swasta alias lo, gue, tetangga yang jualan nasi uduk.",
+        "post_3": "Pasar modal disuruh jadi jembatan korporasi butuh duit, masyarakat punya tabungan. BEI luncurin ETF emas biar orang-orang gak cuma nabung di deposito atau di bawah kasur.",
+        "post_4": "Targetnya jelas pasar modal harus dalam, likuid, dan kredibel. Tapi Juda ingetin, inovasi kayak ETF emas gak boleh asal-asalan trust dulu, baru duit masuk.",
+        "post_5": "Kalau gagal, APBN tetep jebol, BUMN tetep ngutang, dan pembangunan mandek. Tapi kalau berhasil, Indonesia bisa bersaing sama Singapura atau Malaysia tanpa ngemis ke luar negeri.",
+        "post_6": "Lo di kubu mana [A] Pasar modal emang harus jadi penyelamat APBN udah gak bisa diandelin, atau [B] Pemerintah cuma lepas tanggung jawab swasta dipaksa tanggung beban negara?\n\nhttps://www.cnnindonesia.com/ekonomi/20260810123954-92-1390536/kemenkeu-minta-pasar-modal-biayai-91-persen-investasi-ri-2027"
+      },
+      "likes": 3,
+      "replies": 5,
+      "reposts": 0,
+      "views": 133,
+      "quotes": 0,
+      "metrics_checked_at": 1786482913.874315
+    },
+    {
       "title": "OJK Buka Suara Soal Wakaf Saham di Istiqlal",
       "article_url": "https://www.cnbcindonesia.com/market/20260810153342-17-757997/ojk-buka-suara-soal-wakaf-saham-di-istiqlal",
       "article_source": "cnbc_market",
@@ -20,12 +389,12 @@
         "post_5": "Konsekuensinya dua kalau lancar, wakaf nasional bisa tembus Rp181 triliun dan masjid jadi lembaga keuangan modern. Tapi kalau gagal, citra pasar modal syariah bisa hancur, dan orang jadi trauma wakaf lewat saham. BEI udah promosi di Capital Market Expo, tapi OJK masih ngebahas landasan hukumnya.",
         "post_6": "Lo di kubu mana [A] Wakaf saham ini solusi cerdas buat ngumpulin dana sosial tanpa ngandelin donasi tunai, atau [B] Ini cuma akal-akalan pasar modal buat manfaatin masjid demi cuan, risiko transparansinya nggak worth it? Sumber: https://www.cnbcindonesia.com/market/20260810153000-17-792002/ojk-bicara-soal-masjid-istiqlal-masuk-ekosistem-bursa-efek-indonesia\n\nhttps://www.cnbcindonesia.com/market/20260810153342-17-757997/ojk-buka-suara-soal-wakaf-saham-di-istiqlal"
       },
-      "likes": 0,
+      "likes": 1,
       "replies": 5,
       "reposts": 0,
-      "views": 0,
+      "views": 515,
       "quotes": 0,
-      "metrics_checked_at": 1786402909.5489254
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Rupiah Menguat Tajam Usai Prabowo Usulkan Destry Damayanti Jadi Gubernur BI",
@@ -47,12 +416,12 @@
         "post_5": "Pasar kayaknya suka sama kepastian. Rupiah langsung ngerek naik karena investor mikir Destry bakal lanjutin kebijakan BI yang stabil. Tapi kalau DPR nolak, bisa-bisa rupiah balik turun lagi.",
         "post_6": "Lo di kubu mana pasar beneran percaya sama Destry, atau cuma spekulasi sesaat sebelum DPR ngambil keputusan? Yang jelas, rupiah lagi seneng dulu sebelum ada drama berikutnya. https://www.rti.co.id/bisnis/ekonomi-bisnis/read/123456/rupiah-menguat-ikuti-pemberitaan-pengusulan-destry-damayanti-sebagai-gubernur-bi\n\nhttps://finance.detik.com/bursa-dan-valas/d-8612737/rupiah-menguat-tajam-usai-prabowo-usulkan-destry-damayanti-jadi-gubernur-bi"
       },
-      "likes": 2,
+      "likes": 6,
       "replies": 5,
       "reposts": 0,
-      "views": 949,
+      "views": 4471,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Efek 'Sulap' Prabowo, Valuasi Emiten BUMN Ini Melonjak Drastis",
@@ -74,12 +443,12 @@
         "post_5": "Ekuitas TINS naik 25% jadi Rp10,55 triliun. Aset juga naik 21% jadi Rp16,45 triliun. Semua gara-gara laba bersih Rp2,71 triliun itu. Tapi, keuntungan ini bakal bertahan atau cuma karena harga timah lagi bagus?",
         "post_6": "Lo di kubu mana [A] Ini keuntungan wajar karena tata kelola dan produksi yang lebih efisien, atau [B] Ini cuma keuntungan sesaat karena harga timah lagi naik? Dua-duanya bisa dibela tapi yang pasti, EBITDA TINS naik 363% jadi Rp3,90 triliun. https://www.cnbcindonesia.com/market/20260810153021-17-785432/laba-pt-timah-rp271-triliun-semester-i-2026-melebihi-target-tahun-2025\n\nhttps://www.cnbcindonesia.com/market/20260810183732-17-758071/efek-sulap-prabowo-valuasi-emiten-bumn-ini-melonjak-drastis"
       },
-      "likes": 30,
-      "replies": 7,
-      "reposts": 4,
-      "views": 5387,
+      "likes": 411,
+      "replies": 28,
+      "reposts": 12,
+      "views": 37858,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Rupiah Bangkit ke Rp17.755 per Dolar AS Sore Ini",
@@ -128,12 +497,12 @@
         "post_5": "Di Binjai, harga ayam udah Rp42rb/kg 5% di atas HAP. Kenaikannya 29,78%. Di Kepahiang, Rp48rb/kg 20% di atas HAP. BPS bilang daerah-daerah kayak gini butuh perhatian khusus. Soalnya kenaikan harganya udah di atas 15%, tapi levelnya udah melewati batas wajar.",
         "post_6": "Lo pilih mana ngotot program makan gratis (MBG) jalan terus biar anak sekolah kenyang, tapi harga ayam makin mahal? Atau batasin dulu programnya sampe pasokan ayam stabil, biar harga gak melonjak?\n\nhttps://www.cnnindonesia."
       },
-      "likes": 2,
+      "likes": 3,
       "replies": 7,
       "reposts": 0,
-      "views": 680,
+      "views": 919,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Tarif Listrik Terbaru untuk Juli hingga September 2026 Tak Naik",
@@ -158,9 +527,9 @@
       "likes": 0,
       "replies": 5,
       "reposts": 0,
-      "views": 606,
+      "views": 851,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Danantara Targetkan 4 BUMN IPO dalam 6-12 Bulan, Ada Pegadaian-Pelindo",
@@ -180,14 +549,14 @@
         "post_5": "Dony Oskaria IPO cuma salah satu strategi. Ada juga strategic partnership sama AI. Lo lebih yakin mana?",
         "post_6": "Lo di kubu mana IPO BUMN ini bakal bikin pasar modal makin ramai, atau justru malah bikin saham lain pada turun?\n\nhttps://www.cnnindonesia.com/ekonomi/20260810135233-92-1390577/danantara-targetkan-4-bumn-ipo-dalam-6-12-bulan-ada-pegadaian-pelindo"
       },
-      "likes": 42,
-      "replies": 6,
+      "likes": 59,
+      "replies": 7,
       "reposts": 0,
-      "views": 20445,
+      "views": 33660,
       "quotes": 0,
       "post_id": "18118303958477728",
       "media_id": "18118303958477728",
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "RI Impor Bawang Putih 229 Ribu Ton Sejak Awal Tahun, 98% dari China",
@@ -212,9 +581,9 @@
       "likes": 1,
       "replies": 5,
       "reposts": 0,
-      "views": 248,
+      "views": 255,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Buruh Mau Demo Akhir Agustus, Bawa Isu Upah Minimum-Outsourcing",
@@ -239,9 +608,9 @@
       "likes": 3,
       "replies": 6,
       "reposts": 0,
-      "views": 543,
+      "views": 580,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Bos Danantara Bocorkan Soal Streamlining BUMN, 652 Perusahaan Dihapus",
@@ -266,9 +635,9 @@
       "likes": 7,
       "replies": 5,
       "reposts": 0,
-      "views": 2715,
+      "views": 2720,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Bank Besar Mau PHK Massal, Ini Biang Keroknya",
@@ -293,9 +662,9 @@
       "likes": 0,
       "replies": 5,
       "reposts": 0,
-      "views": 429,
+      "views": 430,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Bank Pollux Hormati Putusan Pengadilan Negeri Semarang",
@@ -371,7 +740,7 @@
       "reposts": 0,
       "views": 725,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Jurus RI Bidik Pasar Karbon hingga Perdagangan Global dari Sektor Kehutanan",
@@ -399,7 +768,7 @@
       "reposts": 0,
       "views": 172,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "MSCI Umumkan Rebalancing Saham 12 Agustus",
@@ -425,9 +794,9 @@
       "likes": 84,
       "replies": 11,
       "reposts": 0,
-      "views": 19995,
+      "views": 20298,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Ekonomi RI Tumbuh 5,29 Persen, Saatnya Investasi atau Tahan Dulu?",
@@ -455,7 +824,7 @@
       "reposts": 0,
       "views": 161,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Bank Kasikorn (BMAS) Galang Rights Issue Jumbo, Duitnya Buat Ini",
@@ -483,7 +852,7 @@
       "reposts": 0,
       "views": 492,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Danantara Telah Pangkas 274 BUMN",
@@ -509,9 +878,9 @@
       "likes": 8,
       "replies": 8,
       "reposts": 0,
-      "views": 2091,
+      "views": 2092,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Harga Batu Bara Acuan Turun Jadi US$ 124,4/Ton",
@@ -526,7 +895,7 @@
       "reposts": 0,
       "views": 270,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Prabowo Sudah Panggil Calon-calon Bos BI, Destry Damayanti Masuk Radar",
@@ -539,9 +908,9 @@
       "likes": 14,
       "replies": 6,
       "reposts": 0,
-      "views": 6435,
+      "views": 6436,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Investasi di Produsen Protein Global, Danantara Rogoh Rp 44,6 Triliun",
@@ -554,9 +923,9 @@
       "likes": 597,
       "replies": 105,
       "reposts": 21,
-      "views": 100604,
+      "views": 100638,
       "quotes": 1,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Stres Belajar, Kronologi Siswa 14 Tahun Tembak Sekolah dan Bunuh Guru",
@@ -602,9 +971,9 @@
       "likes": 0,
       "replies": 6,
       "reposts": 0,
-      "views": 381,
+      "views": 389,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "IMF Akui Utang Luar Negeri RI Aman, Terhindar dari Risiko Gagal Bayar",
@@ -619,7 +988,7 @@
       "reposts": 0,
       "views": 200,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Catatan Kritis Ekonom Soal Capaian Ekonomi RI 5,29% di Kuartal II-2026",
@@ -634,7 +1003,7 @@
       "reposts": 0,
       "views": 193,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Konsumsi Listrik SPKLU Melonjak, PLN Perluas Infrastruktur Pengisian EV",
@@ -649,7 +1018,7 @@
       "reposts": 0,
       "views": 723,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Kemenhub Audit Sistem Manajemen Keselamatan usai Kebakaran KMP Mutiara",
@@ -684,9 +1053,9 @@
       "likes": 312,
       "replies": 65,
       "reposts": 24,
-      "views": 51641,
+      "views": 51736,
       "quotes": 2,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Alarm Berbunyi di Rusia, Bank-bank Mulai Krisis Uang Tunai!",
@@ -699,9 +1068,9 @@
       "likes": 0,
       "replies": 6,
       "reposts": 0,
-      "views": 140,
+      "views": 141,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Impor RI Naik Tajam, Ini Biang Keroknya",
@@ -716,7 +1085,7 @@
       "reposts": 0,
       "views": 125,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "DBS Insights Forum: Solusi DBS Bantu Nasabah Ambil Keputusan Finansial",
@@ -729,9 +1098,9 @@
       "likes": 18,
       "replies": 9,
       "reposts": 0,
-      "views": 3666,
+      "views": 3668,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "BSI-Danantara Bangun Ekosistem UMKM, Bukan Sekadar Pembiayaan",
@@ -744,9 +1113,9 @@
       "likes": 37,
       "replies": 7,
       "reposts": 1,
-      "views": 4539,
+      "views": 4540,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Deposito Jadi Andalan Buat Cari DPK, Bank Kecil Kerek Suku BungaMarket14 jam yang lalu",
@@ -761,7 +1130,7 @@
       "reposts": 0,
       "views": 1125,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Pengunjung Islamic Travel Connect Incar Umrah Akhir Tahun",
@@ -774,9 +1143,9 @@
       "likes": 1,
       "replies": 6,
       "reposts": 0,
-      "views": 264,
+      "views": 267,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786496414.9539483
     },
     {
       "title": "Perluas Akses Hunian, BNI Dukung Akad Massal 62.710 KPR Rumah Subsidi",
@@ -791,7 +1160,7 @@
       "reposts": 0,
       "views": 406,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786472110.6575325
     },
     {
       "title": "BNI Dukung Akad Massal 62.710 KPR Rumah Subsidi",
@@ -804,9 +1173,9 @@
       "likes": 0,
       "replies": 6,
       "reposts": 0,
-      "views": 338,
+      "views": 347,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786472110.6575325
     },
     {
       "title": "Amran Ancam Cabut Izin hingga Penjarakan Mafia Beras Fortifikasi",
@@ -821,7 +1190,7 @@
       "reposts": 0,
       "views": 892,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786472110.6575325
     },
     {
       "title": "KUR di Bawah Rp 100 Juta Dilarang Pakai Jaminan!",
@@ -836,7 +1205,7 @@
       "reposts": 0,
       "views": 458,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786472110.6575325
     },
     {
       "title": "Amran Ajak Organisasi Pemuda 'Gebuk' Dugaan Mafia Beras Fortifikasi",
@@ -851,7 +1220,7 @@
       "reposts": 0,
       "views": 472,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786449604.3896935
     },
     {
       "title": "Mentan dan Organisasi Pemuda Sepakat \"Gebuk\" Pelaku Beras Fortifikasi",
@@ -866,7 +1235,7 @@
       "reposts": 0,
       "views": 251,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786449604.3896935
     },
     {
       "title": "Transformasi Danantara & TLKM30: Pendapatan & Laba Telkom Tumbuh KuatMarket1 hari yang lalu",
@@ -879,9 +1248,9 @@
       "likes": 0,
       "replies": 6,
       "reposts": 0,
-      "views": 429,
+      "views": 432,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786424423.8265386
     },
     {
       "title": "Bantuan Beras Disalurkan Serentak 17 Agustus!",
@@ -896,7 +1265,7 @@
       "reposts": 0,
       "views": 119,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786424423.8265386
     },
     {
       "title": "VIDEOVideo: Adopsi Alat Berat EV, Kontraktor Tambang Minta Keringanan PajakMarket18 jam yang lalu",
@@ -911,7 +1280,7 @@
       "reposts": 0,
       "views": 357,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786424423.8265386
     },
     {
       "title": "Telkomsel Tumbuh Sehat Semester I 2026, Transformasi Perkuat Layanan",
@@ -926,7 +1295,7 @@
       "reposts": 0,
       "views": 343,
       "quotes": 0,
-      "metrics_checked_at": 1786402802.6197217
+      "metrics_checked_at": 1786424423.8265386
     },
     {
       "title": "Pemerintah Hapus Kelas 1, 2, 3 BPJS Kesehatan, Ini Iuran per 2 Agustus",
@@ -2915,28 +3284,28 @@
   ],
   "recent_content": {
     "openings": [
-      "Rp181 triliun per tahun. Itu potensi wakaf nasional yang cuma kebagian Rp3,5 triliun doang sekarang.",
-      "Rp 17.755 rupiah tiba-tiba loncat 0,79% dalam sehari.",
-      "Rp2,71 triliun. Itu laba bersih PT Timah cuma dalam enam bulan pertama 2026.",
-      "17.755. Itu level rupiah ke dolar AS kemarin sore tapi tau gak, dia naik 142 poin dalam sehari? Pada",
-      "Rp100rb/kg buat ayam? Ada daerah yang udah sampe segini, bro.",
-      "Listrik lo gak naik Juli-September 2026 padahal kalkulasi bilang harus naik. Gimana ceritanya?",
-      "4 BUMN raksasa bakal IPO dalam 6-12 bulan. Lo siap-siap?",
-      "BPS catat impor bawang putih Januari–Juni 2026 tembus 229,76 ribu ton. Angka ini naik dari 178,89 ri",
-      "Puluhan ribu buruh KSPN dan Serikat Pekerja mandiri akan unjuk rasa di DPR dan Istana Negara.",
-      "BP BUMN dan BPI Danantara percepat pemangkasan 652 perusahaan pelat merah jadi 250."
+      "3,8 juta peternak rakyat di seluruh Indonesia jadi alasan Amran langsung terbang ke Surabaya tanpa n",
+      "Menteri Koordinator Perekonomian Airlangga Hartarto memastikan harga bahan bakar minyak (BBM) subsid",
+      "Jakarta, CNBC Indonesia - Menteri Keuangan Purbaya Yudhi Sadewa mengungkapkan keuntungan yang dipero",
+      "Kinerja positif sejumlah BUMN sepanjang semester pertama tahun ini menjadi salah satu prestasi yang ",
+      "Menteri Keuangan (Menkeu) Purbaya Yudhi Sadewa mengungkapkan rencana Presiden Prabowo Subianto untuk",
+      "Rp20,5 triliun sudah dikucurkan ke 490 pemerintah daerah yang kesulitan keuangan. Dana ini dipakai m",
+      "Menteri Keuangan Purbaya Yudhi Sadewa memastikan bantuan sebesar Rp 20,5 triliun untuk 490 pemerinta",
+      "Total kredit perbankan Rp9.000 triliun, tapi kredit UMKM baru Rp1.500 triliun. Ini pertama kalinya p",
+      "RUU Ketenagakerjaan dibahas lagi, tapi kali ini buruh bawa draft sendiri ke Menteri Cak Imin. Koalis",
+      "Destry Damayanti didukung OJK untuk jadi Gubernur BI menggantikan Perry Warjiyo. Rekam jejaknya di s"
     ],
     "ctas": [
-      "Lo di kubu mana [A] Wakaf saham ini solusi cerdas buat ngumpulin dana sosial tanpa ngandelin donasi ",
-      "Lo di kubu mana pasar beneran percaya sama Destry, atau cuma spekulasi sesaat sebelum DPR ngambil ke",
-      "Lo di kubu mana [A] Ini keuntungan wajar karena tata kelola dan produksi yang lebih efisien, atau [B",
-      "Lo di kubu mana [A] Rupiah menguat karena fundamental (dolar AS melemah + sentimen BI), jadi aman bu",
-      "Lo pilih mana ngotot program makan gratis (MBG) jalan terus biar anak sekolah kenyang, tapi harga ay",
-      "Lo di kubu mana pemerintah harus tahan tarif demi dompet lo, atau PLN butuh naikin tarif biar gak ko",
-      "Lo di kubu mana IPO BUMN ini bakal bikin pasar modal makin ramai, atau justru malah bikin saham lain",
-      "Amalia bilang PR pengendalian harga bawang putih udah lebih kecil. Menurut lo, apa yang bikin harga ",
-      "KSPN minta outsourcing dihapus, hubungan kerja kontrak dibatasi jenis dan waktu. Menurutmu, mana yan",
-      "Apa dampak positif transformasi BUMN yang sudah mulai dirasakan di sejumlah perusahaan?\n\nhttps://www"
+      "Menurut lo, lebih masuk akal mana nahan harga pakan biar biaya produksi stabil, atau tambahin penyer",
+      "Itu relatif sampai akhir tahun at least Pertalite dan Biodiesel aman,\" sambung Airlangga. Menurut lo",
+      "Sejauh ini, Presiden RI Prabowo Subianto mengaku mendapatkan laporan bahwa pendapatan Badan Pengelol",
+      "Menurut Toto, kinerja BUMN di bawah Danantara masih sangat berpotensi semakin meroket. Menurut lo, f",
+      "\"Itu baru ide, masih dibicarakan dengan Danantara,\" ujar Purbaya. Menurut lo, fakta ini perlu dipant",
+      "Dana disalurkan tanpa menunggu permohonan daerah, tapi nominal tiap daerah belum dibuka. Menurut lo,",
+      "Meski begitu, ia belum merinci besaran dana tiap daerahnya. Menurut lo, fakta ini perlu dipantau?",
+      "Jadi pertanyaannya target Rp2.000 triliun itu realistis atau cuma angka aman? Kalau bank takut kredi",
+      "Lo di kubu mana percaya lobi politik buruh bakal berhasil bikin UU yang adil, atau khawatir draft me",
+      "OJK dan Maman sama-sama melihat pengalaman serta perhatian Destry ke UMKM sebagai alasan dukungan. S"
     ],
     "analogies": [
       "Gw perhatiin, perubahan yang pelan banget kayak gini sering lu abaikan",

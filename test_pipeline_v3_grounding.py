@@ -126,6 +126,11 @@ def test_source_fallback_builds_six_grounded_posts():
         "Perubahan ini memengaruhi konsumen dan pelaku usaha.",
         "Proses penetapan masih menunggu pembahasan DPR.",
         "Pembahasan lanjutan dilakukan setelah persetujuan DPR diterima.",
+        "Pemerintah menyiapkan jadwal pembahasan lanjutan bersama DPR.",
+        "Menteri Keuangan akan menyampaikan perkembangan aturan kepada DPR.",
+        "Penyaluran bantuan tetap mengikuti basis data penerima yang sudah disiapkan.",
+        "Kebijakan tersebut berlaku setelah pembahasan lanjutan selesai dilakukan.",
+        "Pemerintah mencatat proses penetapan masih berjalan sesuai aturan.",
     ]
     article = {"body": " ".join(sentences)}
     posts = pipeline._source_fallback_posts(article)
@@ -376,10 +381,10 @@ def test_deterministic_validate_rejects_slide_without_sentence():
 
 
 def test_style_warnings_do_not_block_quality_gate():
-    posts = {f"post_{i}": "Fakta sumber cukup panjang dan lengkap untuk konteks." for i in range(1, 7)}
+    posts = {f"post_{i}": "Fakta sumber cukup panjang dan lengkap untuk konteks. Bukti kedua menambah rincian." for i in range(1, 7)}
     posts["post_1"] = "Fakta sumber cukup panjang dan lengkap untuk konteks. Bukti sumber menambah konteks."
     posts["post_6"] = "Fakta sumber cukup panjang dan lengkap untuk konteks. Menurut lo?"
-    posts["post_2"] = "Padahal fakta sumber cukup panjang dan lengkap untuk konteks."
+    posts["post_2"] = "Padahal fakta sumber cukup panjang dan lengkap untuk konteks. Bukti kedua menambah rincian."
     warnings = pipeline.deterministic_validate(posts)
     assert any("slop 'padahal'" in item for item in warnings)
     assert pipeline._quality_gate({"body": "x"}, {"status": "success"}, posts, []) is True
@@ -401,7 +406,7 @@ def test_hook_allows_supported_policy_change_without_forced_number_or_contradict
 
 
 def test_thread_contract_moves_source_url_to_s7():
-    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
+    posts = {f"post_{i}": "Fakta sumber. Konteks sumber." for i in range(1, 7)}
     posts["post_6"] = "Takeaway. Apa yang perlu dipantau?"
     issues = pipeline.thread_contract_issues(posts, "https://contoh.go.id/dokumen")
     assert issues == [], issues
@@ -409,9 +414,22 @@ def test_thread_contract_moves_source_url_to_s7():
     assert posts["post_7"] == "Sumber: https://contoh.go.id/dokumen"
 
 
+def test_thread_contract_requires_two_sentences_and_allows_450_chars():
+    posts = {f"post_{i}": "Fakta pertama. Konteks kedua." for i in range(1, 7)}
+    assert pipeline.thread_contract_issues(posts, "") == []
+
+    posts["post_2"] = "Fakta pertama."
+    issues = pipeline.thread_contract_issues(posts, "")
+    assert any("post_2: minimum 2 sentences" in issue for issue in issues), issues
+
+    posts["post_2"] = "Kalimat pertama. " + "Konteks tambahan. " * 40
+    pipeline.thread_contract_issues(posts, "")
+    assert len(posts["post_2"]) <= 450
+
+
 def test_thread_contract_removes_legacy_url_from_s6_and_adds_s7():
-    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
-    posts["post_6"] = "Baca [URL sumber].\n\nhttps://tautan-lama.test"
+    posts = {f"post_{i}": "Fakta sumber. Konteks tambahan." for i in range(1, 7)}
+    posts["post_6"] = "Baca fakta sumber. Menurut lo perlu dipantau?\n\nhttps://tautan-lama.test"
     issues = pipeline.thread_contract_issues(posts, "https://contoh.go.id/dokumen")
     assert issues == [], issues
     assert "http" not in posts["post_6"]
@@ -419,11 +437,11 @@ def test_thread_contract_removes_legacy_url_from_s6_and_adds_s7():
     assert posts["post_7"] == "Sumber: https://contoh.go.id/dokumen"
 
 
-def test_thread_contract_rejects_source_slide_over_400_chars():
-    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
-    url = "https://contoh.go.id/" + "x" * 390
+def test_thread_contract_rejects_source_slide_over_450_chars():
+    posts = {f"post_{i}": "Fakta sumber. Konteks tambahan." for i in range(1, 7)}
+    url = "https://contoh.go.id/" + "x" * 430
     issues = pipeline.thread_contract_issues(posts, url)
-    assert any("post_7: over 400 chars" in issue for issue in issues)
+    assert any("post_7: over 450 chars" in issue for issue in issues)
 
 
 def test_publish_completion_requires_seven_posts():
@@ -433,32 +451,32 @@ def test_publish_completion_requires_seven_posts():
 
 
 def test_thread_contract_rejects_over_limit_post():
-    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
-    posts["post_3"] = "x" * 401
-    assert "post_3: over 400 chars" in pipeline.thread_contract_issues(posts, "")
+    posts = {f"post_{i}": "Fakta sumber. Konteks tambahan." for i in range(1, 7)}
+    posts["post_3"] = "x" * 451
+    assert "post_3: over 450 chars" in pipeline.thread_contract_issues(posts, "")
 
 
-def test_normalize_s1_uses_400_limit_and_complete_sentences():
+def test_normalize_s1_uses_450_limit_and_complete_sentences():
     posts = {"post_1": "Kalimat pertama lengkap. " + "Kalimat kedua sangat panjang " * 30}
     pipeline._normalize_s1(posts, "Fakta sumber cukup panjang. Fakta tambahan cukup panjang.")
-    assert len(posts["post_1"]) <= 400
+    assert len(posts["post_1"]) <= 450
     assert posts["post_1"].endswith(".")
 
 
-def test_slide_limit_is_400_and_truncation_keeps_complete_sentences():
-    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
+def test_slide_limit_is_450_and_truncation_keeps_complete_sentences():
+    posts = {f"post_{i}": "Fakta sumber. Konteks tambahan." for i in range(1, 7)}
     posts["post_2"] = "Kalimat pertama lengkap. " + "Kalimat kedua sangat panjang " * 30
     issues = pipeline.deterministic_validate(posts)
-    assert len(posts["post_2"]) <= 400
+    assert len(posts["post_2"]) <= 450
     assert posts["post_2"].endswith(".")
     assert "Kalimat kedua sangat panjang Kalimat kedua sangat panjang Kalimat kedua sangat panjang" not in posts["post_2"]
     assert not any("post_2: over" in issue for issue in issues)
 
 
-def test_thread_contract_all_slides_use_400_char_limit():
+def test_thread_contract_all_slides_use_450_char_limit():
     posts = {f"post_{i}": "Kalimat lengkap. " + "Konteks tambahan. " * 30 for i in range(1, 7)}
     pipeline.thread_contract_issues(posts, "")
-    assert all(len(posts[f"post_{i}"]) <= 400 for i in range(1, 7))
+    assert all(len(posts[f"post_{i}"]) <= 450 for i in range(1, 7))
     assert all(posts[f"post_{i}"].endswith(".") for i in range(1, 7))
 
 

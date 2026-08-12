@@ -1574,7 +1574,12 @@ def hook_issues(hook, body):
     return []
 
 
-SLIDE_CHAR_LIMIT = 400
+SLIDE_CHAR_LIMIT = 450
+
+
+def _sentence_count(text):
+    """Count terminal punctuation, not decimal points or abbreviations."""
+    return len(re.findall(r"[.!?](?=\s|$|[\"'\u201d\u2019)])", text or ""))
 
 
 def _fit_complete_sentences(text, limit):
@@ -1624,6 +1629,8 @@ def thread_contract_issues(posts, article_url):
             posts[f"post_{i}"] = _fit_complete_sentences(text, SLIDE_CHAR_LIMIT)
             if len(posts[f"post_{i}"]) > SLIDE_CHAR_LIMIT:
                 issues.append(f"post_{i}: over {SLIDE_CHAR_LIMIT} chars")
+        if _sentence_count(posts[f"post_{i}"]) < 2:
+            issues.append(f"post_{i}: minimum 2 sentences")
     # S6 is CTA only. Move every legacy/LLM URL out, then create S7.
     if article_url:
         for i in range(1, 7):
@@ -1761,7 +1768,7 @@ SYSTEM_PROMPT = """# RYANHADIII EKONOMI — WRITER
 
 Balas JSON valid saja. Tidak ada markdown.
 
-Ubah satu ISI ARTIKEL menjadi 6 post Threads. Bahasa ngobrol tongkrongan (gua-lu). S2-S5: 2-3 kalimat padat dari 2-3 fakta ALLOWLIST. Satu slide = satu sudut tuntas, baru lanjut.
+Ubah satu ISI ARTIKEL menjadi 6 post Threads. Bahasa ngobrol tongkrongan (gua-lu). S1-S6: minimal 2 kalimat padat dari fakta ALLOWLIST. Satu slide = satu sudut tuntas, baru lanjut.
 
 ## STORYTELLING (enam slide satu cerita)
 ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Bahasa gua–lu. Alur: S1 perubahan/fakta utama → S2 pihak dan tindakan yang disebut sumber → S3 rincian pelaksanaan → S4 angka, alasan, atau ketentuan yang tertulis → S5 data dan batasan sumber → S6 pertanyaan netral berbasis fakta terakhir. Untuk KEBIJAKAN, utamakan pola opsi resmi + kelompok terdampak + status belum final bila ketiganya literal di artikel: S1 sebut perubahan/status dan novelty resmi; S2 jelaskan pembagian kewenangan serta dasar aturan; S3 buka hitung-hitungan pelaksanaan dan biaya; S4 jelaskan tujuan serta timeline; S5 benturkan beban/keuntungan antar pihak dan sisakan hal yang belum jelas. Buka dengan fakta paling mahal dan fakta paling kuat; buat kalimat pertama menyampaikan fakta. Jangan menambah dampak, profesi, angka, skenario, penilaian; jangan ulang angka, fakta, atau contoh. S6 menutup dengan satu pertanyaan spesifik. Jangan membuat kontradiksi atau implikasi baru.
@@ -1773,7 +1780,7 @@ ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengg
 - GAK BOLEH: jargon tanpa penjelasan. IPO/BUMN/BEI/konsolidasi/likuiditas/kapitalisasi/restrukturisasi/holding/obligasi/derivatif — kecuali langsung dijelaskan.
 - JANGAN: akselerasi, mitigasi, implementasi, optimalisasi, realisasi, signifikan, komprehensif, mekanisme, skema, portofolio. Ganti bahasa orang biasa.
 
-## S1 HOOK — WAJIB 2 KALIMAT, MAX 400 CHAR, NON-NEGOTIABLE
+## S1-S6 — WAJIB MINIMAL 2 KALIMAT, MAX 450 CHAR, NON-NEGOTIABLE
 LOOP: Jika output hanya 1 kalimat, prompt revision akan gagal dan article di-skip —浪费 waktu. JANGAN biarkan ini terjadi.
 BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di antara kalimat). Kalimat pertama harus memakai salah satu: (1) angka spesifik, (2) keputusan/perubahan kebijakan yang tertulis, atau (3) aktor berwenang + tindakan yang tertulis. Kalimat kedua hanya memberi konteks literal dari artikel. Fakta paling kuat dari ALLOWLIST. JANGAN jawab di S1 — bikin pembaca buka S2. Template non-numerik: "[Keputusan sumber] mengubah [status yang disebut sumber]. [Konteks sumber yang tertulis]." ✅ — satu kalimat ❌ (1 kalimat)
 
@@ -1811,7 +1818,7 @@ BUKAN judul berita/deklaratif. WAJIB 2 kalimat penuh (pakai titik / 。/! di ant
 ## STOP-SLOP — GAYA NATURAL
 Hindari pembuka laporan, transisi bertele-tele, kontras formulaik, hedge samar, rujukan pada gambar, dan kalimat pasif. Tulis langsung fakta sumber dengan bahasa percakapan. Jangan menyalin istilah dari instruksi ini ke output.
 
-## S6 DEBAT NETRAL (max 400 char — TANPA URL)
+## S6 DEBAT NETRAL (max 450 char — TANPA URL)
 S6 wajib berupa kalimat debat netral yang mengikat kembali ketegangan S1. Tawarkan dua penilaian dalam bahasa natural, tanpa label [A]/[B]. Kedua posisi harus sama-sama bisa dibela; jangan framing satu kubu baik dan kubu lain buruk. Jangan tulis URL atau label sumber di S6.
 
 ## OUTPUT
@@ -1843,32 +1850,32 @@ def build_revision_prompt(revision_notes, posts):
 
 
 def _source_fallback_posts(article):
-    """Build no-invention six-post draft from distinct source sentences."""
+    """Build no-invention six-post draft from paired source sentences."""
     sentences = [s for s in _source_sentences(article.get("body", "")) if len(s) <= SLIDE_CHAR_LIMIT]
-    if len(sentences) < 7:
-        return None
-    first_pair = next(
-        ((i, j) for i in range(len(sentences)) for j in range(i + 1, len(sentences))
-         if len(sentences[i]) + len(sentences[j]) + 1 <= SLIDE_CHAR_LIMIT),
-        None,
-    )
-    if first_pair is None:
-        return None
-    i, j = first_pair
-    chosen = [sentences[i], sentences[j]] + [s for n, s in enumerate(sentences) if n not in first_pair][:5]
-    if len(chosen) < 7:
+    pairs = []
+    remaining = list(sentences)
+    while remaining and len(pairs) < 6:
+        pair = next(
+            ((i, j) for i in range(len(remaining))
+             for j in range(i + 1, len(remaining))
+             if len(remaining[i]) + len(remaining[j]) + 1 <= SLIDE_CHAR_LIMIT),
+            None,
+        )
+        if pair is None:
+            break
+        i, j = pair
+        pairs.append(f"{remaining[i]} {remaining[j]}")
+        remaining = [s for n, s in enumerate(remaining) if n not in pair]
+    if len(pairs) < 6:
         return None
     posts = {
-        "post_1": f"{chosen[0]} {chosen[1]}",
-        "post_2": chosen[2],
-        "post_3": chosen[3],
-        "post_4": chosen[4],
-        "post_5": chosen[5],
-        "post_6": f"{chosen[6]} Menurut lo, fakta ini perlu dipantau?",
+        **{f"post_{i}": pairs[i - 1] for i in range(1, 6)},
+        "post_6": f"{pairs[5]} Menurut lo, fakta ini perlu dipantau?",
     }
     if any(len(text) > SLIDE_CHAR_LIMIT for text in posts.values()):
         return None
     return posts
+
 
 def literal_fact_allowlist(body):
     """Literal body sentences are the only permitted facts for writer and revision."""
@@ -2016,16 +2023,16 @@ def deterministic_validate(posts):
         # S1 auto-truncate and auto-split already handled by _normalize_s1().
         # No redundant length check here — avoids double-blocking.
         # 2-4 sentences: dense, source-backed, not rushed.
-        sent_count = len([c for c in p if c in ".!?"])
+        sent_count = _sentence_count(p)
         if sent_count < 1:
             warnings.append(f"{k}: no sentences")
         if i == 1 and sent_count < 2:
             warnings.append(f"{k}: only {sent_count} sentence(s) — S1 WAJIB minimal 2 kalimat")
-        if i != 1 and sent_count < 1:
-            warnings.append(f"{k}: only {sent_count} sentence(s) — butuh minimal 1 kalimat lengkap")
+        if sent_count < 2:
+            warnings.append(f"{k}: minimum 2 sentences")
         if sent_count > 6:
             warnings.append(f"{k}: too many sentences ({sent_count})")
-        # Enforce 400-char limit on every slide; keep complete sentences only.
+        # Enforce 450-char limit on every slide; keep complete sentences only.
         limit = SLIDE_CHAR_LIMIT
         if len(p) > limit:
             p = _fit_complete_sentences_with_url(p, limit)
@@ -2387,12 +2394,12 @@ def _quality_gate(article, data, posts, warnings):
 # ── Thread Generation ────────────────────────────────────────────────────────
 
 def _normalize_s1(posts, article_body):
-    """Enforce S1 hook: keep complete sentences within the shared 400-char limit."""
+    """Enforce S1 hook: keep complete sentences within the shared 450-char limit."""
     s1 = posts.get("post_1", "")
     if len(s1) > SLIDE_CHAR_LIMIT:
         posts["post_1"] = _fit_complete_sentences(s1, SLIDE_CHAR_LIMIT)
     # Auto-split 1-sentence S1 using article facts
-    sent_count = len([c for c in posts.get("post_1","") if c in ".!?"])
+    sent_count = _sentence_count(posts.get("post_1", ""))
     if sent_count < 2:
         s1_text = posts["post_1"]
         body_facts = literal_fact_allowlist(article_body)
@@ -2400,7 +2407,7 @@ def _normalize_s1(posts, article_body):
             if len(fact) > 20 and fact[:40] not in s1_text[:100]:
                 posts["post_1"] = f"{s1_text} {fact[:80]}."
                 break
-        sent_count = len([c for c in posts["post_1"] if c in ".!?"])
+        sent_count = _sentence_count(posts["post_1"])
         if sent_count < 2:
             log.warning("  S1: still 1 sentence after auto-split — caller skips article")
     return posts
@@ -2450,7 +2457,7 @@ def generate_thread(article):
         voice_warnings = _voice_warnings(posts)
         jargon_warnings = _validate_jargon(posts, article["body"])
         grounding_warnings = grounding_validate(article, posts)
-        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "only 0 sentence", "S1 WAJIB", "CTA not found", "S6 must not"))]
+        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "CTA not found", "S6 must not"))]
         warnings = missing + grounding_warnings + noun_warnings + claim_warnings + jargon_warnings + hard_style_warnings
         soft_warnings = style_warnings + voice_warnings
         if soft_warnings:
@@ -2744,6 +2751,7 @@ def main():
         return
     if not article and not PREPARE_NEXT:
         log.info("No valid prepared draft; no-post. Run --prepare-next to create one.")
+        print("NO_SAFE_CANDIDATE", flush=True)
         return
     if not article:
         log.info("Scraping economy sources...")
@@ -2810,6 +2818,7 @@ def main():
         log.warning(f"  Skip: body/relevance/editorial score failed ({topic_score}/10, economy={economy_score}, impact={impact_score})")
     if not article:
         log.error(f"No eligible article among {candidate_limit} ranked candidates")
+        print("NO_SAFE_CANDIDATE", flush=True)
         return
 
     # Step 4: Resolve image for slide 1
@@ -2838,6 +2847,20 @@ def main():
         if recent_openings:
             article["recent_openings"] = recent_openings[:5]
         result, error = generate_thread(article)
+    # Soft writer failure may use source-only fallback; hard gates stay mandatory.
+    if error in {"revision_failed", "quality_gate", "revision_json_error", "generation_failed"}:
+        fallback_posts = _source_fallback_posts(article)
+        if fallback_posts:
+            fallback_posts = _normalize_s1(fallback_posts, article["body"])
+            fallback_issues = deterministic_grounding_validate(article, fallback_posts)
+            fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
+            if not fallback_issues:
+                result = {"posts": fallback_posts, "angle": "source-only fallback",
+                          "arc": article.get("arc", "")}
+                error = None
+                log.warning("Using source-only fallback after writer failure")
+            else:
+                log.warning(f"Source-only fallback blocked: {fallback_issues[:3]}")
     if error:
         # Track failure fingerprint for circuit-breaker
         fprint = f"{error}"
@@ -2923,10 +2946,12 @@ def main():
 
         if not result:
             log.error("Generation failed: no verified LLM draft after retry")
+            print("NO_SAFE_CANDIDATE", flush=True)
             return
 
     if not result:
         log.error("Generation failed: no valid result")
+        print("NO_SAFE_CANDIDATE", flush=True)
         return
 
     posts = result["posts"]
