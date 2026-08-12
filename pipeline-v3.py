@@ -1490,6 +1490,7 @@ def _validate_unsupported_inferences(posts, body):
     """Block high-risk combined meanings absent from source, even when tokens exist."""
     source = _normalize_grounding_text(body)
     patterns = (
+        (r"\bfakta ini perlu dipantau\b", "generic CTA"),
         (r"\bpertama kalinya?\b", "novelty claim"),
         (r"\bhampir dua kali lipat\b", "derived ratio"),
         (r"\bdalam dua tahun\b", "unsupported timeline"),
@@ -1776,7 +1777,7 @@ Balas JSON valid saja. Tidak ada markdown.
 Ubah satu ISI ARTIKEL menjadi 6 post Threads. Bahasa ngobrol tongkrongan (gua-lu). S1-S6: minimal 2 kalimat padat dari fakta ALLOWLIST. Satu slide = satu sudut tuntas, baru lanjut.
 
 ## STORYTELLING (enam slide satu cerita)
-ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Bahasa gua–lu. Alur: S1 perubahan/fakta utama → S2 pihak dan tindakan yang disebut sumber → S3 rincian pelaksanaan → S4 angka, alasan, atau ketentuan yang tertulis → S5 data dan batasan sumber → S6 pertanyaan netral berbasis fakta terakhir. Untuk KEBIJAKAN, utamakan pola opsi resmi + kelompok terdampak + status belum final bila ketiganya literal di artikel: S1 sebut perubahan/status dan novelty resmi; S2 jelaskan pembagian kewenangan serta dasar aturan; S3 buka hitung-hitungan pelaksanaan dan biaya; S4 jelaskan tujuan serta timeline; S5 benturkan beban/keuntungan antar pihak dan sisakan hal yang belum jelas. Buka dengan fakta paling mahal dan fakta paling kuat; buat kalimat pertama menyampaikan fakta. Jangan menambah dampak, profesi, angka, skenario, penilaian; jangan ulang angka, fakta, atau contoh. S6 menutup dengan satu pertanyaan spesifik. Jangan membuat kontradiksi atau implikasi baru.
+ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Ngobrol ke temen yang kerja di bengkel, bukan ke investor. Bahasa gua–lu. Ikuti winning-content arc: S1 status-gap hook (apa yang diumumkan/diwacanakan vs status nyatanya, hanya bila keduanya literal); kalimat kedua beri novelty resmi atau angka paling kuat. S2 sebut aktor, kewenangan, dan tindakan. S3 buka cara kerja, pelaksanaan, atau jalur keputusan; sertakan hitung-hitungan pelaksanaan dan biaya bila tertulis. S4 beri angka, timeline, dasar aturan, atau batas yang tertulis. S5 tampilkan trade-off konkret: pihak mana menanggung biaya/risiko dan pihak mana mendapat manfaat; jelaskan beban/keuntungan antar pihak bila literal di artikel, tanpa mengarang dampak. S6 tutup dengan CTA debat spesifik yang menguji dua pilihan nyata dari artikel. Untuk KEBIJAKAN, utamakan opsi resmi + kelompok terdampak + status belum final bila ketiganya literal di artikel; jelaskan pembagian kewenangan serta dasar aturan bila tertulis. Untuk PERDAGANGAN, pakai harga/pasokan/biaya dan benturkan solusi yang benar-benar disebut sumber. Untuk PROYEK, pakai duit, aktor, hasil, dan bukti pelaksanaan. Buka dengan fakta paling mahal dan fakta paling kuat, bukan pembuka artikel atau kalimat lanjutan; buat kalimat pertama menyampaikan fakta. Jangan menambah dampak, profesi, angka, skenario, penilaian; jangan ulang angka, fakta, atau contoh. S6 menutup dengan satu pertanyaan spesifik dan jangan pakai CTA generik seperti ‘fakta ini perlu dipantau’. Jangan membuat kontradiksi atau implikasi baru.
 
 ## BAHASA BUAT ORANG AWAM
 - Istilah teknis dijelaskan saat muncul dengan kata sederhana dari artikel.
@@ -1855,28 +1856,71 @@ def build_revision_prompt(revision_notes, posts):
 
 
 def _source_fallback_posts(article):
-    """Build no-invention six-post draft from paired source sentences."""
-    sentences = [s for s in _source_sentences(article.get("body", "")) if len(s) <= SLIDE_CHAR_LIMIT]
-    pairs = []
-    remaining = list(sentences)
-    while remaining and len(pairs) < 6:
-        pair = next(
-            ((i, j) for i in range(len(remaining))
-             for j in range(i + 1, len(remaining))
-             if len(remaining[i]) + len(remaining[j]) + 1 <= (S1_CHAR_LIMIT if not pairs else SLIDE_CHAR_LIMIT)),
-            None,
-        )
-        if pair is None:
-            break
-        i, j = pair
-        pairs.append(f"{remaining[i]} {remaining[j]}")
-        remaining = [s for n, s in enumerate(remaining) if n not in pair]
-    if len(pairs) < 6:
+    """Build grounded fallback with winning six-slide story jobs, not article-order pairs."""
+    sentences = [re.sub(r"^[\\\"'“”]+|[\\\"'“”]+$", "", s).strip()
+                 for s in _source_sentences(article.get("body", ""))]
+    sentences = [s for s in sentences if len(s) <= SLIDE_CHAR_LIMIT]
+    if len(sentences) < 12:
         return None
-    posts = {
-        **{f"post_{i}": pairs[i - 1] for i in range(1, 6)},
-        "post_6": f"{pairs[5]} Menurut lo, fakta ini perlu dipantau?",
+    pattern = article.get("pattern", "")
+    roles = [
+        ("hook", ("menetapkan", "menargetkan", "mengungkapkan", "meminta", "dipastikan", "mencatat", "belum", "bakal", "resmi")),
+        ("actor", ("menteri", "presiden", "gubernur", "direktur", "mengatakan", "menurut", "ujar", "kata")),
+        ("action", ("melalui", "dilakukan", "penyaluran", "impor", "mencari", "meminta", "langkah", "proses")),
+        ("detail", ("rp", "persen", "%", "miliar", "juta", "triliun", "target", "mulai", "hingga", "kuota")),
+        ("tension", ("biaya", "kendala", "risiko", "belum", "lebih tinggi", "menunggu", "logistik", "dampak", "batasan")),
+        ("open", ("belum", "menunggu", "proses", "pembahasan", "biaya", "kendala", "risiko", "dampak")),
+    ]
+
+    weak_prefixes = (
+        "hal ini", "yang tak kalah", "yang tidak kalah", "misal ", "ujar ",
+        "ucap ", "kata ", "sambung ", "begitu juga", "selanjutnya",
+    )
+
+    def score(sentence, signals):
+        text = sentence.lower()
+        value = sum(3 for signal in signals if signal in text)
+        if re.search(r"(?:rp\s*)?\d|\d+\s*(?:persen|%|miliar|juta|triliun)", text, re.I):
+            value += 2
+        if '"' in sentence or "“" in sentence:
+            value += 1
+        if text.startswith(weak_prefixes):
+            value -= 10
+        return value
+
+    remaining = list(sentences)
+    pairs = []
+    for _, signals in roles:
+        limit = S1_CHAR_LIMIT if not pairs else SLIDE_CHAR_LIMIT
+        choices = [
+            (score(a, signals) + score(b, signals), i, j, a, b)
+            for i, a in enumerate(remaining)
+            for j, b in enumerate(remaining[i + 1:], i + 1)
+            if len(a) + len(b) + 1 <= limit
+        ]
+        if not choices:
+            return None
+        _, i, j, a, b = max(choices, key=lambda item: item[0])
+        if score(b, signals) > score(a, signals):
+            a, b = b, a
+        pairs.append(f"{a} {b}")
+        remaining = [s for n, s in enumerate(remaining) if n not in {i, j}]
+
+    cta_terms = {
+        "KEBIJAKAN": ("biaya", "anggaran", "aturan", "bantuan", "penyaluran", "pembahasan", "target"),
+        "PERDAGANGAN": ("harga", "pasokan", "impor", "logistik", "biaya", "stok"),
+        "PROYEK": ("hasil", "investasi", "laba", "efisiensi", "biaya", "pelaksanaan"),
+        "PASAR": ("harga", "rupiah", "saham", "pasar", "dolar"),
+        "KORUPSI": ("anggaran", "kerugian", "biaya", "proyek", "hasil"),
     }
+    body_lower = article.get("body", "").lower()
+    options = [term for term in cta_terms.get(pattern, ()) if re.search(r"\b" + re.escape(term) + r"\b", body_lower)]
+    if len(options) >= 2:
+        cta = f"Menurut lo, yang harus diprioritaskan: {options[0]} atau {options[1]}?"
+    else:
+        cta = "Menurut lo, bagian mana yang paling perlu dijelaskan dari fakta ini?"
+    posts = {f"post_{i}": pairs[i - 1] for i in range(1, 6)}
+    posts["post_6"] = f"{pairs[5]} {cta}"
     if any(len(text) > SLIDE_CHAR_LIMIT for text in posts.values()):
         return None
     return posts
@@ -1954,15 +1998,15 @@ def build_user_prompt(article):
     pattern_label = article.get("pattern_label", "Tidak terklasifikasi")
     pattern_hint = f"**POLA ARTIKEL: {pattern} ({pattern_label})** — pakai panduan NADA SESUAI POLA di system prompt untuk menentukan gaya penulisan. "
     if pattern == "KORUPSI":
-        pattern_hint += "Gaya: sinis, investigatif. Bandingkan nominal rugi vs APBN."
+        pattern_hint += "Gaya winning: hook status-gap, aktor/tindakan, aliran duit, trade-off, CTA dua pilihan spesifik dari artikel."
     elif pattern == "KEBIJAKAN":
-        pattern_hint += "Gaya: dampak langsung ke dompet. Siapa kena, kapan berlaku, berapa biaya."
+        pattern_hint += "Gaya winning: status-gap, aktor/tindakan, cara kerja, biaya, trade-off, CTA dua pilihan spesifik dari artikel."
     elif pattern == "PROYEK":
-        pattern_hint += "Gaya: skala+kontrak. Duitnya dari mana, siapa yang dapet."
+        pattern_hint += "Gaya winning: status-gap, aktor/tindakan, cara kerja, duit, hasil, trade-off, CTA dua pilihan spesifik dari artikel."
     elif pattern == "PERDAGANGAN":
-        pattern_hint += "Gaya: harga pasar, stok, pasokan. Bandingkan sebelum/sesudah, daerah A vs B."
+        pattern_hint += "Gaya winning: status-gap harga/pasokan, aktor/tindakan, cara kerja, biaya, trade-off, CTA dua pilihan spesifik dari artikel."
     elif pattern == "PASAR":
-        pattern_hint += "Gaya: cepat, to the point. Lo harus tahu ini sebelum market buka."
+        pattern_hint += "Gaya winning: angka/perubahan paling tajam, aktor/tindakan, batas data, trade-off, CTA dua pilihan spesifik dari artikel."
     else:
         pattern_hint += "Gaya: gua-lu kasual, langsung ke fakta paling tajam."
     
@@ -2046,6 +2090,8 @@ def deterministic_validate(posts):
         # Jargon checks moved to _validate_jargon(body-aware) to avoid false positives on source terms.
         if i == 1 and re.match(r"\s*(?:bayangin\b)", outside, re.I):
             warnings.append(f"{k}: 'bayangin' opening")
+        if i == 1 and re.match(r"\s*(?:hal ini|yang tak kalah|yang tidak kalah|misal|ujar|ucap|kata|sambung|begitu juga|selanjutnya)\b", outside, re.I):
+            warnings.append(f"{k}: weak winning hook")
         if i == 1 and re.match(r"\s*zaman sekarang harga barang naik semua\b", outside, re.I):
             warnings.append(f"{k}: generic/non-source opening")
         # Never fill a slide by describing what the source omits.
@@ -2067,6 +2113,8 @@ def deterministic_validate(posts):
             last_text = posts.get(f"post_{i}", "").lower()
             if not any(qt in last_text for qt in ["?", "menurut", "pilih", "kubu", "lo setuju", "lo percaya"]):
                 warnings.append(f"{k}: CTA not found on last post")
+            if "fakta ini perlu dipantau" in last_text:
+                warnings.append(f"{k}: generic winning CTA")
             if last_text.count("?") > 2:
                 warnings.append(f"{k}: too many CTA questions")
             if re.search(r'https?://\S+|\bSumber\s*:', posts.get(f"post_{i}", ""), re.I):
@@ -2463,7 +2511,7 @@ def generate_thread(article):
         voice_warnings = _voice_warnings(posts)
         jargon_warnings = _validate_jargon(posts, article["body"])
         grounding_warnings = grounding_validate(article, posts)
-        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "CTA not found", "S6 must not"))]
+        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "weak winning hook", "generic winning CTA", "CTA not found", "S6 must not"))]
         warnings = missing + grounding_warnings + noun_warnings + claim_warnings + jargon_warnings + hard_style_warnings
         soft_warnings = style_warnings + voice_warnings
         if soft_warnings:

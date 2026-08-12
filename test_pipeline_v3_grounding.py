@@ -141,6 +141,39 @@ def test_source_fallback_builds_six_grounded_posts():
     assert not pipeline.deterministic_grounding_validate(article, posts)
 
 
+def test_source_fallback_uses_winning_story_arc_not_generic_cta():
+    body = " ".join([
+        "Pemerintah menetapkan subsidi energi mulai Januari 2027.",
+        "Menteri Keuangan mengatakan kebijakan itu menyasar rumah tangga berpendapatan rendah.",
+        "Penyaluran dilakukan melalui basis data penerima yang sudah disiapkan.",
+        "Bantuan mulai berlaku pada Januari 2027 setelah pembahasan DPR.",
+        "Perubahan ini memengaruhi konsumen dan pelaku usaha.",
+        "Proses penetapan masih menunggu persetujuan DPR.",
+        "Pemerintah menyiapkan jadwal pembahasan lanjutan bersama DPR.",
+        "Kebijakan tersebut berlaku setelah pembahasan lanjutan selesai dilakukan.",
+        "Menteri Keuangan akan menyampaikan perkembangan aturan kepada DPR.",
+        "Penyaluran bantuan tetap mengikuti basis data penerima yang sudah disiapkan.",
+        "Pemerintah mencatat proses penetapan masih berjalan sesuai aturan.",
+        "Pembahasan lanjutan dilakukan setelah persetujuan DPR diterima.",
+    ])
+    posts = pipeline._source_fallback_posts({"body": body, "pattern": "KEBIJAKAN"})
+    assert posts is not None
+    assert "menetapkan" in posts["post_1"].lower()
+    assert posts["post_1"].count(".") >= 2
+    assert "persetujuan" in posts["post_6"].lower() or "biaya" in posts["post_6"].lower()
+    assert "fakta ini perlu dipantau" not in posts["post_6"].lower()
+    assert not pipeline.deterministic_grounding_validate({"body": body}, posts)
+
+
+def test_winning_gate_blocks_weak_hook_and_generic_cta():
+    posts = {f"post_{i}": "Fakta sumber yang cukup panjang untuk validasi. Fakta kedua juga ada." for i in range(1, 7)}
+    posts["post_1"] = "Hal ini tercermin dari perubahan kebijakan. Statusnya masih dibahas."
+    posts["post_6"] = "Dampaknya masih dibahas. Menurut lo, fakta ini perlu dipantau?"
+    warnings = pipeline.deterministic_validate(posts)
+    assert any("weak winning hook" in warning for warning in warnings)
+    assert any("generic winning CTA" in warning for warning in warnings)
+
+
 def test_writer_prompt_contains_source_claims():
     body = "Pemerintah menetapkan kebijakan subsidi senilai Rp1 triliun. " * 10
     prompt = pipeline.build_user_prompt({"body": body})
