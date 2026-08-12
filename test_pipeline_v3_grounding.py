@@ -90,40 +90,6 @@ def test_source_claim_map_ranks_and_assigns_source_sentences_to_slides():
     assert len({c["sentence"] for claims in claim_map.values() for c in claims}) == 6
 
 
-def test_story_spine_uses_one_source_tension():
-    article = {"body": "Harga BBM turun menjadi Rp10.000. Namun ongkos distribusi naik. Pemerintah masih membahas aturan baru."}
-    spine = pipeline.story_spine(article)
-    assert spine["tension_type"] in {"contradiction", "detail_stakes", "status_gap"}
-    assert spine["sentence"] in article["body"]
-
-
-def test_story_functions_and_spine_validator_require_s1_s6_continuity():
-    article = {"body": "Harga BBM turun menjadi Rp10.000. Namun ongkos distribusi naik. Pemerintah masih membahas aturan baru."}
-    assert pipeline.STORY_FUNCTIONS["post_1"] == "hook_tension"
-    posts = {f"post_{i}": "Kalimat fakta sumber yang cukup panjang. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
-    issues = pipeline._validate_story_spine(article, posts)
-    assert any("story spine" in issue for issue in issues)
-
-
-def test_story_spine_keeps_market_story_and_excludes_bi_side_story():
-    body = " ".join([
-        "Rupiah ditutup melemah 0,20% ke posisi Rp17.865/US$.",
-        "The Fed lebih mencemaskan inflasi daripada pelemahan pasar tenaga kerja.",
-        "Presiden mengusulkan Destry Damayanti sebagai calon tunggal gubernur BI.",
-        "Indeks dolar AS menguat 0,03% pada pukul 15.00 WIB.",
-        "Pasar memperhitungkan peluang The Fed mempertahankan suku bunga sebesar 52%.",
-        "Nama calon Deputi Gubernur BI masih menunggu pengumuman DPR.",
-    ])
-    spine = pipeline.story_spine({
-        "title": "Rupiah Ditutup Loyo, Dolar AS Naik ke Rp17.865",
-        "body": body,
-        "pattern": "PASAR",
-    })
-    assert spine["angle"] == "market_pressure"
-    assert any("Rupiah ditutup" in sentence for sentence in spine["sentences"])
-    assert any("calon tunggal" in sentence for sentence in spine["excluded"])
-
-
 def test_source_claim_map_uses_selected_story_spine():
     body = " ".join([
         "Rupiah ditutup melemah 0,20% ke posisi Rp17.865/US$.",
@@ -188,6 +154,21 @@ def test_source_fallback_starts_with_selected_story_spine():
     posts = pipeline._source_fallback_posts(article)
     assert posts is not None
     assert "Rupiah ditutup melemah" in posts["post_1"]
+
+
+def test_historical_profile_without_current_economy_action_is_rejected():
+    body = " ".join([
+        "Dalam autobiografinya, tokoh itu mengaku penghasilannya sebagai pensiunan tidak cukup.",
+        "Ia lahir 124 tahun lalu dan mundur dari pemerintahan pada 1957.",
+        "Putrinya pernah membantu membayar tagihan listrik dan air.",
+        "Kisah tersebut dimuat dalam biografi dan surat-surat lama.",
+        "Keluarganya hidup pas-pasan setelah tokoh itu pensiun.",
+    ] * 4)
+    ok, reason = pipeline._is_eligible_candidate(
+        "Cerita Pejabat Lama Tak Bisa Bayar Pajak dan Tagihan Rumah", body, "cnbc_entrepreneur"
+    )
+    assert not ok
+    assert reason == "historical_profile_without_current_economy_action"
 
 
 def test_source_fallback_builds_six_grounded_posts():
@@ -382,6 +363,55 @@ def test_learning_bonus_is_bounded_and_needs_three_samples():
     )}
     assert 0 < pipeline._learning_bonus(data, "A") <= 0.06
     assert -0.06 <= pipeline._learning_bonus(data, "B") < 0
+
+
+def test_personal_finance_gets_distinct_arc_and_hook():
+    pattern, arc, hook = pipeline._content_metadata(
+        "Bunga kredit naik, cicilan rumah makin berat",
+        "Bank Indonesia mempertahankan suku bunga. Debitur membayar cicilan lebih tinggi."
+    )
+    assert pattern == "PASAR"
+    assert arc == "personal_finance_explainer"
+    assert hook == "finance_practical"
+
+
+def test_supply_story_gets_supply_shock_arc():
+    pattern, arc, _ = pipeline._content_metadata(
+        "Harga ayam peternak turun, pasokan antardaerah diatur",
+        "Harga di tingkat produsen turun. Pemerintah mengatur distribusi pasokan dan harga konsumen."
+    )
+    assert pattern == "PERDAGANGAN"
+    assert arc == "supply_shock"
+
+
+def test_fallback_rejects_sentence_fragments():
+    body = " ".join([
+        "Pemerintah mengatur pasokan ayam di sejumlah daerah.",
+        "Harga peternak turun karena distribusi terganggu.",
+        "Kemudian harga ayam harga rata-rata nasional Rp36 ribu per kg.",
+    ] * 5)
+    posts = pipeline._source_fallback_posts({"body": body, "pattern": "PERDAGANGAN"})
+    assert posts is None or all(not text.lstrip().lower().startswith("kemudian harga ayam harga")
+                                for text in posts.values())
+
+
+def test_thread_contract_rejects_repeated_s6_numbers():
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
+    posts["post_1"] = "Harga tercatat Rp36 ribu per kg. Angka ini berasal dari data resmi."
+    posts["post_6"] = "Harga tercatat Rp36 ribu per kg. Menurut lo, apa solusinya?"
+    assert any("post_6: repeats numeric fact" in issue
+               for issue in pipeline.thread_contract_issues(posts, "https://x.test/a"))
+
+
+def test_learning_bonus_can_use_hook_performance():
+    data = {"topics": [
+        {"article_source": "A", "pattern": "PASAR", "hook_pattern": "finance_practical",
+         "views": 1000, "likes": 100, "replies": 20, "reposts": 10, "quotes": 2}
+    ] * 3 + [
+        {"article_source": "B", "pattern": "PASAR", "hook_pattern": "number_shock",
+         "views": 1000, "likes": 1, "replies": 0, "reposts": 0, "quotes": 0}
+    ] * 3}
+    assert pipeline._learning_bonus(data, "A", "PASAR", "finance_practical") > 0
 
 
 def test_refresh_metrics_preserves_data_on_api_failure(monkeypatch):
@@ -963,6 +993,51 @@ def test_prepared_article_requires_unexpired_validated_posts(tmp_path, monkeypat
     assert pipeline.load_prepared_article(set()) is None
 
 
+def test_runtime_has_one_active_system_prompt():
+    source = Path(__file__).with_name("pipeline-v3.py").read_text()
+    assert source.count("SYSTEM_PROMPT = \"\"\"") == 1
+
+
+def test_writer_prompt_contains_claim_map_and_grounding_contract():
+    body = "Pemerintah menetapkan subsidi energi senilai Rp1 triliun. " * 12
+    prompt = pipeline.build_user_prompt({"body": body})
+    assert "CLAIM MAP S1-S6" in prompt
+    assert "Jangan menambah klaim di luar CLAIM MAP" in prompt
+    assert "Jangan membuat fakta baru" in prompt
+
+
+def test_literal_entity_prompt_forbids_new_name_phrases():
+    prompt = pipeline.build_user_prompt({"body": "The Fed menahan suku bunga."})
+    assert "dilarang membuat frasa nama baru" in prompt
+
+
+def test_topic_entities_extract_named_economy_entities():
+    entities = pipeline._topic_entities("Purbaya Bahas Beban APBD Guru PPPK di Bawah Danantara")
+    assert {"purbaya", "pppk", "danantara"} <= entities
+
+
+def test_repeat_issue_blocks_same_named_entity_but_not_generic_rupiah():
+    old = [{"title": "Danantara Salurkan Cuan BUMN ke APBN", "timestamp": "2026-08-12T10:00:00+07:00"}]
+    assert pipeline._is_repeat_issue("Purbaya Ungkap Rencana Danantara Masuk APBN", old)[0]
+    market = [{"title": "Rupiah Dibuka Melemah ke Rp17.872", "timestamp": "2026-08-12T10:00:00+07:00"}]
+    assert not pipeline._is_repeat_issue("Rupiah Ditutup Menguat ke Rp17.800", market)[0]
+
+
+def test_topic_cohort_separates_explicit_current_from_legacy():
+    assert pipeline.topic_cohort({"cohort": pipeline.CURRENT_COHORT}) == pipeline.CURRENT_COHORT
+    assert pipeline.topic_cohort({"title": "old"}) == pipeline.LEGACY_COHORT
+
+
+def test_publisher_pool_keeps_verified_rss_fallback_after_hot_topics():
+    articles = [
+        {"url": "https://example.test/hot", "title": "Hot"},
+        {"url": "https://example.test/rss", "title": "RSS fallback"},
+    ]
+    hot = [{"canonical_url": "https://example.test/hot"}]
+    verified = [{"canonical_url": "https://example.test/hot"}, {"canonical_url": "https://example.test/rss"}]
+    assert pipeline._publisher_pool(articles, hot, verified) == articles
+
+
 def test_prepared_article_normalizes_old_double_url_draft(tmp_path, monkeypatch):
     monkeypatch.setattr(pipeline, "PREPARED_ARTICLE_FILE", tmp_path / "prepared.json")
     posts = {f"post_{i}": "Dua fakta sumber yang cukup panjang. Fakta kedua lengkap dan berbeda." for i in range(1, 7)}
@@ -983,6 +1058,26 @@ def test_prepared_article_normalizes_old_double_url_draft(tmp_path, monkeypatch)
     assert loaded is not None
     assert "http" not in loaded["posts"]["post_6"]
     assert loaded["posts"]["post_7"] == "Sumber: https://sumber.test"
+
+
+def test_prepared_article_rechecks_current_eligibility_gate(tmp_path, monkeypatch):
+    monkeypatch.setattr(pipeline, "PREPARED_ARTICLE_FILE", tmp_path / "prepared.json")
+    body = " ".join([
+        "Dalam autobiografinya, tokoh itu mengaku penghasilannya sebagai pensiunan tidak cukup.",
+        "Ia lahir 124 tahun lalu dan mundur dari pemerintahan pada 1957.",
+        "Putrinya pernah membantu membayar tagihan listrik dan air.",
+        "Kisah tersebut dimuat dalam biografi dan surat-surat lama.",
+        "Keluarganya hidup pas-pasan setelah tokoh itu pensiun.",
+    ] * 4)
+    posts = {f"post_{i}": "Fakta sumber yang cukup panjang. Fakta kedua berbeda dan lengkap." for i in range(1, 7)}
+    posts["post_7"] = "Sumber: https://example.test/article"
+    pipeline.PREPARED_ARTICLE_FILE.write_text(json.dumps({
+        "title": "Cerita Pejabat Lama Tak Bisa Bayar Pajak dan Tagihan Rumah",
+        "url": "https://example.test/article", "source": "cnbc_entrepreneur",
+        "body": body, "og_image": "https://example.test/image.jpg", "posts": posts,
+        "prepared_at": 1, "expires_at": 9_999_999_999,
+    }))
+    assert pipeline.load_prepared_article(set()) is None
 
 
 def test_hot_topic_scout_rejects_global_story_without_indonesia_connection(monkeypatch):
