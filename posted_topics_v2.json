@@ -1,6 +1,35 @@
 {
   "topics": [
     {
+      "title": "Performa BUMN di Bawah Danantara, Bukti Kinerja Positif Pemerintahan",
+      "article_url": "https://www.cnnindonesia.com/ekonomi/20260812123251-92-1391409/performa-bumn-di-bawah-danantara-bukti-kinerja-positif-pemerintahan",
+      "article_source": "cnn_ekonomi",
+      "angle": "source-only fallback",
+      "post_id": "18082979321252607",
+      "media_id": "18082979321252607",
+      "timestamp": "2026-08-12T14:02:10+07:00",
+      "eco_score": 35,
+      "selection_weight": 69.99151452752761,
+      "pattern": "PROYEK",
+      "arc": "public_money_trail",
+      "hook_pattern": "number_shock",
+      "slides": {
+        "post_1": "Perusahaan tambang pelat merah ini membukukan laba bersih Rp 2,71 triliun, melonjak 804,7 persen dari sebelumnya hanya Rp 300 miliar. PT Kimia Farma berbalik dari rugi Rp135,61 miliar menjadi laba Rp54,07 miliar.",
+        "post_2": "Kinerja positif sejumlah BUMN sepanjang semester pertama tahun 2026 menjadi salah satu prestasi yang paling disorot dari pemerintahan Presiden Prabowo Subianto. PT Krakatau Steel, yang lama menjadi simbol beban di sektor BUMN karya dan industri berat, berhasil keluar dari kerugian sekitar Rp1,74 triliun menjadi laba sekitar Rp150 miliar hingga Rp185 miliar.",
+        "post_3": "Toto menilai perbaikan kinerja BUMN perlu terus didorong melalui proses streamlining atau penataan dan konsolidasi perusahaan negara. Harapan saya supaya proses streamlining BUMN bisa dipercepat sehingga perbaikan kinerja bisa lebih cepat dilaksanakan,\" ucap Toto.",
+        "post_4": "Di sektor semen, PT Semen Indonesia mencatat kenaikan laba 196,5 persen, dari Rp65,24 miliar menjadi Rp193,46 miliar, memberi sinyal positif bagi keberlanjutan sektor konstruksi dan infrastruktur nasional. Tak kalah signifikan, PT Pupuk Indonesia turut mencatatkan kinerja gemilang dengan laba bersih Rp8,51 triliun, tumbuh 253 persen dibandingkan Rp2,41 triliun pada semester I 2025.",
+        "post_5": "Berdasarkan laporan keuangan Semester I 2026 yang dibandingkan dengan periode yang sama tahun sebelumnya, PT Timah mencatatkan pertumbuhan laba paling dramatis di antara BUMN lainnya. Pertumbuhan solid juga terlihat di sektor jasa keuangan dan logistik.",
+        "post_6": "Sementara itu, PT Agrinas Palma Nusantara tumbuh 150 persen dengan laba mencapai Rp890 miliar, mengonfirmasi keberhasilan konsolidasi sektor perkebunan strategis yang kini berada di bawah pengelolaan BUMN. PT Pegadaian membukukan kenaikan laba 84,6 persen menjadi Rp6,59 triliun, disusul PT Pelindo yang tumbuh 60,4 persen menjadi Rp2,57 triliun. Menurut lo, yang harus diprioritaskan hasil atau laba?",
+        "post_7": "Sumber: https://www.cnnindonesia.com/ekonomi/20260812123251-92-1391409/performa-bumn-di-bawah-danantara-bukti-kinerja-positif-pemerintahan"
+      },
+      "likes": 0,
+      "replies": 6,
+      "reposts": 0,
+      "views": 0,
+      "quotes": 0,
+      "metrics_checked_at": 1786518132.6630783
+    },
+    {
       "title": "Mendag Ungkap Biang Kerok Harga Daging Sapi Melonjak, Minta Impor Digenjot!",
       "article_url": "https://finance.detik.com/berita-ekonomi-bisnis/d-8615011/mendag-ungkap-biang-kerok-harga-daging-sapi-melonjak-minta-impor-digenjot",
       "article_source": "detik_finance",
@@ -138,12 +167,12 @@
         "post_6": "Menurut lo, lebih masuk akal mana nahan harga pakan biar biaya produksi stabil, atau tambahin penyerapan telur lewat SPPG dan MBG supaya peternak punya pasar pasti?",
         "post_7": "Sumber: https://finance.detik.com/berita-ekonomi-bisnis/d-8614483/pemerintah-janji-jaga-harga-pakan-minta-dapur-mbg-serap-telur-peternak"
       },
-      "likes": 0,
-      "replies": 6,
+      "likes": 10,
+      "replies": 10,
       "reposts": 0,
-      "views": 0,
+      "views": 1418,
       "quotes": 0,
-      "metrics_checked_at": 1786496531.3842642
+      "metrics_checked_at": 1786518132.6630783
     },
     {
       "title": "Harga Pertalite Dijamin Tidak Naik sampai Desember",
@@ -254,12 +283,12 @@
         "post_6": "\"Itu baru ide, masih dibicarakan dengan Danantara,\" ujar Purbaya. Menurut lo, fakta ini perlu dipantau?",
         "post_7": "Sumber: https://www.cnnindonesia.com/ekonomi/20260811210652-532-1391224/purbaya-sebut-prabowo-ingin-sisihkan-cuan-danantara-buat-cadangan-apbn"
       },
-      "likes": 0,
-      "replies": 8,
+      "likes": 6,
+      "replies": 10,
       "reposts": 0,
-      "views": 2699,
+      "views": 5612,
       "quotes": 1,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Rp 20,5 T Telah Mengalir ke 490 Pemda, Purbaya: Cukup untuk Bayar Gaji PPPK",
@@ -427,9 +456,9 @@
       "likes": 1,
       "replies": 5,
       "reposts": 0,
-      "views": 694,
+      "views": 695,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Tito Buka Opsi Guru PPPK Jadi ASN Pusat, Beban APBD Bisa Berkurang",
@@ -508,9 +537,9 @@
       "likes": 1,
       "replies": 5,
       "reposts": 0,
-      "views": 515,
+      "views": 518,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Rupiah Menguat Tajam Usai Prabowo Usulkan Destry Damayanti Jadi Gubernur BI",
@@ -535,9 +564,9 @@
       "likes": 6,
       "replies": 5,
       "reposts": 0,
-      "views": 4471,
+      "views": 4481,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Efek 'Sulap' Prabowo, Valuasi Emiten BUMN Ini Melonjak Drastis",
@@ -562,9 +591,9 @@
       "likes": 411,
       "replies": 28,
       "reposts": 12,
-      "views": 37858,
+      "views": 37881,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Rupiah Bangkit ke Rp17.755 per Dolar AS Sore Ini",
@@ -616,9 +645,9 @@
       "likes": 3,
       "replies": 7,
       "reposts": 0,
-      "views": 919,
+      "views": 920,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Tarif Listrik Terbaru untuk Juli hingga September 2026 Tak Naik",
@@ -645,7 +674,7 @@
       "reposts": 0,
       "views": 851,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Danantara Targetkan 4 BUMN IPO dalam 6-12 Bulan, Ada Pegadaian-Pelindo",
@@ -668,11 +697,11 @@
       "likes": 59,
       "replies": 7,
       "reposts": 0,
-      "views": 33660,
+      "views": 33673,
       "quotes": 0,
       "post_id": "18118303958477728",
       "media_id": "18118303958477728",
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "RI Impor Bawang Putih 229 Ribu Ton Sejak Awal Tahun, 98% dari China",
@@ -699,7 +728,7 @@
       "reposts": 0,
       "views": 255,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Buruh Mau Demo Akhir Agustus, Bawa Isu Upah Minimum-Outsourcing",
@@ -726,7 +755,7 @@
       "reposts": 0,
       "views": 580,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Bos Danantara Bocorkan Soal Streamlining BUMN, 652 Perusahaan Dihapus",
@@ -753,7 +782,7 @@
       "reposts": 0,
       "views": 2720,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Bank Besar Mau PHK Massal, Ini Biang Keroknya",
@@ -778,9 +807,9 @@
       "likes": 0,
       "replies": 5,
       "reposts": 0,
-      "views": 430,
+      "views": 432,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Bank Pollux Hormati Putusan Pengadilan Negeri Semarang",
@@ -856,7 +885,7 @@
       "reposts": 0,
       "views": 725,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Jurus RI Bidik Pasar Karbon hingga Perdagangan Global dari Sektor Kehutanan",
@@ -884,7 +913,7 @@
       "reposts": 0,
       "views": 172,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "MSCI Umumkan Rebalancing Saham 12 Agustus",
@@ -910,9 +939,9 @@
       "likes": 84,
       "replies": 11,
       "reposts": 0,
-      "views": 20298,
+      "views": 20419,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Ekonomi RI Tumbuh 5,29 Persen, Saatnya Investasi atau Tahan Dulu?",
@@ -940,7 +969,7 @@
       "reposts": 0,
       "views": 161,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Bank Kasikorn (BMAS) Galang Rights Issue Jumbo, Duitnya Buat Ini",
@@ -968,7 +997,7 @@
       "reposts": 0,
       "views": 492,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Danantara Telah Pangkas 274 BUMN",
@@ -996,7 +1025,7 @@
       "reposts": 0,
       "views": 2092,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Harga Batu Bara Acuan Turun Jadi US$ 124,4/Ton",
@@ -1011,7 +1040,7 @@
       "reposts": 0,
       "views": 270,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Prabowo Sudah Panggil Calon-calon Bos BI, Destry Damayanti Masuk Radar",
@@ -1026,7 +1055,7 @@
       "reposts": 0,
       "views": 6436,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Investasi di Produsen Protein Global, Danantara Rogoh Rp 44,6 Triliun",
@@ -1039,9 +1068,9 @@
       "likes": 597,
       "replies": 105,
       "reposts": 21,
-      "views": 100638,
+      "views": 100642,
       "quotes": 1,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Stres Belajar, Kronologi Siswa 14 Tahun Tembak Sekolah dan Bunuh Guru",
@@ -1087,9 +1116,9 @@
       "likes": 0,
       "replies": 6,
       "reposts": 0,
-      "views": 389,
+      "views": 395,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "IMF Akui Utang Luar Negeri RI Aman, Terhindar dari Risiko Gagal Bayar",
@@ -1104,7 +1133,7 @@
       "reposts": 0,
       "views": 200,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Catatan Kritis Ekonom Soal Capaian Ekonomi RI 5,29% di Kuartal II-2026",
@@ -1119,7 +1148,7 @@
       "reposts": 0,
       "views": 193,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Konsumsi Listrik SPKLU Melonjak, PLN Perluas Infrastruktur Pengisian EV",
@@ -1134,7 +1163,7 @@
       "reposts": 0,
       "views": 723,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Kemenhub Audit Sistem Manajemen Keselamatan usai Kebakaran KMP Mutiara",
@@ -1166,12 +1195,12 @@
       "post_id": "17891963967669162",
       "media_id": "17891963967669162",
       "timestamp": "2026-08-07T11:57:29+07:00",
-      "likes": 312,
+      "likes": 313,
       "replies": 65,
       "reposts": 24,
-      "views": 51736,
+      "views": 51766,
       "quotes": 2,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Alarm Berbunyi di Rusia, Bank-bank Mulai Krisis Uang Tunai!",
@@ -1186,7 +1215,7 @@
       "reposts": 0,
       "views": 141,
       "quotes": 0,
-      "metrics_checked_at": 1786496414.9539483
+      "metrics_checked_at": 1786518018.7889843
     },
     {
       "title": "Impor RI Naik Tajam, Ini Biang Keroknya",
@@ -3400,6 +3429,7 @@
   ],
   "recent_content": {
     "openings": [
+      "Perusahaan tambang pelat merah ini membukukan laba bersih Rp 2,71 triliun, melonjak 804,7 persen dar",
       "Harga di daerah tertentu bahkan lebih tinggi karena distribusinya yang sulit. \"Ya kalau rata-rata na",
       "Bahkan, nilai investasi yang masuk, dia perkirakan bisa melampaui Rp500 triliun apabila insentif dan",
       "PT Timah (Persero) Tbk. (TINS) mencatatkan pertumbuhan laba paling dramatis di antara BUMN lainnya.",
@@ -3408,10 +3438,10 @@
       "Menteri Koordinator Perekonomian Airlangga Hartarto memastikan harga bahan bakar minyak (BBM) subsid",
       "Jakarta, CNBC Indonesia - Menteri Keuangan Purbaya Yudhi Sadewa mengungkapkan keuntungan yang dipero",
       "Kinerja positif sejumlah BUMN sepanjang semester pertama tahun ini menjadi salah satu prestasi yang ",
-      "Menteri Keuangan (Menkeu) Purbaya Yudhi Sadewa mengungkapkan rencana Presiden Prabowo Subianto untuk",
-      "Rp20,5 triliun sudah dikucurkan ke 490 pemerintah daerah yang kesulitan keuangan. Dana ini dipakai m"
+      "Menteri Keuangan (Menkeu) Purbaya Yudhi Sadewa mengungkapkan rencana Presiden Prabowo Subianto untuk"
     ],
     "ctas": [
+      "Sementara itu, PT Agrinas Palma Nusantara tumbuh 150 persen dengan laba mencapai Rp890 miliar, mengo",
       "Kondisi tersebut membuat importir mencari sumber daging dari negara yang lebih dekat untuk menekan b",
       "Kira-kira potensi loss-nya nol,\" tegas Purbaya. Ia menjelaskan, konsep PFII dirancang sebagai pusat ",
       "Begitu juga PTPN IV PalmCo mencatatkan kenaikan 54% menjadi Rp3,23 triliun. Selain itu, dari sektor ",
@@ -3420,8 +3450,7 @@
       "Itu relatif sampai akhir tahun at least Pertalite dan Biodiesel aman,\" sambung Airlangga. Menurut lo",
       "Sejauh ini, Presiden RI Prabowo Subianto mengaku mendapatkan laporan bahwa pendapatan Badan Pengelol",
       "Menurut Toto, kinerja BUMN di bawah Danantara masih sangat berpotensi semakin meroket. Menurut lo, f",
-      "\"Itu baru ide, masih dibicarakan dengan Danantara,\" ujar Purbaya. Menurut lo, fakta ini perlu dipant",
-      "Dana disalurkan tanpa menunggu permohonan daerah, tapi nominal tiap daerah belum dibuka. Menurut lo,"
+      "\"Itu baru ide, masih dibicarakan dengan Danantara,\" ujar Purbaya. Menurut lo, fakta ini perlu dipant"
     ],
     "analogies": [
       "Gw perhatiin, perubahan yang pelan banget kayak gini sering lu abaikan",
