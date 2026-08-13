@@ -253,6 +253,19 @@ def test_writer_prompt_contains_source_claims():
     assert "Jangan menambah klaim di luar CLAIM MAP" in prompt
 
 
+def test_writer_prompt_requires_plain_words_for_general_readers():
+    assert "kata sehari-hari" in pipeline.SYSTEM_PROMPT
+    assert "pembaca awam" in pipeline.SYSTEM_PROMPT
+    assert "jargon teknis" in pipeline.SYSTEM_PROMPT
+
+
+def test_jargon_validator_blocks_unexplained_common_market_terms():
+    posts = {f"post_{i}": "" for i in range(1, 7)}
+    posts["post_1"] = "Fundamental perusahaan terlihat kuat. Angkanya belum dijelaskan."
+    issues = pipeline._validate_jargon(posts, "Fundamental perusahaan terlihat kuat. Perusahaan mencatat laba.")
+    assert any("fundamental" in issue for issue in issues)
+
+
 def test_policy_prompt_encodes_verified_high_perform_arc():
     prompt = pipeline.SYSTEM_PROMPT
     assert "opsi resmi + kelompok terdampak + status belum final" in prompt

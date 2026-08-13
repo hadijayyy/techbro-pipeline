@@ -1994,7 +1994,7 @@ SYSTEM_PROMPT = """# ROLE
 Kamu penulis konten ekonomi untuk akun Threads Indonesia @ryanhadiii.
 
 # CONTEXT
-Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi yang kaku menjadi cerita analitis santai dengan alur logis. Jelaskan istilah ekonomi saat pertama muncul. Kredibel, tidak clickbait, tidak lebay. Bahasa gua–lu.
+Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi yang kaku menjadi cerita analitis santai dengan alur logis. Pakai kata sehari-hari dan kalimat pendek, seolah menjelaskan ke pembaca yang tidak paham ekonomi. Jika istilah teknis tidak wajib untuk akurasi, ganti dengan kata umum. Jika wajib, jelaskan dengan kata sederhana saat pertama muncul. Jangan menyalin jargon hanya karena istilah itu ada di artikel. Kredibel, tidak clickbait, tidak lebay. Bahasa gua–lu.
 
 # TASK
 Ubah satu artikel sumber menjadi 6 post Threads yang saling tersambung. Gunakan satu ISI ARTIKEL sebagai sumber tunggal. ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Jelaskan sebab-akibat hanya jika hubungan itu tertulis atau jelas dinyatakan artikel; jika artikel tidak menjelaskan sebab atau dampak, nyatakan batas informasi tersebut, jangan mengarang.
@@ -2021,7 +2021,7 @@ Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali l
 - Parafrase boleh jika makna tetap sama.
 - Setiap post wajib 2 kalimat dan maksimal 450 karakter. Satu ide utama per post.
 - Istilah teknis wajib dijelaskan singkat saat pertama disebut, jika penjelasan tersedia di artikel.
-- Bahasa Indonesia santai, jelas, dan natural. Hindari jargon tanpa penjelasan, slogan, hashtag, URL, dan pembuka generik.
+- Bahasa Indonesia santai, jelas, dan natural. Utamakan kata sehari-hari yang mudah dipahami pembaca awam. Hindari jargon teknis dan birokratis; jika istilah wajib dipakai, beri arti sederhananya saat pertama muncul. Hindari slogan, hashtag, URL, dan pembuka generik.
 - Jangan memaksa bagian sebab, dampak, atau relevansi jika bukti tidak tersedia.
 - Jangan menulis label slide di dalam teks post.
 - Balas JSON valid saja. Sistem menambahkan post_7 berisi sumber.
@@ -2630,18 +2630,25 @@ def _validate_jargon(posts, body):
                 # Allow if acronym itself appears in source body
                 if short.lower() not in body_lower:
                     issues.append(f"{key}: stand-alone '{short}' — harus dijelaskan pas pertama muncul")
-        # Non-acronym jargon — only flag if NOT in source body
+        # Non-acronym jargon always needs a plain-language explanation.
+        # Source presence does not make jargon readable to a general audience.
         hard_word_map = {
             "konsolidasi": "ngebersihin|rapiin|gabungin|satukan",
             "restrukturisasi": "rombak|ubah struktur|tata ulang",
             "likuiditas": "duit yang siap dipake|cair|gampang dicairin",
             "kapitalisasi": "nilai total|harga perusahaan keseluruhan",
+            "fundamental": "kondisi dasar|kinerja dasar|keadaan dasar",
+            "sentimen": "suasana pasar|pandangan investor|sikap investor",
+            "net buy": "lebih banyak membeli|membeli lebih banyak",
+            "on-track": "sesuai rencana|sesuai jalur",
+            "valuasi": "nilai perusahaan|harga wajar",
+            "stimulus": "bantuan ekonomi|dorongan ekonomi",
+            "cash flow": "uang masuk dan keluar|arus uang",
+            "market cap": "nilai total perusahaan|nilai perusahaan",
         }
         for word, explanation in hard_word_map.items():
             if re.search(rf"\b{word}\b", outside, re.I) and not re.search(explanation, outside, re.I):
-                # Allow if word appears in source body
-                if word not in body_lower:
-                    issues.append(f"{key}: hard word '{word}' tanpa penjelasan")
+                issues.append(f"{key}: hard word '{word}' tanpa penjelasan")
     return issues
 
 
