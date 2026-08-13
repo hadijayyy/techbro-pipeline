@@ -1958,7 +1958,7 @@ def _call_llm(system, user, model=None, max_retries=3, temperature=None):
         "model": model,
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
         "temperature": random.uniform(0.7, 0.9) if temperature is None else temperature,
-        "max_tokens": 4000,
+        "max_tokens": 6000,
     }
     last_error = ""
     for attempt in range(1, max_retries + 1):
@@ -2511,7 +2511,9 @@ def _validate_proper_nouns(posts, body):
     # Sentence connectors are not names when followed by a capitalized source term.
     skip = {"data", "menurut", "padahal", "kalau", "kalo", "yang", "dan", "tapi", "karena", "risikonya", "sumber", "soalnya", "alasan", "alasannya", "sementara", "sedangkan", "lalu", "setelah", "sebelum", "dengan", "untuk", "dari", "pertama", "bukan", "jadi", "namun", "bahkan",
             # Prepositions & particles that start sentences ("Di Asia", "Ke Jakarta", "Pada 2025")
-            "di", "ke", "pada", "pak", "bu", "si", "sang", "para",
+                "di", "ke", "pada", "pak", "bu", "si", "sang", "para",
+            # Time phrases are not invented proper names ("Sampai Juni", "Sejak 2026").
+            "sampai", "hingga", "mulai", "sejak", "selama",
             # Common sentence-start words that form title-case fragments in Indonesian
             "listrik", "tarif", "harga", "biaya", "pajak", "utang", "dana", "aset",
             "total", "kenaikan", "penurunan", "pertumbuhan", "pendapatan", "jumlah",
@@ -2783,7 +2785,7 @@ def generate_thread(article):
     # second writer call with same prompt will generate same slop. Only retry (attempt 2)
     # when revision fails due to JSON/syntax issues, not hard validation.
     for attempt in range(1, 2):
-        content, error = _call_llm(SYSTEM_PROMPT, user, max_retries=1)
+        content, error = _call_llm(SYSTEM_PROMPT, user, max_retries=1, temperature=0.2)
         if error:
             log.warning(f"  Writer request failed — {error[:80]}")
             if is_rate_limit_error(error):
@@ -2819,7 +2821,7 @@ def generate_thread(article):
             revision_notes = re.sub(r"'[^']*'", "'unsupported wording'", '; '.join(warnings))
             rev_user = user + "\n\n" + build_revision_prompt(revision_notes, posts, article)
             # One bounded revision; no rapid provider churn.
-            c2, e2 = _call_llm(SYSTEM_PROMPT, rev_user, max_retries=1)
+            c2, e2 = _call_llm(SYSTEM_PROMPT, rev_user, max_retries=1, temperature=0.2)
             if c2:
                 d2 = _parse_llm_json(c2)
                 if d2 is not None:

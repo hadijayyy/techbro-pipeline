@@ -382,7 +382,15 @@ def test_llm_has_room_for_complete_six_post_json():
         pipeline.httpx.post = original
 
     assert (content, error) == ("ok", None)
-    assert captured["max_tokens"] == 4000
+    assert captured["max_tokens"] == 6000
+
+
+def test_time_phrase_is_not_flagged_as_invented_name():
+    posts = {f"post_{i}": "" for i in range(1, 7)}
+    posts["post_4"] = "Sampai Juni, pemerintah masih membahas aturan ini. Status akhirnya belum ada."
+    assert not any("Sampai Juni" in issue for issue in pipeline._validate_proper_nouns(
+        posts, "Pemerintah masih membahas aturan ini sampai Juni."
+    ))
 
 
 def test_learning_bonus_is_bounded_and_needs_three_samples():
