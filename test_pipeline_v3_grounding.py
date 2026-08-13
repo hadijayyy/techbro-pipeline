@@ -135,6 +135,24 @@ def test_revision_prompt_contains_current_draft():
     assert "JANGAN membuat ulang slide yang tidak disebut issue" in prompt
 
 
+def test_revision_prompt_carries_sanitized_issue_and_source_allowlist():
+    body = "MSCI mengeluarkan 10 saham Indonesia dari indeks."
+    posts = {f"post_{i}": f"draft {i}" for i in range(1, 7)}
+    prompt = pipeline.build_revision_prompt(
+        "post_4: name 'Boy Thohir' not in article; post_2: quote not verbatim",
+        posts,
+        {"body": body},
+    )
+    assert "Boy Thohir" not in prompt
+    assert "MSCI mengeluarkan 10 saham Indonesia dari indeks." in prompt
+    assert "NAMA/ENTITAS LITERAL" in prompt
+
+
+def test_parse_llm_json_recovers_fenced_revision_object():
+    content = "Berikut hasil revisi:\n```json\n{\"status\":\"success\",\"post_1\":\"ok\"}\n```"
+    assert pipeline._parse_llm_json(content) == {"status": "success", "post_1": "ok"}
+
+
 def test_source_fallback_starts_with_selected_story_spine():
     body = " ".join([
         "Rupiah ditutup melemah 0,20% ke posisi Rp17.865/US$.",
@@ -454,17 +472,16 @@ def test_performance_evaluator_labels_against_cohort_median():
     assert {t["performance_evaluation"]["label"] for t in topics} == {"strong", "weak", "normal"}
 
 
-def test_grounding_verifier_error_blocks_publish(monkeypatch):
-    captured = {}
+def test_grounding_validation_does_not_spend_verifier_call(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("grounding must stay deterministic")
 
-    def fake_llm(*args, **kwargs):
-        captured.update(kwargs)
-        return None, "timeout"
-
-    monkeypatch.setattr(pipeline, "_call_llm", fake_llm)
-    issues = pipeline.grounding_validate({"title": "T", "body": "B"}, {"post_1": "T."})
-    assert issues == ["grounding: verifier unavailable"], issues
-    assert captured["temperature"] == 0
+    monkeypatch.setattr(pipeline, "_call_llm", fail_if_called)
+    issues = pipeline.grounding_validate(
+        {"title": "T", "body": "Nilai mencapai Rp1 miliar."},
+        {"post_1": "Nilai Rp1 miliar."},
+    )
+    assert issues == []
 
 
 def test_claim_markers_block_unsupported_wallet_conclusion():
@@ -475,19 +492,15 @@ def test_claim_markers_block_unsupported_wallet_conclusion():
     assert "unsupported claim marker 'untung bersih'" in issues[0]
 
 
-def test_grounding_verifier_checks_facts_not_cta_or_editorial_shape(monkeypatch):
-    captured = {}
+def test_grounding_validation_is_deterministic_and_keeps_editorial_shape_out(monkeypatch):
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("grounding must not call LLM")
 
-    def fake_llm(system, *args, **kwargs):
-        captured["system"] = system
-        return "PASS", None
-
-    monkeypatch.setattr(pipeline, "_call_llm", fake_llm)
-    assert pipeline.grounding_validate({"body": "Nilai mencapai Rp1 miliar."}, {"post_1": "Nilai Rp1 miliar."}) == []
-    assert "standar fail-closed" in captured["system"]
-    assert "rasio hasil hitung" in captured["system"]
-    assert "Danantara" not in captured["system"]
-    assert "surplus menjadi" not in captured["system"]
+    monkeypatch.setattr(pipeline, "_call_llm", fail_if_called)
+    assert pipeline.grounding_validate(
+        {"body": "Nilai mencapai Rp1 miliar."},
+        {"post_1": "Nilai Rp1 miliar."},
+    ) == []
 
 
 def test_rate_limit_error_retries_twice_with_cooldown_then_stops(monkeypatch):
@@ -1261,7 +1274,7 @@ if __name__ == "__main__":
     class MonkeyPatch:
         def setattr(self, obj, name, value):
             setattr(obj, name, value)
-    test_grounding_verifier_error_blocks_publish(MonkeyPatch())
+    test_grounding_validation_does_not_spend_verifier_call(MonkeyPatch())
     test_hook_allows_supported_policy_change_without_forced_number_or_contradiction()
     test_engagement_prefers_reposts_replies_and_likes_per_view()
     print("PASS")

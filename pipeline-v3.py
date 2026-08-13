@@ -1730,29 +1730,8 @@ def deterministic_grounding_validate(article, posts):
 
 
 def grounding_validate(article, posts):
-    """Independent factual verifier; outage or unsupported fact blocks publish."""
-    deterministic = deterministic_grounding_validate(article, posts)
-    # Deterministic grounding is authoritative for known hard violations.
-    # Semantic verifier is for drafts that survive deterministic checks.
-    if deterministic:
-        return deterministic
-    verifier_prompt = """Audit fakta DRAFT dengan standar fail-closed.
-
-Setiap pernyataan deklaratif wajib didukung SUMBER: angka, tanggal, nama, lembaga, status, pihak, sebab-akibat, konsekuensi, prediksi, perbandingan, penilaian ekonomi, dan premis CTA. Parafrase wajar boleh; fakta baru, rasio hasil hitung, quote gabungan, motif, status, timeline, dan dampak yang tidak tertulis wajib FAIL. Opini yang jelas ditandai boleh bila tidak menyisipkan premis faktual baru. Gaya bahasa tidak perlu dukungan; fakta di balik hook dan CTA wajib didukung.
-
-Jawab satu kata saja: PASS atau FAIL."""
-    draft = "\n".join(posts.values())
-    verdict, error = _call_llm(
-        verifier_prompt,
-        f"SUMBER:\n{article.get('body', '')[:6000]}\nDRAFT:\n{draft}",
-        max_retries=1,
-        temperature=0,
-    )
-    if error or not verdict:
-        return deterministic + ["grounding: verifier unavailable"]
-    if verdict.strip().upper() != "PASS":
-        deterministic.append("grounding: verifier rejected draft")
-    return deterministic
+    """Pressbox-style grounding: deterministic checks only, one LLM call less."""
+    return deterministic_grounding_validate(article, posts)
 
 
 def is_rate_limit_error(error):
@@ -2078,11 +2057,44 @@ Jika tidak ada enam post yang bisa dipertahankan akurat dan memenuhi aturan di a
 
 def build_revision_prompt(revision_notes, posts, article=None):
     """Give revision model current draft so it patches, not rewrites, slides."""
-    safe_notes = "Hapus nama, angka, perbandingan, atau klaim yang tidak literal di ISI ARTIKEL. Pertahankan fakta valid."
+    fields = sorted(set(re.findall(r"post_[1-6]", revision_notes or "")), key=lambda key: int(key.split("_")[1]))
+    field_scope = ", ".join(fields) if fields else "field yang tidak lolos validasi"
+    safe_notes = (f"Perbaiki hanya {field_scope}. Hapus nama, angka, perbandingan, atau klaim "
+                  "yang tidak literal di ISI ARTIKEL. Pertahankan fakta valid.")
     draft = {"status": "success"}
     draft.update({f"post_{i}": posts.get(f"post_{i}", "") for i in range(1, 7)})
-    context = "\n\n" + safe_notes
+    source = ""
+    if article:
+        body = article.get("body", "")[:10000]
+        facts = literal_fact_allowlist(body)
+        entities = literal_entity_allowlist(body)
+        source = "\n\nSUMBER REVISI — FAKTA LITERAL SAJA:\n" + "\n".join(
+            ["ALLOWLIST FAKTA LITERAL:"]
+            + [f"- {fact}" for fact in facts]
+            + ["NAMA/ENTITAS LITERAL:"]
+            + [f"- {entity}" for entity in entities]
+        )
+    context = "\n\n" + safe_notes + source
     return REVISION_PROMPT.format(revision_notes=safe_notes) + context + "\n\nDRAFT SAAT INI:\n" + json.dumps(draft, ensure_ascii=False)
+
+
+def _parse_llm_json(content):
+    """Parse JSON object from plain, fenced, or prose-wrapped LLM output."""
+    if not isinstance(content, str):
+        return None
+    text = re.sub(r"```(?:json)?\s*|\s*```", "", content.strip(), flags=re.I)
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(text):
+        if char != "{":
+            continue
+        try:
+            value, _ = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
 
 
 def _source_fallback_posts(article):
@@ -2771,18 +2783,8 @@ def generate_thread(article):
                 return None, error
             continue
         content = content.strip()
-        # Strip markdown fences, invisible chars, SSE artefacts
-        content = re.sub(r'^```(?:json)?\s*\n?', '', content)
-        content = re.sub(r'\n?```\s*$', '', content)
-        content = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', content)  # control chars except \n
-        content = content.strip()
-        # If LLM wrapped JSON in text, extract the JSON object
-        m = re.search(r'\{.*\}', content, re.DOTALL)
-        if m:
-            content = m.group(0)
-        try:
-            data = json.loads(content)
-        except json.JSONDecodeError:
+        data = _parse_llm_json(content)
+        if data is None:
             log.warning(f"  LLM attempt {attempt}/1 — bad JSON: {content[:80]}")
             continue
         if data.get("status") == "error":
@@ -2812,9 +2814,8 @@ def generate_thread(article):
             # One bounded revision; no rapid provider churn.
             c2, e2 = _call_llm(SYSTEM_PROMPT, rev_user, max_retries=1)
             if c2:
-                c2 = re.sub(r'^```(?:json)?\s*|\s*```$', "", c2.strip())
-                try:
-                    d2 = json.loads(c2)
+                d2 = _parse_llm_json(c2)
+                if d2 is not None:
                     p2 = {k: _convert_pov(d2.get(k) or "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
                     p2 = _normalize_s1(p2, article["body"])
                     style_w2 = deterministic_validate(p2) + _duplicate_fact_warnings(p2)
@@ -2874,12 +2875,9 @@ def generate_thread(article):
                                     return None, "revision_failed"
                             else:
                                 return None, "revision_failed"
-                except json.JSONDecodeError:
+                else:
                     log.warning("  Revision blocked: bad JSON")
-                    # JSON decode fails are transient — worth retrying with fresh prompt.
-                    if attempt < 2:
-                        continue
-                    return None, "revision_json_error"
+                    return None, "generation_failed"
             if warnings:
                 continue
         # Quality gate: check article supports the thread
