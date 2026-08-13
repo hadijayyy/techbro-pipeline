@@ -189,6 +189,27 @@ def test_historical_profile_without_current_economy_action_is_rejected():
     assert reason == "historical_profile_without_current_economy_action"
 
 
+def test_corporate_promo_article_is_rejected_before_llm():
+    title = "wondr by BNI Bantu Nasabah Kelola Keuangan Keluarga Lebih Terencana"
+    body = ("Agis memakai aplikasi wondr by BNI untuk mengatur keuangan keluarga. "
+            "BNI membantu nasabah menabung dan mengatur dana harian dengan layanan digital. "
+            "Program rejeki wondr BNI 2025 memberi hadiah sepeda motor kepada nasabah. "
+            "BNI terus berkomitmen menghadirkan solusi keuangan yang bermanfaat bagi masyarakat. "
+            "Layanan ini dibuat agar nasabah lebih disiplin dan nyaman mengelola keuangan. " * 5)
+    ok, reason = pipeline._is_eligible_candidate(title, body, "detik_finance")
+    assert not ok
+    assert reason == "corporate_promo"
+
+
+def test_substantive_corporate_news_is_not_rejected_as_promo():
+    title = "Bank X Catat Laba Bersih Rp2 Triliun, Naik 20 Persen"
+    body = ("Bank X di Indonesia mencatat laba bersih Rp2 triliun pada 2026, naik 20 persen dari tahun sebelumnya. "
+            "Pendapatan tumbuh setelah perusahaan menekan biaya operasional. "
+            "Manajemen menyiapkan investasi dan membagikan dividen kepada pemegang saham. " * 5)
+    ok, _ = pipeline._is_eligible_candidate(title, body, "cnbc_market")
+    assert ok
+
+
 def test_source_fallback_builds_six_grounded_posts():
     sentences = [
         "Pemerintah menetapkan kebijakan subsidi energi mulai Januari 2027.",

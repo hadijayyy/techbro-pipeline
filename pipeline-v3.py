@@ -1096,6 +1096,8 @@ def _is_eligible_candidate(title, body, source):
         return False, "routine market story"
     if _is_empty_commentary(title, body):
         return False, "empty commentary"
+    if _is_corporate_promo(title, body):
+        return False, "corporate_promo"
     if not _is_techbro_relevant(body):
         return False, "not techbro relevant"
     topic_score, economy_score, impact_score = _topic_score(title, body)
@@ -1104,6 +1106,26 @@ def _is_eligible_candidate(title, body, source):
     pattern_reason = (f"pattern={pattern_name} conf={pattern_confidence:.2f}"
                       if pattern_name else "pattern=none")
     return True, f"{pattern_reason} topic={topic_score} economy={economy_score} impact={impact_score}"
+
+
+def _is_corporate_promo(title, body):
+    """Reject brand/service promotion without a material public-economy event."""
+    text = f"{title} {body}".lower()
+    promo_markers = (
+        "bantu nasabah", "membantu nasabah", "layanan digital", "solusi keuangan",
+        "bermanfaat bagi", "komitmen", "menghadirkan", "nasabah", "aplikasi",
+        "kemudahan", "lebih disiplin", "lebih nyaman", "program hadiah",
+        "hadiah sepeda motor", "rejeki wondr", "customer experience",
+    )
+    material_markers = (
+        "laba", "rugi", "pendapatan", "akuisisi", "merger", "ipo", "phk",
+        "investasi", "dividen", "kontrak", "tender", "ekspor", "impor",
+        "regulasi", "peraturan", "sanksi", "audit", "denda", "kerugian",
+        "harga saham", "restrukturisasi", "pailit", "utang baru",
+    )
+    promo_hits = sum(1 for marker in promo_markers if marker in text)
+    material_hits = sum(1 for marker in material_markers if marker in text)
+    return promo_hits >= 4 and material_hits < 2
 
 
 def _is_techbro_relevant(body):
