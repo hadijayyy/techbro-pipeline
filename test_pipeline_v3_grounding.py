@@ -1037,6 +1037,40 @@ def test_market_story_with_policy_in_body_is_not_routine():
     assert pipeline._is_routine_market_story(title, body) is False
 
 
+def test_routine_market_story_without_public_decision_stays_rejected():
+    title = "Rupiah Pagi Melemah Tipis ke Rp17.878"
+    body = ("Rupiah melemah karena sentimen pasar global dan pelaku pasar mencermati arah dolar AS. " * 20)
+    assert pipeline._is_routine_market_story(title, body) is True
+
+
+def test_editorial_priority_prefers_policy_and_public_money_over_market_update():
+    policy = "Pemerintah mengubah aturan subsidi dan anggaran untuk rumah tangga. " * 12
+    market = "Rupiah melemah karena sentimen pasar global. " * 12
+    assert pipeline._engagement_priority_bonus("Aturan subsidi diubah", policy) > pipeline._engagement_priority_bonus("Rupiah melemah", market)
+
+
+def test_s1_requires_status_gap_and_concrete_impact():
+    body = "Pemerintah mengubah subsidi energi. Perubahan itu menaikkan biaya rumah tangga. " * 12
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
+    posts["post_1"] = "Pemerintah membahas ekonomi. Informasi lain masih tersedia."
+    issues = pipeline._validate_s1_hook(posts, body)
+    assert any("status-gap" in issue for issue in issues)
+    assert any("impact" in issue for issue in issues)
+
+
+def test_s6_requires_specific_source_anchored_cta():
+    body = "Pemerintah mengubah anggaran subsidi energi. Pembahasan masih menunggu persetujuan DPR. " * 12
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
+    posts["post_6"] = "Pembahasan masih menunggu persetujuan DPR. Menurut lo, bagian mana yang perlu dijelaskan?"
+    issues = pipeline._validate_s6_cta(posts, body)
+    assert any("specific CTA" in issue for issue in issues)
+
+
+def test_source_diversity_penalizes_recently_overused_source():
+    data = {"topics": [{"article_source": "detik_finance"}] * 4}
+    assert pipeline._source_diversity_penalty(data, "detik_finance") < pipeline._source_diversity_penalty(data, "antara_ekonomi")
+
+
 def test_utility_and_ceremony_titles_fail_full_economy_gate():
     body = "Bank Indonesia menjelaskan aturan dengan nilai Rp1.000.000. " * 30
     for title in (

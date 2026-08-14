@@ -661,6 +661,14 @@ def _learning_bonus(data, source, pattern=None, hook=None):
     return max(-0.06, min(0.06, bonus))
 
 
+def _source_diversity_penalty(data, source):
+    """Bound recent source repetition; never override body/editorial gates."""
+    recent = [topic for topic in (data or {}).get("topics", [])[:10]
+              if _is_current_topic(topic)]
+    count = sum(topic.get("article_source") == source for topic in recent)
+    return -min(count * 3, 12)
+
+
 def _hot_topic_cluster(title, pattern):
     """Stable, explainable cluster key; never creates a claim from article text."""
     entities = sorted(_topic_entities(title))
@@ -728,7 +736,9 @@ def _verify_one(candidate, now):
     topic_score, economy_score, impact_score = _topic_score(title, body)
     source_quality = SOURCES.get(source, {}).get("score", candidate.get("score", 0))
     freshness = max(0.0, 24 - ((now - published_ts) / 3600)) / 24
-    hot_score = round(topic_score * 10 + confidence * 10 + freshness * 10 + source_quality + _learning_bonus({}, source, pattern), 3)
+    hot_score = round(topic_score * 10 + confidence * 10 + freshness * 10 + source_quality
+                      + _learning_bonus({}, source, pattern)
+                      + _engagement_priority_bonus(title, body), 3)
     return {
         "cluster": _hot_topic_cluster(title, pattern), "title": title,
         "canonical_url": _canonical_url(url), "source": source,
@@ -846,7 +856,9 @@ def _pick_article(articles, posted_urls, data=None):
         _, _, hook = _content_metadata(a.get("title", ""), a.get("body", ""))
         learning = _learning_bonus(data or {}, a["source"], a.get("pattern"), hook)
         a["learning_bonus"] = learning
-        a["_weight"] = eco_score + freshness + relevance + source_quality + learning
+        a["_weight"] = (eco_score + freshness + relevance + source_quality + learning
+                         + _engagement_priority_bonus(a.get("title", ""), a.get("body", ""))
+                         + _source_diversity_penalty(data, a["source"]))
     candidates.sort(key=lambda a: a["_weight"], reverse=True)
     log.debug("Top 5:")
     for i, a in enumerate(candidates[:5]):
@@ -1291,6 +1303,22 @@ def _is_routine_market_story(title, body):
         "subsidi", "peraturan", "kebijakan", "ditetapkan", "putusan", "bpk", "ojk",
     ))
     return market and not policy
+
+
+def _engagement_priority_bonus(title, body):
+    """Prefer decision/public-money stories over routine market updates."""
+    text = f"{title} {body}".lower()
+    bonus = 0
+    for terms, value in (
+        (("kebijakan", "aturan", "peraturan", "putusan", "ditetapkan", "disahkan"), 12),
+        (("anggaran", "apbn", "apbd", "subsidi", "pajak", "belanja pemerintah"), 10),
+        (("korupsi", "kerugian negara", "audit bpk", "temuan bpk"), 10),
+        (("harga", "biaya", "tarif", "daya beli", "rumah tangga", "konsumen"), 6),
+        (("rupiah melemah", "rupiah menguat", "ihsg", "harga emas", "harga minyak"), -12),
+    ):
+        if any(term in text for term in terms):
+            bonus += value
+    return bonus
 
 
 # ── Pressbox-style Pattern Classification ──────────────────────────────────────
@@ -2569,6 +2597,32 @@ def deterministic_validate(posts):
     return warnings
 
 
+def _validate_s1_hook(posts, body):
+    """S1 must expose source-backed change/status gap and concrete stakes."""
+    text = (posts.get("post_1") or "").lower()
+    source = (body or "").lower()
+    status_terms = ("sebelumnya", "kini", "akan", "bakal", "ubah", "diubah", "mengubah", "perubahan", "berubah", "usul", "opsi", "tetap", "ditetapkan", "menetapkan", "berlaku")
+    impact_terms = ("harga", "biaya", "tarif", "gaji", "upah", "cicilan", "utang", "subsidi", "pajak", "daya beli", "rumah tangga", "konsumen", "anggaran")
+    issues = []
+    if not any(term in text and term in source for term in status_terms):
+        issues.append("post_1: missing status-gap hook")
+    if not any(term in text and term in source for term in impact_terms):
+        issues.append("post_1: missing concrete impact")
+    return issues
+
+
+def _validate_s6_cta(posts, body):
+    """S6 CTA must name source-backed decision, actor, number, or trade-off."""
+    text = (posts.get("post_6") or "").lower()
+    if "?" not in text:
+        return ["post_6: CTA not found"]
+    question = text.rsplit("?", 1)[0].rsplit(".", 1)[-1]
+    source_terms = _content_terms(body)
+    if len(source_terms & _content_terms(question)) < 2:
+        return ["post_6: missing specific CTA source anchor"]
+    return []
+
+
 def _duplicate_fact_warnings(posts):
     """Flag material numbers repeated across 3+ slides so six slides use distinct article evidence."""
     warnings = []
@@ -2951,7 +3005,8 @@ def generate_thread(article):
         jargon_warnings = _validate_jargon(posts, article["body"])
         grounding_warnings = grounding_validate(article, posts)
         hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "weak winning hook", "generic winning CTA", "CTA not found", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence"))]
-        warnings = missing + grounding_warnings + noun_warnings + claim_warnings + jargon_warnings + hard_style_warnings
+        engagement_warnings = _validate_s1_hook(posts, article["body"]) + _validate_s6_cta(posts, article["body"])
+        warnings = missing + grounding_warnings + noun_warnings + claim_warnings + jargon_warnings + hard_style_warnings + engagement_warnings
         soft_warnings = style_warnings + voice_warnings
         if soft_warnings:
             log.info(f"  Soft style warnings (advisory): {soft_warnings}")
@@ -2975,6 +3030,8 @@ def generate_thread(article):
                     w2.extend(noun_w2)
                     w2.extend(claim_w2)
                     w2.extend(_validate_jargon(p2, article["body"]))
+                    w2.extend(_validate_s1_hook(p2, article["body"]))
+                    w2.extend(_validate_s6_cta(p2, article["body"]))
                     voice_w2 = _voice_warnings(p2)
                     if style_w2 or voice_w2:
                         log.info(f"  Soft style warnings after revision: {style_w2 + voice_w2}")
@@ -3013,6 +3070,8 @@ def generate_thread(article):
                             if fallback_posts:
                                 fallback_posts = _normalize_s1(fallback_posts, article["body"])
                                 fallback_issues = deterministic_grounding_validate(article, fallback_posts)
+                                fallback_issues += _validate_s1_hook(fallback_posts, article["body"])
+                                fallback_issues += _validate_s6_cta(fallback_posts, article["body"])
                                 fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
                                 if not fallback_issues:
                                     posts = fallback_posts
@@ -3308,6 +3367,8 @@ def main():
         if fallback_posts:
             fallback_posts = _normalize_s1(fallback_posts, article["body"])
             fallback_issues = deterministic_grounding_validate(article, fallback_posts)
+            fallback_issues += _validate_s1_hook(fallback_posts, article["body"])
+            fallback_issues += _validate_s6_cta(fallback_posts, article["body"])
             fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
             if not fallback_issues:
                 result = {"posts": fallback_posts, "angle": "source-only fallback",
