@@ -1755,8 +1755,11 @@ def _policy_winner_enabled(article):
     policy_action = re.search(r"\b(menetapkan|ditetapkan|mengusulkan|usulan|opsi|wacana|aturan|peraturan|kebijakan|berlaku|kewenangan|dipindahkan|dialihkan|dilarang|subsidi|tarif)\b", text)
     # Only decision/transition stories use status-gap + trade-off arc.
     decision_trigger = re.search(
-        r"\b(opsi|usul|wacana|berubah|beralih|dipindahkan|dialihkan|"
-        r"ditarik|kini|sebelumnya|dibanding|mengusulkan)\b", body.lower()
+        r"\b(?:sebelumnya.{0,100}(?:kini|sekarang|mengusulkan)|"
+        r"(?:kini|sekarang).{0,100}(?:opsi|usul|wacana|mengusulkan|berubah|"
+        r"beralih|dipindahkan|dialihkan)|(?:opsi|usul|wacana)\s+"
+        r"(?:baru|resmi|pemerintah)|(?:berubah|beralih|dipindahkan|dialihkan|"
+        r"ditarik)\b)", body.lower()
     )
     return bool(authority and policy_action and decision_trigger)
 
@@ -2312,7 +2315,7 @@ def _source_fallback_posts(article):
     if len(sentences) < 12:
         return None
     pattern = article.get("pattern", "")
-    if pattern == "KEBIJAKAN":
+    if pattern == "KEBIJAKAN" and _policy_winner_enabled(article):
         roles = [(slide, POLICY_WINNING_ROLES[slide]) for slide in ("post_1", "post_2", "post_3", "post_4", "post_5", "post_6")]
     else:
         # Pressbox-style extractive fallback: source order, two complete facts/slide.
@@ -2369,11 +2372,14 @@ def _source_fallback_posts(article):
         pairs.append(s6_text)
         body_lower = article.get("body", "").lower()
         cta_terms = ("konsumsi", "investasi", "belanja pemerintah", "rumah tangga",
-                     "industri", "pertumbuhan", "ekonomi", "pasar", "biaya", "risiko")
+                     "industri", "pertumbuhan", "ekonomi", "pasar", "biaya", "risiko",
+                     "anggaran", "aturan", "bantuan", "pembahasan", "penerima", "kredit",
+                     "laba", "kerja", "pajak", "subsidi")
         options = [term for term in cta_terms
                    if re.search(r"\b" + re.escape(term) + r"\b", body_lower)]
-        cta = (f"Menurut lo, yang lebih penting dipantau: {options[0]} atau {options[1]}?"
-               if len(options) >= 2 else "Menurut lo, bagian mana dari pertumbuhan ekonomi yang paling perlu dipantau?")
+        if len(options) < 2:
+            return None
+        cta = f"Menurut lo, yang lebih penting dipantau: {options[0]} atau {options[1]}?"
         posts = {f"post_{i}": pairs[i - 1] for i in range(1, 6)}
         posts["post_6"] = f"{pairs[5]} {cta}"
         return posts
@@ -2636,8 +2642,10 @@ def deterministic_validate(posts):
     return warnings
 
 
-def _validate_s1_hook(posts, body):
-    """S1 must expose source-backed change/status gap and concrete stakes."""
+def _validate_s1_hook(posts, body, article=None):
+    """Require status-gap/impact only for source-backed policy decision arcs."""
+    if article is not None and not _policy_winner_enabled(article):
+        return []
     text = (posts.get("post_1") or "").lower()
     source = (body or "").lower()
     status_terms = ("sebelumnya", "kini", "akan", "bakal", "ubah", "diubah", "mengubah", "perubahan", "berubah", "usul", "opsi", "tetap", "ditetapkan", "menetapkan", "berlaku")
@@ -3044,7 +3052,7 @@ def generate_thread(article):
         jargon_warnings = _validate_jargon(posts, article["body"])
         grounding_warnings = grounding_validate(article, posts)
         hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "weak winning hook", "generic winning CTA", "CTA not found", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence"))]
-        engagement_warnings = _validate_s1_hook(posts, article["body"]) + _validate_s6_cta(posts, article["body"])
+        engagement_warnings = _validate_s1_hook(posts, article["body"], article) + _validate_s6_cta(posts, article["body"])
         warnings = missing + grounding_warnings + noun_warnings + claim_warnings + jargon_warnings + hard_style_warnings + engagement_warnings
         soft_warnings = style_warnings + voice_warnings
         if soft_warnings:
@@ -3069,7 +3077,7 @@ def generate_thread(article):
                     w2.extend(noun_w2)
                     w2.extend(claim_w2)
                     w2.extend(_validate_jargon(p2, article["body"]))
-                    w2.extend(_validate_s1_hook(p2, article["body"]))
+                    w2.extend(_validate_s1_hook(p2, article["body"], article))
                     w2.extend(_validate_s6_cta(p2, article["body"]))
                     voice_w2 = _voice_warnings(p2)
                     if style_w2 or voice_w2:
@@ -3109,7 +3117,7 @@ def generate_thread(article):
                             if fallback_posts:
                                 fallback_posts = _normalize_s1(fallback_posts, article["body"])
                                 fallback_issues = deterministic_grounding_validate(article, fallback_posts)
-                                fallback_issues += _validate_s1_hook(fallback_posts, article["body"])
+                                fallback_issues += _validate_s1_hook(fallback_posts, article["body"], article)
                                 fallback_issues += _validate_s6_cta(fallback_posts, article["body"])
                                 fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
                                 if not fallback_issues:
@@ -3417,7 +3425,7 @@ def main():
         if fallback_posts:
             fallback_posts = _normalize_s1(fallback_posts, article["body"])
             fallback_issues = deterministic_grounding_validate(article, fallback_posts)
-            fallback_issues += _validate_s1_hook(fallback_posts, article["body"])
+            fallback_issues += _validate_s1_hook(fallback_posts, article["body"], article)
             fallback_issues += _validate_s6_cta(fallback_posts, article["body"])
             fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
             if not fallback_issues:
@@ -3455,7 +3463,7 @@ def main():
 
         # Try next-best candidate from remaining pool (fast retry)
         retry_article = None
-        for _ in range(min(1, candidate_limit)):
+        for _ in range(min(2, candidate_limit)):
             if goto_step5:
                 break
             retry_article = _pick_article(articles, posted_urls | skipped_urls, data)
@@ -3463,11 +3471,17 @@ def main():
                 break
             log.info(f"  Retry candidate: {retry_article['title'][:80]}")
             # Quick gate on retry candidate
-            retry_body, retry_img, retry_ts = _fetch_article_body(retry_article["url"])
-            if (not retry_ts or retry_ts > time.time() + 300
-                    or time.time() - retry_ts > 86400):
+            retry_body, retry_img, retry_article_ts = _fetch_article_body(retry_article["url"])
+            retry_ts, retry_ts_source, retry_ts_reason = _resolve_published_timestamp(
+                retry_article_ts, retry_article.get("ts", 0), time.time()
+            )
+            if not retry_ts:
+                reject_reasons[f"retry_timestamp_{retry_ts_reason}"] += 1
+                log.info(f"  Retry skip: timestamp {retry_ts_reason}")
                 skipped_urls.add(retry_article["url"])
                 continue
+            if retry_ts_source == "rss_fallback":
+                log.info("  Retry timestamp: rss_fallback (fresh RSS only)")
             if not retry_body or len(retry_body) < 500:
                 skipped_urls.add(retry_article["url"])
                 continue
@@ -3481,7 +3495,13 @@ def main():
                 skipped_urls.add(retry_article["url"])
                 continue
             retry_article["body"] = retry_body
+            retry_article["published_ts"] = retry_ts
             retry_article["image_hint"] = _image_hint(retry_img)
+            retry_article["pattern"], retry_confidence = _classify_pattern(retry_article["title"], retry_body)
+            retry_article["pattern_label"] = _pattern_label(retry_article["pattern"])
+            retry_article["pattern"] = retry_article.get("pattern") or _content_metadata(retry_article["title"], retry_body)[0]
+            retry_article["arc"] = _content_metadata(retry_article["title"], retry_body)[1]
+            retry_article["hook_pattern"] = _content_metadata(retry_article["title"], retry_body)[2]
             og_image = retry_img
             if IMAGE_URL:
                 image_url = IMAGE_URL

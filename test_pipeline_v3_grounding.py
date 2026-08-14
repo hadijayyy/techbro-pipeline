@@ -1058,6 +1058,30 @@ def test_s1_requires_status_gap_and_concrete_impact():
     assert any("impact" in issue for issue in issues)
 
 
+def test_s1_hook_is_not_required_for_generic_economy_article():
+    article = {
+        "title": "Bank Catat Laba dan Kredit Tumbuh",
+        "body": "Bank mencatat laba Rp4 triliun dan kredit tumbuh 6 persen. " * 20,
+        "pattern": "PROYEK",
+    }
+    posts = {f"post_{i}": "Fakta sumber cukup panjang. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
+    assert pipeline._validate_s1_hook(posts, article["body"], article) == []
+
+
+def test_s1_hook_remains_required_for_policy_decision_article():
+    article = {
+        "title": "Pemerintah Usulkan Perubahan Subsidi",
+        "body": ("Pemerintah mengusulkan perubahan subsidi energi. "
+                 "Aturan sebelumnya berlaku untuk rumah tangga. "
+                 "Perubahan ini menambah biaya anggaran dan manfaat penerima. " * 12),
+        "pattern": "KEBIJAKAN",
+    }
+    posts = {f"post_{i}": "Fakta sumber cukup panjang. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
+    issues = pipeline._validate_s1_hook(posts, article["body"], article)
+    assert any("status-gap" in issue for issue in issues)
+    assert any("impact" in issue for issue in issues)
+
+
 def test_s6_requires_specific_source_anchored_cta():
     body = "Pemerintah mengubah anggaran subsidi energi. Pembahasan masih menunggu persetujuan DPR. " * 12
     posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
