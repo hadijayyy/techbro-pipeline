@@ -694,26 +694,68 @@ def _hot_topic_cluster(title, pattern):
 def _indonesia_topic_relevance(title, body):
     """Classify body-backed national relevance; global stories need explicit Indonesia impact."""
     text = f"{title} {body}".lower()
-    global_story = bool(re.search(r"\b(federal reserve|the fed|ecb|bank of japan|boj|pboc|opec|"
-                                  r"minyak dunia|tarif dagang|perang dagang|sanksi ekonomi|"
-                                  r"resesi global|ekonomi global|perdagangan global|selat hormuz|hormuz|"
-                                  r"iran|timur tengah|donald trump|trump|"
-                                  r"amerika serikat|as\b|united states|us\b|china|tiongkok|jepang|eropa|"
-                                  r"wall street|pasar global|global market|investor global|global stocks|"
-                                  r"us stocks|oil prices|interest rates|trade war)\b", text))
+    global_story = _is_global_event(title, body)
+    impact_channel = _international_impact_channel(title, body)
     indonesia = bool(re.search(r"\b(indonesia|ri|rupiah|apbn|bank indonesia|bi|kemenkeu|ojk)\b", body, re.I))
     national_actor = bool(re.search(
         r"\b(pemerintah|menteri|kementerian|dpr|bpk|bumn|apbd|gubernur|"
         r"presiden|mahkamah konstitusi|kpk|dprd)\b", body, re.I,
     ))
-    impact = bool(re.search(r"\b(dampak|berdampak|risiko|harga|inflasi|daya beli|ekspor|impor|"
-                            r"investasi|konsumen|masyarakat|industri|bbm|impact|affected|risk|"
-                            r"minyak|energi|tarif|bea masuk|perdagangan|prices|export|import|"
-                            r"investment|consumers|industry|fuel|"
-                            r"purchasing power|financing costs)\b", body, re.I))
     if global_story:
-        return "global_indonesia_impact" if indonesia and impact else None
+        return "global_indonesia_impact" if indonesia and impact_channel else None
     return "national" if indonesia or national_actor else None
+
+
+GLOBAL_EVENT_RE = re.compile(
+    r"\b(federal reserve|the fed|ecb|bank of japan|boj|pboc|opec|minyak dunia|"
+    r"tarif dagang|perang dagang|sanksi ekonomi|resesi global|ekonomi global|"
+    r"perdagangan global|selat hormuz|hormuz|iran|timur tengah|donald trump|trump|"
+    r"amerika serikat|united states|china|tiongkok|jepang|eropa|wall street|"
+    r"pasar global|global market|investor global|global stocks|us stocks|oil prices|"
+    r"interest rates|trade war)\b", re.I,
+)
+INTERNATIONAL_CHANNELS = {
+    "energy": r"bbm|minyak|energi|fuel|oil|harga energi",
+    "trade": r"ekspor|impor|tarif|bea masuk|perdagangan|industri|export|import|trade",
+    "monetary": r"rupiah|inflasi|suku bunga|biaya pembiayaan|financing costs|daya beli",
+    "fiscal": r"apbn|subsidi|penerimaan negara|belanja negara|defisit",
+    "investment": r"investasi|arus modal|pasar keuangan|investment|capital flow",
+}
+IMPACT_RELATION_RE = re.compile(
+    r"\b(dampak|berdampak|berisiko|risiko|menekan|tekanan|mendorong|memicu|"
+    r"mengerek|menaikkan|menurunkan|akibat|karena|sehingga|pengaruh|terdampak|"
+    r"impact|affecting|affected|risk|could affect|would affect)\b", re.I,
+)
+
+
+def _is_global_event(title, body=""):
+    return bool(GLOBAL_EVENT_RE.search(f"{title} {body}"))
+
+
+def _international_impact_channel(title, body):
+    """Return source-backed Indonesia impact lane; no event/channel = no global story."""
+    if not _is_global_event(title, body):
+        return None
+    id_re = re.compile(r"\b(indonesia|indonesian|ri|rupiah|apbn|bank indonesia|"
+                       r"kemenkeu|pemerintah indonesia|industri dalam negeri)\b", re.I)
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", body or "") if s.strip()]
+    for sentence in sentences:
+        if not id_re.search(sentence) or not IMPACT_RELATION_RE.search(sentence):
+            continue
+        for channel, terms in INTERNATIONAL_CHANNELS.items():
+            if re.search(rf"\b(?:{terms})\b", sentence, re.I):
+                return channel
+    for index, sentence in enumerate(sentences):
+        window = " ".join(sentences[index:index + 2])
+        if id_re.search(window) and IMPACT_RELATION_RE.search(window) and GLOBAL_EVENT_RE.search(window):
+            for channel, terms in INTERNATIONAL_CHANNELS.items():
+                if re.search(rf"\b(?:{terms})\b", window, re.I):
+                    return channel
+    return None
+
+
+def _story_lane(title, body=""):
+    return "international_indonesia" if _international_impact_channel(title, body) else "national"
 
 
 def _is_administrative_distribution_story(title, body):
@@ -763,6 +805,9 @@ def _verify_one(candidate, now):
         "topic_score": topic_score, "economy_score": economy_score, "impact_score": impact_score,
         "hot_score": hot_score, "body_verified": True, "image_available": bool(image),
         "indonesia_relevance": indonesia_relevance, "reason": reason,
+        "lane": _story_lane(title, body),
+        "impact_channel": _international_impact_channel(title, body),
+        "global_event": _is_global_event(title, body),
         "_body": body, "_image": image,
     }
 
@@ -873,6 +918,8 @@ def _pick_article(articles, posted_urls, data=None):
         _, _, hook = _content_metadata(a.get("title", ""), a.get("body", ""))
         learning = _learning_bonus(data or {}, a["source"], a.get("pattern"), hook)
         a["learning_bonus"] = learning
+        a["lane"] = _story_lane(a.get("title", ""), a.get("body", ""))
+        a["impact_channel"] = _international_impact_channel(a.get("title", ""), a.get("body", ""))
         a["_weight"] = (eco_score + freshness + relevance + source_quality + learning
                          + _engagement_priority_bonus(a.get("title", ""), a.get("body", ""))
                          + _source_diversity_penalty(data, a["source"]))
@@ -2145,6 +2192,7 @@ def _compute_performance_stats(data):
         hook = topic.get("hook_pattern")
         if hook:
             grouped["hook_avg"].setdefault(hook, []).append(score)
+
     for name, values in grouped.items():
         buckets[name] = {key: sum(items) / len(items) for key, items in values.items() if key}
     buckets["source_count"] = {key: len(items) for key, items in grouped["source_avg"].items() if key}
@@ -2228,6 +2276,7 @@ Ubah satu artikel sumber menjadi 6 post Threads yang saling tersambung. Gunakan 
 
 Fungsi post:
 Pilih arc sesuai bukti sumber: kebijakan, personal finance (bunga/cicilan/utang/investasi/risiko/arus kas), wallet pressure, public money, supply shock, atau market decision. Jangan pakai arc kebijakan untuk semua artikel.
+Buat satu STORY SPINE sebelum menulis: satu perubahan/konflik/status gap yang benar-benar tertulis. S1 membuka implikasi atau ketegangannya, bukan sekadar "X bilang Y". S2-S5 masing-masing menambah bukti berbeda: keputusan, mekanisme, pihak terdampak, lalu trade-off atau hal yang belum selesai. S6 kembali ke ketegangan S1 dan memberi dua pilihan yang benar-benar ada di artikel. Untuk lane internasional, jelaskan kanal dampak Indonesia hanya jika kalimat sumber menghubungkannya.
 1. HOOK — fakta atau pertanyaan source-grounded yang membuat pembaca berhenti; jangan mulai dengan lead berita biasa. S1 WAJIB 2 kalimat. Kalimat pertama menyebut keputusan/perubahan kebijakan yang tertulis, aktor berwenang + tindakan, atau fakta sumber; kalimat kedua memberi konteks sumber. Template non-numerik tetap boleh.
 
 Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali literal ada di ISI ARTIKEL.
@@ -2548,6 +2597,8 @@ def build_user_prompt(article):
         *[f"- {entity}" for entity in entities],
         "",
         *claim_lines,
+        f"LANE: {_story_lane(article.get('title', ''), article.get('body', ''))}",
+        f"KANAL DAMPAK INDONESIA: {_international_impact_channel(article.get('title', ''), article.get('body', '')) or 'tidak ada'}",
         "Jangan menambah klaim di luar CLAIM MAP. Jangan membuat fakta baru.",
         "Nama/entitas hanya boleh memakai allowlist; dilarang membuat frasa nama baru.",
         "Dilarang membuat perbandingan/ekuivalensi baru: setara, hampir dua kali, dua kali lipat, separuh.",
@@ -3305,6 +3356,8 @@ def main():
         pub = post_to_threads(article["title"], posts, inflight.get("image_url"), inflight)
         if _publish_complete(pub, posts):
             topic = inflight["topic"]
+            topic.setdefault("lane", _story_lane(article["title"], article.get("body", "")))
+            topic.setdefault("impact_channel", _international_impact_channel(article["title"], article.get("body", "")))
             topic["post_id"] = pub["post_ids"][0]
             topic["media_id"] = pub["media_ids"][0] if pub.get("media_ids") else None
             data.setdefault("topics", []).insert(0, topic)
@@ -3398,6 +3451,9 @@ def main():
             article["pattern"] = article.get("pattern") or _content_metadata(article["title"], body)[0]
             article["arc"] = _content_metadata(article["title"], body)[1]
             article["hook_pattern"] = _content_metadata(article["title"], body)[2]
+            article["lane"] = _story_lane(article["title"], body)
+            article["impact_channel"] = _international_impact_channel(article["title"], body)
+            log.info(f"  Lane: {article['lane']} | Impact channel: {article['impact_channel'] or 'n/a'}")
             log.info(f"  Body: {len(body)} chars | Pattern: {pattern_name} ({article['pattern_label']}, confidence={pattern_confidence:.2f})")
             break
         reject_reasons[eligible_reason] += 1
@@ -3519,6 +3575,8 @@ def main():
             retry_article["pattern"] = retry_article.get("pattern") or _content_metadata(retry_article["title"], retry_body)[0]
             retry_article["arc"] = _content_metadata(retry_article["title"], retry_body)[1]
             retry_article["hook_pattern"] = _content_metadata(retry_article["title"], retry_body)[2]
+            retry_article["lane"] = _story_lane(retry_article["title"], retry_body)
+            retry_article["impact_channel"] = _international_impact_channel(retry_article["title"], retry_body)
             og_image = retry_img
             if IMAGE_URL:
                 image_url = IMAGE_URL
@@ -3575,6 +3633,8 @@ def main():
             "article": article, "posts": posts, "post_ids": [], "image_url": image_url,
             "topic": {
                 "title": article["title"], "article_url": article["url"], "article_source": article["source"],
+                "lane": article.get("lane") or _story_lane(article["title"], article.get("body", "")),
+                "impact_channel": article.get("impact_channel") or _international_impact_channel(article["title"], article.get("body", "")),
                 "angle": result.get("angle", ""),
                 "story_functions": STORY_FUNCTIONS,
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+07:00"),
@@ -3592,6 +3652,8 @@ def main():
                 "title": article["title"],
                 "article_url": article["url"],
                 "article_source": article["source"],
+                "lane": article.get("lane") or _story_lane(article["title"], article.get("body", "")),
+                "impact_channel": article.get("impact_channel") or _international_impact_channel(article["title"], article.get("body", "")),
                 "angle": result.get("angle", ""),
                 "post_id": pub["post_ids"][0],
                 "media_id": pub["media_ids"][0] if pub.get("media_ids") else None,

@@ -312,6 +312,16 @@ def test_trump_economic_policy_requires_indonesia_trade_impact():
                         "investasi serta industri dalam negeri.")
     assert pipeline._indonesia_topic_relevance(title, connected) == "global_indonesia_impact"
     assert pipeline._is_global_finance_story(title, connected)
+    assert pipeline._story_lane(title, connected) == "international_indonesia"
+    assert pipeline._international_impact_channel(title, connected) == "trade"
+
+
+def test_global_lane_needs_source_sentence_linking_event_to_indonesia():
+    title = "Selat Hormuz Terganggu, Harga Minyak Dunia Naik"
+    body = ("Selat Hormuz terganggu dan harga minyak dunia naik. " * 12
+            + "Indonesia disebut dalam daftar negara peserta forum ekonomi.")
+    assert pipeline._international_impact_channel(title, body) is None
+    assert pipeline._story_lane(title, body) == "national"
 
 
 def test_national_economy_story_accepts_domestic_public_actor():
