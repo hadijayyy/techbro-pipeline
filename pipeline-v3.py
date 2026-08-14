@@ -2826,7 +2826,7 @@ def _validate_proper_nouns(posts, body):
             # when substantive name "Airlangga" appears literally in source.
             clean = name.lower()
             known_name = False
-            for prefix in ("menteri koordinator ", "menteri ", "dirjen ", "wakil ", "menko ", "pak ", "bu ", "bos "):
+            for prefix in ("menteri koordinator ", "menteri ", "menkeu ", "dirjen ", "wakil ", "menko ", "pak ", "bu ", "bos "):
                 if clean.startswith(prefix) and clean[len(prefix):] in article_lower:
                     known_name = True
                     break

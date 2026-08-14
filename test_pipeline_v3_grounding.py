@@ -277,6 +277,20 @@ def test_global_economy_story_requires_indonesia_impact():
     assert pipeline._is_global_finance_story(english_title, english_body)
 
 
+def test_common_ministry_short_form_is_allowed_when_source_has_full_name():
+    body = ("Menteri Keuangan Purbaya Yudhi Sadewa menyampaikan target penerimaan perpajakan 2027. "
+            "Pemerintah membahas kebijakan pajak dan anggaran negara. " * 8)
+    posts = {
+        "post_1": "Menkeu Purbaya menyampaikan target penerimaan perpajakan 2027. Pemerintah membahas kebijakan pajak.",
+        "post_2": "Purbaya menyampaikan target penerimaan perpajakan 2027. Pemerintah membahas anggaran negara.",
+        "post_3": "Pemerintah membahas kebijakan pajak. Target penerimaan perpajakan disampaikan dalam artikel.",
+        "post_4": "Anggaran negara ikut dibahas pemerintah. Kebijakan pajak menjadi bagian pembahasan.",
+        "post_5": "Penerimaan perpajakan menjadi target pemerintah. Anggaran negara juga dibahas.",
+        "post_6": "Pemerintah membahas target penerimaan perpajakan. Menurut lo, target atau anggaran?",
+    }
+    assert not any("Menkeu Purbaya" in issue for issue in pipeline._validate_proper_nouns(posts, body))
+
+
 def test_hormuz_story_requires_indonesia_energy_impact():
     title = "Selat Hormuz Terganggu, Harga Minyak Dunia Naik"
     body = ("Gangguan di Selat Hormuz mengerek harga minyak dunia dan memicu kekhawatiran pasar. " * 12)
