@@ -336,8 +336,20 @@ def _title_words(title):
     return {word for word in re.findall(r"[a-z0-9]{4,}", title.lower()) if word not in stop}
 
 
+ISSUE_TERMS = (
+    "subsidi", "mbg", "bansos", "hilirisasi", "apbn", "apbd", "bumn", "danantara",
+    "pajak", "tarif", "utang", "anggaran", "dividen", "akuisisi", "merger", "ipo",
+    "rights issue", "phk", "upah", "gaji", "pangan", "bbm", "rups", "kredit",
+)
+
+
+def _issue_terms(title):
+    text = title.lower()
+    return {term for term in ISSUE_TERMS if re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text)}
+
+
 def _is_repeat_issue(title, topics, hours=72):
-    """Pressbox-style dedup: 2 entities, or 1 entity plus 4 matching title words."""
+    """Block same entity + same issue; allow materially different stories."""
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     entities, words = _topic_entities(title), _title_words(title)
     for topic in topics:
@@ -350,10 +362,11 @@ def _is_repeat_issue(title, topics, hours=72):
         previous = topic.get("title", "")
         shared_entities = entities & _topic_entities(previous)
         shared_words = words & _title_words(previous)
-        # Diversity cap: one named policy/program/entity per 72h. Pressbox-style
-        # similarity still catches repeats when an article has multiple entities.
         strong_entities = shared_entities - {"apbn", "bumn", "bi", "bei", "ojk", "spbu"}
-        if strong_entities:
+        prior_words = _title_words(previous)
+        similarity = len(shared_words) / max(1, min(len(words), len(prior_words)))
+        same_issue = bool(_issue_terms(title) & _issue_terms(previous))
+        if strong_entities and (same_issue or len(shared_words) >= 3 or similarity >= 0.6):
             return True, strong_entities, shared_words
     return False, set(), set()
 
@@ -723,8 +736,9 @@ def _verify_one(candidate, now):
     title, url, source = candidate.get("title", ""), candidate.get("url", ""), candidate.get("source", "")
     if not title or not url or not source:
         return None
-    body, image, published_ts = _fetch_article_body(url)
-    if not published_ts or published_ts > now + 300 or now - published_ts > 86400:
+    body, image, article_ts = _fetch_article_body(url)
+    published_ts, timestamp_source, _ = _resolve_published_timestamp(article_ts, candidate.get("ts", 0), now)
+    if not published_ts:
         return None
     eligible, reason = _is_eligible_candidate(title, body, source)
     if not eligible:
@@ -742,7 +756,8 @@ def _verify_one(candidate, now):
     return {
         "cluster": _hot_topic_cluster(title, pattern), "title": title,
         "canonical_url": _canonical_url(url), "source": source,
-        "published_ts": published_ts, "pattern": pattern, "pattern_confidence": round(confidence, 3),
+        "published_ts": published_ts, "timestamp_source": timestamp_source,
+        "pattern": pattern, "pattern_confidence": round(confidence, 3),
         "topic_score": topic_score, "economy_score": economy_score, "impact_score": impact_score,
         "hot_score": hot_score, "body_verified": True, "image_available": bool(image),
         "indonesia_relevance": indonesia_relevance, "reason": reason,
@@ -941,18 +956,29 @@ def _published_timestamp(soup):
     values = [
         tag.get("content") for tag in soup.find_all("meta")
         if re.search(r"(?:publishdate|datepublished|pubdate|published_time)",
-                     str(tag.get("name") or tag.get("property") or ""), re.I)
+                     str(tag.get("name") or tag.get("property") or tag.get("itemprop") or ""), re.I)
     ]
+    values += [tag.get("content") for tag in soup.find_all(attrs={"itemprop": re.compile(r"datePublished|dateCreated", re.I)})]
     values += [tag.get("datetime") for tag in soup.find_all("time")]
+    for tag in soup.find_all(attrs={"data-published": True}):
+        values.extend((tag.get("data-published"), tag.get("data-published-at")))
     for tag in soup.find_all("script", type="application/ld+json"):
         try:
             data = json.loads(tag.string or tag.get_text())
         except (TypeError, json.JSONDecodeError):
             continue
-        items = data if isinstance(data, list) else [data]
-        for item in items:
-            if isinstance(item, dict) and item.get("datePublished"):
-                values.append(item["datePublished"])
+
+        def collect_dates(value):
+            if isinstance(value, dict):
+                if value.get("datePublished"):
+                    values.append(value["datePublished"])
+                for child in value.values():
+                    collect_dates(child)
+            elif isinstance(value, list):
+                for child in value:
+                    collect_dates(child)
+
+        collect_dates(data)
     for value in values:
         if not value:
             continue
@@ -968,6 +994,19 @@ def _published_timestamp(soup):
                 except ValueError:
                     pass
     return 0
+
+
+def _resolve_published_timestamp(article_ts, rss_ts, now):
+    """Use article time; bounded RSS fallback only when article time is absent."""
+    if article_ts:
+        if article_ts > now + 300:
+            return 0, "article", "future"
+        if now - article_ts > 86400:
+            return 0, "article", "stale"
+        return article_ts, "article", "ok"
+    if rss_ts and rss_ts <= now + 300 and now - rss_ts <= 86400:
+        return rss_ts, "rss_fallback", "ok"
+    return 0, "missing", "missing"
 
 
 # In-memory body cache — avoids double-fetch between scout_hot_topics and main()
@@ -3284,7 +3323,9 @@ def main():
     log.info(f"  Publisher pool: {len(articles)} body-verified scout candidates")
 
     # Step 2: Search ranked pool. Like Pressbox, title ranks; body decides eligibility.
+    from collections import Counter
     skipped_urls = set()
+    reject_reasons = Counter()
     candidate_limit = len(articles) if not article else 0
     for _ in range(candidate_limit):
         candidate = _pick_article(articles, posted_urls | skipped_urls, data)
@@ -3292,6 +3333,7 @@ def main():
             break
         is_repeat, shared_entities, shared_words = _is_repeat_issue(candidate["title"], recent_topics)
         if is_repeat:
+            reject_reasons["repeat_issue"] += 1
             skipped_urls.add(candidate["url"])
             log.info(f"  Skip: repeat issue within 72h (entities={sorted(shared_entities)}, title_words={len(shared_words)})")
             continue
@@ -3299,21 +3341,26 @@ def main():
         log.info(f"  Source: {candidate['source']} | Score: {candidate.get('eco_score', 0)} | Reason: {candidate.get('_reason', '')} | Weight: {candidate.get('_weight', 0)}")
         # Quick title-level economy filter: skip obviously non-ekonomi before costly body fetch
         if not _has_economy_title_signal(candidate["title"]):
+            reject_reasons["title_no_economy_signal"] += 1
             log.info("  Skip: title has no economy signal")
             skipped_urls.add(candidate["url"])
             continue
         log.info("Fetching article body...")
-        candidate_body, candidate_image, source_ts = _fetch_article_body(candidate["url"])
-        # Fail closed: RSS time is not proof of article recency; use source publish time.
-        if not source_ts or source_ts > time.time() + 300 or time.time() - source_ts > 86400:
-            log.info("  Skip: source publish time missing, invalid, or older than 24h")
+        candidate_body, candidate_image, article_ts = _fetch_article_body(candidate["url"])
+        source_ts, timestamp_source, timestamp_reason = _resolve_published_timestamp(article_ts, candidate.get("ts", 0), time.time())
+        if not source_ts:
+            reject_reasons[f"timestamp_{timestamp_reason}"] += 1
+            log.info(f"  Skip: timestamp {timestamp_reason} (article metadata; RSS fallback unavailable)")
             skipped_urls.add(candidate["url"])
             continue
+        if timestamp_source == "rss_fallback":
+            log.info("  Timestamp: rss_fallback (fresh RSS only)")
         topic_score, economy_score, impact_score = _topic_score(candidate["title"], candidate_body)
         pattern_name, pattern_confidence = _classify_pattern(candidate["title"], candidate_body)
         eligible_ok, eligible_reason = _is_eligible_candidate(candidate["title"], candidate_body, candidate["source"])
         if eligible_ok:
             if candidate_image is None and not IMAGE_DISABLED:
+                reject_reasons["image_invalid"] += 1
                 log.warning("  Skip: no valid HD image — trying next candidate")
                 skipped_urls.add(candidate["url"])
                 continue
@@ -3328,9 +3375,12 @@ def main():
             article["hook_pattern"] = _content_metadata(article["title"], body)[2]
             log.info(f"  Body: {len(body)} chars | Pattern: {pattern_name} ({article['pattern_label']}, confidence={pattern_confidence:.2f})")
             break
+        reject_reasons[eligible_reason] += 1
         skipped_urls.add(candidate["url"])
-        log.warning(f"  Skip: body/relevance/editorial score failed ({topic_score}/10, economy={economy_score}, impact={impact_score})")
+        log.warning(f"  Skip: {eligible_reason} ({topic_score}/10, economy={economy_score}, impact={impact_score})")
     if not article:
+        summary = ", ".join(f"{reason}={count}" for reason, count in reject_reasons.most_common()) or "none"
+        log.error(f"Candidate rejection summary: {summary}")
         log.error(f"No eligible article among {candidate_limit} ranked candidates")
         print("NO_SAFE_CANDIDATE", flush=True)
         return

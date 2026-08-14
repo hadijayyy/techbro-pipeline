@@ -1214,6 +1214,27 @@ def test_repeat_issue_blocks_same_named_entity_but_not_generic_rupiah():
     assert not pipeline._is_repeat_issue("Rupiah Ditutup Menguat ke Rp17.800", market)[0]
 
 
+def test_repeat_issue_allows_same_actor_for_different_issue():
+    old = [{"title": "Prabowo Umumkan Subsidi Mengkerut", "timestamp": "2026-08-12T10:00:00+07:00"}]
+    assert not pipeline._is_repeat_issue("Prabowo Tegaskan MBG Tetap Berjalan", old)[0]
+
+
+def test_fresh_rss_timestamp_is_bounded_fallback():
+    now = datetime(2026, 8, 14, 5, 0, tzinfo=timezone.utc).timestamp()
+    ts, source, reason = pipeline._resolve_published_timestamp(0, now - 60, now)
+    assert ts == now - 60
+    assert source == "rss_fallback"
+    assert reason == "ok"
+
+
+def test_stale_article_timestamp_does_not_use_rss_fallback():
+    now = datetime(2026, 8, 14, 5, 0, tzinfo=timezone.utc).timestamp()
+    ts, source, reason = pipeline._resolve_published_timestamp(now - 90000, now - 60, now)
+    assert ts == 0
+    assert source == "article"
+    assert reason == "stale"
+
+
 def test_topic_cohort_separates_explicit_current_from_legacy():
     assert pipeline.topic_cohort({"cohort": pipeline.CURRENT_COHORT}) == pipeline.CURRENT_COHORT
     assert pipeline.topic_cohort({"title": "old"}) == pipeline.LEGACY_COHORT
