@@ -660,13 +660,22 @@ def _indonesia_topic_relevance(title, body):
     text = f"{title} {body}".lower()
     global_story = bool(re.search(r"\b(federal reserve|the fed|ecb|bank of japan|boj|pboc|opec|"
                                   r"minyak dunia|tarif dagang|perang dagang|sanksi ekonomi|"
-                                  r"resesi global|ekonomi global|perdagangan global)\b", text))
+                                  r"resesi global|ekonomi global|perdagangan global|"
+                                  r"amerika serikat|as\b|united states|us\b|china|tiongkok|jepang|eropa|"
+                                  r"wall street|pasar global|global market|investor global|global stocks|"
+                                  r"us stocks|oil prices|interest rates|trade war)\b", text))
     indonesia = bool(re.search(r"\b(indonesia|ri|rupiah|apbn|bank indonesia|bi|kemenkeu|ojk)\b", body, re.I))
+    national_actor = bool(re.search(
+        r"\b(pemerintah|menteri|kementerian|dpr|bpk|bumn|apbd|gubernur|"
+        r"presiden|mahkamah konstitusi|kpk|dprd)\b", body, re.I,
+    ))
     impact = bool(re.search(r"\b(dampak|berdampak|risiko|harga|inflasi|daya beli|ekspor|impor|"
-                            r"investasi|konsumen|masyarakat|industri|bbm)\b", body, re.I))
+                            r"investasi|konsumen|masyarakat|industri|bbm|impact|affected|risk|"
+                            r"prices|export|import|investment|consumers|industry|fuel|"
+                            r"purchasing power|financing costs)\b", body, re.I))
     if global_story:
         return "global_indonesia_impact" if indonesia and impact else None
-    return "national" if indonesia else None
+    return "national" if indonesia or national_actor else None
 
 
 def _verify_one(candidate, now):
@@ -1041,6 +1050,10 @@ ECONOMY_SELECTION_SIGNALS = (
     "asn", "pppk", "guru", "tenaga pendidik", "aparatur sipil negara",
     "kebijakan", "regulasi", "tarif", "insentif", "hilirisasi", "perdagangan", "keuangan",
     "penerimaan", "belanja", "pembiayaan", "perbankan", "asuransi", "koperasi",
+    # International economy; body gate requires explicit Indonesia connection.
+    "federal reserve", "the fed", "opec", "global economy", "economic recession",
+    "interest rate", "interest rates", "inflation", "gdp", "trade war", "oil price", "oil prices",
+    "global market", "stocks", "stock market", "economy",
     # Tech/digital economy
     "startup", "series a", "series b", "series c", "funding", "pendanaan",
     "fintech", "edutech", "healthtech", "e-commerce", "ai ", "artificial intelligence",
@@ -1089,7 +1102,7 @@ def _is_eligible_candidate(title, body, source):
     if (sum(marker in body_lower for marker in historical_markers) >= 2
             and not any(marker in body_lower for marker in current_action_markers)):
         return False, "historical_profile_without_current_economy_action"
-    global_ok = source != "cnn_global" or _is_global_finance_story(title, body)
+    global_ok = source not in {"cnn_global", "cnbc_global"} or _is_global_finance_story(title, body)
     if not global_ok:
         return False, "non-finance global story"
     if _is_routine_market_story(title, body):
@@ -1098,8 +1111,14 @@ def _is_eligible_candidate(title, body, source):
         return False, "empty commentary"
     if _is_corporate_promo(title, body):
         return False, "corporate_promo"
+    if source == "dailysocial" and not _is_material_digital_story(title, body):
+        return False, "non_material_digital_story"
+    if _is_low_value_corporate_story(title, body):
+        return False, "low_value_corporate_story"
     if not _is_techbro_relevant(body):
         return False, "not techbro relevant"
+    if _indonesia_topic_relevance(title, body) is None:
+        return False, "no_indonesia_relevance"
     topic_score, economy_score, impact_score = _topic_score(title, body)
     pattern_name, pattern_confidence = _classify_pattern(title, body)
     # ponytail: patterns rank/hooks only; evidence gates above decide eligibility.
@@ -1128,6 +1147,41 @@ def _is_corporate_promo(title, body):
     return promo_hits >= 4 and material_hits < 2
 
 
+def _is_low_value_corporate_story(title, body):
+    """Reject corporate profile/strategy copy without a public-economy event."""
+    text = f"{title} {body}".lower()
+    profile_markers = (
+        "strategi", "era digital", "layanan digital", "layanan keuangan",
+        "kinerja positif", "bukukan laba", "catat laba", "masa depan",
+        "inovasi", "solusi", "nasabah", "pemegang polis", "tata kelola",
+        "keamanan", "privasi", "prinsip syariah", "rbc", "psak 117",
+    )
+    public_event_markers = (
+        "akuisisi", "merger", "ipo", "phk", "dividen", "kontrak", "tender",
+        "ekspor", "impor", "investasi senilai", "regulasi baru", "peraturan baru",
+        "sanksi", "audit", "denda", "pailit", "restrukturisasi", "utang baru",
+        "harga saham", "putusan", "tarif", "izin usaha dicabut",
+    )
+    corporate_identity = bool(re.search(
+        r"\b(bank|bumn|asuransi|perusahaan|emiten|startup|aplikasi|platform|life)\b",
+        text,
+    ))
+    profile_hits = sum(marker in text for marker in profile_markers)
+    has_public_event = any(marker in text for marker in public_event_markers)
+    return corporate_identity and profile_hits >= 2 and not has_public_event
+
+
+def _is_material_digital_story(title, body):
+    """Allow digital-economy stories only for material business events."""
+    text = f"{title} {body}".lower()
+    event = (
+        "pendanaan", "funding", "seri a", "seri b", "seri c", "akuisisi",
+        "merger", "ipo", "phk", "kontrak", "investasi", "ekspansi",
+        "laba", "rugi", "pendapatan", "bangkrut", "pailit",
+    )
+    return any(marker in text for marker in event)
+
+
 def _is_techbro_relevant(body):
     """Require a concrete Indonesia or global finance/economy signal in article body."""
     return bool(re.search(
@@ -1151,6 +1205,7 @@ def _is_global_finance_story(title, body):
         "fed", "federal reserve", "ecb", "bank sentral", "suku bunga", "inflasi",
         "resesi", "gdp", "ekonomi", "tarif", "dagang", "opec", "minyak",
         "pasar", "saham", "obligasi", "dolar", "mata uang", "utang", "investasi",
+        "stocks", "stock market", "interest rates", "oil prices", "trade", "economy",
     )) and _is_techbro_relevant(body)
 
 

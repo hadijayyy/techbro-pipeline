@@ -210,6 +210,78 @@ def test_substantive_corporate_news_is_not_rejected_as_promo():
     assert ok
 
 
+def test_corporate_profit_profile_without_public_event_is_rejected():
+    title = "IFG Life Bukukan Laba Bersih Rp482,12 Miliar Sepanjang 2025"
+    body = ("IFG Life mencatat laba bersih Rp482,12 miliar sepanjang 2025. "
+            "RBC perusahaan berada di atas batas minimum OJK. "
+            "Manajemen menjaga keseimbangan pertumbuhan bisnis dan risiko. "
+            "Perusahaan menerapkan PSAK 117 agar laporan lebih jelas bagi pemegang polis. " * 8)
+    ok, reason = pipeline._is_eligible_candidate(title, body, "detik_finance")
+    assert not ok
+    assert reason == "low_value_corporate_story"
+
+
+def test_routine_company_digital_strategy_is_rejected():
+    title = "Jaga Kualitas Aset, Begini Strategi Bank Aladin Syariah di Era Digital"
+    body = ("Bank Aladin Syariah mengembangkan layanan digital untuk nasabah. "
+            "Perusahaan menjaga prinsip syariah, tata kelola, risiko, keamanan, dan privasi. "
+            "Strategi ini ditujukan agar bisnis bertahan dan nasabah nyaman. " * 10)
+    ok, reason = pipeline._is_eligible_candidate(title, body, "cnbc_market")
+    assert not ok
+    assert reason == "low_value_corporate_story"
+
+
+def test_routine_single_stock_explainer_is_rejected():
+    title = "Ini Deretan Alasan Kenapa Saham GOTO Susah Gerak dari Harga Rp50"
+    body = ("Saham GOTO berada di level Rp50. Analis menyebut kondisi pasar global dan harga minyak "
+            "menjadi sentimen negatif bagi saham negara berkembang. Manajemen menyatakan fundamental "
+            "perusahaan tetap kuat dan sedang menggodok aksi korporasi. " * 10)
+    ok, reason = pipeline._is_eligible_candidate(title, body, "cnbc_market")
+    assert not ok
+    assert reason == "routine market story"
+
+
+def test_global_economy_story_requires_indonesia_impact():
+    title = "The Fed Naikkan Suku Bunga, Pasar Global Bergejolak"
+    body = ("Federal Reserve menaikkan suku bunga dan pasar global bereaksi terhadap inflasi Amerika Serikat. " * 12)
+    assert pipeline._indonesia_topic_relevance(title, body) is None
+
+    connected = body + (" Kebijakan ini menekan rupiah dan meningkatkan biaya impor Indonesia, "
+                        "sehingga daya beli masyarakat ikut terdampak.")
+    assert pipeline._indonesia_topic_relevance(title, connected) == "global_indonesia_impact"
+    assert pipeline._has_economy_title_signal(title)
+
+    english_title = "US Stocks Slide as Interest Rates Stay High"
+    english_body = ("US stocks fell as interest rates stayed high. Indonesia may face higher "
+                    "financing costs and weaker export demand, affecting rupiah and investment. " * 8)
+    assert pipeline._indonesia_topic_relevance(english_title, english_body) == "global_indonesia_impact"
+    assert pipeline._is_global_finance_story(english_title, english_body)
+
+
+def test_national_economy_story_accepts_domestic_public_actor():
+    title = "Menteri Keuangan Tetapkan Anggaran Subsidi Energi"
+    body = ("Menteri Keuangan menetapkan anggaran subsidi energi dan menjelaskan dampaknya bagi rumah tangga. " * 12)
+    assert pipeline._indonesia_topic_relevance(title, body) == "national"
+
+
+def test_non_material_digital_story_is_rejected():
+    title = "Startup Indonesia Rilis Aplikasi Belanja Baru"
+    body = ("Startup Indonesia meluncurkan aplikasi belanja baru dengan fitur yang lebih mudah. "
+            "Layanan ini membantu pengguna menemukan produk dan menikmati pengalaman digital. " * 10)
+    ok, reason = pipeline._is_eligible_candidate(title, body, "dailysocial")
+    assert not ok
+    assert reason == "non_material_digital_story"
+
+
+def test_material_digital_economy_story_is_allowed():
+    title = "Startup Indonesia Raih Pendanaan Seri B US$50 Juta untuk Ekspansi"
+    body = ("Startup Indonesia meraih pendanaan Seri B US$50 juta dari investor asing. "
+            "Dana tersebut dipakai untuk ekspansi, membuka lapangan kerja, dan membangun pusat data. "
+            "Investasi ini berdampak pada industri digital Indonesia. " * 8)
+    ok, _ = pipeline._is_eligible_candidate(title, body, "dailysocial")
+    assert ok
+
+
 def test_source_fallback_builds_six_grounded_posts():
     sentences = [
         "Pemerintah menetapkan kebijakan subsidi energi mulai Januari 2027.",
@@ -946,7 +1018,7 @@ def test_utility_and_ceremony_titles_fail_full_economy_gate():
 
 
 def test_keyword_fallback_can_approve_body_verified_article_without_pattern():
-    body = "Koperasi, ekonomi, anggaran, pajak, subsidi, investasi, pemerintah, masyarakat, dan UMKM menjadi perhatian. " * 30
+    body = "Koperasi, ekonomi, anggaran, pajak, subsidi, investasi, pemerintah, masyarakat, UMKM, dan Indonesia menjadi perhatian. " * 30
     title = "Koperasi Jadi Perhatian Pemerintah"
     assert pipeline._topic_score(title, body)[0] >= 7
     assert pipeline._classify_pattern(title, body) == (None, 0)
@@ -1212,6 +1284,7 @@ def test_source_config_keeps_only_active_sources_with_required_fields():
     assert {"cnn_ekonomi", "detik_finance", "cnbc_market", "antara_ekonomi", "bi_release", "kemenkeu_release"} <= set(pipeline.SOURCES)
     assert all({"url", "score", "type", "domain"} <= set(cfg) for cfg in pipeline.SOURCES.values())
     assert {cfg["type"] for cfg in pipeline.SOURCES.values()} <= {"rss", "html"}
+    assert "cnbc_global" in pipeline.SOURCES
 
 
 def test_source_config_invalid_json_falls_back_to_empty(monkeypatch, tmp_path):
