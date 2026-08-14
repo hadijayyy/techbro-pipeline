@@ -241,6 +241,25 @@ def test_routine_single_stock_explainer_is_rejected():
     assert reason == "routine market story"
 
 
+def test_subsidy_distribution_administration_is_rejected():
+    title = "Gandeng Dukcapil, Pertamina Perketat Penyaluran Subsidi Elpiji 3 Kg"
+    body = ("Pertamina menggandeng Dukcapil untuk memperketat penyaluran subsidi elpiji 3 kg. "
+            "Data penerima diverifikasi menggunakan identitas kependudukan agar penyaluran lebih tepat sasaran. "
+            "Program ini membahas pendataan, verifikasi, dan distribusi tabung kepada masyarakat. " * 8)
+    ok, reason = pipeline._is_eligible_candidate(title, body, "cnn_ekonomi")
+    assert not ok
+    assert reason == "administrative_distribution_story"
+
+
+def test_subsidy_price_change_remains_economy_story():
+    title = "Harga Eceran Tertinggi Elpiji 3 Kg Naik, Anggaran Subsidi Diubah"
+    body = ("Pemerintah mengubah harga eceran tertinggi elpiji 3 kg dan anggaran subsidi energi. "
+            "Perubahan ini berdampak pada biaya rumah tangga dan daya beli masyarakat. "
+            "Aturan baru menetapkan nilai subsidi dan kelompok penerima yang berhak. " * 8)
+    ok, _ = pipeline._is_eligible_candidate(title, body, "cnn_ekonomi")
+    assert ok
+
+
 def test_global_economy_story_requires_indonesia_impact():
     title = "The Fed Naikkan Suku Bunga, Pasar Global Bergejolak"
     body = ("Federal Reserve menaikkan suku bunga dan pasar global bereaksi terhadap inflasi Amerika Serikat. " * 12)

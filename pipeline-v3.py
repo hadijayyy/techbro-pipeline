@@ -678,6 +678,23 @@ def _indonesia_topic_relevance(title, body):
     return "national" if indonesia or national_actor else None
 
 
+def _is_administrative_distribution_story(title, body):
+    """Reject subsidy logistics unless article contains material economic change."""
+    text = f"{title} {body}".lower()
+    operational = bool(re.search(
+        r"\b(penyaluran|pendataan|verifikasi|validasi|tepat sasaran|"
+        r"data penerima|identitas kependudukan|nik|distribusi|penertiban)\b", text,
+    ))
+    subsidy_context = bool(re.search(r"\b(subsidi|elpiji|lpg|bansos|bantuan sosial)\b", text))
+    material_change = bool(re.search(
+        r"\b(naik|turun|ubah|diubah|menetapkan harga|harga eceran tertinggi|"
+        r"anggaran|kuota|nilai bantuan|nominal bantuan|syarat penerima|"
+        r"kelompok penerima|biaya rumah tangga|daya beli|tarif|aturan baru|"
+        r"beban rumah tangga|pengeluaran rumah tangga)\b", text,
+    ))
+    return operational and subsidy_context and not material_change
+
+
 def _verify_one(candidate, now):
     """Single-candidate body fetch + gate check. Returns dict or None. Used by scout_hot_topics."""
     title, url, source = candidate.get("title", ""), candidate.get("url", ""), candidate.get("source", "")
@@ -1107,6 +1124,8 @@ def _is_eligible_candidate(title, body, source):
         return False, "non-finance global story"
     if _is_routine_market_story(title, body):
         return False, "routine market story"
+    if _is_administrative_distribution_story(title, body):
+        return False, "administrative_distribution_story"
     if _is_empty_commentary(title, body):
         return False, "empty commentary"
     if _is_corporate_promo(title, body):
