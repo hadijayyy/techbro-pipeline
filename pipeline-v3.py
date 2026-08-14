@@ -127,6 +127,18 @@ def load_sources():
 
 SOURCES = load_sources()
 MAX_ARTICLES_PER_SOURCE = 6
+SOURCE_ARTICLE_CAPS = {
+    "cnn_ekonomi": 8,
+    "detik_finance": 8,
+    "cnbc_market": 8,
+    "cnbc_entrepreneur": 6,
+    "antara_ekonomi": 6,
+    "bi_release": 6,
+    "kemenkeu_release": 6,
+    "esdm_news": 6,
+    "dailysocial": 3,
+    "cnbc_global": 3,
+}
 CURRENT_COHORT = "techbro_v3_current"
 LEGACY_COHORT = "legacy"
 
@@ -489,8 +501,10 @@ def scrape_all():
                 articles.extend(f.result())
             except Exception as e:
                 log.warning(f"Scrape {fut_map[f]}: {e}")
-    # Filter mixed/homepage noise before the source cap; rank later still decides.
-    articles = [a for a in articles if _has_economy_title_signal(a["title"])]
+    # Filter mixed/homepage and source-specific noise before the source cap.
+    articles = [a for a in articles
+                if _has_economy_title_signal(a["title"])
+                and _has_source_title_signal(a["title"], a["source"])]
     from collections import defaultdict
     by_source = defaultdict(list)
     for a in articles:
@@ -498,7 +512,8 @@ def scrape_all():
     deduped = []
     for source, src_articles in by_source.items():
         src_articles.sort(key=lambda a: (a["ts"], len(a["title"])), reverse=True)
-        deduped.extend(src_articles[:MAX_ARTICLES_PER_SOURCE])
+        cap = SOURCE_ARTICLE_CAPS.get(source, MAX_ARTICLES_PER_SOURCE)
+        deduped.extend(src_articles[:cap])
     log.info(f"  Articles: {len(articles)} economy-title candidates after per-source cap")
     return deduped
 
@@ -1084,11 +1099,38 @@ ECONOMY_SELECTION_SIGNALS = (
 )
 
 
+MATERIAL_DIGITAL_TITLE_SIGNALS = (
+    "funding", "pendanaan", "series a", "series b", "series c", "seri a", "seri b", "seri c",
+    "ipo", "akuisisi", "merger", "phk", "laba", "rugi", "pendapatan", "investasi",
+    "ekspansi", "kontrak", "bangkrut", "pailit", "regulasi", "acquisition", "acquires",
+    "raises", "raised", "expands", "profit", "revenue",
+)
+
+GLOBAL_ECONOMY_TITLE_SIGNALS = (
+    "federal reserve", "the fed", "ecb", "bank of japan", "boj", "pboc", "opec",
+    "interest rate", "interest rates", "inflation", "gdp", "recession", "resesi",
+    "trade war", "tarif", "trade", "oil price", "oil prices", "commodity", "commodities",
+    "currency", "dollar", "stocks rally", "stocks fall", "stock market", "bond yield",
+    "investment", "invests", "investor", "exports", "imports", "global economy",
+    "ekonomi global", "perdagangan global", "harga minyak dunia",
+)
+
+
 def _has_economy_title_signal(title):
     """Keep mixed/general feeds from consuming economy-pipeline LLM attempts."""
     title_lower = title.lower()
     return any(re.search(rf"(?<!\w){re.escape(signal)}(?!\w)", title_lower)
                for signal in ECONOMY_SELECTION_SIGNALS)
+
+
+def _has_source_title_signal(title, source):
+    """Keep source-specific noise out before body fetch; body gate remains authoritative."""
+    title_lower = title.lower()
+    if source == "dailysocial":
+        return any(signal in title_lower for signal in MATERIAL_DIGITAL_TITLE_SIGNALS)
+    if source == "cnbc_global":
+        return any(signal in title_lower for signal in GLOBAL_ECONOMY_TITLE_SIGNALS)
+    return True
 
 
 def _is_eligible_candidate(title, body, source):
@@ -1105,6 +1147,8 @@ def _is_eligible_candidate(title, body, source):
         return False, "body too short"
     if not _has_economy_title_signal(title):
         return False, "title has no economy signal"
+    if not _has_source_title_signal(title, source):
+        return False, "source_title_not_material"
     historical_markers = (
         "autobiografi", "biografi", "surat-surat", "lahir", "tahun lalu",
         "pensiun", "pensiunan", "proklamator",

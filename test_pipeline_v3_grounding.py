@@ -289,7 +289,18 @@ def test_non_material_digital_story_is_rejected():
             "Layanan ini membantu pengguna menemukan produk dan menikmati pengalaman digital. " * 10)
     ok, reason = pipeline._is_eligible_candidate(title, body, "dailysocial")
     assert not ok
-    assert reason == "non_material_digital_story"
+    assert reason == "source_title_not_material"
+
+
+def test_source_title_gate_filters_digital_noise():
+    assert not pipeline._has_source_title_signal("AWS Summit Jakarta 2026 Soroti Cloud", "dailysocial")
+    assert not pipeline._has_source_title_signal("Startup Rilis Aplikasi Belanja Baru", "dailysocial")
+    assert pipeline._has_source_title_signal("Startup Raih Pendanaan Seri B untuk Ekspansi", "dailysocial")
+
+
+def test_source_title_gate_filters_non_economic_global_noise():
+    assert not pipeline._has_source_title_signal("OpenAI Loses Revenue Chief", "cnbc_global")
+    assert pipeline._has_source_title_signal("Fed Holds Interest Rates as Inflation Cools", "cnbc_global")
 
 
 def test_material_digital_economy_story_is_allowed():

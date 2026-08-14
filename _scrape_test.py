@@ -25,6 +25,7 @@ for src, count in sorted(src_counts.items()):
 
 print(f"\n=== FILTER & SCORE ({total} candidates) ===")
 passed = []
+eligible = []
 failed = 0
 reject_reasons = {}
 
@@ -34,12 +35,20 @@ for a in articles:
     a['_reason'] = reason
     if score > 0:
         passed.append(a)
+        body, image, published_ts = mod._fetch_article_body(a.get("url", ""))
+        ok, final_reason = mod._is_eligible_candidate(a["title"], body, a.get("source", ""))
+        a["_final_ok"] = ok
+        a["_final_reason"] = final_reason
+        a["_body_chars"] = len(body)
+        if ok:
+            eligible.append(a)
     else:
         failed += 1
         reject_reasons[reason] = reject_reasons.get(reason, 0) + 1
 
 print(f"\nLolos filter: {len(passed)}")
 print(f"Gagal: {failed}")
+print(f"Body-eligible: {len(eligible)}")
 
 if reject_reasons:
     print("\nReject reasons:")
@@ -53,6 +62,10 @@ for i, p in enumerate(sorted(passed, key=lambda x: x.get('_score', 0), reverse=T
     source = p.get('source', '?')
     reason = p.get('_reason', '')
     print(f"  [{score:3d}] {source:20s} {title}")
+
+print(f"\n=== BODY-ELIGIBLE (sorted by score) ===")
+for p in sorted(eligible, key=lambda x: x.get('_score', 0), reverse=True):
+    print(f"  [{p['_score']:3d}] {p.get('source', '?'):20s} {p['title'][:90]} ({p['_body_chars']} chars)")
 
 print(f"\nCandidates >= 70: {len([p for p in passed if p.get('_score', 0) >= 70])}")
 print(f"Candidates >= 80: {len([p for p in passed if p.get('_score', 0) >= 80])}")
