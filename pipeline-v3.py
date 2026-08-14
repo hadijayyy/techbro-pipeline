@@ -696,7 +696,8 @@ def _indonesia_topic_relevance(title, body):
     text = f"{title} {body}".lower()
     global_story = bool(re.search(r"\b(federal reserve|the fed|ecb|bank of japan|boj|pboc|opec|"
                                   r"minyak dunia|tarif dagang|perang dagang|sanksi ekonomi|"
-                                  r"resesi global|ekonomi global|perdagangan global|"
+                                  r"resesi global|ekonomi global|perdagangan global|selat hormuz|hormuz|"
+                                  r"iran|timur tengah|donald trump|trump|"
                                   r"amerika serikat|as\b|united states|us\b|china|tiongkok|jepang|eropa|"
                                   r"wall street|pasar global|global market|investor global|global stocks|"
                                   r"us stocks|oil prices|interest rates|trade war)\b", text))
@@ -707,7 +708,8 @@ def _indonesia_topic_relevance(title, body):
     ))
     impact = bool(re.search(r"\b(dampak|berdampak|risiko|harga|inflasi|daya beli|ekspor|impor|"
                             r"investasi|konsumen|masyarakat|industri|bbm|impact|affected|risk|"
-                            r"prices|export|import|investment|consumers|industry|fuel|"
+                            r"minyak|energi|tarif|bea masuk|perdagangan|prices|export|import|"
+                            r"investment|consumers|industry|fuel|"
                             r"purchasing power|financing costs)\b", body, re.I))
     if global_story:
         return "global_indonesia_impact" if indonesia and impact else None
@@ -1134,9 +1136,10 @@ ECONOMY_SELECTION_SIGNALS = (
     "kebijakan", "regulasi", "tarif", "insentif", "hilirisasi", "perdagangan", "keuangan",
     "penerimaan", "belanja", "pembiayaan", "perbankan", "asuransi", "koperasi",
     # International economy; body gate requires explicit Indonesia connection.
-    "federal reserve", "the fed", "opec", "global economy", "economic recession",
+    "federal reserve", "the fed", "opec", "selat hormuz", "hormuz", "global economy", "economic recession",
     "interest rate", "interest rates", "inflation", "gdp", "trade war", "oil price", "oil prices",
-    "global market", "stocks", "stock market", "economy",
+    "global market", "stocks", "stock market", "economy", "tarif trump", "kebijakan trump",
+    "donald trump", "trump",
     # Tech/digital economy
     "startup", "series a", "series b", "series c", "funding", "pendanaan",
     "fintech", "edutech", "healthtech", "e-commerce", "ai ", "artificial intelligence",
@@ -1163,7 +1166,8 @@ GLOBAL_ECONOMY_TITLE_SIGNALS = (
     "trade war", "tarif", "trade", "oil price", "oil prices", "commodity", "commodities",
     "currency", "dollar", "stocks rally", "stocks fall", "stock market", "bond yield",
     "investment", "invests", "investor", "exports", "imports", "global economy",
-    "ekonomi global", "perdagangan global", "harga minyak dunia",
+    "ekonomi global", "perdagangan global", "harga minyak dunia", "selat hormuz", "hormuz",
+    "trump", "donald trump",
 )
 
 
@@ -1302,8 +1306,9 @@ def _is_techbro_relevant(body):
         r"\b(indonesia|ri|rupiah|apbn|anggaran|pajak|subsidi|bansos|"
         r"pemerintah indonesia|presiden|mahkamah konstitusi|mk|kemenkeu|"
         r"bank indonesia|bi|ojk|bpk|dpr|federal reserve|the fed|ecb|bank sentral eropa|"
-        r"bank of japan|boj|bank rakyat china|pboc|opec|harga minyak dunia|tarif dagang|"
-        r"perang dagang|sanksi ekonomi|resesi global|ekonomi global|perdagangan global|"
+        r"bank of japan|boj|bank rakyat china|pboc|opec|harga minyak dunia|selat hormuz|hormuz|"
+        r"iran|timur tengah|trump|donald trump|tarif dagang|perang dagang|sanksi ekonomi|"
+        r"resesi global|ekonomi global|perdagangan global|"
         r"jakarta|surabaya|bandung|medan|semarang|makassar|palembang|"
         r"kalimantan|sumatera|sulawesi|papua|maluku|bali|nusa tenggara|"
         r"menteri|kementerian|direktur jenderal|gubernur|bupati|walikota|"
@@ -1315,12 +1320,21 @@ def _is_techbro_relevant(body):
 def _is_global_finance_story(title, body):
     """Global desk is for an explicit economy/finance headline, never general geopolitics."""
     headline = title.lower()
-    return any(word in headline for word in (
+    headline_finance = any(word in headline for word in (
         "fed", "federal reserve", "ecb", "bank sentral", "suku bunga", "inflasi",
         "resesi", "gdp", "ekonomi", "tarif", "dagang", "opec", "minyak",
         "pasar", "saham", "obligasi", "dolar", "mata uang", "utang", "investasi",
         "stocks", "stock market", "interest rates", "oil prices", "trade", "economy",
-    )) and _is_techbro_relevant(body)
+    ))
+    trump_policy = bool(re.search(r"\b(trump|donald trump)\b", headline)) and bool(re.search(
+        r"\b(tarif|dagang|impor|ekspor|sanksi|minyak|investasi|ekonomi|pajak|dolar|"
+        r"trade|tariff|import|export|sanction|oil|investment|economy)\b",
+        f"{headline} {body}".lower(),
+    ))
+    hormuz_energy = bool(re.search(r"\b(selat hormuz|hormuz)\b", headline)) and bool(re.search(
+        r"\b(minyak|energi|bbm|oil|energy|fuel)\b", f"{headline} {body}".lower(),
+    ))
+    return (headline_finance or trump_policy or hormuz_energy) and _is_techbro_relevant(body)
 
 
 def _is_routine_market_story(title, body):
@@ -1341,7 +1355,10 @@ def _is_routine_market_story(title, body):
         "bi rate", "bank indonesia", "makroprudensial", "apbn", "anggaran", "pajak",
         "subsidi", "peraturan", "kebijakan", "ditetapkan", "putusan", "bpk", "ojk",
     ))
-    return market and not policy
+    global_shock = any(word in text for word in (
+        "selat hormuz", "hormuz", "opec", "perang dagang", "tarif trump", "sanksi ekonomi",
+    ))
+    return market and not policy and not global_shock
 
 
 def _engagement_priority_bonus(title, body):

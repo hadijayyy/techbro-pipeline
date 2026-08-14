@@ -277,6 +277,29 @@ def test_global_economy_story_requires_indonesia_impact():
     assert pipeline._is_global_finance_story(english_title, english_body)
 
 
+def test_hormuz_story_requires_indonesia_energy_impact():
+    title = "Selat Hormuz Terganggu, Harga Minyak Dunia Naik"
+    body = ("Gangguan di Selat Hormuz mengerek harga minyak dunia dan memicu kekhawatiran pasar. " * 12)
+    assert pipeline._indonesia_topic_relevance(title, body) is None
+
+    connected = body + (" Indonesia berisiko menghadapi kenaikan biaya impor minyak dan tekanan harga BBM. "
+                        "Dampaknya dapat terasa pada inflasi dan daya beli masyarakat.")
+    assert pipeline._indonesia_topic_relevance(title, connected) == "global_indonesia_impact"
+    assert pipeline._is_global_finance_story(title, connected)
+    assert not pipeline._is_routine_market_story(title, connected)
+
+
+def test_trump_economic_policy_requires_indonesia_trade_impact():
+    title = "Trump Terapkan Tarif Baru, Perdagangan Global Tertekan"
+    body = ("Donald Trump mengumumkan tarif baru untuk mitra dagang Amerika Serikat. " * 12)
+    assert pipeline._indonesia_topic_relevance(title, body) is None
+
+    connected = body + (" Kebijakan ini dapat mengubah akses ekspor Indonesia ke pasar Amerika dan menekan "
+                        "investasi serta industri dalam negeri.")
+    assert pipeline._indonesia_topic_relevance(title, connected) == "global_indonesia_impact"
+    assert pipeline._is_global_finance_story(title, connected)
+
+
 def test_national_economy_story_accepts_domestic_public_actor():
     title = "Menteri Keuangan Tetapkan Anggaran Subsidi Energi"
     body = ("Menteri Keuangan menetapkan anggaran subsidi energi dan menjelaskan dampaknya bagi rumah tangga. " * 12)
@@ -301,6 +324,8 @@ def test_source_title_gate_filters_digital_noise():
 def test_source_title_gate_filters_non_economic_global_noise():
     assert not pipeline._has_source_title_signal("OpenAI Loses Revenue Chief", "cnbc_global")
     assert pipeline._has_source_title_signal("Fed Holds Interest Rates as Inflation Cools", "cnbc_global")
+    assert pipeline._has_source_title_signal("Hormuz Disruption Pushes Oil Prices Higher", "cnbc_global")
+    assert pipeline._has_source_title_signal("Trump Announces New Import Tariffs", "cnbc_global")
 
 
 def test_material_digital_economy_story_is_allowed():
