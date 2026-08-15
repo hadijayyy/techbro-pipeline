@@ -1259,8 +1259,8 @@ def _is_eligible_candidate(title, body, source):
         "menghadirkan", "hadirkan", "acara didukung", "daftar sekarang",
     )):
         return False, "utility_or_ceremony"
-    if not body or len(body) < 500:
-        return False, "body too short"
+    if not body or len(body) < 1000:
+        return False, "body_under_1000_chars"
     if not _has_economy_title_signal(title):
         return False, "title has no economy signal"
     if not _has_source_title_signal(title, source):
@@ -2339,7 +2339,8 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 2.nama/entitas: HANYA pakai nama dari daftar NAMA/ENTITAS LITERAL. JANGAN tambah nama baru.
 3.institution/acronym: JANGAN mengarang istilah yang tidak ada di artikel — HAPUS saja.
 4.STOP-SLOP: hindari pembuka laporan, transisi bertele-tele, kontras formulaik, hedge samar, rujukan gambar, dan kalimat pasif.
-5.TIDAK boleh menambah dampak/CTA baru, nama baru, atau fakta di luar ALLOWLIST.
+5.TIDAK boleh menambah dampak/CTA baru, nama baru, label penilaian, atau fakta di luar ALLOWLIST. Jangan memberi label pada tindakan atau menyimpulkan motif, hasil, maupun dampak kecuali artikel menyebutnya secara literal.
+5a.CTA: pertanyaan S6 wajib membandingkan dua taruhan konkret yang sama-sama literal di ISI ARTIKEL. Jangan memakai istilah abstrak atau membuat taruhan baru. Jika tidak ada, balas insufficient_evidence.
 6.S1: WAJIB 2 kalimat penuh (titik di antara kalimat) — ini NON-NEGOTIABLE.
 7.RETURN TO ORIGINAL: Jika tidak bisa perbaiki tanpa invent nama/angka/label baru, balikan ke value asli field tersebut. Jangan tambah apa-apa.
 
@@ -2601,6 +2602,10 @@ def build_user_prompt(article):
     facts = literal_fact_allowlist(body)
     entities = literal_entity_allowlist(body)
     claim_map = source_claim_map(article)
+    cta_evidence = []
+    for slide in ("post_5", "post_6"):
+        cta_evidence.extend(claim["sentence"] for claim in claim_map.get(slide, []))
+    cta_evidence = list(dict.fromkeys(cta_evidence))[:4]
     claim_lines = ["CLAIM MAP S1-S6:"]
     for slide in [f"post_{i}" for i in range(1, 7)]:
         claims = claim_map.get(slide, [])
@@ -2617,9 +2622,14 @@ def build_user_prompt(article):
         *claim_lines,
         f"LANE: {_story_lane(article.get('title', ''), article.get('body', ''))}",
         f"KANAL DAMPAK INDONESIA: {_international_impact_channel(article.get('title', ''), article.get('body', '')) or 'tidak ada'}",
+        "PILIHAN CTA BERBASIS BUKTI:",
+        *[f"- {sentence}" for sentence in cta_evidence],
+        "Pilih dua pihak, biaya, manfaat, risiko, status, atau dampak yang muncul literal di ISI ARTIKEL.",
+        "Jangan membuat pilihan CTA dari istilah abstrak atau taruhan baru. Jika tidak ada dua pilihan konkret, balas insufficient_evidence.",
         "Jangan menambah klaim di luar CLAIM MAP. Jangan membuat fakta baru.",
         "S1 wajib beropini/berpihak + ada curiosity gap dari fakta literal (bukan teka-teki). S6 wajib pertanyaan judgment spesifik, bukan penutup netral.",
         "Nama/entitas hanya boleh memakai allowlist; dilarang membuat frasa nama baru.",
+        "Pakai bahasa warung: ganti istilah teknis dengan kata sehari-hari bila makna tetap akurat. Jika istilah teknis wajib, jelaskan artinya dalam kalimat yang sama.",
         "Dilarang membuat perbandingan/ekuivalensi baru: setara, hampir dua kali, dua kali lipat, separuh.",
         "",
         "ISI ARTIKEL:",

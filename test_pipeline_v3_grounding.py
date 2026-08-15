@@ -27,6 +27,15 @@ def test_thin_article_is_rejected_before_generation():
     assert pipeline.article_evidence_gate({"body": body}) is None
 
 
+def test_candidate_selection_rejects_body_below_generation_minimum():
+    body = "Pemerintah menetapkan subsidi energi untuk rumah tangga Indonesia. " * 14
+    ok, reason = pipeline._is_eligible_candidate(
+        "Pemerintah Tetapkan Subsidi Energi untuk Rumah Tangga", body, "cnn_ekonomi"
+    )
+    assert not ok
+    assert reason == "body_under_1000_chars"
+
+
 def test_six_post_draft_requires_six_source_claims_before_llm():
     body = ("Bank Indonesia menetapkan suku bunga menjadi 5 persen. "
             + "Narasi tanpa fakta tambahan. " * 50)
@@ -447,6 +456,15 @@ def test_writer_prompt_requires_plain_words_for_general_readers():
     assert "kata sehari-hari" in pipeline.SYSTEM_PROMPT
     assert "pembaca awam" in pipeline.SYSTEM_PROMPT
     assert "jargon teknis" in pipeline.SYSTEM_PROMPT
+
+
+def test_writer_prompt_requires_evidence_backed_cta_options():
+    body = "Pemerintah mengubah subsidi energi. Rumah tangga menunggu aturan baru. " * 12
+    prompt = pipeline.build_user_prompt({"body": body})
+    assert "PILIHAN CTA BERBASIS BUKTI" in prompt
+    assert "Jangan membuat pilihan CTA" in prompt
+    assert "subsidi" in prompt
+    assert "rumah tangga" in prompt.lower()
 
 
 def test_jargon_validator_blocks_unexplained_common_market_terms():
