@@ -36,6 +36,15 @@ def test_candidate_selection_rejects_body_below_generation_minimum():
     assert reason == "body_under_1000_chars"
 
 
+def test_candidate_selection_rejects_consumer_advice_title_even_with_long_body():
+    body = "AFPI menjelaskan penilaian kredit dan pembiayaan UMKM di Indonesia. " * 30
+    ok, reason = pipeline._is_eligible_candidate(
+        "Nomor HP Bisa Jadi Pengganti Skor Kredit, Begini Syaratnya", body, "cnbc_market"
+    )
+    assert not ok
+    assert reason == "utility_or_consumer_advice"
+
+
 def test_six_post_draft_requires_six_source_claims_before_llm():
     body = ("Bank Indonesia menetapkan suku bunga menjadi 5 persen. "
             + "Narasi tanpa fakta tambahan. " * 50)
@@ -48,6 +57,31 @@ def test_source_claim_plan_uses_article_sentences_only():
     assert "Rp17.976" in plan
     assert "pelemahan berlanjut" in plan
     assert "Kalimat pendek." not in plan
+
+
+def test_source_fallback_rejects_dangling_demonstrative_opener():
+    posts = {
+        "post_1": "Penyerahan secara simbolis ini diikuti penyaluran 771 paket sembako.",
+        "post_2": "PT Pertamina menyerahkan dukungan PLTS kepada pekerja TPS 3R.",
+        "post_3": "Hendry mengatakan biaya listrik turun 60 persen.",
+        "post_4": "Dengan PLTS kebutuhan listrik kami dihemat 60 persen.",
+        "post_5": "Ardian bekerja 2,5 tahun di TPS 3R GO-SARI.",
+        "post_6": "Manfaat ekonomi dirasakan pekerja. Menurut lo, rumah tangga atau biaya?",
+    }
+    issues = pipeline._source_fallback_dangling_refs(posts)
+    assert any("post_1" in i and "dangling" in i for i in issues), issues
+
+
+def test_source_fallback_accepts_clean_opener():
+    posts = {
+        "post_1": "PLTS berkapasitas 6,6 kWp dipasang di TPS 3R GO-SARI Bantul.",
+        "post_2": "PT Pertamina menyerahkan dukungan PLTS kepada pekerja TPS 3R.",
+        "post_3": "Hendry mengatakan biaya listrik turun 60 persen.",
+        "post_4": "Dengan PLTS kebutuhan listrik dihemat 60 persen.",
+        "post_5": "Ardian bekerja 2,5 tahun di TPS 3R GO-SARI.",
+        "post_6": "Manfaat ekonomi dirasakan pekerja. Menurut lo, rumah tangga atau biaya?",
+    }
+    assert pipeline._source_fallback_dangling_refs(posts) == []
 
 
 def test_article_body_strips_detik_scroll_marker(monkeypatch):
@@ -272,7 +306,7 @@ def test_subsidy_price_change_remains_economy_story():
 def test_global_economy_story_requires_indonesia_impact():
     title = "The Fed Naikkan Suku Bunga, Pasar Global Bergejolak"
     body = ("Federal Reserve menaikkan suku bunga dan pasar global bereaksi terhadap inflasi Amerika Serikat. " * 12)
-    assert pipeline._indonesia_topic_relevance(title, body) is None
+    assert pipeline._indonesia_topic_relevance(title, body) == "international"
 
     connected = body + (" Kebijakan ini menekan rupiah dan meningkatkan biaya impor Indonesia, "
                         "sehingga daya beli masyarakat ikut terdampak.")
@@ -303,7 +337,7 @@ def test_common_ministry_short_form_is_allowed_when_source_has_full_name():
 def test_hormuz_story_requires_indonesia_energy_impact():
     title = "Selat Hormuz Terganggu, Harga Minyak Dunia Naik"
     body = ("Gangguan di Selat Hormuz mengerek harga minyak dunia dan memicu kekhawatiran pasar. " * 12)
-    assert pipeline._indonesia_topic_relevance(title, body) is None
+    assert pipeline._indonesia_topic_relevance(title, body) == "international"
 
     connected = body + (" Indonesia berisiko menghadapi kenaikan biaya impor minyak dan tekanan harga BBM. "
                         "Dampaknya dapat terasa pada inflasi dan daya beli masyarakat.")
@@ -315,7 +349,7 @@ def test_hormuz_story_requires_indonesia_energy_impact():
 def test_trump_economic_policy_requires_indonesia_trade_impact():
     title = "Trump Terapkan Tarif Baru, Perdagangan Global Tertekan"
     body = ("Donald Trump mengumumkan tarif baru untuk mitra dagang Amerika Serikat. " * 12)
-    assert pipeline._indonesia_topic_relevance(title, body) is None
+    assert pipeline._indonesia_topic_relevance(title, body) == "international"
 
     connected = body + (" Kebijakan ini dapat mengubah akses ekspor Indonesia ke pasar Amerika dan menekan "
                         "investasi serta industri dalam negeri.")
@@ -330,7 +364,7 @@ def test_global_lane_needs_source_sentence_linking_event_to_indonesia():
     body = ("Selat Hormuz terganggu dan harga minyak dunia naik. " * 12
             + "Indonesia disebut dalam daftar negara peserta forum ekonomi.")
     assert pipeline._international_impact_channel(title, body) is None
-    assert pipeline._story_lane(title, body) == "national"
+    assert pipeline._story_lane(title, body) == "international"
 
 
 def test_national_economy_story_accepts_domestic_public_actor():
@@ -1325,9 +1359,10 @@ def test_topic_entities_extract_named_economy_entities():
 
 
 def test_repeat_issue_blocks_same_named_entity_but_not_generic_rupiah():
-    old = [{"title": "Danantara Salurkan Cuan BUMN ke APBN", "timestamp": "2026-08-12T10:00:00+07:00"}]
+    recent = datetime.now(timezone.utc).isoformat()
+    old = [{"title": "Danantara Salurkan Cuan BUMN ke APBN", "timestamp": recent}]
     assert pipeline._is_repeat_issue("Purbaya Ungkap Rencana Danantara Masuk APBN", old)[0]
-    market = [{"title": "Rupiah Dibuka Melemah ke Rp17.872", "timestamp": "2026-08-12T10:00:00+07:00"}]
+    market = [{"title": "Rupiah Dibuka Melemah ke Rp17.872", "timestamp": recent}]
     assert not pipeline._is_repeat_issue("Rupiah Ditutup Menguat ke Rp17.800", market)[0]
 
 
@@ -1409,13 +1444,14 @@ def test_prepared_article_rechecks_current_eligibility_gate(tmp_path, monkeypatc
     assert pipeline.load_prepared_article(set()) is None
 
 
-def test_hot_topic_scout_rejects_global_story_without_indonesia_connection(monkeypatch):
+def test_hot_topic_scout_accepts_global_story_without_indonesia_connection(monkeypatch):
     now = 1_800_000_000
     article = {"title": "The Fed Naikkan Suku Bunga, Pasar Global Bergejolak", "url": "https://global.test/1", "source": "cnn_global", "ts": now - 60}
     body = "Federal Reserve menaikkan suku bunga dan pasar global bereaksi terhadap inflasi Amerika Serikat. " * 12
     monkeypatch.setattr(pipeline, "_fetch_article_body", lambda _url: (body, None, now - 60))
 
-    assert pipeline.scout_hot_topics([article], now=now) == []
+    topics = pipeline.scout_hot_topics([article], now=now)
+    assert topics and topics[0]["indonesia_relevance"] == "international"
 
 
 def test_hot_topic_scout_accepts_global_story_with_indonesia_impact(monkeypatch):

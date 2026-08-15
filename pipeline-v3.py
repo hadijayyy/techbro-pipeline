@@ -706,7 +706,7 @@ def _hot_topic_cluster(title, pattern):
 
 
 def _indonesia_topic_relevance(title, body):
-    """Classify body-backed national relevance; global stories need explicit Indonesia impact."""
+    """Classify domestic relevance; material global economy stories may stand alone."""
     text = f"{title} {body}".lower()
     global_story = _is_global_event(title, body)
     impact_channel = _international_impact_channel(title, body)
@@ -716,7 +716,9 @@ def _indonesia_topic_relevance(title, body):
         r"presiden|mahkamah konstitusi|kpk|dprd)\b", body, re.I,
     ))
     if global_story:
-        return "global_indonesia_impact" if indonesia and impact_channel else None
+        if indonesia and impact_channel:
+            return "global_indonesia_impact"
+        return "international" if _is_global_finance_story(title, body) else None
     return "national" if indonesia or national_actor else None
 
 
@@ -724,9 +726,11 @@ GLOBAL_EVENT_RE = re.compile(
     r"\b(federal reserve|the fed|ecb|bank of japan|boj|pboc|opec|minyak dunia|"
     r"tarif dagang|perang dagang|sanksi ekonomi|resesi global|ekonomi global|"
     r"perdagangan global|selat hormuz|hormuz|iran|timur tengah|donald trump|trump|"
-    r"amerika serikat|united states|china|tiongkok|jepang|eropa|wall street|"
+    r"amerika serikat|united states|u\.s\.|us|american|america|global|international|"
+    r"foreign|overseas|china|tiongkok|jepang|eropa|wall street|"
     r"pasar global|global market|investor global|global stocks|us stocks|oil prices|"
-    r"interest rates|trade war)\b", re.I,
+    r"interest rates|trade war|earnings|revenue|profit|acquisition|merger|ipo|"
+    r"investment|investor|holding|stake|stocks|stock market|bond yield)\b", re.I,
 )
 INTERNATIONAL_CHANNELS = {
     "energy": r"bbm|minyak|energi|fuel|oil|harga energi",
@@ -769,7 +773,9 @@ def _international_impact_channel(title, body):
 
 
 def _story_lane(title, body=""):
-    return "international_indonesia" if _international_impact_channel(title, body) else "national"
+    if _international_impact_channel(title, body):
+        return "international_indonesia"
+    return "international" if _is_global_finance_story(title, body) else "national"
 
 
 def _is_administrative_distribution_story(title, body):
@@ -1200,7 +1206,9 @@ ECONOMY_SELECTION_SIGNALS = (
     "federal reserve", "the fed", "opec", "selat hormuz", "hormuz", "global economy", "economic recession",
     "interest rate", "interest rates", "inflation", "gdp", "trade war", "oil price", "oil prices",
     "global market", "stocks", "stock market", "economy", "tarif trump", "kebijakan trump",
-    "donald trump", "trump",
+    "donald trump", "trump", "earnings", "revenue", "profit", "acquisition", "merger",
+    "ipo", "holding", "stake", "stocks", "stock market", "bond yield",
+    "earnings", "revenue", "profit", "acquisition", "merger", "investment", "investor",
     # Tech/digital economy
     "startup", "series a", "series b", "series c", "funding", "pendanaan",
     "fintech", "edutech", "healthtech", "e-commerce", "ai ", "artificial intelligence",
@@ -1228,7 +1236,8 @@ GLOBAL_ECONOMY_TITLE_SIGNALS = (
     "currency", "dollar", "stocks rally", "stocks fall", "stock market", "bond yield",
     "investment", "invests", "investor", "exports", "imports", "global economy",
     "ekonomi global", "perdagangan global", "harga minyak dunia", "selat hormuz", "hormuz",
-    "trump", "donald trump",
+    "trump", "donald trump", "earnings", "revenue", "profit", "acquisition", "merger",
+    "ipo", "holding", "stake", "stocks", "stock market",
 )
 
 
@@ -1245,6 +1254,8 @@ def _has_source_title_signal(title, source):
     if source == "dailysocial":
         return any(signal in title_lower for signal in MATERIAL_DIGITAL_TITLE_SIGNALS)
     if source == "cnbc_global":
+        if "revenue chief" in title_lower:
+            return False
         return any(signal in title_lower for signal in GLOBAL_ECONOMY_TITLE_SIGNALS)
     return True
 
@@ -1253,12 +1264,14 @@ def _is_eligible_candidate(title, body, source):
     """Full economy gate shared by main pick and retry path.
     Returns (eligible: bool, reason: str)."""
     title_lower = title.lower()
-    if any(phrase in title_lower for phrase in (
-        "cara ", "syarat ", "saldo minimal", "daftar harga", "festival",
-        "program sosial", "seremoni", "forum", "konferensi", "webinar", "summit",
-        "menghadirkan", "hadirkan", "acara didukung", "daftar sekarang",
-    )):
-        return False, "utility_or_ceremony"
+    if (re.search(r"\b(?:begini|ini|simak)\s+syarat(?:nya)?\b", title_lower)
+            or re.search(r"^(?:cara|tips|panduan)\b", title_lower)
+            or any(phrase in title_lower for phrase in (
+                "cara ", "syarat ", "saldo minimal", "daftar harga", "festival",
+                "program sosial", "seremoni", "forum", "konferensi", "webinar", "summit",
+                "menghadirkan", "hadirkan", "acara didukung", "daftar sekarang",
+            ))):
+        return False, "utility_or_consumer_advice"
     if not body or len(body) < 1000:
         return False, "body_under_1000_chars"
     if not _has_economy_title_signal(title):
@@ -1369,7 +1382,9 @@ def _is_techbro_relevant(body):
         r"bank indonesia|bi|ojk|bpk|dpr|federal reserve|the fed|ecb|bank sentral eropa|"
         r"bank of japan|boj|bank rakyat china|pboc|opec|harga minyak dunia|selat hormuz|hormuz|"
         r"iran|timur tengah|trump|donald trump|tarif dagang|perang dagang|sanksi ekonomi|"
-        r"resesi global|ekonomi global|perdagangan global|"
+        r"resesi global|ekonomi global|perdagangan global|investasi|investor|"
+        r"saham|pasar saham|obligasi|pendapatan|laba|rugi|akuisisi|merger|ipo|"
+        r"earnings|revenue|profit|acquisition|merger|stocks|investment|trade|"
         r"jakarta|surabaya|bandung|medan|semarang|makassar|palembang|"
         r"kalimantan|sumatera|sulawesi|papua|maluku|bali|nusa tenggara|"
         r"menteri|kementerian|direktur jenderal|gubernur|bupati|walikota|"
@@ -1386,6 +1401,8 @@ def _is_global_finance_story(title, body):
         "resesi", "gdp", "ekonomi", "tarif", "dagang", "opec", "minyak",
         "pasar", "saham", "obligasi", "dolar", "mata uang", "utang", "investasi",
         "stocks", "stock market", "interest rates", "oil prices", "trade", "economy",
+        "earnings", "revenue", "profit", "acquisition", "merger", "ipo", "holding",
+        "pendapatan", "laba", "rugi", "akuisisi", "merger", "ipo", "investasi",
     ))
     trump_policy = bool(re.search(r"\b(trump|donald trump)\b", headline)) and bool(re.search(
         r"\b(tarif|dagang|impor|ekspor|sanksi|minyak|investasi|ekonomi|pajak|dolar|"
@@ -3225,6 +3242,7 @@ def generate_thread(article):
                                 fallback_issues += _validate_s1_hook(fallback_posts, article["body"], article)
                                 fallback_issues += _validate_s6_cta(fallback_posts, article["body"])
                                 fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
+                                fallback_issues += _source_fallback_dangling_refs(fallback_posts)
                                 if not fallback_issues:
                                     posts = fallback_posts
                                     data = {"status": "success", "angle": "source-only fallback"}
@@ -3529,6 +3547,26 @@ def main():
         if recent_openings:
             article["recent_openings"] = recent_openings[:5]
         result, error = generate_thread(article)
+def _source_fallback_dangling_refs(posts):
+    """Editorial gate for source-only fallback.
+
+    Each fallback post is a standalone Threads post, so an opening
+    demonstrative ('ini'/'tersebut'/'demikian'/'begini'/'begitu') with no
+    antecedent is a dangling reference. Reject it so the caller falls back to
+    the next-candidate skip instead of publishing the fragment.
+    """
+    issues = []
+    opener = re.compile(r"^\W*[\w\s'\"“”.()]{1,60}\s+(ini|tersebut|demikian|begini|begitu)\b", re.I)
+    for k in (f"post_{i}" for i in range(1, 7)):
+        text = (posts.get(k) or "").strip()
+        if not text:
+            continue
+        first = text.split(". ")[0].split(".")[0]
+        if opener.match(first):
+            issues.append(f"{k}: dangling demonstrative opener")
+    return issues
+
+
     # Soft writer failure may use source-only fallback; hard gates stay mandatory.
     if error in {"revision_failed", "quality_gate", "revision_json_error", "generation_failed"}:
         fallback_posts = _source_fallback_posts(article)
@@ -3538,6 +3576,7 @@ def main():
             fallback_issues += _validate_s1_hook(fallback_posts, article["body"], article)
             fallback_issues += _validate_s6_cta(fallback_posts, article["body"])
             fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
+            fallback_issues += _source_fallback_dangling_refs(fallback_posts)
             if not fallback_issues:
                 result = {"posts": fallback_posts, "angle": "source-only fallback",
                           "arc": article.get("arc", "")}
