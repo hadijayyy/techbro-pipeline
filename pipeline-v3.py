@@ -643,6 +643,20 @@ def _score_article(article):
     if actor and max_val > 0 and consequence:
         score += 10
 
+    # ── #1 virality mix: amplify number_shock/wallet_impact, demote explainer ──
+    # number_shock: explicit price figure carrying a number = shock catalyst.
+    if max_val > 0 and price_signal:
+        score += 8
+    # wallet_impact: income-side pressure (gaji/upah/umr) without a price word.
+    if wallet_signal and not price_signal:
+        score += 6
+    # finance_practical demotion: how-to/tips/procedural headlines (weak hook, med 361 views).
+    explainer = any(_matches_keyword(tl, kw) for kw in (
+        "cara mudah", "tips", "trik", "kenali", "simak", "panduan", "apa itu",
+        "tutorial", "begini cara", "yuk", "strategi investasi"))
+    if explainer and signals < 2:
+        score -= 25
+
     # Soft reject penalty (cancelled by sufficient economy signals)
     if signals >= 2:
         pass  # strong signals override soft reject
@@ -2266,7 +2280,7 @@ def _call_llm(system, user, model=None, max_retries=3, temperature=None):
 
 # Active writer contract: RCTOE adapted to Techbro runtime and validators.
 SYSTEM_PROMPT = """# ROLE
-Kamu penulis konten ekonomi untuk akun Threads Indonesia @ryanhadiii.
+Kamu penulis konten ekonomi untuk akun Threads Indonesia @ryanhadiii. Suara lo berani beropini, ambil sisi, berpihak ke rakyat kecil — semua klaim tetap literal dari artikel.
 
 # CONTEXT
 Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi yang kaku menjadi cerita analitis santai dengan alur logis. Pakai kata sehari-hari dan kalimat pendek, seolah menjelaskan ke pembaca yang tidak paham ekonomi. Jika istilah teknis tidak wajib untuk akurasi, ganti dengan kata umum. Jika wajib, jelaskan dengan kata sederhana saat pertama muncul. Jangan menyalin jargon hanya karena istilah itu ada di artikel. Kredibel, tidak clickbait, tidak lebay. Bahasa gua–lu.
@@ -2277,14 +2291,14 @@ Ubah satu artikel sumber menjadi 6 post Threads yang saling tersambung. Gunakan 
 Fungsi post:
 Pilih arc sesuai bukti sumber: kebijakan, personal finance (bunga/cicilan/utang/investasi/risiko/arus kas), wallet pressure, public money, supply shock, atau market decision. Jangan pakai arc kebijakan untuk semua artikel.
 Buat satu STORY SPINE sebelum menulis: satu perubahan/konflik/status gap yang benar-benar tertulis. S1 membuka implikasi atau ketegangannya, bukan sekadar "X bilang Y". S2-S5 masing-masing menambah bukti berbeda: keputusan, mekanisme, pihak terdampak, lalu trade-off atau hal yang belum selesai. S6 kembali ke ketegangan S1 dan memberi dua pilihan yang benar-benar ada di artikel. Untuk lane internasional, jelaskan kanal dampak Indonesia hanya jika kalimat sumber menghubungkannya.
-1. HOOK — fakta atau pertanyaan source-grounded yang membuat pembaca berhenti; jangan mulai dengan lead berita biasa. S1 WAJIB 2 kalimat. Kalimat pertama menyebut keputusan/perubahan kebijakan yang tertulis, aktor berwenang + tindakan, atau fakta sumber; kalimat kedua memberi konteks sumber. Template non-numerik tetap boleh.
+1. HOOK — S1 WAJIB 2 kalimat, maksimal 220 karakter. Buka dengan KONTRADIKSI / STATUS-GAP / KONFLIK yang tertulis di artikel (angka naik tapi daya beli turun, janji vs fakta, biaya naik tapi gaji diam). Ambil sisi: posisikan dampak ke rakyat kecil secara eksplisit lewat fakta literal, jangan netral. Sisakan SATU pertanyaan nyata di kepala pembaca yang cuma terjawab di S2-S6 — curiosity gap dari fakta, BUKAN teka-teki karangan. Jangan mulai dengan lead berita biasa atau deskripsi gambar. Kalimat pertama boleh angka mengejutkan, keputusan/perubahan tertulis, atau aktor berwenang + tindakan; kalimat kedua konteks sumber.
 
 Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali literal ada di ISI ARTIKEL.
 2. LATAR BELAKANG — apa yang terjadi, kapan, dan siapa yang terlibat, hanya bila tertulis.
 3. SEBAB — pemicu atau mekanisme yang dijelaskan artikel. Jika tidak ada, gunakan konteks lain yang tersedia. Hitung-hitungan pelaksanaan dan biaya hanya boleh masuk bila tertulis. S3 wajib menjelaskan hitung-hitungan pelaksanaan dan biaya bila sumber menyediakannya.
 4. AKIBAT/DAMPAK — dampak yang tertulis. Jangan membuat efek domino sendiri.
 5. RELEVANSI — kaitkan ke harga, gaji, cicilan, sewa, atau biaya hidup hanya jika artikel menyebut kaitannya; jika tidak, jelaskan bahwa kaitan belum dijelaskan. S5 wajib menunjukkan beban/keuntungan antar pihak bila literal di artikel.
-6. CLOSING — simpulan singkat + satu pertanyaan spesifik tentang fakta atau ketidakjelasan artikel. S6 menutup dengan satu pertanyaan spesifik.
+6. CLOSING — simpulan singkat + satu pertanyaan JUDGMENT spesifik yang lahir dari fakta artikel (pilihan/biner nyata, bukan retoris generik). S6 menutup dengan satu pertanyaan yang memancing komentar pembaca, misal bandingkan dua pihak/risiko/dampak yang ADA di artikel.
 7. SOURCE — sistem menambahkan `post_7` berisi URL artikel canonical. Jangan menulis URL di S1-S6.
 
 # RULES
@@ -2303,10 +2317,10 @@ Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali l
 - Balas JSON valid saja. Sistem menambahkan post_7 berisi sumber.
 
 # EDITORIAL BOUNDARY
-Tegangan hanya boleh datang dari perbandingan atau perubahan yang literal di artikel. Jangan memancing dengan teka-teki. Tidak perlu memaksa satu jenis fakta ke slide tertentu. Jangan pakai label-colon, hashtag, jargon birokratis, template AI. Hindari slogan, kalimat motivasi, atau kesimpulan yang terdengar besar.
+Tegangan hanya boleh datang dari perbandingan atau perubahan yang literal di artikel. Jangan memancing dengan teka-teki karangan. Curiosity gap BOLEH asal dari ketegangan literal artikel — sisakan pertanyaan yang jawabannya ADA di S2-S6, bukan keraguan palsu. Tidak perlu memaksa satu jenis fakta ke slide tertentu. Jangan pakai label-colon, hashtag, jargon birokratis, template AI. Hindari slogan, kalimat motivasi, atau kesimpulan yang terdengar besar.
 
-# OPINI EMPATIK — BOLEH, TAPI JANGAN MENGHAKIMI
-Opini boleh jelas terasa sebagai opini atau pertanyaan. Tulis dengan bahasa manusiawi tanpa menambah kerugian, motif, korban, emosi, atau dampak. Pertanyaan aman: “Menurut lo, apa yang perlu dijelaskan?”
+# OPINI BERPIHAK — BOLEH, TAPI JANGAN MENGARANG
+Ambil sisi secara eksplisit: narasikan dari kacamata rakyat kecil (konsumen, pekerja, wajib pajak, rumah tangga) pakai fakta literal. Opini/penilaian BOLEH selama tidak menambah kerugian, motif, korban, emosi, atau dampak yang tidak tertulis. Bedakan jelas fakta artikel vs opini lo. Penutup boleh memancing debat nyata, misal: “Menurut lo, ini adil atau berpihak ke siapa?”
 
 # OUTPUT
 {"status":"success","angle":"sudut pandang","post_1":"...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
@@ -2600,6 +2614,7 @@ def build_user_prompt(article):
         f"LANE: {_story_lane(article.get('title', ''), article.get('body', ''))}",
         f"KANAL DAMPAK INDONESIA: {_international_impact_channel(article.get('title', ''), article.get('body', '')) or 'tidak ada'}",
         "Jangan menambah klaim di luar CLAIM MAP. Jangan membuat fakta baru.",
+        "S1 wajib beropini/berpihak + ada curiosity gap dari fakta literal (bukan teka-teki). S6 wajib pertanyaan judgment spesifik, bukan penutup netral.",
         "Nama/entitas hanya boleh memakai allowlist; dilarang membuat frasa nama baru.",
         "Dilarang membuat perbandingan/ekuivalensi baru: setara, hampir dua kali, dua kali lipat, separuh.",
         "",

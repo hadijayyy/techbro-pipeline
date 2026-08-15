@@ -812,9 +812,9 @@ def test_claim_level_gate_blocks_live_airlangga_overclaims():
 
 def test_writer_prompt_requires_two_sentence_s1_and_allows_non_numeric_policy_hook():
     assert "WAJIB 2 kalimat" in pipeline.SYSTEM_PROMPT
-    assert "keputusan/perubahan kebijakan yang tertulis" in pipeline.SYSTEM_PROMPT
+    assert "keputusan/perubahan tertulis" in pipeline.SYSTEM_PROMPT
     assert "aktor berwenang + tindakan" in pipeline.SYSTEM_PROMPT
-    assert "Template non-numerik" in pipeline.SYSTEM_PROMPT
+    assert "Jangan mulai dengan lead berita biasa" in pipeline.SYSTEM_PROMPT
 
 
 
@@ -958,9 +958,9 @@ def test_unsupported_inference_is_a_hard_grounding_failure():
 
 
 def test_prompt_guides_empathetic_opinion_without_tightening_filter():
-    assert "OPINI EMPATIK — BOLEH, TAPI JANGAN MENGHAKIMI" in pipeline.SYSTEM_PROMPT
-    assert "bahasa manusiawi" in pipeline.SYSTEM_PROMPT
-    assert "Menurut lo, apa yang perlu dijelaskan?" in pipeline.SYSTEM_PROMPT
+    assert "OPINI BERPIHAK — BOLEH, TAPI JANGAN MENGARANG" in pipeline.SYSTEM_PROMPT
+    assert "berpihak ke rakyat kecil" in pipeline.SYSTEM_PROMPT
+    assert "Menurut lo, ini adil atau berpihak ke siapa?" in pipeline.SYSTEM_PROMPT
 
 
 def test_conversational_future_and_causal_words_do_not_trigger_retry_alone():
@@ -1048,7 +1048,7 @@ def test_story_prompt_requires_body_only_story_arc():
     assert "Buka dengan fakta paling mahal dan fakta paling kuat" in pipeline.SYSTEM_PROMPT
     assert "buat kalimat pertama menyampaikan fakta" in pipeline.SYSTEM_PROMPT.lower()
     assert "jangan ulang angka, fakta, atau contoh" in pipeline.SYSTEM_PROMPT
-    assert "S6 menutup dengan satu pertanyaan spesifik" in pipeline.SYSTEM_PROMPT
+    assert "S6 menutup dengan satu pertanyaan yang memancing" in pipeline.SYSTEM_PROMPT
     assert "## DAMPAK" not in pipeline.SYSTEM_PROMPT
 
 
@@ -1504,6 +1504,19 @@ def test_score_rewards_concrete_public_impact():
     routine = {"title": "Rupiah Menguat Tajam Hari Ini", "url": "https://x.test/a"}
     concrete = {"title": "Prabowo Tetapkan Subsidi Rp80 Triliun, Beban APBN Berubah", "url": "https://x.test/b"}
     assert pipeline._score_article(concrete)[0] > pipeline._score_article(routine)[0]
+
+
+def test_score_demotes_explainer_headlines():
+    real_news = {"title": "Prabowo Naikkan Tunjangan Guru Rp50 Triliun", "url": "https://x.test/a"}
+    explainer = {"title": "Kenali Tips Investasi Emas yang Aman", "url": "https://x.test/b"}
+    # explainer has weak economy signal (signals < 2) -> demoted below real policy news
+    assert pipeline._score_article(real_news)[0] > pipeline._score_article(explainer)[0]
+
+
+def test_score_boosts_number_shock_and_wallet_impact():
+    shock = {"title": "Harga Beras Tembus Rp18.000 per Kg, Daya Beli Tertekan", "url": "https://x.test/a"}
+    plain = {"title": "Rupiah Bergerak Hari Ini", "url": "https://x.test/b"}
+    assert pipeline._score_article(shock)[0] > pipeline._score_article(plain)[0]
 
 
 def test_number_grounding_allows_source_decimal_rounding():
