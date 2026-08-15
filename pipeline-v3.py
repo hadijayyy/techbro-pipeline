@@ -3393,6 +3393,26 @@ def post_to_threads(article_title, posts, image_url=None, inflight=None):
 #   MAIN
 # ══════════════════════════════════════════════
 
+
+def _source_fallback_dangling_refs(posts):
+    """Editorial gate for source-only fallback.
+
+    Each fallback post is a standalone Threads post, so an opening
+    demonstrative ('ini'/'tersebut'/'demikian'/'begini'/'begitu') with no
+    antecedent is a dangling reference. Reject it so the caller falls back to
+    the next-candidate skip instead of publishing the fragment.
+    """
+    issues = []
+    opener = re.compile(r"^\W*[\w\s'\"“”.()]{1,60}\s+(ini|tersebut|demikian|begini|begitu)\b", re.I)
+    for k in (f"post_{i}" for i in range(1, 7)):
+        text = (posts.get(k) or "").strip()
+        if not text:
+            continue
+        first = text.split(". ")[0].split(".")[0]
+        if opener.match(first):
+            issues.append(f"{k}: dangling demonstrative opener")
+    return issues
+
 def main():
     started_at = time.monotonic()
     data = load_data()
@@ -3547,26 +3567,6 @@ def main():
         if recent_openings:
             article["recent_openings"] = recent_openings[:5]
         result, error = generate_thread(article)
-def _source_fallback_dangling_refs(posts):
-    """Editorial gate for source-only fallback.
-
-    Each fallback post is a standalone Threads post, so an opening
-    demonstrative ('ini'/'tersebut'/'demikian'/'begini'/'begitu') with no
-    antecedent is a dangling reference. Reject it so the caller falls back to
-    the next-candidate skip instead of publishing the fragment.
-    """
-    issues = []
-    opener = re.compile(r"^\W*[\w\s'\"“”.()]{1,60}\s+(ini|tersebut|demikian|begini|begitu)\b", re.I)
-    for k in (f"post_{i}" for i in range(1, 7)):
-        text = (posts.get(k) or "").strip()
-        if not text:
-            continue
-        first = text.split(". ")[0].split(".")[0]
-        if opener.match(first):
-            issues.append(f"{k}: dangling demonstrative opener")
-    return issues
-
-
     # Soft writer failure may use source-only fallback; hard gates stay mandatory.
     if error in {"revision_failed", "quality_gate", "revision_json_error", "generation_failed"}:
         fallback_posts = _source_fallback_posts(article)
