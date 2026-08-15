@@ -1972,6 +1972,7 @@ def _validate_unsupported_inferences(posts, body):
     source = _normalize_grounding_text(body)
     patterns = (
         (r"\bfakta ini perlu dipantau\b", "generic CTA"),
+        (r"\b(?:pertumbuhan|ekonomi|pasar|kondisi|situasi)\s+atau\s+(?:pertumbuhan|ekonomi|pasar|kondisi|situasi)\b", "generic CTA"),
         (r"\bpertama kalinya?\b", "novelty claim"),
         (r"\bhampir dua kali lipat\b", "derived ratio"),
         (r"\bdalam dua tahun\b", "unsupported timeline"),
@@ -2298,7 +2299,7 @@ Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali l
 3. SEBAB — pemicu atau mekanisme yang dijelaskan artikel. Jika tidak ada, gunakan konteks lain yang tersedia. Hitung-hitungan pelaksanaan dan biaya hanya boleh masuk bila tertulis. S3 wajib menjelaskan hitung-hitungan pelaksanaan dan biaya bila sumber menyediakannya.
 4. AKIBAT/DAMPAK — dampak yang tertulis. Jangan membuat efek domino sendiri.
 5. RELEVANSI — kaitkan ke harga, gaji, cicilan, sewa, atau biaya hidup hanya jika artikel menyebut kaitannya; jika tidak, jelaskan bahwa kaitan belum dijelaskan. S5 wajib menunjukkan beban/keuntungan antar pihak bila literal di artikel.
-6. CLOSING — simpulan singkat + satu pertanyaan JUDGMENT spesifik yang lahir dari fakta artikel (pilihan/biner nyata, bukan retoris generik). S6 menutup dengan satu pertanyaan yang memancing komentar pembaca, misal bandingkan dua pihak/risiko/dampak yang ADA di artikel.
+6. CLOSING — simpulan singkat + satu pertanyaan JUDGMENT spesifik yang lahir dari fakta artikel (pilihan/biner nyata, bukan retoris generik). S6 menutup dengan satu pertanyaan yang memancing komentar pembaca, misal bandingkan dua pihak/risiko/dampak yang ADA di artikel. Jangan membandingkan dua istilah abstrak yang tidak punya taruhan nyata di artikel.
 7. SOURCE — sistem menambahkan `post_7` berisi URL artikel canonical. Jangan menulis URL di S1-S6.
 
 # RULES
@@ -2451,10 +2452,13 @@ def _source_fallback_posts(article):
             remaining = [s for n, s in enumerate(remaining) if n not in (i, j)]
         pairs.append(s6_text)
         body_lower = article.get("body", "").lower()
+        # Generic terms ("ekonomi", "pembahasan", "pertumbuhan") create empty CTAs.
+        # Require two concrete source-backed stakes instead.
         cta_terms = ("konsumsi", "investasi", "belanja pemerintah", "rumah tangga",
-                     "industri", "pertumbuhan", "ekonomi", "pasar", "biaya", "risiko",
-                     "anggaran", "aturan", "bantuan", "pembahasan", "penerima", "kredit",
-                     "laba", "kerja", "pajak", "subsidi")
+                     "industri", "pasar", "biaya", "risiko", "anggaran", "aturan",
+                     "bantuan", "penerima", "kredit", "laba", "pajak", "subsidi",
+                     "harga", "gaji", "upah", "daya beli", "konsumen", "peternak",
+                     "pedagang", "daerah", "pusat", "keuntungan", "kerugian")
         options = [term for term in cta_terms
                    if re.search(r"\b" + re.escape(term) + r"\b", body_lower)]
         if len(options) < 2:
@@ -2534,7 +2538,7 @@ def _source_fallback_posts(article):
     elif len(options) >= 2:
         cta = f"Menurut lo, yang harus diprioritaskan: {options[0]} atau {options[1]}?"
     else:
-        cta = "Menurut lo, bagian mana yang paling perlu dijelaskan dari fakta ini?"
+        return None
     posts = {f"post_{i}": pairs[i - 1] for i in range(1, 6)}
     posts["post_6"] = f"{pairs[5]} {cta}"
     if any(len(text) > SLIDE_CHAR_LIMIT for text in posts.values()):
@@ -2747,6 +2751,14 @@ def _validate_s6_cta(posts, body):
     if "?" not in text:
         return ["post_6: CTA not found"]
     question = text.rsplit("?", 1)[0].rsplit(".", 1)[-1]
+    generic_pair = re.search(
+        r"\b(?:pertumbuhan|ekonomi|pasar|kondisi|situasi)\s+"
+        r"(?:atau|vs|dibanding(?:kan)?)\s+"
+        r"(?:pertumbuhan|ekonomi|pasar|kondisi|situasi)\b",
+        question,
+    )
+    if generic_pair and generic_pair.group(0) not in (body or "").lower():
+        return ["post_6: generic CTA compares abstract topics"]
     source_terms = _content_terms(body)
     if len(source_terms & _content_terms(question)) < 2:
         return ["post_6: missing specific CTA source anchor"]

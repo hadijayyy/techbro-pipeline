@@ -409,6 +409,24 @@ def test_source_fallback_uses_winning_story_arc_not_generic_cta():
     assert not pipeline.deterministic_grounding_validate({"body": body}, posts)
 
 
+def test_source_fallback_rejects_ungrounded_generic_cta():
+    body = " ".join([
+        "Pemerintah menyampaikan perkembangan ekonomi terbaru kepada masyarakat.",
+        "Kementerian menjelaskan proses pemantauan yang dilakukan setiap bulan.",
+        "Data tersebut menjadi bahan evaluasi bagi pemerintah.",
+        "Pembahasan lanjutan dilakukan bersama kementerian terkait.",
+        "Pemerintah menyusun laporan berdasarkan informasi yang tersedia.",
+        "Laporan itu akan dibahas dalam rapat berikutnya.",
+        "Masyarakat diminta mengikuti perkembangan informasi resmi.",
+        "Pemerintah memastikan proses berjalan sesuai ketentuan.",
+        "Evaluasi dilakukan untuk memperbarui laporan berkala.",
+        "Kementerian menyampaikan hasil pemantauan kepada pemerintah.",
+        "Pembahasan masih berlangsung sesuai agenda yang telah disusun.",
+        "Informasi baru akan disampaikan setelah rapat selesai.",
+    ])
+    assert pipeline._source_fallback_posts({"body": body, "pattern": "PROYEK"}) is None
+
+
 def test_winning_gate_blocks_weak_hook_and_generic_cta():
     posts = {f"post_{i}": "Fakta sumber yang cukup panjang untuk validasi. Fakta kedua juga ada." for i in range(1, 7)}
     posts["post_1"] = "Hal ini tercermin dari perubahan kebijakan. Statusnya masih dibahas."
@@ -1137,6 +1155,14 @@ def test_s6_requires_specific_source_anchored_cta():
     posts["post_6"] = "Pembahasan masih menunggu persetujuan DPR. Menurut lo, bagian mana yang perlu dijelaskan?"
     issues = pipeline._validate_s6_cta(posts, body)
     assert any("specific CTA" in issue for issue in issues)
+
+
+def test_s6_rejects_generic_growth_monitoring_cta():
+    body = "Penerimaan pajak tumbuh 2,4 persen. Pemerintah memantau APBN setiap bulan. " * 12
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
+    posts["post_6"] = "Penerimaan pajak tumbuh 2,4 persen. Menurut lo, pertumbuhan atau ekonomi?"
+    issues = pipeline._validate_s6_cta(posts, body)
+    assert any("generic CTA" in issue for issue in issues)
 
 
 def test_source_diversity_penalizes_recently_overused_source():
