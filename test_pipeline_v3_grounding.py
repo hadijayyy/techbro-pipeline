@@ -1394,6 +1394,14 @@ def test_writer_prompt_contains_claim_map_and_grounding_contract():
     assert "Jangan membuat fakta baru" in prompt
 
 
+def test_writer_prompt_encodes_high_signal_creator_voice_without_weakening_grounding():
+    assert "kreator ekonomi papan atas" in pipeline.SYSTEM_PROMPT
+    assert "Satu post satu pukulan" in pipeline.SYSTEM_PROMPT
+    assert "status gap" in pipeline.SYSTEM_PROMPT
+    assert "Gaya tajam bukan izin untuk mengarang dampak" in pipeline.SYSTEM_PROMPT
+    assert "semua klaim tetap literal dari artikel" in pipeline.SYSTEM_PROMPT
+
+
 def test_literal_entity_prompt_forbids_new_name_phrases():
     prompt = pipeline.build_user_prompt({"body": "The Fed menahan suku bunga."})
     assert "dilarang membuat frasa nama baru" in prompt
