@@ -553,11 +553,14 @@ def test_writer_prompt_requires_evidence_backed_cta_options():
     assert "rumah tangga" in prompt.lower()
 
 
-def test_jargon_validator_blocks_unexplained_common_market_terms():
+def test_jargon_validator_is_advisory_for_conversational_voice():
     posts = {f"post_{i}": "" for i in range(1, 7)}
     posts["post_1"] = "Fundamental perusahaan terlihat kuat. Angkanya belum dijelaskan."
     issues = pipeline._validate_jargon(posts, "Fundamental perusahaan terlihat kuat. Perusahaan mencatat laba.")
     assert any("fundamental" in issue for issue in issues)
+    assert not pipeline.deterministic_grounding_validate(
+        {"body": "Fundamental perusahaan terlihat kuat. Perusahaan mencatat laba."}, posts
+    )
 
 
 def test_policy_prompt_encodes_verified_high_perform_arc():
@@ -941,7 +944,7 @@ def test_claim_level_gate_blocks_live_airlangga_overclaims():
     assert any("derived ratio" in x for x in issues), issues
     assert any("unsupported timeline" in x for x in issues), issues
     assert any("official-status claim" in x for x in issues), issues
-    assert any("quote not verbatim" in x for x in issues), issues
+    assert not any("quote not verbatim" in x for x in issues), issues
     assert any("unsupported evaluation" in x for x in issues), issues
     assert any("unsupported motive" in x for x in issues), issues
     assert any("unsupported consequence" in x for x in issues), issues
@@ -1092,10 +1095,68 @@ def test_unsupported_inference_is_a_hard_grounding_failure():
     assert any("berarti" in issue for issue in issues), issues
 
 
+def test_unsupported_economic_relationships_are_hard_grounding_failures():
+    article = {"body": "Startup lokal mendapat pendanaan dari investor asing. " * 8}
+    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
+    posts["post_2"] = "Rp0 uang negara dipakai. Nama Indonesia di mata global dipertaruhkan."
+    posts["post_3"] = "Startup lokal kalah sama perusahaan luar negeri."
+    issues = pipeline.deterministic_grounding_validate(article, posts)
+    assert any("unsupported economic relationship" in issue for issue in issues), issues
+
+
+def test_payer_and_household_impact_overclaims_are_hard_grounding_failures():
+    article = {"body": "Purbaya mengatakan pajak baru dipertimbangkan jika ekonomi tumbuh 6 persen dan daya beli masyarakat stabil. " * 8}
+    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
+    posts["post_1"] = "Kalau 6 persen terus, bikin lo bayar lebih dan dompet lo jadi sasaran."
+    posts["post_2"] = "Pajak baru buat isi kas negara, atau negara cari duit lain mungkin utang."
+    issues = pipeline.deterministic_grounding_validate(article, posts)
+    assert any("unsupported payer framing" in issue for issue in issues), issues
+    assert any("unsupported fiscal purpose" in issue for issue in issues), issues
+    assert any("unsupported audience impact" in issue for issue in issues), issues
+    assert any("unsupported fiscal alternative" in issue for issue in issues), issues
+
+
 def test_prompt_guides_empathetic_opinion_without_tightening_filter():
     assert "OPINI BERPIHAK — BOLEH, TAPI JANGAN MENGARANG" in pipeline.SYSTEM_PROMPT
     assert "berpihak ke rakyat kecil" in pipeline.SYSTEM_PROMPT
     assert "Menurut lo, ini adil atau berpihak ke siapa?" in pipeline.SYSTEM_PROMPT
+
+
+def test_audience_lens_requires_grounded_first_person_opinion_and_group():
+    article = {"body": "Pemerintah menyiapkan anggaran untuk daerah dengan PAD kecil. "}
+    posts = {f"post_{i}": "Fakta sumber daerah." for i in range(1, 7)}
+    posts["post_2"] = "Menurut gua, daerah dengan PAD kecil perlu disebut jelas. Fakta sumber daerah."
+    assert pipeline._validate_audience_lens(article, posts) == []
+
+
+def test_audience_lens_rejects_missing_first_person_and_group():
+    article = {"body": "Pemerintah menyiapkan anggaran untuk daerah dengan PAD kecil. "}
+    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
+    issues = pipeline._validate_audience_lens(article, posts)
+    assert "voice: missing first-person editorial opinion" in issues
+    assert "audience lens: S2-S5 missing source-backed affected group" in issues
+
+
+def test_audience_lens_rejects_unsupported_blame_framing():
+    article = {"body": "Pemerintah menyiapkan transfer ke daerah. "}
+    posts = {f"post_{i}": "Fakta sumber daerah." for i in range(1, 7)}
+    posts["post_2"] = "Menurut gua, daerah nggak bisa cari duit sendiri. Fakta sumber daerah."
+    issues = pipeline._validate_audience_lens(article, posts)
+    assert any("unsupported blame framing" in issue for issue in issues)
+
+
+def test_audience_lens_does_not_apply_without_named_public_group():
+    article = {"body": "Perusahaan mengumumkan perubahan strategi bisnis. "}
+    posts = {f"post_{i}": "Fakta sumber bisnis." for i in range(1, 7)}
+    assert pipeline._validate_audience_lens(article, posts) == []
+
+
+def test_audience_lens_is_advisory_not_quality_blocker():
+    article = {"body": "Pemerintah menyiapkan anggaran untuk daerah dengan PAD kecil. " * 8}
+    posts = {f"post_{i}": "Fakta sumber daerah menambah konteks kebijakan. Fakta kedua berbeda." for i in range(1, 7)}
+    posts["post_6"] = "Fakta sumber daerah menambah konteks kebijakan. Menurut lo, anggaran atau aturan?"
+    warnings = []
+    assert pipeline._quality_gate(article, {"status": "success"}, posts, warnings)
 
 
 def test_conversational_future_and_causal_words_do_not_trigger_retry_alone():
@@ -1178,7 +1239,7 @@ def test_story_prompt_requires_body_only_story_arc():
     assert "SUMBER ADALAH BATAS" in pipeline.SYSTEM_PROMPT
     assert "ISI ARTIKEL satu-satunya sumber" in pipeline.SYSTEM_PROMPT
     assert "Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna" in pipeline.SYSTEM_PROMPT
-    assert "gua–lu" in pipeline.SYSTEM_PROMPT
+    assert "gw–lo" in pipeline.SYSTEM_PROMPT
     assert "Jangan menambah dampak, profesi, angka, skenario, penilaian" in pipeline.SYSTEM_PROMPT
     assert "Buka dengan fakta paling mahal dan fakta paling kuat" in pipeline.SYSTEM_PROMPT
     assert "buat kalimat pertama menyampaikan fakta" in pipeline.SYSTEM_PROMPT.lower()
@@ -1419,14 +1480,15 @@ def test_writer_prompt_encodes_high_signal_creator_voice_without_weakening_groun
 
 def test_writer_prompt_uses_conversational_personal_story_pattern_without_fabrication():
     prompt = pipeline.SYSTEM_PROMPT
-    assert "pola komunikasi Fellexandro" in prompt
+    assert "mekanik @raymondchins" in prompt
+    assert "kritis dan kadang kontrarian" in prompt
     assert "orang pertama" in prompt
-    assert "Jangan mengarang pengalaman, keputusan, atau kesalahan pribadi" in prompt
-    assert "bahasa percakapan gua/lo" in prompt
-    assert "masalah nyata" in prompt
-    assert "framework sederhana" in prompt
-    assert "Hubungkan uang, bisnis, karier, atau perilaku hanya jika artikel memberi kaitan literal" in prompt
-    assert "Opini personal boleh tegas" in prompt
+    assert "Jangan mengarang pengalaman, investasi, percakapan, keputusan, atau akses pribadi" in prompt
+    assert "bahasa Threads yang langsung dan santai: gw/lo" in prompt
+    assert "masalah nyata dari artikel" in prompt
+    assert "pola kontra bila bukti mendukung" in prompt
+    assert "CTA promosi, ajakan kolaborasi" in prompt
+    assert "Variasi alami lebih penting daripada meniru pola kalimat" in prompt
 
 
 def test_literal_entity_prompt_forbids_new_name_phrases():

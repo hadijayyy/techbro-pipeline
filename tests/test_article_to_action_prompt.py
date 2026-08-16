@@ -25,7 +25,7 @@ def test_system_prompt_is_source_only_article_to_action_contract():
     assert '"post_1"' in prompt
     assert '"post_6"' in prompt
     assert '"error"' in prompt
-    assert "gua–lu" in prompt
+    assert "gw–lo" in prompt
     assert "Buka dengan fakta paling mahal dan fakta paling kuat" in prompt
     assert "Tegangan hanya boleh datang dari perbandingan atau perubahan yang literal di artikel" in prompt
     assert "Jangan memancing dengan teka-teki" in prompt

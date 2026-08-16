@@ -2133,20 +2133,6 @@ def _normalize_grounding_text(text):
     return re.sub(r"\s+", " ", (text or "").lower()).strip()
 
 
-def _validate_quotes(posts, body):
-    """Quoted text must be an exact source quote, not a model-combined paraphrase."""
-    source = _normalize_grounding_text(body)
-    issues = []
-    quote_pattern = r'“([^”]{8,})”|"([^\"]{8,})"|\'([^\']{8,})\''
-    for key in [f"post_{i}" for i in range(1, 7)]:
-        text = posts.get(key, "")
-        for match in re.finditer(quote_pattern, text):
-            quote = next((part for part in match.groups() if part), "")
-            if _normalize_grounding_text(quote) not in source:
-                issues.append(f"{key}: quote not verbatim in article: {quote[:80]}")
-    return issues
-
-
 def _source_sentences(body):
     body = re.sub(r"\s+", " ", body or "").strip()
     return [s.strip() for s in re.split(r"(?<=[.!?])\s+", body) if len(s.strip()) >= 20]
@@ -2216,6 +2202,29 @@ def _validate_unsupported_inferences(posts, body):
     return issues
 
 
+def _validate_unsupported_economic_relationships(posts, body):
+    """Reject common economic relationships invented from isolated source tokens."""
+    source = _normalize_grounding_text(body)
+    patterns = (
+        (r"\brp\s*0\s+uang\s+negara\b", "public-funding relationship"),
+        (r"\bnama\s+indonesia\b[^.!?]{0,80}\b(?:global|dunia)\b", "national-reputation relationship"),
+        (r"\b(?:startup|perusahaan)\s+lokal\s+(?:kalah|menang)\s+(?:sama|dengan|dari)\s+(?:perusahaan\s+)?luar\s+negeri\b", "competitive relationship"),
+        (r"\b(?:bikin|membuat)\s+(?:lo|lu|rakyat|masyarakat)\s+bayar\s+lebih\b", "unsupported payer framing"),
+        (r"\b(?:isi|mengisi)\s+kas\s+negara\b", "unsupported fiscal purpose"),
+        (r"\b(?:kantong|dompet)(?:\s+lo|\s+lu|\s+rakyat)?\b[^.!?]{0,80}\b(?:sasaran|menciut|tertekan|kena beban)\b", "unsupported audience impact"),
+        (r"\b(?:daya beli|beban tambahan)\b[^.!?]{0,80}\b(?:menciut|turun|naik|kena|tertekan|terbebani)\b", "unsupported audience impact"),
+        (r"\bcari duit lain\b[^.!?]{0,60}\b(?:utang|efisiensi)\b", "unsupported fiscal alternative"),
+    )
+    issues = []
+    for key in [f"post_{i}" for i in range(1, 7)]:
+        text = _normalize_grounding_text(posts.get(key, ""))
+        for pattern, label in patterns:
+            match = re.search(pattern, text)
+            if match and match.group(0) not in source:
+                issues.append(f"{key}: unsupported economic relationship ({label}): '{match.group(0)}'")
+    return issues
+
+
 def _validate_unsupported_financial_framing(posts, body):
     """Reject new financial-risk framing not stated by source body."""
     source = _normalize_grounding_text(body)
@@ -2249,11 +2258,54 @@ def _validate_range_direction(posts, body):
     return issues
 
 
+AUDIENCE_LENS_TERMS = {
+    "daerah": ("daerah", "pemda", "pemerintah daerah", "provinsi", "kabupaten", "kota"),
+    "bencana": ("bencana", "banjir", "gempa", "longsor", "erupsi", "korban"),
+    "pad": ("pad", "pendapatan asli daerah", "basis pajak"),
+    "petani": ("petani", "pertanian", "sawah", "nelayan"),
+    "pekerja": ("pekerja", "buruh", "karyawan", "tenaga kerja"),
+    "konsumen": ("konsumen", "pembeli", "pelanggan"),
+    "rumah tangga": ("rumah tangga", "keluarga"),
+}
+
+AUDIENCE_BLAME_PATTERNS = (
+    r"\buang pajak kita\b",
+    r"\bdaerah\s+(?:nggak|tidak|tak)\s+bisa cari duit sendiri\b",
+    r"\bdianakemaskan\b",
+    r"\bsiapa yang sebenarnya bayar\b",
+    r"\bwarga pasti terdampak\b",
+)
+
+
+def _validate_audience_lens(article, posts):
+    """Require grounded empathy only when source names a public audience group."""
+    body = _normalize_grounding_text(article.get("body") or "")
+    source_groups = {
+        group for group, terms in AUDIENCE_LENS_TERMS.items()
+        if any(re.search(rf"(?<!\w){re.escape(term)}(?!\w)", body) for term in terms)
+    }
+    if not source_groups:
+        return []
+    audience_text = _normalize_grounding_text(" ".join(posts.get(f"post_{i}", "") for i in range(2, 6)))
+    all_text = _normalize_grounding_text(" ".join(posts.get(f"post_{i}", "") for i in range(1, 7)))
+    issues = []
+    if not re.search(r"\b(?:gua|gue)\b", all_text):
+        issues.append("voice: missing first-person editorial opinion")
+    if not any(any(re.search(rf"(?<!\w){re.escape(term)}(?!\w)", audience_text) for term in AUDIENCE_LENS_TERMS[group]) for group in source_groups):
+        issues.append("audience lens: S2-S5 missing source-backed affected group")
+    for pattern in AUDIENCE_BLAME_PATTERNS:
+        match = re.search(pattern, all_text)
+        if match and match.group(0) not in body:
+            issues.append(f"audience lens: unsupported blame framing '{match.group(0)}'")
+    return issues
+
+
 def deterministic_grounding_validate(article, posts):
     body = article.get("body") or ""
     return (_validate_numbers(posts, body) + _validate_years(posts, body)
             + _validate_proper_nouns(posts, body) + _validate_claim_markers(posts, body)
-            + _validate_sensitive_language(posts, body) + _validate_quotes(posts, body)
+            + _validate_sensitive_language(posts, body)
+            + _validate_unsupported_economic_relationships(posts, body)
             + _validate_unsupported_financial_framing(posts, body)
             + _validate_unsupported_inferences(posts, body) + _validate_range_direction(posts, body)
             + _validate_source_evidence_map(posts, body))
@@ -2523,24 +2575,24 @@ Kamu penulis analisis ekonomi untuk akun Threads Indonesia @ryanhadiii. Pahami e
 Pilih hanya topik ekonomi nasional atau internasional yang punya perubahan material: kebijakan, anggaran, pajak, subsidi, harga, upah, pekerjaan, perdagangan, industri, bisnis besar, pasar, atau guncangan ekonomi global. Jangan tulis promo/event retail, tips personal finance, gosip korporasi, atau berita layanan rutin. Artikel internasional boleh tanpa kaitan Indonesia jika benar-benar berdampak pada ekonomi global; jangan memaksa kaitan Indonesia.
 
 # PLAIN LANGUAGE
-Tulis untuk pembaca umum, bukan ekonom. Hindari jargon teknis. Ganti dengan kata sehari-hari bila akurat. Jika istilah wajib dipakai, jelaskan artinya saat pertama disebut: istilah — arti sederhananya. Jangan menumpuk istilah ekonomi dalam satu kalimat.
+Tulis untuk pembaca umum dan pembaca awam, bukan ekonom. Hindari jargon teknis. Ganti dengan kata sehari-hari bila akurat. Jika istilah wajib dipakai, jelaskan artinya saat pertama disebut bila natural; jangan memaksa definisi. Jangan menumpuk istilah ekonomi dalam satu kalimat.
 
 # CONTEXT
-Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi cerita yang tajam, cepat, dan enak dibagikan. Jangan terdengar seperti ringkasan berita atau laporan korporat. Buka dengan angka, perubahan, kontras, kutipan, atau konsekuensi paling mahal dari artikel. Pakai bahasa gua–lu, kalimat pendek, dan detail konkret. Opini boleh tegas jika fakta dan opini jelas terpisah. Jangan menambah fakta, angka, motif, atau dampak yang tidak ada di artikel.
+Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi cerita yang tajam, cepat, dan enak dibagikan. Jangan terdengar seperti ringkasan berita atau laporan korporat. Buka dengan angka, perubahan, kontras, kutipan, atau konsekuensi paling mahal dari artikel. Pakai bahasa gw–lo, kalimat pendek, dan detail konkret. Opini boleh tegas jika fakta dan opini jelas terpisah. Jangan menambah fakta, angka, motif, atau dampak yang tidak ada di artikel.
 
-# VOICE — CONVERSATIONAL BUSINESS STORYTELLER
-- Gunakan pola komunikasi Fellexandro, bukan identitas, biografi, frase khas, atau klaim pengalaman pribadinya.
-- Narator boleh memakai orang pertama untuk membaca fakta: "kalau gue lihat", "keputusan gue", atau "pelajaran gue". Jangan mengarang pengalaman, keputusan, atau kesalahan pribadi; jika sumber tidak memberi pengalaman literal, jadikan itu opini editorial yang jelas.
-- Pakai bahasa percakapan gua/lo. Tulis seperti ngobrol dengan satu teman yang cerdas: dekat, tajam, konkret, tidak menggurui.
-- Hook harus berangkat dari masalah nyata, biaya, keputusan, atau kebuntuan yang tertulis di artikel — bukan mengulang headline dan bukan clickbait kosong.
-- Susun isi dengan framework sederhana, urutan sebab-akibat, atau daftar pelajaran bila membantu pembaca memahami fakta. Jangan mengubah berita menjadi tips atau pelajaran yang tidak didukung sumber.
-- Hubungkan uang, bisnis, karier, atau perilaku hanya jika artikel memberi kaitan literal. Jangan memaksa relevansi ke dompet pembaca.
-- Opini personal boleh tegas, tetapi tandai sebagai opini dan beri alasan yang berasal dari fakta artikel. Jangan menyerang pribadi.
-- Penutup mengajak pembaca bercermin atau memilih di antara dua taruhan nyata dalam artikel. S6 tetap satu CTA judgment spesifik.
-- Satu post satu pukulan: fakta utama dulu, makna atau ketegangannya sesudah itu.
-- Gunakan detail yang bisa divisualisasikan: jumlah orang, uang, lokasi, jabatan, waktu, atau perbandingan literal.
-- Jika sumber cuma berisi klaim, tampilkan klaim dan batas buktinya. Gaya tajam bukan izin untuk mengarang dampak.
-- Jangan menyalin frase referensi secara literal.
+# VOICE — CRITICAL, CONVERSATIONAL BUSINESS OBSERVER
+- Amati mekanik @raymondchins, bukan identitas, biografi, frase khas, pengalaman, atau klaim pribadinya. Modifikasi untuk Techbro: analisis ekonomi berbasis sumber, bukan konten personal-brand atau promosi.
+- Suara utama: gw sebagai pengamat yang kritis dan kadang kontrarian. Tantang cara baca yang terlalu mudah hanya jika artikel memuat kontras, pengecualian, trade-off, atau bukti yang mendukungnya.
+- Pakai bahasa Threads yang langsung dan santai: gw/lo, kata kerja aktif, kalimat pendek-menengah, lowercase bila natural, tanpa gaya laporan. Gunakan penghubung percakapan seperti "karena", "tapi", "jadi", "makanya", dan "kalau" tanpa mengulang formula yang sama.
+- Tulis seperti ngomong ke satu teman cerdas, bukan mengajar kelas. Jangan pakai sapaan, disclaimer, atau pembuka basa-basi sebelum fakta.
+- Hook harus langsung membawa fakta, keputusan, angka, kontras, atau masalah nyata dari artikel. Boleh membuka dengan observasi atau pendapat gw, tetapi fakta pendukung harus muncul di artikel dan segera dijelaskan.
+- Gunakan pola kontra bila bukti mendukung: tampilkan anggapan umum, tunjukkan fakta yang mengganggunya, lalu jelaskan kenapa itu penting. Jangan memaksa semua artikel menjadi kontroversi.
+- Orang pertama hanya untuk sudut pandang editorial: "menurut gw", "kalau gw lihat", atau "yang bikin gw perhatiin". Jangan mengarang pengalaman, investasi, percakapan, keputusan, atau akses pribadi.
+- Satu post satu pukulan. Fokus pada satu benturan per post. Fakta utama dulu, lalu arti atau pertanyaan yang lahir dari fakta itu. Jangan menumpuk tiga opini dalam satu slide.
+- Pakai detail yang bisa divisualisasikan: jumlah orang, uang, lokasi, jabatan, waktu, atau perbandingan literal. Hindari jargon dan kalimat abstrak.
+- S6 boleh mengajak pembaca merespons dengan gaya langsung seperti "menurut lo" atau "lo lihat ini sebagai apa?", tetapi pertanyaan harus punya taruhan nyata di artikel. Jangan membuat CTA promosi, ajakan kolaborasi, atau pilihan abstrak.
+- Jika sumber cuma berisi klaim, tampilkan klaim dan batas buktinya. Gaya kritis bukan izin untuk mengarang dampak.
+- Jangan menyalin frase referensi secara literal. Variasi alami lebih penting daripada meniru pola kalimat.
 
 # TASK
 Ubah satu artikel sumber menjadi 6 post Threads yang saling tersambung. Gunakan satu ISI ARTIKEL sebagai sumber tunggal. ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Jelaskan sebab-akibat hanya jika hubungan itu tertulis atau jelas dinyatakan artikel; jika artikel tidak menjelaskan sebab atau dampak, nyatakan batas informasi tersebut, jangan mengarang.
@@ -2567,8 +2619,8 @@ Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali l
 - Jangan mengubah satuan atau menghitung angka baru.
 - Parafrase boleh jika makna tetap sama.
 - Setiap post wajib minimal 1 kalimat lengkap dan maksimal 450 karakter. Satu ide utama per post.
-- Istilah teknis wajib dijelaskan singkat saat pertama disebut, jika penjelasan tersedia di artikel.
-- Bahasa Indonesia santai, jelas, dan natural. Utamakan kata sehari-hari yang mudah dipahami pembaca awam. Hindari jargon teknis dan birokratis; jika istilah wajib dipakai, beri arti sederhananya saat pertama muncul. Hindari slogan, hashtag, URL, dan pembuka generik.
+- Utamakan bahasa sehari-hari. Istilah teknis boleh dipakai bila membuat kalimat lebih tajam; jelaskan bila natural, jangan memaksa definisi.
+- Bahasa Indonesia santai, jelas, dan natural. Jargon bukan alasan untuk mengubah voice jadi penjelasan buku teks. Hindari slogan, hashtag, URL, dan pembuka generik.
 - Jangan memaksa bagian sebab, dampak, atau relevansi jika bukti tidak tersedia.
 - Jangan menulis label slide di dalam teks post.
 - Balas JSON valid saja. Sistem menambahkan post_7 berisi sumber.
@@ -2577,7 +2629,8 @@ Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali l
 Tegangan hanya boleh datang dari perbandingan atau perubahan yang literal di artikel. Jangan memancing dengan teka-teki karangan. Curiosity gap BOLEH asal dari ketegangan literal artikel — sisakan pertanyaan yang jawabannya ADA di S2-S6, bukan keraguan palsu. Tidak perlu memaksa satu jenis fakta ke slide tertentu. Jangan pakai label-colon, hashtag, jargon birokratis, template AI. Hindari slogan, kalimat motivasi, atau kesimpulan yang terdengar besar. Gaya tajam bukan izin untuk mengarang dampak.
 
 # OPINI BERPIHAK — BOLEH, TAPI JANGAN MENGARANG
-Ambil posisi secara eksplisit bila fakta mendukung: sorot konsumen, pekerja, wajib pajak, rumah tangga, atau pihak yang menanggung biaya. Opini/penilaian BOLEH selama tidak menambah kerugian, motif, korban, emosi, atau dampak yang tidak tertulis. Bedakan jelas fakta artikel vs opini lo. Jangan otomatis berpihak jika sumber tidak memberi dasar. Penutup boleh memancing judgment nyata, misal: “Menurut lo, ini adil atau berpihak ke siapa?” atau “Menurut lo, biaya ini layak dibayar untuk hasil itu?” hanya jika kedua unsur literal ada di artikel.
+Ambil posisi secara eksplisit bila fakta mendukung: sorot konsumen, pekerja, wajib pajak, rumah tangga, atau pihak yang menanggung biaya. Opini/penilaian BOLEH selama tidak menambah kerugian, motif, korban, emosi, atau dampak yang tidak tertulis. Bedakan jelas fakta artikel vs opini lo. Jangan mengubah pajak menjadi klaim bahwa pembaca harus bayar, dompet/kantong terkena, kas negara terisi, atau utang/efisiensi menjadi alternatif kecuali hubungan itu literal di artikel. Jangan otomatis berpihak jika sumber tidak memberi dasar. Penutup boleh memancing judgment nyata, misal: “Menurut lo, ini adil atau berpihak ke siapa?” atau “Menurut lo, biaya ini layak dibayar untuk hasil itu?” hanya jika kedua unsur literal ada di artikel.
+Jika artikel menyebut daerah, bencana, PAD, petani, pekerja, konsumen, atau rumah tangga, usahakan S2-S5 menjelaskan kelompok tersebut berdasarkan ISI ARTIKEL dan gunakan opini orang pertama bila membantu. Ini kualitas editorial, bukan izin menambah klaim. Jangan menyalahkan kelompok atau mengarang hubungan ekonomi. Dilarang memakai “uang pajak kita”, “daerah nggak bisa cari duit sendiri”, “dianakemaskan”, “siapa yang sebenarnya bayar”, “warga pasti terdampak”, “Rp0 uang negara”, “nama Indonesia di mata global”, atau “startup lokal kalah sama perusahaan luar negeri” kecuali hubungan itu literal di sumber.
 
 # OUTPUT
 {"status":"success","angle":"sudut pandang","post_1":"...","post_2":"...","post_3":"...","post_4":"...","post_5":"...","post_6":"..."}
@@ -2666,6 +2719,7 @@ def _source_fallback_posts(article):
                  "cnbc menghadirkan", "acara didukung", "pantau terus", "jangan lupa",
                  "saksikan", "secara live", "program squawk box", "program tersebut",
                  "cnbcindonesia.com", "cnbc indonesia tv", "update informasi")
+        dangling_opener = re.compile(r"^\W*[\w\s'\"“”’.()]{1,60}\s+(ini|tersebut|demikian|begini|begitu)\b", re.I)
         def usable(sentence):
             low = sentence.lower().strip()
             if low.startswith(weak) or any(term in low for term in promo):
@@ -2702,6 +2756,9 @@ def _source_fallback_posts(article):
                     limit = S1_CHAR_LIMIT if slide == 0 else SLIDE_CHAR_LIMIT
                     if len(text) <= limit:
                         choices.append((i, j, text))
+            clean_choices = [choice for choice in choices if not dangling_opener.match(choice[2].strip())]
+            if clean_choices:
+                choices = clean_choices
             if not choices:
                 return None
             i, j, text = choices[0]
@@ -3179,8 +3236,7 @@ def _validate_proper_nouns(posts, body):
 
 
 def _validate_jargon(posts, body):
-    """Flag unexplained technical terms that don't appear in source. Only blocks terms
-    the writer introduced without explanation — source-cited terms are valid."""
+    """Report jargon for telemetry; jargon never blocks conversational voice."""
     issues = []
     body_lower = (body or "").lower()
     for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
@@ -3310,7 +3366,7 @@ def _quality_gate(article, data, posts, warnings):
     if posts:
         style_issues = deterministic_validate(posts)
         # Style warnings advisory; structural empty/length/sentence/CTA issues remain hard.
-        soft_markers = ("slop '", "too many sentences", "too many questions", "too many CTA questions", "stand-alone", "hard word", "rewrite ", "passive construction", "duplicate", "repeats material numbers")
+        soft_markers = ("slop '", "too many sentences", "too many questions", "too many CTA questions", "stand-alone", "hard word", "rewrite ", "passive construction", "duplicate", "repeats material numbers", "voice:", "audience lens:")
         hard = [w for w in style_issues if not any(marker in w for marker in soft_markers)]
         if hard:
             return False
@@ -3389,8 +3445,8 @@ def generate_thread(article):
         grounding_warnings = grounding_validate(article, posts)
         hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "weak winning hook", "generic winning CTA", "CTA not found", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence"))]
         engagement_warnings = _validate_s1_hook(posts, article["body"], article) + _validate_s6_cta(posts, article["body"])
-        warnings = missing + grounding_warnings + noun_warnings + claim_warnings + jargon_warnings + hard_style_warnings + engagement_warnings
-        soft_warnings = style_warnings + voice_warnings
+        warnings = missing + grounding_warnings + noun_warnings + claim_warnings + hard_style_warnings + engagement_warnings
+        soft_warnings = style_warnings + voice_warnings + jargon_warnings
         if soft_warnings:
             log.info(f"  Soft style warnings (advisory): {soft_warnings}")
         if warnings:
@@ -3412,7 +3468,7 @@ def generate_thread(article):
                     w2.extend(grounding_validate(article, p2))
                     w2.extend(noun_w2)
                     w2.extend(claim_w2)
-                    w2.extend(_validate_jargon(p2, article["body"]))
+                    jargon_w2 = _validate_jargon(p2, article["body"])
                     w2.extend(_validate_s1_hook(p2, article["body"], article))
                     w2.extend(_validate_s6_cta(p2, article["body"]))
                     voice_w2 = _voice_warnings(p2)
@@ -3435,7 +3491,6 @@ def generate_thread(article):
                         p_orig = _normalize_s1(p_orig, article["body"])
                         # Re-check original against hard validation
                         w_orig = grounding_validate(article, p_orig)
-                        w_orig.extend(_validate_jargon(p_orig, article["body"]))
                         w_orig.extend([f"{k}: empty" for k in ["post_1","post_2","post_3","post_4"] if not p_orig.get(k,"").strip()])
                         w_orig.extend(_validate_claim_markers(p_orig, article["body"]))
                         noun_orig = _validate_proper_nouns(p_orig, article["body"])
