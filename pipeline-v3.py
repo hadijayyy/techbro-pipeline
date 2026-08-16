@@ -23,7 +23,9 @@ for i, a in enumerate(sys.argv):
 IMAGE_DISABLED = "--no-image" in sys.argv
 DRY_RUN = "--dry-run" in sys.argv
 PREPARE_NEXT = "--prepare-next" in sys.argv
-HOT_TOPIC_LIMIT = 15
+CANDIDATE_POOL_LIMIT = 10
+SCRAPE_ARTICLE_LIMIT = 100
+HOT_TOPIC_LIMIT = CANDIDATE_POOL_LIMIT
 LLM_REQUEST_BUDGET = 4  # writer/verifier plus one revision/verifier; transport retries disabled.
 
 # ── Paths ────────────────────────────────────────────────────────────────────
@@ -129,17 +131,17 @@ def load_sources():
 SOURCES = load_sources()
 MAX_ARTICLES_PER_SOURCE = 6
 SOURCE_ARTICLE_CAPS = {
-    "cnn_ekonomi": 8,
-    "detik_finance": 8,
-    "cnbc_market": 8,
-    "cnbc_entrepreneur": 6,
-    "antara_ekonomi": 6,
-    "bi_release": 6,
-    "kemenkeu_release": 6,
-    "esdm_news": 6,
-    "dailysocial": 3,
-    "cnbc_global": 6,
-    "bbc_business": 6,
+    "cnn_ekonomi": 15,
+    "detik_finance": 15,
+    "cnbc_market": 15,
+    "cnbc_entrepreneur": 15,
+    "antara_ekonomi": 15,
+    "bi_release": 15,
+    "kemenkeu_release": 15,
+    "esdm_news": 15,
+    "dailysocial": 15,
+    "cnbc_global": 15,
+    "bbc_business": 15,
 }
 CURRENT_COHORT = "techbro_v3_current"
 LEGACY_COHORT = "legacy"
@@ -604,8 +606,9 @@ def scrape_all():
         src_articles.sort(key=lambda a: (a["ts"], len(a["title"])), reverse=True)
         cap = SOURCE_ARTICLE_CAPS.get(source, MAX_ARTICLES_PER_SOURCE)
         deduped.extend(src_articles[:cap])
-    log.info(f"  Articles: {len(articles)} economy-title candidates after per-source cap")
-    return deduped
+    deduped.sort(key=lambda a: (a["ts"], len(a["title"])), reverse=True)
+    log.info(f"  Articles: {len(deduped[:SCRAPE_ARTICLE_LIMIT])} economy-title candidates after scrape cap")
+    return deduped[:SCRAPE_ARTICLE_LIMIT]
 
 # ── Economy Relevance Scoring ────────────────────────────────────────────────
 
@@ -990,10 +993,36 @@ def _publisher_pool(articles, hot_topics, verified_topics):
     ]
 
 
-def _pick_article(articles, posted_urls, data=None):
-    """Pick best unscraped economy article. Learning only makes a bounded ranking adjustment."""
+def _ranked_candidate_pool(articles, topics, limit=CANDIDATE_POOL_LIMIT):
+    """Keep top-ranked topics; preserve rank and copy verified bodies."""
+    by_url = {_canonical_url(article.get("url", "")): article for article in articles}
+    selected, seen = [], set()
+    for topic in topics:
+        url = _canonical_url(topic.get("canonical_url", ""))
+        if not url or url in seen or url not in by_url:
+            continue
+        article = by_url[url]
+        if topic.get("_body"):
+            article["body"] = topic["_body"]
+        article["candidate_rank"] = len(selected) + 1
+        article["hot_score"] = topic.get("hot_score")
+        selected.append(article)
+        seen.add(url)
+        if len(selected) == limit:
+            break
+    return selected
+
+
+def _pick_article(articles, posted_urls, data=None, ranked_urls=None):
+    """Pick next ranked unused article; learning adjusts only unbounded pools."""
     now = time.time()
-    candidates = [a for a in articles if a["url"] not in posted_urls]
+    posted_canonical = {_canonical_url(url) for url in posted_urls}
+    rank_order = {_canonical_url(url): i for i, url in enumerate(ranked_urls or ())}
+    candidates = [
+        a for a in articles
+        if _canonical_url(a.get("url", "")) not in posted_canonical
+        and (not ranked_urls or _canonical_url(a.get("url", "")) in rank_order)
+    ]
     if not candidates:
         return None
 
@@ -1048,7 +1077,10 @@ def _pick_article(articles, posted_urls, data=None):
                          + _engagement_priority_bonus(a.get("title", ""), a.get("body", ""))
                          + a["story_selection_score"]
                          + _source_diversity_penalty(data, a["source"]))
-    candidates.sort(key=lambda a: a["_weight"], reverse=True)
+    if ranked_urls:
+        candidates.sort(key=lambda a: rank_order[_canonical_url(a["url"])])
+    else:
+        candidates.sort(key=lambda a: a["_weight"], reverse=True)
     log.debug("Top 5:")
     for i, a in enumerate(candidates[:5]):
         log.debug(f"  {i+1}. [s={a['eco_score']}] {a['title'][:60]} (w={a['_weight']})")
@@ -3819,7 +3851,10 @@ def main():
         elif pub and pub.get("error"):
             log.error(f"Post error: {pub['error']}")
         return
-    posted_urls = {t.get("article_url", t.get("title", "")) for t in data.get("topics", [])}
+    posted_urls = {
+        _canonical_url(t.get("article_url", t.get("title", "")))
+        for t in data.get("topics", [])
+    }
     recent_topics = data.get("topics", [])
 
     # Step 1: Pressbox-style single-run flow. Scrape, generate, validate, then
@@ -3832,7 +3867,7 @@ def main():
     log.info("Scraping economy sources...")
     articles = scrape_all()
     log.info(f"  Got {len(articles)} raw articles")
-    # Scout is the publisher's only candidate pool: five body-verified daily topics.
+    # Scout is the publisher's only candidate pool: ten body-verified ranked topics.
     hot_topics = scout_hot_topics(articles, data=data)
     fallback_topics = scout_hot_topics(
         articles, data=data, per_source_limit=6, allow_cluster_repeats=True,
@@ -3848,16 +3883,24 @@ def main():
         log.info(f"  International candidates: {len(international_topics)}")
     if not DRY_RUN:
         save_hot_topics(hot_topics)
-    articles = _publisher_pool(articles, hot_topics, fallback_topics)
-    log.info(f"  Publisher pool: {len(articles)} body-verified scout candidates")
+    ranked_topics = []
+    seen_topic_urls = set()
+    for topic in (*hot_topics, *fallback_topics):
+        topic_url = _canonical_url(topic.get("canonical_url", ""))
+        if topic_url and topic_url not in seen_topic_urls:
+            ranked_topics.append(topic)
+            seen_topic_urls.add(topic_url)
+    articles = _ranked_candidate_pool(articles, ranked_topics)
+    ranked_urls = [article["url"] for article in articles]
+    log.info(f"  Ranked candidate pool: {len(articles)}/{CANDIDATE_POOL_LIMIT}")
 
-    # Step 2: Search ranked pool. Like Pressbox, title ranks; body decides eligibility.
+    # Step 2: Search ranked pool. Top 1 used means top 2, through top 10.
     from collections import Counter
     skipped_urls = set()
     reject_reasons = Counter()
-    candidate_limit = len(articles) if not article else 0
+    candidate_limit = len(ranked_urls) if not article else 0
     for _ in range(candidate_limit):
-        candidate = _pick_article(articles, posted_urls | skipped_urls, data)
+        candidate = _pick_article(articles, posted_urls | skipped_urls, data, ranked_urls)
         if not candidate:
             break
         is_repeat, shared_entities, shared_words = _is_repeat_issue(
@@ -3987,7 +4030,7 @@ def main():
         for _ in range(min(2, candidate_limit)):
             if goto_step5:
                 break
-            retry_article = _pick_article(articles, posted_urls | skipped_urls, data)
+            retry_article = _pick_article(articles, posted_urls | skipped_urls, data, ranked_urls)
             if retry_article is None:
                 break
             retry_repeat, retry_entities, retry_words = _is_repeat_issue(

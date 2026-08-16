@@ -1458,9 +1458,29 @@ def test_hot_topic_default_pool_is_top_15_and_cluster_deduped(monkeypatch):
 
     topics = pipeline.scout_hot_topics(articles, now=now, per_source_limit=20)
 
-    assert pipeline.HOT_TOPIC_LIMIT == 15
-    assert len(topics) <= 15
+    assert pipeline.HOT_TOPIC_LIMIT == 10
+    assert len(topics) <= 10
     assert len({topic["cluster"] for topic in topics}) == len(topics)
+
+
+def test_ranked_candidate_pool_uses_next_rank_when_top_is_posted():
+    articles = [
+        {"url": "https://example.test/1?utm_source=x", "title": "Pajak APBN Top 1", "source": "cnn_ekonomi", "ts": 1_800_000_000},
+        {"url": "https://example.test/2", "title": "Pajak APBN Top 2", "source": "cnn_ekonomi", "ts": 1_800_000_000},
+        {"url": "https://example.test/3", "title": "Pajak APBN Top 3", "source": "cnn_ekonomi", "ts": 1_800_000_000},
+    ]
+    topics = [
+        {"canonical_url": "https://example.test/1"},
+        {"canonical_url": "https://example.test/2"},
+        {"canonical_url": "https://example.test/3"},
+    ]
+    pool = pipeline._ranked_candidate_pool(articles, topics, limit=3)
+    picked = pipeline._pick_article(
+        pool,
+        {"https://example.test/1"},
+        ranked_urls=[article["url"] for article in pool],
+    )
+    assert picked["url"] == "https://example.test/2"
 
 
 def test_literal_fact_allowlist_is_embedded_in_writer_prompt():
