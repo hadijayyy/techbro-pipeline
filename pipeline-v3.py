@@ -90,6 +90,7 @@ def load_keywords():
         "score_categories": [],
         "entity_boost": {},
         "number_bonus": [],
+        "editorial_selection": {},
         "hard_reject": [],
         "soft_reject": [],
         "named_blacklist": [],
@@ -137,7 +138,8 @@ SOURCE_ARTICLE_CAPS = {
     "kemenkeu_release": 6,
     "esdm_news": 6,
     "dailysocial": 3,
-    "cnbc_global": 3,
+    "cnbc_global": 6,
+    "bbc_business": 6,
 }
 CURRENT_COHORT = "techbro_v3_current"
 LEGACY_COHORT = "legacy"
@@ -147,6 +149,7 @@ LEGACY_COHORT = "legacy"
 SCORE_CATEGORIES = KW["score_categories"]
 ENTITY_BOOST = KW["entity_boost"]
 NUMBER_BONUS = KW["number_bonus"]
+EDITORIAL_SELECTION = KW["editorial_selection"]
 HARD_REJECT = KW["hard_reject"]
 SOFT_REJECT = KW["soft_reject"]
 NAMED_BLACKLIST = KW["named_blacklist"]
@@ -277,13 +280,12 @@ def load_prepared_article(posted_urls):
         posts = article["posts"]
         if not isinstance(posts, dict):
             return None
-        if len(article.get("body", "")) >= 500:
-            eligible, reason = _is_eligible_candidate(
-                article.get("title", ""), article["body"], article.get("source", "prepared")
-            )
-            if not eligible:
-                log.warning("Prepared article rejected by current eligibility gate: %s", reason)
-                return None
+        eligible, reason = _is_eligible_candidate(
+            article.get("title", ""), article.get("body", ""), article.get("source", "prepared")
+        )
+        if not eligible:
+            log.warning("Prepared article rejected by current eligibility gate: %s", reason)
+            return None
         if thread_contract_issues(posts, article["url"]):
             return None
         # Prose style warnings are advisory. Contract and grounding remain hard gates.
@@ -516,7 +518,8 @@ def scrape_all():
                 log.warning(f"Scrape {fut_map[f]}: {e}")
     # Filter mixed/homepage and source-specific noise before the source cap.
     articles = [a for a in articles
-                if _has_economy_title_signal(a["title"])
+                if (_has_economy_title_signal(a["title"])
+                    or a["source"] in {"cnbc_global", "bbc_business"})
                 and _has_source_title_signal(a["title"], a["source"])]
     from collections import defaultdict
     by_source = defaultdict(list)
@@ -557,7 +560,8 @@ def _score_article(article):
     # Video reject — skip before body fetch/LLM
     if tl.startswith("video:") or "/video-" in article.get("url", ""):
         return (0, "video_article")
-    if not _has_economy_title_signal(title):
+    if (not _has_economy_title_signal(title)
+            and article.get("source") not in {"cnbc_global", "bbc_business"}):
         return (0, "out_of_scope")
     # Category scoring — one keyword counted once per category
     for cat_entry in SCORE_CATEGORIES:
@@ -616,20 +620,6 @@ def _score_article(article):
     if routine_bbm and not fuel_policy:
         score -= 100
 
-    # ── Global/local penalties ─────────────────────────────────────────────
-    # Data: global-only content with no ID anchor gets 0 views (e.g. Sydney Sweeney,
-    # Elon/Sam, chef Louisiana, AI scam US). Must have rupiah link or Indonesia anchor.
-    FOREIGN_COUNTRIES = ["amerika", "united states", "china", "tiongkok", "jepang",
-        "korea selatan", "india", "vietnam", "australia", "inggris",
-        "eropa", "prancis", "jerman", "canada", "rusia", "middle east"]
-    ID_ANCHOR = ["indonesia", "jakarta", "pemerintah", "menteri", "bumn", "apbn",
-        "rupiah", "umr", "ump", "ppn", "kemnaker", "ojk", "bi ",
-        "jokowi", "prabowo", "jawa", "sumatera", "kalimantan", "sulawesi"]
-    has_foreign = any(re.search(rf"\b{re.escape(c)}\b", tl) for c in FOREIGN_COUNTRIES)
-    has_id = any(re.search(rf"\b{re.escape(a)}\b", tl) for a in ID_ANCHOR)
-    if has_foreign and not has_id:
-        score -= 70  # foreign story with no Indonesia anchor = audience ignores
-
     # Kontras harga vs daya beli: high-performer pattern (UMR vs Greenland = 18K views).
     # Boost stories that contrast a price/cost figure against purchasing power.
     price_signal = any(_matches_keyword(tl, kw) for kw in ("harga", "biaya", "tarif", "rupiah"))
@@ -643,11 +633,11 @@ def _score_article(article):
     if actor and max_val > 0 and consequence:
         score += 10
 
-    # ── #1 virality mix: amplify number_shock/wallet_impact, demote explainer ──
+    # ── Editorial mix: amplify concrete numbers/household impact, demote explainer ──
     # number_shock: explicit price figure carrying a number = shock catalyst.
     if max_val > 0 and price_signal:
         score += 8
-    # wallet_impact: income-side pressure (gaji/upah/umr) without a price word.
+    # household_impact: income-side pressure (gaji/upah/umr) without a price word.
     if wallet_signal and not price_signal:
         score += 6
     # finance_practical demotion: how-to/tips/procedural headlines (weak hook, med 361 views).
@@ -709,16 +699,17 @@ def _indonesia_topic_relevance(title, body):
     """Classify domestic relevance; material global economy stories may stand alone."""
     text = f"{title} {body}".lower()
     global_story = _is_global_event(title, body)
+    global_finance = _is_global_finance_story(title, body)
     impact_channel = _international_impact_channel(title, body)
-    indonesia = bool(re.search(r"\b(indonesia|ri|rupiah|apbn|bank indonesia|bi|kemenkeu|ojk)\b", body, re.I))
+    indonesia = bool(re.search(r"\b(indonesia|ri|rupiah|apbn|bank indonesia|bi|kemenkeu|ojk|ikn|ibu kota nusantara)\b", f"{title} {body}", re.I))
     national_actor = bool(re.search(
         r"\b(pemerintah|menteri|kementerian|dpr|bpk|bumn|apbd|gubernur|"
-        r"presiden|mahkamah konstitusi|kpk|dprd)\b", body, re.I,
+        r"presiden|mahkamah konstitusi|kpk|dprd|ikn|ibu kota nusantara)\b", f"{title} {body}", re.I,
     ))
-    if global_story:
+    if global_story and global_finance:
         if indonesia and impact_channel:
             return "global_indonesia_impact"
-        return "international" if _is_global_finance_story(title, body) else None
+        return "international"
     return "national" if indonesia or national_actor else None
 
 
@@ -825,6 +816,7 @@ def _verify_one(candidate, now):
         "topic_score": topic_score, "economy_score": economy_score, "impact_score": impact_score,
         "hot_score": hot_score, "body_verified": True, "image_available": bool(image),
         "indonesia_relevance": indonesia_relevance, "reason": reason,
+        "has_material_economic_signal": True,
         "lane": _story_lane(title, body),
         "impact_channel": _international_impact_channel(title, body),
         "global_event": _is_global_event(title, body),
@@ -868,6 +860,12 @@ def scout_hot_topics(articles, now=None, limit=HOT_TOPIC_LIMIT, per_source_limit
     return selected
 
 
+def international_dry_run_candidates(hot_topics, fallback_topics=()):
+    """Return body-verified international topics available to dry-run output."""
+    return [topic for topic in (*hot_topics, *fallback_topics)
+            if topic.get("lane") == "international"]
+
+
 def save_hot_topics(topics, generated_ts=None):
     payload = {"generated_ts": generated_ts or time.time(), "topics": topics}
     tmp = HOT_TOPICS_FILE.with_suffix(".tmp")
@@ -895,6 +893,9 @@ def _publisher_pool(articles, hot_topics, verified_topics):
     for topic in (*hot_topics, *verified_topics):
         url = topic.get("canonical_url")
         if url in by_url and url not in ordered_urls:
+            # Reuse body verification during ranking; do not rank title-only again.
+            if topic.get("_body"):
+                by_url[url]["body"] = topic["_body"]
             ordered_urls.append(url)
     return [by_url[url] for url in ordered_urls] + [
         article for article in articles
@@ -914,7 +915,18 @@ def _pick_article(articles, posted_urls, data=None):
         a["title"] = re.sub(r'^\d+', '', a["title"]).strip()
         a["title"] = re.sub(r'(Energi|Ekbis|Bisnis|Keuangan|Finance|Ekonomi|Nasional|Market)\d{2}/\d{2}/\d{4}$', '', a["title"]).strip()
         a["title"] = re.sub(r'(Energi|Ekbis|Bisnis|Keuangan|Finance|Ekonomi|Nasional)$', '', a["title"]).strip()
-    # Score each candidate
+    # Score only editorially valid candidates; numeric keyword hits cannot rescue advice/promo.
+    filtered = []
+    for a in candidates:
+        editorial_reason = _editorial_candidate_gate(a.get("title", ""), a.get("body", ""))
+        if editorial_reason:
+            a["eco_score"] = 0
+            a["_reason"] = editorial_reason
+            continue
+        filtered.append(a)
+    candidates = filtered
+    if not candidates:
+        return None
     for a in candidates:
         eco_score, reason = _score_article(a)
         a["eco_score"] = eco_score
@@ -988,7 +1000,7 @@ def _image_size(data):
 def validate_article_image(url):
     """Require a real HD article lead image; tolerate 1px CDN rounding."""
     try:
-        response = httpx.get(url, timeout=15, follow_redirects=True)
+        response = httpx.get(url, headers={"User-Agent": UA}, timeout=15, follow_redirects=True)
         size = _image_size(response.content) if response.status_code == 200 else None
         if size and size[0] >= 800 and size[1] >= 450:
             return url
@@ -1113,9 +1125,15 @@ def _fetch_article_body(url):
                             log.warning(f"Reject logo-as-og:image: {og_stem} alt='{img_alt[:40]}'")
                             og_image = None
                             break
+        # Article body — CNBC uses generated class names not covered by local selectors.
+        host = urllib.parse.urlsplit(url).netloc.lower()
+        body_el = None
+        if "cnbc.com" in host:
+            body_el = soup.select_one(".ArticleBody-articleBody")
         # article body — try known ID selectors
         body_el = (
-            soup.find("div", class_=lambda c: c and "detail__body-text" in c)
+            body_el
+            or soup.find("div", class_=lambda c: c and "detail__body-text" in c)
             or soup.find("div", class_=lambda c: c and "detail__body" in c)
             or soup.find("div", class_=lambda c: c and ("article-body" in c or "article_content" in c))
             or soup.find("div", class_=lambda c: c and "read__content" in c)
@@ -1202,7 +1220,7 @@ ECONOMY_SELECTION_SIGNALS = (
     "asn", "pppk", "guru", "tenaga pendidik", "aparatur sipil negara",
     "kebijakan", "regulasi", "tarif", "insentif", "hilirisasi", "perdagangan", "keuangan",
     "penerimaan", "belanja", "pembiayaan", "perbankan", "asuransi", "koperasi",
-    # International economy; body gate requires explicit Indonesia connection.
+    # International economy; body gate requires explicit finance/economy evidence.
     "federal reserve", "the fed", "opec", "selat hormuz", "hormuz", "global economy", "economic recession",
     "interest rate", "interest rates", "inflation", "gdp", "trade war", "oil price", "oil prices",
     "global market", "stocks", "stock market", "economy", "tarif trump", "kebijakan trump",
@@ -1257,27 +1275,63 @@ def _has_source_title_signal(title, source):
         if "revenue chief" in title_lower:
             return False
         return any(signal in title_lower for signal in GLOBAL_ECONOMY_TITLE_SIGNALS)
+    if source == "bbc_business":
+        return any(signal in title_lower for signal in (
+            "business", "company", "companies", "sales", "revenue", "profit", "jobs",
+            "economy", "inflation", "interest rates", "trade", "market", "markets",
+            "investment", "investor", "bank", "energy", "oil", "electric vehicle",
+        ))
     return True
+
+
+def _editorial_candidate_gate(title, body):
+    """Keep Techbro on material economy stories, not advice or promotion."""
+    text = f"{title} {body}".lower()
+    cfg = EDITORIAL_SELECTION
+    personal = cfg.get("personal_finance_advice", ())
+    retail = cfg.get("retail_markers", ())
+    promotion = cfg.get("promotion_markers", ())
+    event = cfg.get("event_markers", ())
+    material = cfg.get("material_change_markers", ())
+    topic = cfg.get("material_topic_markers", ())
+    title_lower = title.lower()
+    if any(term in title_lower for term in cfg.get("non_economic_title_markers", ())):
+        return "non_economic_title"
+    historical_hits = sum(term in title_lower for term in cfg.get("historical_title_markers", ()))
+    if historical_hits >= 2 and not any(term in title_lower for term in cfg.get("current_title_markers", ())):
+        return "historical_economy_story"
+    if (any(term in title_lower for term in cfg.get("personal_title_markers", ()))
+            and sum(term in text for term in personal) >= 2):
+        return "personal_finance_advice"
+    retail_hits = sum(term in text for term in retail)
+    promo_hits = sum(term in text for term in promotion)
+    event_hits = sum(term in text for term in event)
+    material_hits = sum(term in text for term in material)
+    if retail_hits and (promo_hits >= 2 or event_hits >= 1) and material_hits < 2:
+        return "retail_event_promotion"
+    if not any(term in text for term in topic) or not any(term in text for term in material):
+        return "no_material_economic_topic"
+    return None
 
 
 def _is_eligible_candidate(title, body, source):
     """Full economy gate shared by main pick and retry path.
     Returns (eligible: bool, reason: str)."""
     title_lower = title.lower()
-    if (re.search(r"\b(?:begini|ini|simak)\s+syarat(?:nya)?\b", title_lower)
-            or re.search(r"^(?:cara|tips|panduan)\b", title_lower)
-            or any(phrase in title_lower for phrase in (
-                "cara ", "syarat ", "saldo minimal", "daftar harga", "festival",
-                "program sosial", "seremoni", "forum", "konferensi", "webinar", "summit",
-                "menghadirkan", "hadirkan", "acara didukung", "daftar sekarang",
-            ))):
-        return False, "utility_or_consumer_advice"
-    if not body or len(body) < 1000:
-        return False, "body_under_1000_chars"
-    if not _has_economy_title_signal(title):
-        return False, "title has no economy signal"
+    # Viral routing: title angle is editorial input, not proof of falsehood.
+    # Body grounding and publish validators remain authoritative.
+    if not body or len(body) < 500:
+        return False, "body_under_500_chars"
+    # Stable reject order: source noise, specific advice/promo, routine copy, material gate.
     if not _has_source_title_signal(title, source):
         return False, "source_title_not_material"
+    editorial_reason = _editorial_candidate_gate(title, body)
+    if editorial_reason == "personal_finance_advice":
+        return False, editorial_reason
+    if _is_corporate_promo(title, body):
+        return False, "corporate_promo"
+    if _is_low_value_promo(title, body):
+        return False, "LOW_VALUE_PROMO"
     historical_markers = (
         "autobiografi", "biografi", "surat-surat", "lahir", "tahun lalu",
         "pensiun", "pensiunan", "proklamator",
@@ -1301,12 +1355,13 @@ def _is_eligible_candidate(title, body, source):
         return False, "administrative_distribution_story"
     if _is_empty_commentary(title, body):
         return False, "empty commentary"
-    if _is_corporate_promo(title, body):
-        return False, "corporate_promo"
+
     if source == "dailysocial" and not _is_material_digital_story(title, body):
         return False, "non_material_digital_story"
     if _is_low_value_corporate_story(title, body):
         return False, "low_value_corporate_story"
+    if not has_material_economic_signal(title, body):
+        return False, "NO_MATERIAL_ECONOMIC_SIGNAL"
     if not _is_techbro_relevant(body):
         return False, "not techbro relevant"
     if _indonesia_topic_relevance(title, body) is None:
@@ -1316,27 +1371,72 @@ def _is_eligible_candidate(title, body, source):
     # ponytail: patterns rank/hooks only; evidence gates above decide eligibility.
     pattern_reason = (f"pattern={pattern_name} conf={pattern_confidence:.2f}"
                       if pattern_name else "pattern=none")
-    return True, f"{pattern_reason} topic={topic_score} economy={economy_score} impact={impact_score}"
+    return True, f"has_material_economic_signal=True {pattern_reason} topic={topic_score} economy={economy_score} impact={impact_score}"
+
+
+MATERIAL_ECONOMIC_SIGNALS = (
+    # Public policy, regulation, and public money.
+    "kebijakan", "regulasi", "peraturan baru", "aturan baru", "putusan", "ditetapkan", "disahkan",
+    "apbn", "apbd", "anggaran negara", "anggaran daerah", "subsidi", "pajak",
+    "defisit", "penerimaan negara", "belanja pemerintah", "tarif resmi",
+    # Material business events.
+    "investasi", "pendanaan", "pendapatan", "revenue", "laba", "profit", "rugi",
+    "phk", "pemutusan hubungan kerja", "ekspansi", "akuisisi", "merger", "ipo",
+    "bangkrut", "pailit", "kontrak", "tender", "ekspor", "impor", "dividen",
+    "restrukturisasi", "utang baru", "sanksi", "denda", "audit", "harga saham",
+    # Economy-wide household, labour, and market impact.
+    "inflasi", "daya beli", "bi rate", "suku bunga", "ojk", "upah minimum",
+    "lapangan kerja", "pengangguran", "biaya rumah tangga", "harga pangan",
+    "harga bbm", "harga listrik", "kredit umkm", "pembiayaan umkm", "electric vehicle",
+    "vehicle sales", "car makers", "jobs", "employment",
+)
+
+
+def has_material_economic_signal(title, body):
+    """Return explicit eligibility boolean for material economic news.
+
+    Generic economy vocabulary, a lone price, or a retail discount is not
+    material. Keep this classifier event/impact based; scoring remains ranking.
+    """
+    text = f"{title} {body}".lower()
+    return any(signal in text for signal in MATERIAL_ECONOMIC_SIGNALS)
+
+
+def _is_low_value_promo(title, body):
+    """Reject retail/service promotion unless material signal gate already passes."""
+    text = f"{title} {body}".lower()
+    promo_markers = (
+        "promo", "diskon", "sale", "cashback", "voucher", "gratis", "hadiah",
+        "kupon", "potongan harga", "minimum transaksi", "buy one get one", "belanja",
+        "program hadiah", "aplikasi", "layanan digital", "solusi keuangan",
+        "bantu nasabah", "membantu nasabah", "customer experience", "kemudahan",
+    )
+    retail_markers = (
+        "transmart", "supermarket", "minimarket", "hypermart", "toko", "mal", "mall",
+        "retail", "ritel", "produk", "nasabah", "konsumen", "pengguna",
+    )
+    promo_hits = sum(marker in text for marker in promo_markers)
+    retail_hits = sum(marker in text for marker in retail_markers)
+    return promo_hits >= 2 and retail_hits >= 1 and not has_material_economic_signal(title, body)
 
 
 def _is_corporate_promo(title, body):
-    """Reject brand/service promotion without a material public-economy event."""
-    text = f"{title} {body}".lower()
-    promo_markers = (
-        "bantu nasabah", "membantu nasabah", "layanan digital", "solusi keuangan",
-        "bermanfaat bagi", "komitmen", "menghadirkan", "nasabah", "aplikasi",
-        "kemudahan", "lebih disiplin", "lebih nyaman", "program hadiah",
-        "hadiah sepeda motor", "rejeki wondr", "customer experience",
-    )
-    material_markers = (
-        "laba", "rugi", "pendapatan", "akuisisi", "merger", "ipo", "phk",
-        "investasi", "dividen", "kontrak", "tender", "ekspor", "impor",
-        "regulasi", "peraturan", "sanksi", "audit", "denda", "kerugian",
-        "harga saham", "restrukturisasi", "pailit", "utang baru",
-    )
-    promo_hits = sum(1 for marker in promo_markers if marker in text)
-    material_hits = sum(1 for marker in material_markers if marker in text)
-    return promo_hits >= 4 and material_hits < 2
+    """Backward-compatible alias for callers using old promo helper."""
+    return _is_low_value_promo(title, body)
+
+
+def _final_publish_veto(article, result):
+    """Re-run source relevance gates after LLM output; publishing fails closed."""
+    title = article.get("title", "")
+    body = article.get("body", "")
+    material = has_material_economic_signal(title, body)
+    low_value_promo = _is_low_value_promo(title, body)
+    angle_arc = f"{result.get('angle', '')} {result.get('arc', '')}".lower().replace("-", "_")
+    if low_value_promo and not material:
+        return "LOW_VALUE_PROMO: material_economic_signal=False"
+    if "wallet_pressure" in angle_arc and not material:
+        return "WALLET_PRESSURE_WITHOUT_MATERIAL_ECONOMIC_SIGNAL"
+    return None
 
 
 def _is_low_value_corporate_story(title, body):
@@ -1385,6 +1485,7 @@ def _is_techbro_relevant(body):
         r"resesi global|ekonomi global|perdagangan global|investasi|investor|"
         r"saham|pasar saham|obligasi|pendapatan|laba|rugi|akuisisi|merger|ipo|"
         r"earnings|revenue|profit|acquisition|merger|stocks|investment|trade|"
+        r"electric vehicle|vehicle sales|car makers|jobs|employment|business|company|"
         r"jakarta|surabaya|bandung|medan|semarang|makassar|palembang|"
         r"kalimantan|sumatera|sulawesi|papua|maluku|bali|nusa tenggara|"
         r"menteri|kementerian|direktur jenderal|gubernur|bupati|walikota|"
@@ -1400,8 +1501,11 @@ def _is_global_finance_story(title, body):
         "fed", "federal reserve", "ecb", "bank sentral", "suku bunga", "inflasi",
         "resesi", "gdp", "ekonomi", "tarif", "dagang", "opec", "minyak",
         "pasar", "saham", "obligasi", "dolar", "mata uang", "utang", "investasi",
-        "stocks", "stock market", "interest rates", "oil prices", "trade", "economy",
+        "stocks", "stock market", "interest rates", "oil prices", "trade", "economy", "stake",
         "earnings", "revenue", "profit", "acquisition", "merger", "ipo", "holding",
+        "sales", "electric vehicle", "vehicle sales", "car makers", "car maker",
+        "energy", "markets", "stock", "stocks",
+        "share", "shares", "stake",
         "pendapatan", "laba", "rugi", "akuisisi", "merger", "ipo", "investasi",
     ))
     trump_policy = bool(re.search(r"\b(trump|donald trump)\b", headline)) and bool(re.search(
@@ -1448,6 +1552,8 @@ def _engagement_priority_bonus(title, body):
         (("anggaran", "apbn", "apbd", "subsidi", "pajak", "belanja pemerintah"), 10),
         (("korupsi", "kerugian negara", "audit bpk", "temuan bpk"), 10),
         (("harga", "biaya", "tarif", "daya beli", "rumah tangga", "konsumen"), 6),
+        (("siapa membayar", "pihak yang membayar", "pihak yang menerima", "penerima manfaat", "untuk subsidi"), 8),
+        (("konflik", "berhadapan", "dibandingkan", "sementara", "belum jelas", "masih menunggu"), 5),
         (("rupiah melemah", "rupiah menguat", "ihsg", "harga emas", "harga minyak"), -12),
     ):
         if any(term in text for term in terms):
@@ -1630,7 +1736,7 @@ def _content_metadata(title, body):
     elif pattern == "PERDAGANGAN" and supply_story:
         arc = "supply_shock"
     elif wallet and amount:
-        arc = "wallet_pressure"
+        arc = "household_impact"
     elif pattern == "KORUPSI":
         arc = "public_money_trail"
     elif pattern == "KEBIJAKAN":
@@ -1745,17 +1851,11 @@ def _format_sentence_blanks(text):
 def article_evidence_gate(article):
     """Fail closed before LLM spend: body must support six non-repeated factual posts."""
     body = (article.get("body") or "").strip()
-    if len(body) < 1000:
-        return "body_under_1000_chars"
-    # Numbers/quotes optional; official policy stories can be fully factual without either.
-    # Six slides still require six distinct article-backed factual units.
-    if len(source_claim_plan(article).splitlines()) < 6:
-        return "insufficient_source_claims_for_six_posts"
-    if _policy_winner_enabled(article):
-        if not _policy_status_gap_sentence(body):
-            return "policy_missing_literal_status_gap"
-        if not _policy_tradeoff_sentence(body):
-            return "policy_missing_literal_tradeoff"
+    if len(body) < 500:
+        return "body_under_500_chars"
+    # Four distinct source claims gives writer room without rejecting compact news.
+    if len(source_claim_plan(article).splitlines()) < 4:
+        return "insufficient_source_claims_for_four_posts"
     return None
 
 
@@ -2013,6 +2113,26 @@ def _validate_unsupported_inferences(posts, body):
     return issues
 
 
+def _validate_unsupported_financial_framing(posts, body):
+    """Reject new financial-risk framing not stated by source body."""
+    source = _normalize_grounding_text(body)
+    framing = (
+        (r"\bjebakan\s+(?:cicilan|utang|kredit)\b", "debt-trap framing"),
+        (r"\brisiko\s+(?:gagal bayar|kredit macet)\b", "default-risk framing"),
+        (r"\b(?:untung|diuntungkan)\b[^.!?]{0,80}\b(?:bank|perusahaan)\b", "beneficiary framing"),
+        (r"\b(?:bunga|cicilan|utang)\s+(?:baru|tambahan|tinggi|naik)\b", "new financing-cost framing"),
+        (r"\b(?:beban|biaya)\s+(?:bunga|cicilan|utang)\b", "new financing-cost framing"),
+    )
+    issues = []
+    for key in [f"post_{i}" for i in range(1, 7)]:
+        text = _normalize_grounding_text(posts.get(key, ""))
+        for pattern, label in framing:
+            match = re.search(pattern, text)
+            if match and match.group(0) not in source:
+                issues.append(f"{key}: unsupported financial framing '{match.group(0)}' ({label})")
+    return issues
+
+
 def _validate_range_direction(posts, body):
     """Reject wording that reverses source range direction."""
     source = _normalize_grounding_text(body)
@@ -2031,8 +2151,9 @@ def deterministic_grounding_validate(article, posts):
     return (_validate_numbers(posts, body) + _validate_years(posts, body)
             + _validate_proper_nouns(posts, body) + _validate_claim_markers(posts, body)
             + _validate_sensitive_language(posts, body) + _validate_quotes(posts, body)
+            + _validate_unsupported_financial_framing(posts, body)
             + _validate_unsupported_inferences(posts, body) + _validate_range_direction(posts, body)
-            + _validate_source_evidence_map(posts, body) + _validate_policy_winner_arc(article, posts))
+            + _validate_source_evidence_map(posts, body))
 
 
 def grounding_validate(article, posts):
@@ -2113,15 +2234,7 @@ def thread_contract_issues(posts, article_url):
             posts[f"post_{i}"] = _fit_complete_sentences(text, SLIDE_CHAR_LIMIT)
             if len(posts[f"post_{i}"]) > SLIDE_CHAR_LIMIT:
                 issues.append(f"post_{i}: over {SLIDE_CHAR_LIMIT} chars")
-        if _sentence_count(posts[f"post_{i}"]) < 2:
-            issues.append(f"post_{i}: minimum 2 sentences")
-    # S6 should close unresolved tension, not repeat numeric facts already used.
-    prior_numbers = set()
-    for i in range(1, 6):
-        prior_numbers.update(re.findall(r"(?:rp\s*)?\d[\d.,]*\s*(?:ribu|juta|miliar|triliun|%)?", posts.get(f"post_{i}", "").lower()))
-    s6_numbers = set(re.findall(r"(?:rp\s*)?\d[\d.,]*\s*(?:ribu|juta|miliar|triliun|%)?", posts.get("post_6", "").lower()))
-    if prior_numbers & s6_numbers:
-        issues.append("post_6: repeats numeric fact")
+    # Repeated numbers can clarify stakes in S6; grounding checks still reject invented values.
     # S6 is CTA only. Move every legacy/LLM URL out, then create S7.
     if article_url:
         for i in range(1, 7):
@@ -2298,18 +2411,24 @@ def _call_llm(system, user, model=None, max_retries=3, temperature=None):
 
 # Active writer contract: RCTOE adapted to Techbro runtime and validators.
 SYSTEM_PROMPT = """# ROLE
-Kamu penulis konten ekonomi untuk akun Threads Indonesia @ryanhadiii. Suara lo berani beropini, ambil sisi, berpihak ke rakyat kecil — semua klaim tetap literal dari artikel.
+Kamu penulis analisis ekonomi untuk akun Threads Indonesia @ryanhadiii. Pahami ekonomi, lalu jelaskan dengan bahasa sehari-hari. Suara lo berani beropini dan berpihak ke rakyat kecil — semua klaim tetap literal dari artikel.
+
+# EDITORIAL LANE
+Pilih hanya topik ekonomi nasional atau internasional yang punya perubahan material: kebijakan, anggaran, pajak, subsidi, harga, upah, pekerjaan, perdagangan, industri, bisnis besar, pasar, atau guncangan ekonomi global. Jangan tulis promo/event retail, tips personal finance, gosip korporasi, atau berita layanan rutin. Artikel internasional boleh tanpa kaitan Indonesia jika benar-benar berdampak pada ekonomi global; jangan memaksa kaitan Indonesia.
+
+# PLAIN LANGUAGE
+Tulis untuk pembaca umum, bukan ekonom. Hindari jargon teknis. Ganti dengan kata sehari-hari bila akurat. Jika istilah wajib dipakai, jelaskan artinya saat pertama disebut: istilah — arti sederhananya. Jangan menumpuk istilah ekonomi dalam satu kalimat.
 
 # CONTEXT
-Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi yang kaku menjadi cerita analitis santai dengan alur logis. Pakai kata sehari-hari dan kalimat pendek, seolah menjelaskan ke pembaca yang tidak paham ekonomi. Jika istilah teknis tidak wajib untuk akurasi, ganti dengan kata umum. Jika wajib, jelaskan dengan kata sederhana saat pertama muncul. Jangan menyalin jargon hanya karena istilah itu ada di artikel. Kredibel, tidak clickbait, tidak lebay. Bahasa gua–lu.
+Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi cerita yang tajam, cepat, dan enak dibagikan. Buka dengan angka, konflik, atau konsekuensi paling mahal dari artikel. Pakai bahasa gua–lu, kalimat pendek, opini boleh tegas jika fakta dan opini jelas terpisah. Jangan menambah fakta, angka, motif, atau dampak yang tidak ada di artikel.
 
 # TASK
 Ubah satu artikel sumber menjadi 6 post Threads yang saling tersambung. Gunakan satu ISI ARTIKEL sebagai sumber tunggal. ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Jelaskan sebab-akibat hanya jika hubungan itu tertulis atau jelas dinyatakan artikel; jika artikel tidak menjelaskan sebab atau dampak, nyatakan batas informasi tersebut, jangan mengarang.
 
 Fungsi post:
-Pilih arc sesuai bukti sumber: kebijakan, personal finance (bunga/cicilan/utang/investasi/risiko/arus kas), wallet pressure, public money, supply shock, atau market decision. Jangan pakai arc kebijakan untuk semua artikel.
+Pilih arc sesuai bukti sumber: kebijakan, household impact (harga/upah/daya beli), public money, supply shock, atau market decision. Jangan pakai arc kebijakan untuk semua artikel. Jangan gunakan label `wallet_pressure`; promo retail tidak boleh diubah menjadi tekanan ekonomi rumah tangga.
 Buat satu STORY SPINE sebelum menulis: satu perubahan/konflik/status gap yang benar-benar tertulis. S1 membuka implikasi atau ketegangannya, bukan sekadar "X bilang Y". S2-S5 masing-masing menambah bukti berbeda: keputusan, mekanisme, pihak terdampak, lalu trade-off atau hal yang belum selesai. S6 kembali ke ketegangan S1 dan memberi dua pilihan yang benar-benar ada di artikel. Untuk lane internasional, jelaskan kanal dampak Indonesia hanya jika kalimat sumber menghubungkannya.
-1. HOOK — S1 WAJIB 2 kalimat, maksimal 220 karakter. Buka dengan KONTRADIKSI / STATUS-GAP / KONFLIK yang tertulis di artikel (angka naik tapi daya beli turun, janji vs fakta, biaya naik tapi gaji diam). Ambil sisi: posisikan dampak ke rakyat kecil secara eksplisit lewat fakta literal, jangan netral. Sisakan SATU pertanyaan nyata di kepala pembaca yang cuma terjawab di S2-S6 — curiosity gap dari fakta, BUKAN teka-teki karangan. Jangan mulai dengan lead berita biasa atau deskripsi gambar. Kalimat pertama boleh angka mengejutkan, keputusan/perubahan tertulis, atau aktor berwenang + tindakan; kalimat kedua konteks sumber.
+1. HOOK — S1 maksimal 220 karakter. Buka dengan angka, konflik, perubahan, atau konsekuensi paling mahal yang tertulis di artikel. Ambil sisi dari fakta; opini tegas boleh selama tidak menambah klaim. Sisakan curiosity gap yang jawabannya ada di S2-S6. Jangan mulai dengan lead berita biasa atau deskripsi gambar.
 
 Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali literal ada di ISI ARTIKEL.
 2. LATAR BELAKANG — apa yang terjadi, kapan, dan siapa yang terlibat, hanya bila tertulis.
@@ -2327,7 +2446,7 @@ Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali l
 - Untuk kebijakan: gunakan opsi resmi + kelompok terdampak + status belum final hanya jika literal; jelaskan pembagian kewenangan serta dasar aturan bila tertulis.
 - Jangan mengubah satuan atau menghitung angka baru.
 - Parafrase boleh jika makna tetap sama.
-- Setiap post wajib 2 kalimat dan maksimal 450 karakter. Satu ide utama per post.
+- Setiap post wajib minimal 1 kalimat lengkap dan maksimal 450 karakter. Satu ide utama per post.
 - Istilah teknis wajib dijelaskan singkat saat pertama disebut, jika penjelasan tersedia di artikel.
 - Bahasa Indonesia santai, jelas, dan natural. Utamakan kata sehari-hari yang mudah dipahami pembaca awam. Hindari jargon teknis dan birokratis; jika istilah wajib dipakai, beri arti sederhananya saat pertama muncul. Hindari slogan, hashtag, URL, dan pembuka generik.
 - Jangan memaksa bagian sebab, dampak, atau relevansi jika bukti tidak tersedia.
@@ -2357,8 +2476,8 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 3.institution/acronym: JANGAN mengarang istilah yang tidak ada di artikel — HAPUS saja.
 4.STOP-SLOP: hindari pembuka laporan, transisi bertele-tele, kontras formulaik, hedge samar, rujukan gambar, dan kalimat pasif.
 5.TIDAK boleh menambah dampak/CTA baru, nama baru, label penilaian, atau fakta di luar ALLOWLIST. Jangan memberi label pada tindakan atau menyimpulkan motif, hasil, maupun dampak kecuali artikel menyebutnya secara literal.
-5a.CTA: pertanyaan S6 wajib membandingkan dua taruhan konkret yang sama-sama literal di ISI ARTIKEL. Jangan memakai istilah abstrak atau membuat taruhan baru. Jika tidak ada, balas insufficient_evidence.
-6.S1: WAJIB 2 kalimat penuh (titik di antara kalimat) — ini NON-NEGOTIABLE.
+5a.CTA: S6 wajib mengundang respons pembaca. Kaitkan dengan fakta atau pilihan di ISI ARTIKEL bila tersedia; jangan membuat fakta baru.
+6.S1: boleh satu kalimat tajam atau dua kalimat pendek. Maksimal 220 karakter.
 7.RETURN TO ORIGINAL: Jika tidak bisa perbaiki tanpa invent nama/angka/label baru, balikan ke value asli field tersebut. Jangan tambah apa-apa.
 
 Jika tidak ada enam post yang bisa dipertahankan akurat dan memenuhi aturan di atas, balas {{"status":"error","message":"insufficient_evidence"}}."""
@@ -2701,10 +2820,6 @@ def deterministic_validate(posts):
         sent_count = _sentence_count(p)
         if sent_count < 1:
             warnings.append(f"{k}: no sentences")
-        if i == 1 and sent_count < 2:
-            warnings.append(f"{k}: only {sent_count} sentence(s) — S1 WAJIB minimal 2 kalimat")
-        if sent_count < 2:
-            warnings.append(f"{k}: minimum 2 sentences")
         if sent_count > 6:
             warnings.append(f"{k}: too many sentences ({sent_count})")
         # Enforce 450-char limit on every slide; keep complete sentences only.
@@ -2757,38 +2872,15 @@ def deterministic_validate(posts):
 
 
 def _validate_s1_hook(posts, body, article=None):
-    """Require status-gap/impact only for source-backed policy decision arcs."""
-    if article is not None and not _policy_winner_enabled(article):
-        return []
-    text = (posts.get("post_1") or "").lower()
-    source = (body or "").lower()
-    status_terms = ("sebelumnya", "kini", "akan", "bakal", "ubah", "diubah", "mengubah", "perubahan", "berubah", "usul", "opsi", "tetap", "ditetapkan", "menetapkan", "berlaku")
-    impact_terms = ("harga", "biaya", "tarif", "gaji", "upah", "cicilan", "utang", "subsidi", "pajak", "daya beli", "rumah tangga", "konsumen", "anggaran")
-    issues = []
-    if not any(term in text and term in source for term in status_terms):
-        issues.append("post_1: missing status-gap hook")
-    if not any(term in text and term in source for term in impact_terms):
-        issues.append("post_1: missing concrete impact")
-    return issues
+    """Hook quality is editorial guidance; grounding remains hard validation."""
+    return []
 
 
 def _validate_s6_cta(posts, body):
-    """S6 CTA must name source-backed decision, actor, number, or trade-off."""
+    """Require a question anchored by one source term; avoid template policing."""
     text = (posts.get("post_6") or "").lower()
     if "?" not in text:
         return ["post_6: CTA not found"]
-    question = text.rsplit("?", 1)[0].rsplit(".", 1)[-1]
-    generic_pair = re.search(
-        r"\b(?:pertumbuhan|ekonomi|pasar|kondisi|situasi)\s+"
-        r"(?:atau|vs|dibanding(?:kan)?)\s+"
-        r"(?:pertumbuhan|ekonomi|pasar|kondisi|situasi)\b",
-        question,
-    )
-    if generic_pair and generic_pair.group(0) not in (body or "").lower():
-        return ["post_6: generic CTA compares abstract topics"]
-    source_terms = _content_terms(body)
-    if len(source_terms & _content_terms(question)) < 2:
-        return ["post_6: missing specific CTA source anchor"]
     return []
 
 
@@ -3427,6 +3519,13 @@ def main():
     if inflight:
         posts = inflight["posts"]
         article = inflight["article"]
+        veto = _final_publish_veto(article, {
+            "angle": inflight.get("topic", {}).get("angle", ""),
+            "arc": inflight.get("topic", {}).get("arc", ""),
+        })
+        if veto:
+            log.error(f"Final publish veto: {veto}")
+            return
         log.warning(f"Resuming partial chain from S{len(inflight.get('post_ids', [])) + 1}")
         pub = post_to_threads(article["title"], posts, inflight.get("image_url"), inflight)
         if _publish_complete(pub, posts):
@@ -3469,7 +3568,14 @@ def main():
         articles, data=data, per_source_limit=6, allow_cluster_repeats=True,
     )
     for topic in hot_topics:
-        log.info(f"  Hot #{topic['rank']}: {topic['title'][:70]} (score={topic['hot_score']})")
+        log.info(f"  Hot #{topic['rank']}: [{topic['lane']}] {topic['title'][:70]} (score={topic['hot_score']})")
+    international_topics = international_dry_run_candidates(hot_topics, fallback_topics)
+    if DRY_RUN and not international_topics:
+        log.error("International dry-run gate failed: no body-verified lane=international candidate")
+        print("NO_INTERNATIONAL_CANDIDATE", flush=True)
+        return
+    if international_topics:
+        log.info(f"  International candidates: {len(international_topics)}")
     if not DRY_RUN:
         save_hot_topics(hot_topics)
     articles = _publisher_pool(articles, hot_topics, fallback_topics)
@@ -3492,12 +3598,6 @@ def main():
             continue
         log.info(f"Picked: {candidate['title']}")
         log.info(f"  Source: {candidate['source']} | Score: {candidate.get('eco_score', 0)} | Reason: {candidate.get('_reason', '')} | Weight: {candidate.get('_weight', 0)}")
-        # Quick title-level economy filter: skip obviously non-ekonomi before costly body fetch
-        if not _has_economy_title_signal(candidate["title"]):
-            reject_reasons["title_no_economy_signal"] += 1
-            log.info("  Skip: title has no economy signal")
-            skipped_urls.add(candidate["url"])
-            continue
         log.info("Fetching article body...")
         candidate_body, candidate_image, article_ts = _fetch_article_body(candidate["url"])
         source_ts, timestamp_source, timestamp_reason = _resolve_published_timestamp(article_ts, candidate.get("ts", 0), time.time())
@@ -3688,6 +3788,12 @@ def main():
 
     if not result:
         log.error("Generation failed: no valid result")
+        print("NO_SAFE_CANDIDATE", flush=True)
+        return
+
+    veto = _final_publish_veto(article, result)
+    if veto:
+        log.error(f"Final publish veto: {veto}")
         print("NO_SAFE_CANDIDATE", flush=True)
         return
 

@@ -1,6 +1,18 @@
 {
   "_note": "TechBro V3 dynamic keywords — edit this file to update scoring without code changes.",
-  "_version": 3,
+  "_version": 4,
+  "editorial_selection": {
+    "non_economic_title_markers": ["tuyul", "sungkan", "biografi", "kisah lama", "cerita lama", "zaman dulu", "54 tahun kemudian"],
+    "historical_title_markers": ["utang", "tahun kemudian", "lunas", "sejarah", "dulu", "masa lalu"],
+    "current_title_markers": ["2026", "2027", "kini", "hari ini", "baru", "menetapkan", "berlaku", "mengubah", "naik", "turun"],
+    "personal_title_markers": ["begini syarat", "cara ", "simak cara", "tips ", "cek ", "nomor hp"],
+    "personal_finance_advice": ["syarat", "cara", "slik", "skor kredit", "tunggakan", "pinjaman", "kredit"],
+    "retail_markers": ["pusat belanja", "mal", "mall", "ritel", "retail", "toko", "belanja"],
+    "promotion_markers": ["diskon", "hadiah", "promo", "promosi", "festival", "target transaksi", "long weekend", "voucher", "cashback"],
+    "event_markers": ["event", "acara", "festival", "pameran", "momen", "long weekend"],
+    "material_topic_markers": ["apbn", "pajak", "subsidi", "anggaran", "utang negara", "defisit", "suku bunga", "bi rate", "inflasi", "pdb", "pertumbuhan ekonomi", "ekspor", "impor", "neraca perdagangan", "phk", "pengangguran", "upah", "harga pangan", "bbm", "tarif", "investasi", "pabrik", "industri", "bank", "rupiah", "dolar", "ihsg", "saham", "obligasi", "perdagangan global", "resesi global", "perang dagang", "tarif dagang", "opec"],
+    "material_change_markers": ["apbn", "pajak", "subsidi", "menetapkan", "menetapkan harga", "ubah", "diubah", "naik", "turun", "berlaku", "aturan baru", "kebijakan", "anggaran", "defisit", "utang", "phk", "pabrik tutup", "bangkrut", "pailit", "investasi", "ekspor", "impor", "suku bunga", "inflasi", "pertumbuhan", "melambat", "melonjak", "anjlok", "krisis", "resesi", "perang dagang", "tarif" ]
+  },
   "score_categories": [
     {
       "name": "dampak_dompet",

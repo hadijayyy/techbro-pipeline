@@ -1,6 +1,6 @@
-# TechBro V5 — Ekonomi Nasional Indonesia
+# TechBro V5 — Ekonomi Indonesia + International
 
-Content automation pipeline for [@ryanhadiii](https://www.threads.net/@ryanhadiii) — Ekonomi Nasional Indonesia thread generator, reverse-engineered from viral Threads post patterns.
+Content automation pipeline for [@ryanhadiii](https://www.threads.net/@ryanhadiii) — ekonomi Indonesia + international economy thread generator, reverse-engineered from viral Threads post patterns.
 
 Scrapes CNBC/CNN/Detik Finance → scores by economy relevance → generates 6-slide thread via LLM → posts to Threads. Hourly cron 07:00-23:00 WIB.
 
@@ -63,8 +63,9 @@ Multi-layer defense:
 |--------|------|-------|
 | CNN Ekonomi | RSS | 100 |
 | Detik Finance | RSS | 100 |
-| CNBC News | RSS | 100 |
+| CNBC Global | RSS | 100 |
 | CNBC Market | RSS | 100 |
+| BBC Business | RSS | 100 |
 | Detik Finance | HTML fallback | 68 |
 
 ## Setup

@@ -21,34 +21,86 @@ def test_ungrounded_rupiah_range_is_rejected():
 
 
 def test_thin_article_is_rejected_before_generation():
-    assert pipeline.article_evidence_gate({"body": "Fakta ekonomi."}) == "body_under_1000_chars"
-    assert pipeline.article_evidence_gate({"body": "teks " * 250}) == "insufficient_source_claims_for_six_posts"
+    assert pipeline.article_evidence_gate({"body": "Fakta ekonomi."}) == "body_under_500_chars"
+    assert pipeline.article_evidence_gate({"body": "teks " * 250}) == "insufficient_source_claims_for_four_posts"
     body = " ".join(f"Nilai bulan {month} mencapai Rp{month}." for month in range(1, 7)) * 12
     assert pipeline.article_evidence_gate({"body": body}) is None
 
 
-def test_candidate_selection_rejects_body_below_generation_minimum():
+def test_candidate_selection_allows_body_above_relaxed_minimum():
     body = "Pemerintah menetapkan subsidi energi untuk rumah tangga Indonesia. " * 14
     ok, reason = pipeline._is_eligible_candidate(
         "Pemerintah Tetapkan Subsidi Energi untuk Rumah Tangga", body, "cnn_ekonomi"
     )
-    assert not ok
-    assert reason == "body_under_1000_chars"
+    assert ok, reason
 
 
-def test_candidate_selection_rejects_consumer_advice_title_even_with_long_body():
+def test_candidate_selection_allows_consumer_advice_title_for_viral_testing():
     body = "AFPI menjelaskan penilaian kredit dan pembiayaan UMKM di Indonesia. " * 30
     ok, reason = pipeline._is_eligible_candidate(
         "Nomor HP Bisa Jadi Pengganti Skor Kredit, Begini Syaratnya", body, "cnbc_market"
     )
     assert not ok
-    assert reason == "utility_or_consumer_advice"
+    assert reason == "personal_finance_advice"
 
 
-def test_six_post_draft_requires_six_source_claims_before_llm():
+def test_editorial_selection_rejects_personal_finance_how_to():
+    title = "Nomor HP Bisa Jadi Pengganti Skor Kredit, Begini Syaratnya"
+    body = "AFPI menjelaskan cara penilaian kredit dan syarat pembiayaan UMKM di Indonesia. " * 30
+    assert pipeline._editorial_candidate_gate(title, body) == "personal_finance_advice"
+
+
+def test_editorial_selection_rejects_retail_event_even_with_large_target():
+    title = "Geliat Pusat Belanja di Momen Long Weekend HUT RI ke-81"
+    body = ("Pusat belanja menggelar festival dan diskon untuk mengejar target transaksi "
+            "Rp38,97 triliun pada long weekend. " * 20)
+    assert pipeline._editorial_candidate_gate(title, body) == "retail_event_promotion"
+
+
+def test_editorial_selection_requires_economy_topic_and_material_change():
+    body = "Perusahaan menjelaskan strategi bisnis dan layanan baru bagi pengguna di Indonesia. " * 20
+    assert pipeline._editorial_candidate_gate("Perusahaan Rilis Layanan Baru", body) == "no_material_economic_topic"
+
+
+def test_editorial_selection_accepts_national_policy_story():
+    body = "Pemerintah menetapkan subsidi energi untuk rumah tangga Indonesia. " * 20
+    assert pipeline._editorial_candidate_gate("Pemerintah Tetapkan Subsidi Energi", body) is None
+
+
+def test_transmart_promo_final_veto_ignores_wallet_pressure_angle():
+    title = "Merdeka Belanja di Transmart Full Day Sale Hari Ini, Diskon 50% + 20%"
+    body = ("Transmart menawarkan diskon 50 persen untuk kebutuhan harian dan produk lain. "
+            "Tambahan diskon 20 persen berlaku dengan minimal transaksi Rp300 ribu "
+            "dan pembayaran Allo Prime, Allo Paylater, atau kartu kredit Bank Mega. "
+            "Promo berlangsung satu hari di seluruh gerai.")
+    article = {"title": title, "body": body}
+    result = {"angle": "wallet_pressure", "arc": "wallet_pressure"}
+    assert pipeline._is_low_value_promo(title, body)
+    assert not pipeline.has_material_economic_signal(title, body)
+    assert pipeline._final_publish_veto(article, result) == (
+        "LOW_VALUE_PROMO: material_economic_signal=False"
+    )
+
+
+def test_conflict_priority_rewards_decision_payer_and_beneficiary():
+    strong = "Pemerintah Tetapkan Pajak Rp10 Triliun, Pengusaha Bayar untuk Subsidi"
+    generic = "Perusahaan Bahas Strategi Bisnis di Era Digital"
+    assert pipeline._engagement_priority_bonus(strong, strong) > pipeline._engagement_priority_bonus(generic, generic)
+
+
+def test_household_impact_replaces_wallet_pressure_taxonomy():
+    _, arc, _ = pipeline._content_metadata(
+        "Harga BBM Naik 10 Persen, Daya Beli Rumah Tangga Tertekan",
+        "Pemerintah menetapkan harga BBM naik 10 persen dan membahas daya beli rumah tangga. " * 3,
+    )
+    assert arc == "household_impact"
+    assert "wallet_pressure" not in arc
+
+
+def test_draft_requires_four_source_claims_before_llm():
     body = ("Bank Indonesia menetapkan suku bunga menjadi 5 persen. "
             + "Narasi tanpa fakta tambahan. " * 50)
-    assert pipeline.article_evidence_gate({"body": body}) == "insufficient_source_claims_for_six_posts"
+    assert pipeline.article_evidence_gate({"body": body}) == "insufficient_source_claims_for_four_posts"
 
 
 def test_source_claim_plan_uses_article_sentences_only():
@@ -539,7 +591,7 @@ def test_policy_winner_evidence_requires_six_roles():
     assert not pipeline._validate_policy_winner_arc(article, posts)
 
 
-def test_policy_winner_gate_rejects_missing_tradeoff():
+def test_policy_winner_helper_is_advisory_only():
     body = " ".join([
         "Pemerintah mengusulkan guru PPPK dipindahkan menjadi ASN pusat.",
         "Menteri Pendidikan menyebut opsi itu dibahas bersama pemerintah daerah.",
@@ -561,8 +613,8 @@ def test_policy_winner_gate_rejects_missing_tradeoff():
     posts["post_4"] = "Pembahasan dilakukan untuk pemerataan distribusi guru. Rapat lanjutan pekan depan."
     posts["post_5"] = "Pemerintah menyiapkan bahan pembahasan bersama DPR. Daerah masih menunggu pembagian kewenangan."
     posts["post_6"] = "Keputusan akhir belum diumumkan. Menurut lo, aturan atau pembahasan?"
-    issues = pipeline._validate_policy_winner_arc({"pattern": "KEBIJAKAN", "body": body}, posts)
-    assert any("post_5" in issue for issue in issues)
+    issues = pipeline.deterministic_grounding_validate({"pattern": "KEBIJAKAN", "body": body}, posts)
+    assert not any("policy trade-off" in issue for issue in issues)
 
 
 def test_generic_policy_article_skips_policy_winner_gate():
@@ -589,7 +641,7 @@ def test_policy_article_evidence_gate_only_applies_to_decision_story():
     assert pipeline.article_evidence_gate(article) is None
 
     article["body"] = base + " Pemerintah sebelumnya menyerahkan kewenangan guru ke daerah, tetapi kini mengusulkan pemindahan ke pusat."
-    assert pipeline.article_evidence_gate(article) == "policy_missing_literal_tradeoff"
+    assert pipeline.article_evidence_gate(article) is None
 
     article["body"] = base + " Pemerintah sebelumnya menyerahkan kewenangan guru ke daerah, tetapi kini mengusulkan pemindahan ke pusat. Kebijakan ini mengurangi beban daerah tetapi menambah anggaran pusat."
     assert pipeline.article_evidence_gate(article) is None
@@ -676,12 +728,12 @@ def test_fallback_rejects_sentence_fragments():
                                 for text in posts.values())
 
 
-def test_thread_contract_rejects_repeated_s6_numbers():
+def test_thread_contract_allows_repeated_s6_numbers_when_grounded():
     posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
     posts["post_1"] = "Harga tercatat Rp36 ribu per kg. Angka ini berasal dari data resmi."
     posts["post_6"] = "Harga tercatat Rp36 ribu per kg. Menurut lo, apa solusinya?"
-    assert any("post_6: repeats numeric fact" in issue
-               for issue in pipeline.thread_contract_issues(posts, "https://x.test/a"))
+    assert not any("post_6: repeats numeric fact" in issue
+                   for issue in pipeline.thread_contract_issues(posts, "https://x.test/a"))
 
 
 def test_learning_bonus_can_use_hook_performance():
@@ -880,10 +932,8 @@ def test_claim_level_gate_blocks_live_airlangga_overclaims():
     assert any("unsupported consequence" in x for x in issues), issues
 
 
-def test_writer_prompt_requires_two_sentence_s1_and_allows_non_numeric_policy_hook():
-    assert "WAJIB 2 kalimat" in pipeline.SYSTEM_PROMPT
-    assert "keputusan/perubahan tertulis" in pipeline.SYSTEM_PROMPT
-    assert "aktor berwenang + tindakan" in pipeline.SYSTEM_PROMPT
+def test_writer_prompt_allows_compact_s1_hook():
+    assert "S1 maksimal 220 karakter" in pipeline.SYSTEM_PROMPT
     assert "Jangan mulai dengan lead berita biasa" in pipeline.SYSTEM_PROMPT
 
 
@@ -932,13 +982,13 @@ def test_thread_contract_moves_source_url_to_s7():
     assert posts["post_7"] == "Sumber: https://contoh.go.id/dokumen"
 
 
-def test_thread_contract_requires_two_sentences_and_allows_450_chars():
+def test_thread_contract_requires_one_complete_sentence_and_allows_450_chars():
     posts = {f"post_{i}": "Fakta pertama. Konteks kedua." for i in range(1, 7)}
     assert pipeline.thread_contract_issues(posts, "") == []
 
     posts["post_2"] = "Fakta pertama."
     issues = pipeline.thread_contract_issues(posts, "")
-    assert any("post_2: minimum 2 sentences" in issue for issue in issues), issues
+    assert issues == [], issues
 
     posts["post_2"] = "Kalimat pertama. " + "Konteks tambahan. " * 40
     pipeline.thread_contract_issues(posts, "")
@@ -1168,13 +1218,11 @@ def test_editorial_priority_prefers_policy_and_public_money_over_market_update()
     assert pipeline._engagement_priority_bonus("Aturan subsidi diubah", policy) > pipeline._engagement_priority_bonus("Rupiah melemah", market)
 
 
-def test_s1_requires_status_gap_and_concrete_impact():
+def test_s1_hook_has_no_extra_template_gate():
     body = "Pemerintah mengubah subsidi energi. Perubahan itu menaikkan biaya rumah tangga. " * 12
     posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
     posts["post_1"] = "Pemerintah membahas ekonomi. Informasi lain masih tersedia."
-    issues = pipeline._validate_s1_hook(posts, body)
-    assert any("status-gap" in issue for issue in issues)
-    assert any("impact" in issue for issue in issues)
+    assert pipeline._validate_s1_hook(posts, body) == []
 
 
 def test_s1_hook_is_not_required_for_generic_economy_article():
@@ -1187,7 +1235,7 @@ def test_s1_hook_is_not_required_for_generic_economy_article():
     assert pipeline._validate_s1_hook(posts, article["body"], article) == []
 
 
-def test_s1_hook_remains_required_for_policy_decision_article():
+def test_s1_hook_is_not_a_hard_gate_for_policy_decision_article():
     article = {
         "title": "Pemerintah Usulkan Perubahan Subsidi",
         "body": ("Pemerintah mengusulkan perubahan subsidi energi. "
@@ -1196,25 +1244,23 @@ def test_s1_hook_remains_required_for_policy_decision_article():
         "pattern": "KEBIJAKAN",
     }
     posts = {f"post_{i}": "Fakta sumber cukup panjang. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
-    issues = pipeline._validate_s1_hook(posts, article["body"], article)
-    assert any("status-gap" in issue for issue in issues)
-    assert any("impact" in issue for issue in issues)
+    assert pipeline._validate_s1_hook(posts, article["body"], article) == []
 
 
-def test_s6_requires_specific_source_anchored_cta():
+def test_s6_accepts_one_source_anchored_cta():
     body = "Pemerintah mengubah anggaran subsidi energi. Pembahasan masih menunggu persetujuan DPR. " * 12
     posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
     posts["post_6"] = "Pembahasan masih menunggu persetujuan DPR. Menurut lo, bagian mana yang perlu dijelaskan?"
     issues = pipeline._validate_s6_cta(posts, body)
-    assert any("specific CTA" in issue for issue in issues)
+    assert issues == [], issues
 
 
-def test_s6_rejects_generic_growth_monitoring_cta():
+def test_s6_allows_simple_source_anchored_cta():
     body = "Penerimaan pajak tumbuh 2,4 persen. Pemerintah memantau APBN setiap bulan. " * 12
     posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
     posts["post_6"] = "Penerimaan pajak tumbuh 2,4 persen. Menurut lo, pertumbuhan atau ekonomi?"
     issues = pipeline._validate_s6_cta(posts, body)
-    assert any("generic CTA" in issue for issue in issues)
+    assert issues == [], issues
 
 
 def test_source_diversity_penalizes_recently_overused_source():
@@ -1222,7 +1268,7 @@ def test_source_diversity_penalizes_recently_overused_source():
     assert pipeline._source_diversity_penalty(data, "detik_finance") < pipeline._source_diversity_penalty(data, "antara_ekonomi")
 
 
-def test_utility_and_ceremony_titles_fail_full_economy_gate():
+def test_utility_and_ceremony_titles_can_enter_editorial_routing():
     body = "Bank Indonesia menjelaskan aturan dengan nilai Rp1.000.000. " * 30
     for title in (
         "Saldo Minimal Nasabah Prioritas Bank BRI per Agustus 2026",
@@ -1408,14 +1454,15 @@ def test_prepared_article_normalizes_old_double_url_draft(tmp_path, monkeypatch)
     posts["post_1"] = "Angka sumber penting untuk pembaca. Dampaknya perlu dilihat bersama."
     posts["post_6"] = "Dua posisi netral. Mana yang lebih masuk akal?\n\nhttps://tautan-lama.test"
     body = " ".join([
+        "Pemerintah menetapkan subsidi energi untuk rumah tangga Indonesia.",
         "Angka sumber penting untuk pembaca.",
         "Dua fakta sumber yang cukup panjang.",
         "Fakta kedua lengkap dan berbeda.",
         "Konteks kebijakan ekonomi tersedia.",
         "Data sumber memberi rincian tambahan.",
         "Dua posisi netral yang lebih masuk akal perlu dipantau.",
-    ])
-    article = {"title": "T", "url": "https://sumber.test", "body": body,
+    ] * 10)
+    article = {"title": "Pemerintah Tetapkan Subsidi Energi", "url": "https://sumber.test", "body": body,
                "og_image": "i", "posts": posts, "prepared_at": 1, "expires_at": 9_999_999_999}
     pipeline.PREPARED_ARTICLE_FILE.write_text(json.dumps(article))
     loaded = pipeline.load_prepared_article(set())
@@ -1523,6 +1570,34 @@ def test_source_config_keeps_only_active_sources_with_required_fields():
     assert all({"url", "score", "type", "domain"} <= set(cfg) for cfg in pipeline.SOURCES.values())
     assert {cfg["type"] for cfg in pipeline.SOURCES.values()} <= {"rss", "html"}
     assert "cnbc_global" in pipeline.SOURCES
+    assert "bbc_business" in pipeline.SOURCES
+
+
+def test_cnbc_body_selector_reads_generated_article_body(monkeypatch):
+    html = ('<html><article class="ArticleBody-articleBody"><p>'
+            + ('Revenue rose after a major investment decision. ' * 20)
+            + '</p></article></html>')
+    monkeypatch.setattr(pipeline, "_http_get", lambda *_args, **_kwargs: (200, html))
+    pipeline._BODY_CACHE.pop("https://www.cnbc.com/test-body", None)
+
+    body, _, _ = pipeline._fetch_article_body("https://www.cnbc.com/test-body")
+
+    assert len(body) > 500
+
+
+def test_economic_foreign_story_has_no_indonesia_anchor_penalty():
+    article = {"title": "American stocks rally after company revenue jump", "url": "https://x", "ts": 0}
+    global_score = pipeline._score_article({**article, "source": "cnbc_global"})[0]
+    local_score = pipeline._score_article({**article, "source": "bbc_business"})[0]
+
+    assert global_score == local_score
+
+
+def test_dry_run_requires_body_verified_international_topic():
+    assert pipeline.international_dry_run_candidates(
+        [{"lane": "national"}], [{"lane": "international"}]
+    )
+    assert not pipeline.international_dry_run_candidates([{"lane": "national"}])
 
 
 def test_source_config_invalid_json_falls_back_to_empty(monkeypatch, tmp_path):

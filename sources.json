@@ -58,5 +58,11 @@
     "score": 6,
     "type": "rss",
     "domain": "cnbc.com/"
+  },
+  "bbc_business": {
+    "url": "https://feeds.bbci.co.uk/news/business/rss.xml",
+    "score": 7,
+    "type": "rss",
+    "domain": "bbc.co.uk/news/"
   }
 }
