@@ -2450,6 +2450,7 @@ def thread_contract_issues(posts, article_url):
             issues.append(f"post_7: over {SLIDE_CHAR_LIMIT} chars")
     elif "post_7" not in posts:
         posts["post_7"] = ""
+    issues.extend(_indonesian_language_issues(posts))
     return issues
 
 
@@ -2627,6 +2628,9 @@ Pilih hanya topik ekonomi nasional atau internasional yang punya perubahan mater
 # PLAIN LANGUAGE
 Tulis untuk pembaca umum dan pembaca awam, bukan ekonom. Hindari jargon teknis. Ganti dengan kata sehari-hari bila akurat. Jika istilah wajib dipakai, jelaskan artinya saat pertama disebut bila natural; jangan memaksa definisi. Jangan menumpuk istilah ekonomi dalam satu kalimat.
 
+# LANGUAGE — HARD REQUIREMENT
+Seluruh `post_1` sampai `post_6` wajib Bahasa Indonesia santai. Bahasa sumber boleh Inggris, tetapi jangan menyalin kalimat Inggris. Nama resmi dan istilah teknis boleh tetap asli; terjemahkan kalimat sekitarnya. Jika enam post Bahasa Indonesia tidak bisa ditulis tanpa mengarang fakta, balas `insufficient_evidence`.
+
 # CONTEXT
 Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi cerita yang tajam, cepat, dan enak dibagikan. Jangan terdengar seperti ringkasan berita atau laporan korporat. Buka dengan angka, perubahan, kontras, kutipan, atau konsekuensi paling mahal dari artikel. Pakai bahasa gw–lo, kalimat pendek, dan detail konkret. Opini boleh tegas jika fakta dan opini jelas terpisah. Jangan menambah fakta, angka, motif, atau dampak yang tidak ada di artikel.
 
@@ -2706,6 +2710,7 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 9.POV: pastikan S1 memiliki reaksi/observasi editorial. Tambahkan POV ke satu slide lain hanya jika judgment tersebut dapat ditarik langsung dari fakta artikel.
 10.RITME: variasikan panjang kalimat dan struktur slide. Jangan membuat semua slide mengikuti pola fakta lalu penjelasan lalu kesimpulan.
 11.KAPITALISASI: gunakan kapitalisasi normal. Jangan lowercase seluruh kalimat untuk terlihat santai.
+12.BAHASA: seluruh `post_1` sampai `post_6` wajib Bahasa Indonesia. Jangan mengembalikan kalimat Inggris dari sumber.
 
 Jika tidak ada enam post yang bisa dipertahankan akurat dan memenuhi aturan di atas, balas {{"status":"error","message":"insufficient_evidence"}}."""
 
@@ -3010,8 +3015,32 @@ def build_user_prompt(article):
 
 # ── Validation ───────────────────────────────────────────────────────────────
 
+def _indonesian_language_issues(posts):
+    """Reject English-dominant slides; source language must not decide output language."""
+    english_markers = {
+        "a", "an", "and", "are", "as", "at", "been", "but", "by", "for", "from",
+        "has", "have", "historically", "in", "is", "more", "of", "on", "or", "said",
+        "since", "than", "that", "the", "their", "this", "to", "was", "were", "with",
+    }
+    indonesian_markers = {
+        "akan", "atau", "bagi", "banyak", "bisa", "bukan", "dan", "dari", "dengan",
+        "di", "dalam", "ini", "itu", "jadi", "juga", "karena", "kalau", "ke", "lo",
+        "lu", "menurut", "pada", "untuk", "yang", "sudah", "tapi", "tidak", "gua", "gw",
+    }
+    issues = []
+    for i in range(1, 7):
+        text = posts.get(f"post_{i}", "")
+        words = set(re.findall(r"[A-Za-z]+", text.lower()))
+        english = len(words & english_markers)
+        indonesian = len(words & indonesian_markers)
+        if english >= 2 and indonesian == 0:
+            issues.append(f"post_{i}: English-dominant output; Bahasa Indonesia required")
+    return issues
+
+
 def deterministic_validate(posts):
     warnings = []
+    warnings.extend(_indonesian_language_issues(posts))
     # STOP-SLOP patterns — 50+ Indonesian AI template phrases + structural tells
     slop_phrases = [
         # Throat-clearing openers
@@ -3505,7 +3534,7 @@ def generate_thread(article):
         voice_warnings = _voice_warnings(posts)
         jargon_warnings = _validate_jargon(posts, article["body"])
         grounding_warnings = grounding_validate(article, posts)
-        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "weak winning hook", "generic winning CTA", "generic editorial close", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence"))]
+        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "English-dominant", "S1 WAJIB", "weak winning hook", "generic winning CTA", "generic editorial close", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence"))]
         engagement_warnings = _validate_s1_hook(posts, article["body"], article) + _validate_s6_cta(posts, article["body"])
         warnings = missing + grounding_warnings + noun_warnings + claim_warnings + hard_style_warnings + engagement_warnings
         soft_warnings = style_warnings + voice_warnings + jargon_warnings
@@ -3528,6 +3557,7 @@ def generate_thread(article):
                     w2 = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4"] if not p2.get(k, "").strip()]
                     claim_w2 = _validate_claim_markers(p2, article["body"])
                     w2.extend(grounding_validate(article, p2))
+                    w2.extend(_indonesian_language_issues(p2))
                     w2.extend(noun_w2)
                     w2.extend(claim_w2)
                     jargon_w2 = _validate_jargon(p2, article["body"])
@@ -3555,6 +3585,7 @@ def generate_thread(article):
                         w_orig = grounding_validate(article, p_orig)
                         w_orig.extend([f"{k}: empty" for k in ["post_1","post_2","post_3","post_4"] if not p_orig.get(k,"").strip()])
                         w_orig.extend(_validate_claim_markers(p_orig, article["body"]))
+                        w_orig.extend(_indonesian_language_issues(p_orig))
                         noun_orig = _validate_proper_nouns(p_orig, article["body"])
                         w_orig.extend(noun_orig)
                         if not w_orig:

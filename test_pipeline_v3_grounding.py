@@ -41,6 +41,17 @@ def test_source_cleanup_rejects_cnbc_dateline_and_truncated_sentence():
                for fact in pipeline.literal_fact_allowlist(body))
 
 
+def test_language_gate_rejects_english_source_fallback_output():
+    posts = {f"post_{i}": "The market has been more resilient than expected." for i in range(1, 7)}
+    issues = pipeline._indonesian_language_issues(posts)
+    assert len(issues) == 6, issues
+
+
+def test_language_gate_accepts_indonesian_output_with_english_proper_nouns():
+    posts = {f"post_{i}": "Pasar ini tetap kuat, menurut gw, meski Goldman Sachs disebut di sumber." for i in range(1, 7)}
+    assert pipeline._indonesian_language_issues(posts) == []
+
+
 def test_candidate_selection_allows_body_above_relaxed_minimum():
     body = "Pemerintah menetapkan subsidi energi untuk rumah tangga Indonesia. " * 14
     ok, reason = pipeline._is_eligible_candidate(
