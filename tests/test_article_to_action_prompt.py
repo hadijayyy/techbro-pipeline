@@ -32,6 +32,10 @@ def test_system_prompt_is_source_only_article_to_action_contract():
     assert "Tidak perlu memaksa satu jenis fakta ke slide tertentu" in prompt
     assert "Jangan pakai label-colon, hashtag, jargon birokratis, template AI" in prompt
     assert "slogan, kalimat motivasi, atau kesimpulan yang terdengar besar" in prompt
+    assert "reaction-first" in prompt
+    assert "Ironi atau sarkasme hanya boleh memakai kontras literal" in prompt
+    assert "Jika tidak ada pilihan atau benturan konkret" in prompt
+    assert "Prioritaskan peristiwa konkret" in prompt
 
 
 def test_system_prompt_does_not_embed_fictional_facts_as_examples():

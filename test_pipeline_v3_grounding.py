@@ -27,6 +27,20 @@ def test_thin_article_is_rejected_before_generation():
     assert pipeline.article_evidence_gate({"body": body}) is None
 
 
+def test_source_cleanup_rejects_cnbc_dateline_and_truncated_sentence():
+    body = (
+        "Jakarta, CNBC Indonesia - Presiden Prabowo belum menyinggung rencana kenaikan gaji ASN. "
+        "sebagaimana saat memberikan pidato nota keuangan dan. "
+        "Pemerintah masih membahas kebijakan tersebut untuk tahun 2027."
+    )
+    cleaned = pipeline._clean_source_body(body)
+    assert "Jakarta, CNBC Indonesia" not in cleaned
+    assert all("sebagaimana saat memberikan" not in sentence
+               for sentence in pipeline._source_sentences(body))
+    assert all("Jakarta, CNBC Indonesia" not in fact
+               for fact in pipeline.literal_fact_allowlist(body))
+
+
 def test_candidate_selection_allows_body_above_relaxed_minimum():
     body = "Pemerintah menetapkan subsidi energi untuk rumah tangga Indonesia. " * 14
     ok, reason = pipeline._is_eligible_candidate(
@@ -86,6 +100,12 @@ def test_conflict_priority_rewards_decision_payer_and_beneficiary():
     strong = "Pemerintah Tetapkan Pajak Rp10 Triliun, Pengusaha Bayar untuk Subsidi"
     generic = "Perusahaan Bahas Strategi Bisnis di Era Digital"
     assert pipeline._engagement_priority_bonus(strong, strong) > pipeline._engagement_priority_bonus(generic, generic)
+
+
+def test_story_selection_rewards_concrete_event_chain_and_human_stakes():
+    concrete = "Serangan merusak pabrik baja, produksi berhenti dan logistik terganggu. Pekerja dan warga disebut terdampak; pemulihan belum jelas."
+    generic = "Perusahaan membahas strategi bisnis dan peluang pertumbuhan di era digital."
+    assert pipeline._story_selection_bonus("Pabrik baja rusak, produksi berhenti", concrete) > pipeline._story_selection_bonus("Strategi bisnis perusahaan", generic)
 
 
 def test_household_impact_replaces_wallet_pressure_taxonomy():
@@ -982,9 +1002,9 @@ def test_quality_gate_blocks_revision_style_violation():
     assert not pipeline._quality_gate({}, {"status": "success"}, posts, [])
 
 
-def test_quality_gate_blocks_missing_s6_cta():
+def test_quality_gate_allows_grounded_s6_without_cta():
     posts = {f"post_{i}": "Fakta sumber cukup panjang untuk memenuhi batas minimum. Konteks sumber menambah rincian berbeda." for i in range(1, 7)}
-    assert not pipeline._quality_gate({}, {"status": "success"}, posts, [])
+    assert pipeline._quality_gate({}, {"status": "success"}, posts, []) is True
 
 
 def test_hook_allows_supported_policy_change_without_forced_number_or_contradiction():
@@ -1244,7 +1264,7 @@ def test_story_prompt_requires_body_only_story_arc():
     assert "Buka dengan fakta paling mahal dan fakta paling kuat" in pipeline.SYSTEM_PROMPT
     assert "buat kalimat pertama menyampaikan fakta" in pipeline.SYSTEM_PROMPT.lower()
     assert "jangan ulang angka, fakta, atau contoh" in pipeline.SYSTEM_PROMPT
-    assert "S6 menutup dengan satu pertanyaan yang memancing" in pipeline.SYSTEM_PROMPT
+    assert "Jika tidak ada pilihan atau benturan konkret, tutup dengan simpulan editorial" in pipeline.SYSTEM_PROMPT
     assert "## DAMPAK" not in pipeline.SYSTEM_PROMPT
 
 
@@ -1337,6 +1357,13 @@ def test_s6_allows_simple_source_anchored_cta():
     posts["post_6"] = "Penerimaan pajak tumbuh 2,4 persen. Menurut lo, pertumbuhan atau ekonomi?"
     issues = pipeline._validate_s6_cta(posts, body)
     assert issues == [], issues
+
+
+def test_s6_allows_grounded_editorial_close_without_cta():
+    body = "Pemerintah mengubah anggaran subsidi energi. Pembahasan masih menunggu persetujuan DPR. " * 12
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
+    posts["post_6"] = "Pembahasan masih menunggu persetujuan DPR. Keputusan akhirnya belum keluar."
+    assert pipeline._validate_s6_cta(posts, body) == []
 
 
 def test_source_diversity_penalizes_recently_overused_source():

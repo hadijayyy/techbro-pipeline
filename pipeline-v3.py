@@ -890,9 +890,10 @@ def _verify_one(candidate, now, data=None):
     _, arc, hook = _content_metadata(title, body)
     lane = _story_lane(title, body)
     lens = _editorial_lens(title, body)
+    story_selection = _story_selection_bonus(title, body)
     hot_score = round(topic_score * 10 + confidence * 10 + freshness * 10 + source_quality
                       + _learning_bonus(data or {}, source, pattern, hook, arc, lane, lens)
-                      + _engagement_priority_bonus(title, body), 3)
+                      + _engagement_priority_bonus(title, body) + story_selection, 3)
     return {
         "cluster": _hot_topic_cluster(title, pattern), "title": title,
         "canonical_url": _canonical_url(url), "source": source,
@@ -900,6 +901,7 @@ def _verify_one(candidate, now, data=None):
         "pattern": pattern, "pattern_confidence": round(confidence, 3),
         "arc": arc, "hook_pattern": hook, "lane": lane, "editorial_lens": lens,
         "topic_score": topic_score, "economy_score": economy_score, "impact_score": impact_score,
+        "story_selection_score": story_selection,
         "hot_score": hot_score, "body_verified": True, "image_available": bool(image),
         "indonesia_relevance": indonesia_relevance, "reason": reason,
         "has_material_economic_signal": True,
@@ -1041,8 +1043,10 @@ def _pick_article(articles, posted_urls, data=None):
                                    a["arc"], a["lane"], a["editorial_lens"])
         a["learning_bonus"] = learning
         a["impact_channel"] = _international_impact_channel(a.get("title", ""), a.get("body", ""))
+        a["story_selection_score"] = _story_selection_bonus(a.get("title", ""), a.get("body", ""))
         a["_weight"] = (eco_score + freshness + relevance + source_quality + learning
                          + _engagement_priority_bonus(a.get("title", ""), a.get("body", ""))
+                         + a["story_selection_score"]
                          + _source_diversity_penalty(data, a["source"]))
     candidates.sort(key=lambda a: a["_weight"], reverse=True)
     log.debug("Top 5:")
@@ -1650,6 +1654,25 @@ def _engagement_priority_bonus(title, body):
     return bonus
 
 
+def _story_selection_bonus(title, body):
+    """Prefer concrete events with visible system and human stakes."""
+    text = f"{title} {body}".lower()
+    groups = (
+        ("event", ("rusak", "hancur", "terbakar", "diserang", "mandek", "berhenti",
+                   "ditutup", "runtuh", "terganggu", "naik", "turun", "ditetapkan",
+                   "diubah", "disahkan", "diblokir", "bangkrut", "pailit", "phk",
+                   "pemutusan hubungan kerja", "menunda", "mencabut"), 8),
+        ("chain", ("produksi", "pasokan", "logistik", "rantai pasok", "pengiriman",
+                   "gudang", "ekspor", "impor", "operasi", "operasional", "pendapatan",
+                   "harga", "biaya"), 7),
+        ("human", ("pekerja", "buruh", "warga", "korban", "petani", "nelayan",
+                   "konsumen", "rumah tangga", "pedagang", "umkm"), 5),
+        ("gap", ("belum", "masih", "menunggu", "tidak berarti", "baru", "hanya",
+                  "belum jelas", "belum ada"), 4),
+    )
+    return sum(value for _, terms, value in groups if any(term in text for term in terms))
+
+
 # ── Pressbox-style Pattern Classification ──────────────────────────────────────
 # 5 PINDAR patterns with keyword triggers + priority ordering.
 # Priority: KORUPSI > KEBIJAKAN > PROYEK > PERDAGANGAN > PASAR
@@ -1942,6 +1965,33 @@ def _convert_pov(text):
         return ""
     return re.sub(r'(?<!\w)[*_]+([^*_\n]+)[*_]+', r'\1', text)
 
+
+_SOURCE_DATELINE_RE = re.compile(r"(?:^|\s)Jakarta,\s*CNBC Indonesia\s*-\s*", re.I)
+_INCOMPLETE_SOURCE_START_RE = re.compile(
+    r"^(?:dan|atau|serta|karena|sehingga|sebagaimana|ketika|yang|untuk|dengan)\b",
+    re.I,
+)
+_INCOMPLETE_SOURCE_END_RE = re.compile(
+    r"\b(?:dan|atau|serta|karena|sehingga|sebagaimana|untuk|dengan|dari|di|ke|yang)$",
+    re.I,
+)
+
+
+def _clean_source_body(body):
+    """Remove known CNBC dateline before source evidence reaches writer."""
+    body = re.sub(r"\s+", " ", body or "").strip()
+    return _SOURCE_DATELINE_RE.sub(" ", body).strip()
+
+
+def _usable_source_sentence(sentence):
+    sentence = sentence.strip()
+    if len(sentence) < 25:
+        return False
+    complete = re.sub(r"[.!?]+$", "", sentence).strip()
+    return not (_INCOMPLETE_SOURCE_START_RE.search(sentence)
+                or _INCOMPLETE_SOURCE_END_RE.search(complete))
+
+
 def _format_sentence_blanks(text):
     """Collapse whitespace to one flowing paragraph per post."""
     s = text.replace('\u2014 ', ' ').replace('\u2014', ' ')
@@ -1953,7 +2003,7 @@ def _format_sentence_blanks(text):
 
 def article_evidence_gate(article):
     """Fail closed before LLM spend: body must support six non-repeated factual posts."""
-    body = (article.get("body") or "").strip()
+    body = _clean_source_body(article.get("body"))
     if len(body) < 500:
         return "body_under_500_chars"
     # Four distinct source claims gives writer room without rejecting compact news.
@@ -1964,13 +2014,13 @@ def article_evidence_gate(article):
 
 def source_claim_plan(article):
     """Give writer distinct substantive source sentences, never title-derived facts."""
-    body = re.sub(r"\s+", " ", article.get("body") or "").strip()
+    body = _clean_source_body(article.get("body"))
     selected = []
     seen = set()
     for sentence in re.split(r"(?<=[.!?])\s+", body):
         sentence = sentence.strip()
         key = sentence.lower()
-        if len(sentence) >= 25 and key not in seen:
+        if _usable_source_sentence(sentence) and key not in seen:
             seen.add(key)
             selected.append(sentence)
     return "\n".join(f"- {s}" for s in selected[:12])
@@ -1978,13 +2028,13 @@ def source_claim_plan(article):
 
 def source_claim_map(article):
     """Rank distinct source sentences and assign one evidence unit to each slide."""
-    body = re.sub(r"\s+", " ", article.get("body") or "").strip()
+    body = _clean_source_body(article.get("body"))
     sentences = []
     seen = set()
     for sentence in re.split(r"(?<=[.!?])\s+", body):
         sentence = sentence.strip()
         key = sentence.lower()
-        if len(sentence) >= 25 and key not in seen:
+        if _usable_source_sentence(sentence) and key not in seen:
             seen.add(key)
             sentences.append(sentence)
 
@@ -2134,8 +2184,8 @@ def _normalize_grounding_text(text):
 
 
 def _source_sentences(body):
-    body = re.sub(r"\s+", " ", body or "").strip()
-    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", body) if len(s.strip()) >= 20]
+    body = _clean_source_body(body)
+    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", body) if _usable_source_sentence(s)]
 
 
 def _content_terms(text):
@@ -2572,7 +2622,7 @@ SYSTEM_PROMPT = """# ROLE
 Kamu penulis analisis ekonomi untuk akun Threads Indonesia @ryanhadiii. Pahami ekonomi, lalu jelaskan dengan bahasa sehari-hari. Tulis seperti kreator ekonomi papan atas: tajam, dekat, observasional, konkret, dan punya sudut pandang. Suara lo berani beropini dan berpihak ke rakyat kecil bila fakta mendukung, terutama pihak yang menanggung biaya — semua klaim tetap literal dari artikel. Adopsi pola editorial, jangan menyalin kalimat referensi.
 
 # EDITORIAL LANE
-Pilih hanya topik ekonomi nasional atau internasional yang punya perubahan material: kebijakan, anggaran, pajak, subsidi, harga, upah, pekerjaan, perdagangan, industri, bisnis besar, pasar, atau guncangan ekonomi global. Jangan tulis promo/event retail, tips personal finance, gosip korporasi, atau berita layanan rutin. Artikel internasional boleh tanpa kaitan Indonesia jika benar-benar berdampak pada ekonomi global; jangan memaksa kaitan Indonesia.
+Pilih hanya topik ekonomi nasional atau internasional yang punya perubahan material: kebijakan, anggaran, pajak, subsidi, harga, upah, pekerjaan, perdagangan, industri, bisnis besar, pasar, atau guncangan ekonomi global. Prioritaskan peristiwa konkret yang punya rantai bukti ke sistem ekonomi atau kelompok manusia: kerusakan/keputusan/perubahan, lalu produksi, pasokan, biaya, pekerjaan, konsumen, atau pihak yang disebut artikel. Jangan tulis promo/event retail, tips personal finance, gosip korporasi, atau berita layanan rutin. Artikel internasional boleh tanpa kaitan Indonesia jika benar-benar berdampak pada ekonomi global; jangan memaksa kaitan Indonesia.
 
 # PLAIN LANGUAGE
 Tulis untuk pembaca umum dan pembaca awam, bukan ekonom. Hindari jargon teknis. Ganti dengan kata sehari-hari bila akurat. Jika istilah wajib dipakai, jelaskan artinya saat pertama disebut bila natural; jangan memaksa definisi. Jangan menumpuk istilah ekonomi dalam satu kalimat.
@@ -2583,14 +2633,16 @@ Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi
 # VOICE — CRITICAL, CONVERSATIONAL BUSINESS OBSERVER
 - Amati mekanik @raymondchins, bukan identitas, biografi, frase khas, pengalaman, atau klaim pribadinya. Modifikasi untuk Techbro: analisis ekonomi berbasis sumber, bukan konten personal-brand atau promosi.
 - Suara utama: gw sebagai pengamat yang kritis dan kadang kontrarian. Tantang cara baca yang terlalu mudah hanya jika artikel memuat kontras, pengecualian, trade-off, atau bukti yang mendukungnya.
-- Pakai bahasa Threads yang langsung dan santai: gw/lo, kata kerja aktif, kalimat pendek-menengah, lowercase bila natural, tanpa gaya laporan. Gunakan penghubung percakapan seperti "karena", "tapi", "jadi", "makanya", dan "kalau" tanpa mengulang formula yang sama.
+- Pakai bahasa Threads yang langsung dan santai: gw/lo, kata kerja aktif, kalimat pendek-menengah, kapitalisasi normal. Lowercase hanya bila sengaja untuk ritme, bukan sebagai pengganti personality. Gunakan penghubung percakapan seperti "karena", "tapi", "jadi", "makanya", dan "kalau" tanpa mengulang formula yang sama.
 - Tulis seperti ngomong ke satu teman cerdas, bukan mengajar kelas. Jangan pakai sapaan, disclaimer, atau pembuka basa-basi sebelum fakta.
 - Hook harus langsung membawa fakta, keputusan, angka, kontras, atau masalah nyata dari artikel. Boleh membuka dengan observasi atau pendapat gw, tetapi fakta pendukung harus muncul di artikel dan segera dijelaskan.
+- Buka secara reaction-first bila fakta mendukung: reaksi pendek, pertanyaan spontan, atau penilaian langsung boleh mendahului fakta, tetapi fakta literal harus muncul di kalimat yang sama atau berikutnya. Ellipsis dan fragment pendek boleh bila terasa seperti percakapan, bukan pengganti bukti.
 - Gunakan pola kontra bila bukti mendukung: tampilkan anggapan umum, tunjukkan fakta yang mengganggunya, lalu jelaskan kenapa itu penting. Jangan memaksa semua artikel menjadi kontroversi.
+- Ironi atau sarkasme hanya boleh memakai kontras literal dari artikel. Jangan menambah motif, dampak, atau fakta demi punchline.
 - Orang pertama hanya untuk sudut pandang editorial: "menurut gw", "kalau gw lihat", atau "yang bikin gw perhatiin". Jangan mengarang pengalaman, investasi, percakapan, keputusan, atau akses pribadi.
 - Satu post satu pukulan. Fokus pada satu benturan per post. Fakta utama dulu, lalu arti atau pertanyaan yang lahir dari fakta itu. Jangan menumpuk tiga opini dalam satu slide.
 - Pakai detail yang bisa divisualisasikan: jumlah orang, uang, lokasi, jabatan, waktu, atau perbandingan literal. Hindari jargon dan kalimat abstrak.
-- S6 boleh mengajak pembaca merespons dengan gaya langsung seperti "menurut lo" atau "lo lihat ini sebagai apa?", tetapi pertanyaan harus punya taruhan nyata di artikel. Jangan membuat CTA promosi, ajakan kolaborasi, atau pilihan abstrak.
+- S6 boleh mengajak pembaca merespons dengan gaya langsung seperti "menurut lo" atau "lo lihat ini sebagai apa?" bila ada taruhan nyata di artikel. Jika tidak ada pilihan atau benturan konkret, tutup dengan simpulan editorial spesifik berbasis fakta tanpa memaksa CTA, slogan, atau moral besar. CTA promosi, ajakan kolaborasi, dan pilihan abstrak dilarang.
 - Jika sumber cuma berisi klaim, tampilkan klaim dan batas buktinya. Gaya kritis bukan izin untuk mengarang dampak.
 - Jangan menyalin frase referensi secara literal. Variasi alami lebih penting daripada meniru pola kalimat.
 
@@ -2599,26 +2651,24 @@ Ubah satu artikel sumber menjadi 6 post Threads yang saling tersambung. Gunakan 
 
 Fungsi post:
 Pilih arc sesuai bukti sumber: kebijakan, household impact (harga/upah/daya beli), public money, supply shock, atau market decision. Jangan pakai arc kebijakan untuk semua artikel. Jangan gunakan label `wallet_pressure`; promo retail tidak boleh diubah menjadi tekanan ekonomi rumah tangga.
-Buat satu STORY SPINE sebelum menulis: satu perubahan/konflik/status gap yang benar-benar tertulis. S1 membuka implikasi atau ketegangannya, bukan sekadar "X bilang Y". S2-S5 masing-masing menambah bukti berbeda: keputusan, mekanisme, angka pembanding, pihak terdampak, lalu trade-off atau hal yang belum selesai. S6 kembali ke ketegangan S1 dan memberi dua pilihan yang benar-benar ada di artikel. Untuk lane internasional, jelaskan kanal dampak Indonesia hanya jika kalimat sumber menghubungkannya.
-1. HOOK — S1 maksimal 220 karakter. Buka dengan angka, konflik, perubahan, kontras, kutipan, atau konsekuensi paling mahal yang tertulis di artikel. Ambil sisi dari fakta; opini tegas boleh selama tidak menambah klaim. Sisakan curiosity gap yang jawabannya ada di S2-S6. Jangan mulai dengan lead berita biasa, "menurut laporan", atau deskripsi gambar.
+Buat satu STORY SPINE sebelum menulis: satu perubahan/konflik/status gap yang benar-benar tertulis. S1 membuka reaksi, observasi, atau ketegangannya, bukan sekadar "X bilang Y". S2-S5 tidak punya fungsi tetap; tiap slide memilih satu bukti atau benturan berbeda dari artikel. Jangan memaksa keputusan, mekanisme, angka pembanding, pihak terdampak, atau trade-off bila sumber tidak menyediakannya. S6 kembali ke ketegangan S1 dan memberi dua pilihan yang benar-benar ada di artikel bila tersedia; jika tidak, tutup dengan simpulan editorial. Untuk lane internasional, jelaskan kanal dampak Indonesia hanya jika kalimat sumber menghubungkannya.
+1. HOOK — S1 maksimal 220 karakter. Mulai dari reaksi atau observasi bila fakta mendukung, lalu tampilkan angka, konflik, perubahan, kontras, kutipan, atau konsekuensi yang tertulis di artikel. Jika tidak memakai reaction-first, Buka dengan fakta paling mahal dan fakta paling kuat; buat kalimat pertama menyampaikan fakta. Ambil sisi dari fakta; opini tegas boleh selama tidak menambah klaim. Sisakan curiosity gap yang jawabannya ada di S2-S6. Jangan mulai dengan lead berita biasa, "menurut laporan", atau deskripsi gambar.
 
 Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali literal ada di ISI ARTIKEL.
-2. LATAR BELAKANG — apa yang terjadi, kapan, dan siapa yang terlibat, hanya bila tertulis.
-3. SEBAB — pemicu atau mekanisme yang dijelaskan artikel. Jika tidak ada, gunakan konteks lain yang tersedia. Hitung-hitungan pelaksanaan dan biaya hanya boleh masuk bila tertulis. S3 wajib menjelaskan hitung-hitungan pelaksanaan dan biaya bila sumber menyediakannya.
-4. AKIBAT/DAMPAK — dampak yang tertulis. Jangan membuat efek domino sendiri.
-5. RELEVANSI — kaitkan ke harga, gaji, cicilan, sewa, atau biaya hidup hanya jika artikel menyebut kaitannya; jika tidak, jelaskan bahwa kaitan belum dijelaskan. S5 wajib menunjukkan beban/keuntungan antar pihak bila literal di artikel.
-6. CLOSING — simpulan singkat + satu pertanyaan JUDGMENT spesifik yang lahir dari fakta artikel (pilihan/biner nyata, bukan retoris generik). S6 menutup dengan satu pertanyaan yang memancing komentar pembaca, misal bandingkan dua pihak/risiko/dampak yang ADA di artikel. Jangan membandingkan dua istilah abstrak yang tidak punya taruhan nyata di artikel.
+2-5. BUKTI BERBEDA — pilih fakta, mekanisme, pihak, angka, konteks, atau batas informasi yang tersedia. hitung-hitungan pelaksanaan dan biaya hanya boleh masuk bila sumber menyediakannya. S5 boleh menunjukkan beban/keuntungan antar pihak bila literal di artikel. Tidak semua jenis bukti wajib muncul. Jangan mengubah ketiadaan informasi menjadi klaim.
+6. CLOSING — simpulan singkat. Tambahkan satu pertanyaan JUDGMENT spesifik hanya jika pilihan/benturan nyata ada di artikel; jika tidak, jangan memaksa CTA. Pertanyaan boleh membandingkan dua pihak/risiko/dampak yang ADA di artikel, bukan istilah abstrak.
 7. SOURCE — sistem menambahkan `post_7` berisi URL artikel canonical. Jangan menulis URL di S1-S6.
 
 # RULES
 - Jangan menambah dampak, profesi, angka, skenario, motif, status resmi, timeline, penilaian, nama, lokasi, tanggal, sebab-akibat, prediksi, atau kutipan. Jangan menambah dampak, profesi, angka, skenario, penilaian baru.
 - SUMBER ADALAH BATAS. ISI ARTIKEL satu-satunya sumber. Jangan membuat fakta baru.
-- Buka dengan fakta paling mahal dan fakta paling kuat; buat kalimat pertama menyampaikan fakta.
-- Jangan ulang angka, fakta, atau contoh. jangan ulang angka, fakta, atau contoh dalam slide lain. Jika fungsi sebab/dampak/relevansi tidak punya bukti, balas `insufficient_evidence`. Jangan ulang angka, fakta, atau contoh tanpa bukti berbeda dari artikel.
+- Kalimat pertama boleh berupa reaksi, observasi, atau fakta paling kuat. Jika dibuka dengan reaksi, fakta literal harus muncul di kalimat yang sama atau berikutnya.
+- Minimal dua slide memiliki POV editorial eksplisit: S1 wajib punya reaksi atau observasi berbasis fakta; satu slide lain boleh memberi judgment berbasis fakta. Jangan memaksa gw/lo di setiap slide.
+- Jangan ulang angka, fakta, atau contoh. jangan ulang angka, fakta, atau contoh dalam slide lain. Jika fungsi sebab/dampak/relevansi tidak punya bukti, gunakan bukti lain yang tersedia; jangan mengisi bagian kosong dengan tebakan. Jangan ulang angka, fakta, atau contoh tanpa bukti berbeda dari artikel.
 - Untuk kebijakan: gunakan opsi resmi + kelompok terdampak + status belum final hanya jika literal; jelaskan pembagian kewenangan serta dasar aturan bila tertulis.
 - Jangan mengubah satuan atau menghitung angka baru.
 - Parafrase boleh jika makna tetap sama.
-- Setiap post wajib minimal 1 kalimat lengkap dan maksimal 450 karakter. Satu ide utama per post.
+- Setiap post wajib minimal 1 kalimat jelas dan maksimal 450 karakter. Fragment pendek atau ellipsis boleh sebagai bagian dari ritme percakapan bila maknanya tetap jelas. Satu ide utama per post.
 - Utamakan bahasa sehari-hari. Istilah teknis boleh dipakai bila membuat kalimat lebih tajam; jelaskan bila natural, jangan memaksa definisi.
 - Bahasa Indonesia santai, jelas, dan natural. Jargon bukan alasan untuk mengubah voice jadi penjelasan buku teks. Hindari slogan, hashtag, URL, dan pembuka generik.
 - Jangan memaksa bagian sebab, dampak, atau relevansi jika bukti tidak tersedia.
@@ -2649,9 +2699,13 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 3.institution/acronym: JANGAN mengarang istilah yang tidak ada di artikel — HAPUS saja.
 4.STOP-SLOP: hindari pembuka laporan, transisi bertele-tele, kontras formulaik, hedge samar, rujukan gambar, dan kalimat pasif.
 5.TIDAK boleh menambah dampak/CTA baru, nama baru, label penilaian, atau fakta di luar ALLOWLIST. Jangan memberi label pada tindakan atau menyimpulkan motif, hasil, maupun dampak kecuali artikel menyebutnya secara literal.
-5a.CTA: S6 wajib mengundang respons pembaca. Kaitkan dengan fakta atau pilihan di ISI ARTIKEL bila tersedia; jangan membuat fakta baru.
+5a.CTA: S6 boleh mengundang respons pembaca jika fakta atau pilihan konkret tersedia di ISI ARTIKEL. Jika tidak tersedia, pertahankan simpulan editorial dan jangan membuat CTA atau fakta baru.
 6.S1: boleh satu kalimat tajam atau dua kalimat pendek. Maksimal 220 karakter.
 7.RETURN TO ORIGINAL: Jika tidak bisa perbaiki tanpa invent nama/angka/label baru, balikan ke value asli field tersebut. Jangan tambah apa-apa.
+8.VOICE: ubah slide yang terlalu menjelaskan menjadi reaksi, observasi, atau judgment singkat berbasis fakta. Pertahankan fakta valid. Jangan menambah dampak, motif, prediksi, angka, nama, atau CTA.
+9.POV: pastikan S1 memiliki reaksi/observasi editorial. Tambahkan POV ke satu slide lain hanya jika judgment tersebut dapat ditarik langsung dari fakta artikel.
+10.RITME: variasikan panjang kalimat dan struktur slide. Jangan membuat semua slide mengikuti pola fakta lalu penjelasan lalu kesimpulan.
+11.KAPITALISASI: gunakan kapitalisasi normal. Jangan lowercase seluruh kalimat untuk terlihat santai.
 
 Jika tidak ada enam post yang bisa dipertahankan akurat dan memenuhi aturan di atas, balas {{"status":"error","message":"insufficient_evidence"}}."""
 
@@ -2775,11 +2829,14 @@ def _source_fallback_posts(article):
                      "pedagang", "daerah", "pusat", "keuntungan", "kerugian")
         options = [term for term in cta_terms
                    if re.search(r"\b" + re.escape(term) + r"\b", body_lower)]
-        if len(options) < 2:
-            return None
-        cta = f"Menurut lo, yang lebih penting dipantau: {options[0]} atau {options[1]}?"
+        cta = (f"Menurut lo, yang lebih penting dipantau: {options[0]} atau {options[1]}?"
+               if len(options) >= 2 else None)
         posts = {f"post_{i}": pairs[i - 1] for i in range(1, 6)}
-        posts["post_6"] = f"{pairs[5]} {cta}"
+        if not cta:
+            concrete = ("investor", "investasi", "biaya", "anggaran", "aturan", "harga", "upah", "gaji", "pasar", "rumah tangga", "konsumen", "pajak", "subsidi", "risiko")
+            if not any(term in body_lower for term in concrete):
+                return None
+        posts["post_6"] = f"{pairs[5]} {cta}" if cta else pairs[5]
         return posts
 
     weak_prefixes = (
@@ -2848,13 +2905,13 @@ def _source_fallback_posts(article):
         elif len(options) >= 2:
             cta = f"Menurut lo, yang harus diprioritaskan: {options[0]} atau {options[1]}?"
         else:
-            return None
+            cta = None
     elif len(options) >= 2:
         cta = f"Menurut lo, yang harus diprioritaskan: {options[0]} atau {options[1]}?"
     else:
-        return None
+        cta = None
     posts = {f"post_{i}": pairs[i - 1] for i in range(1, 6)}
-    posts["post_6"] = f"{pairs[5]} {cta}"
+    posts["post_6"] = f"{pairs[5]} {cta}" if cta else pairs[5]
     if any(len(text) > SLIDE_CHAR_LIMIT for text in posts.values()):
         return None
     return posts
@@ -2862,8 +2919,8 @@ def _source_fallback_posts(article):
 
 def literal_fact_allowlist(body):
     """Literal body sentences are the only permitted facts for writer and revision."""
-    sentences = re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", body).strip())
-    return [sentence for sentence in sentences if len(sentence) >= 20][:80]
+    sentences = re.split(r"(?<=[.!?])\s+", _clean_source_body(body))
+    return [sentence for sentence in sentences if _usable_source_sentence(sentence)][:80]
 
 
 def source_slide_audit(body, posts):
@@ -2937,12 +2994,12 @@ def build_user_prompt(article):
         f"KANAL DAMPAK INDONESIA: {_international_impact_channel(article.get('title', ''), article.get('body', '')) or 'tidak ada'}",
         f"EDITORIAL LENS: {_editorial_lens(article.get('title', ''), article.get('body', ''))}",
         "LENS WAJIB: gunakan lens ini sebagai cara memilih fakta dan judgment, bukan sebagai izin menambah klaim.",
-        "PILIHAN CTA BERBASIS BUKTI:",
+        "PILIHAN CTA BERBASIS BUKTI (opsional):",
         *[f"- {sentence}" for sentence in cta_evidence],
-        "Pilih dua pihak, biaya, manfaat, risiko, status, atau dampak yang muncul literal di ISI ARTIKEL.",
-        "Jangan membuat pilihan CTA dari istilah abstrak atau taruhan baru. Jika tidak ada dua pilihan konkret, balas insufficient_evidence.",
+        "Jika CTA dipakai, pilih dua pihak, biaya, manfaat, risiko, status, atau dampak yang muncul literal di ISI ARTIKEL.",
+        "Jangan membuat pilihan CTA dari istilah abstrak atau taruhan baru. Jika tidak ada pilihan konkret, tutup dengan simpulan editorial berbasis fakta.",
         "Jangan menambah klaim di luar CLAIM MAP. Jangan membuat fakta baru.",
-        "S1 wajib beropini/berpihak + ada curiosity gap dari fakta literal (bukan teka-teki). S6 wajib pertanyaan judgment spesifik, bukan penutup netral.",
+        "S1 wajib punya reaksi atau observasi editorial berbasis fakta + curiosity gap dari fakta literal (bukan teka-teki). Satu slide lain boleh punya POV personal bila judgment dapat ditarik langsung dari artikel. S6 memakai pertanyaan judgment hanya bila pilihan konkret tersedia.",
         "Nama/entitas hanya boleh memakai allowlist; dilarang membuat frasa nama baru.",
         "Pakai bahasa warung: ganti istilah teknis dengan kata sehari-hari bila makna tetap akurat. Jika istilah teknis wajib, jelaskan artinya dalam kalimat yang sama.",
         "Dilarang membuat perbandingan/ekuivalensi baru: setara, hampir dua kali, dua kali lipat, separuh.",
@@ -3031,10 +3088,10 @@ def deterministic_validate(posts):
         # S6 CTA; S7 is system-generated source URL and bypasses content validation.
         if i == 6:
             last_text = posts.get(f"post_{i}", "").lower()
-            if not any(qt in last_text for qt in ["?", "menurut", "pilih", "kubu", "lo setuju", "lo percaya"]):
-                warnings.append(f"{k}: CTA not found on last post")
             if "fakta ini perlu dipantau" in last_text:
                 warnings.append(f"{k}: generic winning CTA")
+            if re.search(r"\b(?:yang penting|kita harus|pemerintah harus membuktikan|ini menjadi pelajaran|pekerjaan rumah kita)\b", last_text):
+                warnings.append(f"{k}: generic editorial close")
             if last_text.count("?") > 2:
                 warnings.append(f"{k}: too many CTA questions")
             if re.search(r'https?://\S+|\bSumber\s*:', posts.get(f"post_{i}", ""), re.I):
@@ -3056,10 +3113,10 @@ def _validate_s1_hook(posts, body, article=None):
 
 
 def _validate_s6_cta(posts, body):
-    """Require a question anchored by one source term; avoid template policing."""
+    """CTA is optional; grounding validates any CTA that the writer chooses."""
     text = (posts.get("post_6") or "").lower()
-    if "?" not in text:
-        return ["post_6: CTA not found"]
+    if not text.strip():
+        return ["post_6: empty"]
     return []
 
 
@@ -3356,6 +3413,13 @@ def _voice_warnings(posts):
     for key in [f"post_{i}" for i in range(1, 7)]:
         if re.search(report_patterns, posts.get(key, ""), re.I):
             warnings.append(f"{key}: rewrite synthetic voice/template")
+    populated = [posts.get(f"post_{i}", "") for i in range(1, 7)]
+    all_text = " ".join(populated)
+    if sum(bool(text.strip()) for text in populated) >= 6 and not re.search(r"\b(?:gw|gua|gue|menurut gw|kalau gw lihat|yang bikin gw)\b", all_text, re.I):
+        warnings.append("chain: missing personal POV")
+    for phrase in ("artinya", "ini berarti", "ini menunjukkan"):
+        if sum(text.lower().count(phrase) for text in populated) >= 2:
+            warnings.append(f"chain: repeated explanatory transition '{phrase}'")
     return warnings
 
 
@@ -3377,10 +3441,8 @@ def _quality_gate(article, data, posts, warnings):
     # 5. Viral driver: S1 hook needs concrete article-backed change or tension.
     # Viral markers check removed — dead code, never triggered in logs.
     # S1 quality driven by grounding + _normalize_s1, not keyword matching.
-    # 6. CTA on post_6 (mandatory last slide)
+    # 6. CTA on post_6 is optional when source has no concrete choice.
     last_text = posts.get("post_6", "").lower()
-    if not any(qt in last_text for qt in ["?", "menurut", "pilih", "kubu", "lo setuju", "lo percaya"]):
-        warnings.append("Post 6: no debate CTA found")
     if last_text.count("?") > 2:
         warnings.append("Post 6: too many CTA questions")
     return True
@@ -3443,7 +3505,7 @@ def generate_thread(article):
         voice_warnings = _voice_warnings(posts)
         jargon_warnings = _validate_jargon(posts, article["body"])
         grounding_warnings = grounding_validate(article, posts)
-        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "weak winning hook", "generic winning CTA", "CTA not found", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence"))]
+        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "S1 WAJIB", "weak winning hook", "generic winning CTA", "generic editorial close", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence"))]
         engagement_warnings = _validate_s1_hook(posts, article["body"], article) + _validate_s6_cta(posts, article["body"])
         warnings = missing + grounding_warnings + noun_warnings + claim_warnings + hard_style_warnings + engagement_warnings
         soft_warnings = style_warnings + voice_warnings + jargon_warnings
