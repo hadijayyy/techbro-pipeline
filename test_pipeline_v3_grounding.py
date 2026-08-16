@@ -1328,7 +1328,7 @@ def test_hot_topics_are_body_verified_ranked_and_source_diverse(monkeypatch):
     assert all("hot_score" in topic for topic in topics)
 
 
-def test_hot_topic_fallback_can_reuse_cluster_after_primary_rejects(monkeypatch):
+def test_hot_topic_allows_same_issue_with_different_numbers(monkeypatch):
     now = 1_800_000_000
     articles = [
         {"title": f"Kebijakan APBN seri {i} Rp{i} triliun", "url": f"https://a.test/{i}", "source": "antara_ekonomi", "ts": now - i}
@@ -1340,7 +1340,7 @@ def test_hot_topic_fallback_can_reuse_cluster_after_primary_rejects(monkeypatch)
     primary = pipeline.scout_hot_topics(articles, now=now, limit=15, per_source_limit=2)
     fallback = pipeline.scout_hot_topics(articles, now=now, limit=15, per_source_limit=6, allow_cluster_repeats=True)
 
-    assert len(primary) == 1
+    assert len(primary) == 2
     assert len(fallback) == 3
     assert all(topic["body_verified"] for topic in fallback)
 
@@ -1417,6 +1417,18 @@ def test_writer_prompt_encodes_high_signal_creator_voice_without_weakening_groun
     assert "semua klaim tetap literal dari artikel" in pipeline.SYSTEM_PROMPT
 
 
+def test_writer_prompt_uses_conversational_personal_story_pattern_without_fabrication():
+    prompt = pipeline.SYSTEM_PROMPT
+    assert "pola komunikasi Fellexandro" in prompt
+    assert "orang pertama" in prompt
+    assert "Jangan mengarang pengalaman, keputusan, atau kesalahan pribadi" in prompt
+    assert "bahasa percakapan gua/lo" in prompt
+    assert "masalah nyata" in prompt
+    assert "framework sederhana" in prompt
+    assert "Hubungkan uang, bisnis, karier, atau perilaku hanya jika artikel memberi kaitan literal" in prompt
+    assert "Opini personal boleh tegas" in prompt
+
+
 def test_literal_entity_prompt_forbids_new_name_phrases():
     prompt = pipeline.build_user_prompt({"body": "The Fed menahan suku bunga."})
     assert "dilarang membuat frasa nama baru" in prompt
@@ -1438,6 +1450,43 @@ def test_repeat_issue_blocks_same_named_entity_but_not_generic_rupiah():
 def test_repeat_issue_allows_same_actor_for_different_issue():
     old = [{"title": "Prabowo Umumkan Subsidi Mengkerut", "timestamp": "2026-08-12T10:00:00+07:00"}]
     assert not pipeline._is_repeat_issue("Prabowo Tegaskan MBG Tetap Berjalan", old)[0]
+
+
+def test_repeat_issue_allows_same_actor_and_issue_family_for_different_decision():
+    recent = datetime.now(timezone.utc).isoformat()
+    old = [{"title": "Purbaya Umumkan Penertiban Pajak Digital", "timestamp": recent}]
+    assert not pipeline._is_repeat_issue("Purbaya Ubah Tarif Pajak UMKM", old)[0]
+
+
+def test_repeat_issue_requires_multiple_literal_issue_anchors_or_near_duplicate():
+    recent = datetime.now(timezone.utc).isoformat()
+    old = [{"title": "Danantara Salurkan Cuan BUMN ke APBN", "timestamp": recent}]
+    assert pipeline._is_repeat_issue("Purbaya Ungkap Rencana Danantara Masuk APBN", old)[0]
+    different = [{"title": "Purbaya Bahas Beban Pajak Digital", "timestamp": recent}]
+    assert not pipeline._is_repeat_issue("Purbaya Umumkan Pajak UMKM Baru", different)[0]
+
+
+def test_repeat_issue_blocks_same_entity_issue_and_event():
+    recent = datetime.now(timezone.utc).isoformat()
+    old = [{"title": "Purbaya Umumkan Penertiban Pajak Digital", "timestamp": recent}]
+    assert pipeline._is_repeat_issue("Purbaya Umumkan Penertiban Pajak Digital Tahap Dua", old)[0]
+
+
+def test_repeat_issue_allows_different_number_for_same_issue_family():
+    recent = datetime.now(timezone.utc).isoformat()
+    old = [{"title": "Purbaya Bidik Setoran Pajak Rp2.000 T", "timestamp": recent}]
+    assert not pipeline._is_repeat_issue("Purbaya Bidik Setoran Pajak Rp2.908 T", old)[0]
+
+
+def test_repeat_issue_blocks_exact_url_and_near_duplicate_title():
+    recent = datetime.now(timezone.utc).isoformat()
+    old = [{
+        "title": "Bank Sentral Tahan Suku Bunga Acuan",
+        "article_url": "https://example.test/story?utm_source=rss",
+        "timestamp": recent,
+    }]
+    assert pipeline._is_repeat_issue("Headline berbeda", old, url="https://example.test/story")[0]
+    assert pipeline._is_repeat_issue("Bank Sentral Tahan Suku Bunga Acuan Lagi", old)[0]
 
 
 def test_fresh_rss_timestamp_is_bounded_fallback():

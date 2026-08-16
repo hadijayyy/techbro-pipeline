@@ -55,7 +55,7 @@ Multi-layer defense:
 | Topic score | ≥ 3/10 |
 | Image | HD required (1200×670+) |
 | Source publish time | ≤ 24h, not future |
-| Repeat detection | Skip if shared entities within 72h |
+| Repeat detection | Skip same issue within 72h; same entity alone allowed |
 
 ## Sources
 

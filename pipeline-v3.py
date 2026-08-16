@@ -346,16 +346,71 @@ ISSUE_TERMS = (
     "rights issue", "phk", "upah", "gaji", "pangan", "bbm", "rups", "kredit",
 )
 
+ISSUE_TERM_ALIASES = {
+    "subsidi": ("subsidi",), "mbg": ("mbg", "makan bergizi gratis"),
+    "bansos": ("bansos", "bantuan sosial"), "hilirisasi": ("hilirisasi",),
+    "apbn": ("apbn",), "apbd": ("apbd",), "bumn": ("bumn", "badan usaha milik negara"),
+    "danantara": ("danantara", "bpi danantara"), "pajak": ("pajak",), "tarif": ("tarif",),
+    "utang": ("utang", "hutang"), "anggaran": ("anggaran",), "dividen": ("dividen",),
+    "akuisisi": ("akuisisi",), "merger": ("merger",), "ipo": ("ipo",),
+    "rights_issue": ("rights issue",), "phk": ("phk", "pemutusan hubungan kerja"),
+    "upah": ("upah",), "gaji": ("gaji",), "pangan": ("pangan",), "bbm": ("bbm",),
+    "rups": ("rups",), "kredit": ("kredit",),
+}
+
 
 def _issue_terms(title):
     text = title.lower()
-    return {term for term in ISSUE_TERMS if re.search(rf"(?<!\w){re.escape(term)}(?!\w)", text)}
+    return {
+        issue for issue, aliases in ISSUE_TERM_ALIASES.items()
+        if any(re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", text) for alias in aliases)
+    }
 
 
-def _is_repeat_issue(title, topics, hours=72):
-    """Block same entity + same issue; allow materially different stories."""
+def _issue_words(title):
+    """Return literal issue tokens, keeping APBN/APBD distinct."""
+    text = title.lower()
+    return {
+        alias for aliases in ISSUE_TERM_ALIASES.values() for alias in aliases
+        if re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", text)
+    }
+
+
+EVENT_ALIASES = {
+    "announce": ("umumkan", "mengumumkan", "ungkap", "mengungkap", "tegas", "tegaskan", "target", "bidik", "rencana"),
+    "change": ("ubah", "mengubah", "revisi", "naikkan", "turunkan", "menaikkan", "menurunkan", "penyesuaian"),
+    "enforce": ("kejar", "mengejar", "tagih", "menagih", "tertib", "penertiban", "larang", "melarang"),
+    "approve": ("setujui", "menyetujui", "sahkan", "mengesahkan", "tetapkan", "menetapkan"),
+    "hold": ("tahan", "menahan", "pertahankan", "mempertahankan", "tetap"),
+    "fund": ("salurkan", "menyalurkan", "alokasikan", "mengalokasikan", "siapkan", "menyiapkan"),
+    "acquire": ("akuisisi", "mengakuisisi", "merger", "menggabungkan"),
+}
+
+
+def _event_terms(title):
+    text = title.lower()
+    return {
+        event for event, aliases in EVENT_ALIASES.items()
+        if any(re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", text) for alias in aliases)
+    }
+
+
+def _title_numbers(title):
+    return set(re.findall(r"\d+(?:[.,]\d+)?", title.lower()))
+
+
+def _normalize_title(title):
+    return " ".join(re.findall(r"[a-z0-9]+", title.lower()))
+
+
+def _is_repeat_issue(title, topics, hours=72, url=""):
+    """Block duplicate issue signals; same actor alone never blocks."""
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
     entities, words = _topic_entities(title), _title_words(title)
+    issue_terms, issue_words = _issue_terms(title), _issue_words(title)
+    events, numbers = _event_terms(title), _title_numbers(title)
+    normalized_title = _normalize_title(title)
+    canonical_url = _canonical_url(url) if url else ""
     for topic in topics:
         try:
             published = datetime.fromisoformat(topic.get("timestamp", "")).astimezone(timezone.utc)
@@ -364,13 +419,30 @@ def _is_repeat_issue(title, topics, hours=72):
         if published < cutoff:
             continue
         previous = topic.get("title", "")
+        previous_url = topic.get("article_url") or topic.get("url") or topic.get("canonical_url") or ""
+        if canonical_url and previous_url and canonical_url == _canonical_url(previous_url):
+            return True, set(), set()
+        if normalized_title and normalized_title == _normalize_title(previous):
+            return True, set(), words
         shared_entities = entities & _topic_entities(previous)
         shared_words = words & _title_words(previous)
         strong_entities = shared_entities - {"apbn", "bumn", "bi", "bei", "ojk", "spbu"}
         prior_words = _title_words(previous)
         similarity = len(shared_words) / max(1, min(len(words), len(prior_words)))
-        same_issue = bool(_issue_terms(title) & _issue_terms(previous))
-        if strong_entities and (same_issue or len(shared_words) >= 3 or similarity >= 0.6):
+        prior_issue_terms = _issue_terms(previous)
+        shared_issue_terms = issue_terms & prior_issue_terms
+        shared_issue_words = issue_words & _issue_words(previous)
+        shared_events = events & _event_terms(previous)
+        prior_numbers = _title_numbers(previous)
+        numbers_differ = bool(numbers and prior_numbers and numbers != prior_numbers)
+        same_issue = (
+            (len(shared_issue_words) >= 2 and not numbers_differ)
+            or (shared_issue_terms and shared_events and not numbers_differ
+                and len(shared_words - strong_entities) >= 2 and similarity >= 0.85)
+            or (not shared_issue_terms and len(shared_words) >= 3 and similarity >= 0.85)
+        )
+        near_duplicate = similarity >= 0.85 and len(shared_words) >= 4 and not numbers_differ
+        if (strong_entities and same_issue) or near_duplicate:
             return True, strong_entities, shared_words
     return False, set(), set()
 
@@ -692,8 +764,13 @@ def _source_diversity_penalty(data, source):
 
 
 def _hot_topic_cluster(title, pattern):
-    """Stable, explainable cluster key; never creates a claim from article text."""
+    """Cluster same entity + issue/event; different decisions stay available."""
     entities = sorted(_topic_entities(title))
+    issues = sorted(_issue_terms(title))
+    events = sorted(_event_terms(title))
+    numbers = sorted(_title_numbers(title))
+    if entities and (issues or events or numbers):
+        return "/".join(entities + issues + events + numbers)
     if entities:
         return "/".join(entities)
     words = sorted(_title_words(title))[:4]
@@ -2451,15 +2528,19 @@ Tulis untuk pembaca umum, bukan ekonom. Hindari jargon teknis. Ganti dengan kata
 # CONTEXT
 Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi cerita yang tajam, cepat, dan enak dibagikan. Jangan terdengar seperti ringkasan berita atau laporan korporat. Buka dengan angka, perubahan, kontras, kutipan, atau konsekuensi paling mahal dari artikel. Pakai bahasa gua–lu, kalimat pendek, dan detail konkret. Opini boleh tegas jika fakta dan opini jelas terpisah. Jangan menambah fakta, angka, motif, atau dampak yang tidak ada di artikel.
 
-# VOICE — HIGH-SIGNAL ECONOMY CREATOR
+# VOICE — CONVERSATIONAL BUSINESS STORYTELLER
+- Gunakan pola komunikasi Fellexandro, bukan identitas, biografi, frase khas, atau klaim pengalaman pribadinya.
+- Narator boleh memakai orang pertama untuk membaca fakta: "kalau gue lihat", "keputusan gue", atau "pelajaran gue". Jangan mengarang pengalaman, keputusan, atau kesalahan pribadi; jika sumber tidak memberi pengalaman literal, jadikan itu opini editorial yang jelas.
+- Pakai bahasa percakapan gua/lo. Tulis seperti ngobrol dengan satu teman yang cerdas: dekat, tajam, konkret, tidak menggurui.
+- Hook harus berangkat dari masalah nyata, biaya, keputusan, atau kebuntuan yang tertulis di artikel — bukan mengulang headline dan bukan clickbait kosong.
+- Susun isi dengan framework sederhana, urutan sebab-akibat, atau daftar pelajaran bila membantu pembaca memahami fakta. Jangan mengubah berita menjadi tips atau pelajaran yang tidak didukung sumber.
+- Hubungkan uang, bisnis, karier, atau perilaku hanya jika artikel memberi kaitan literal. Jangan memaksa relevansi ke dompet pembaca.
+- Opini personal boleh tegas, tetapi tandai sebagai opini dan beri alasan yang berasal dari fakta artikel. Jangan menyerang pribadi.
+- Penutup mengajak pembaca bercermin atau memilih di antara dua taruhan nyata dalam artikel. S6 tetap satu CTA judgment spesifik.
 - Satu post satu pukulan: fakta utama dulu, makna atau ketegangannya sesudah itu.
-- S1 harus membuat pembaca berhenti karena angka, perubahan, status gap, atau kutipan yang janggal — bukan clickbait kosong.
 - Gunakan detail yang bisa divisualisasikan: jumlah orang, uang, lokasi, jabatan, waktu, atau perbandingan literal.
-- Tulis seperti menjelaskan ke satu teman pintar: natural, ringkas, tidak menggurui, tanpa pembuka "faktanya" atau "yang perlu diketahui".
-- Boleh menyindir keputusan, insentif, biaya, atau trade-off yang tertulis; jangan menyerang pribadi.
-- Jangan memaksa drama. Jika sumber cuma berisi klaim, tampilkan klaim dan batas buktinya.
-- Setiap post memberi alasan untuk lanjut membaca: bukti baru, angka pembanding, mekanisme, pihak yang terkena, atau pertanyaan judgment.
-- Jangan menyalin frase referensi secara literal. Gaya tajam bukan izin untuk mengarang dampak.
+- Jika sumber cuma berisi klaim, tampilkan klaim dan batas buktinya. Gaya tajam bukan izin untuk mengarang dampak.
+- Jangan menyalin frase referensi secara literal.
 
 # TASK
 Ubah satu artikel sumber menjadi 6 post Threads yang saling tersambung. Gunakan satu ISI ARTIKEL sebagai sumber tunggal. ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Jelaskan sebab-akibat hanya jika hubungan itu tertulis atau jelas dinyatakan artikel; jika artikel tidak menjelaskan sebab atau dampak, nyatakan batas informasi tersebut, jangan mengarang.
@@ -3631,7 +3712,9 @@ def main():
         candidate = _pick_article(articles, posted_urls | skipped_urls, data)
         if not candidate:
             break
-        is_repeat, shared_entities, shared_words = _is_repeat_issue(candidate["title"], recent_topics)
+        is_repeat, shared_entities, shared_words = _is_repeat_issue(
+            candidate["title"], recent_topics, url=candidate.get("url", "")
+        )
         if is_repeat:
             reject_reasons["repeat_issue"] += 1
             skipped_urls.add(candidate["url"])
@@ -3759,6 +3842,14 @@ def main():
             retry_article = _pick_article(articles, posted_urls | skipped_urls, data)
             if retry_article is None:
                 break
+            retry_repeat, retry_entities, retry_words = _is_repeat_issue(
+                retry_article["title"], recent_topics, url=retry_article.get("url", "")
+            )
+            if retry_repeat:
+                reject_reasons["repeat_issue"] += 1
+                skipped_urls.add(retry_article["url"])
+                log.info(f"  Retry skip: repeat issue within 72h (entities={sorted(retry_entities)}, title_words={len(retry_words)})")
+                continue
             log.info(f"  Retry candidate: {retry_article['title'][:80]}")
             # Quick gate on retry candidate
             retry_body, retry_img, retry_article_ts = _fetch_article_body(retry_article["url"])
