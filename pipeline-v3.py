@@ -310,7 +310,9 @@ def save_prepared_article(article, result, image_url):
                     "story_functions": STORY_FUNCTIONS,
                     "pattern": article.get("pattern") or pattern,
                     "arc": result.get("arc") or article.get("arc") or arc,
-                    "hook_pattern": article.get("hook_pattern") or hook, "og_image": image_url,
+                    "hook_pattern": article.get("hook_pattern") or hook,
+                    "editorial_lens": article.get("editorial_lens") or _editorial_lens(article.get("title", ""), article.get("body", "")),
+                    "og_image": image_url,
                     "cohort": CURRENT_COHORT,
                     "prepared_at": time.time(), "expires_at": time.time() + 86400})
     tmp = PREPARED_ARTICLE_FILE.with_suffix(".tmp")
@@ -658,24 +660,27 @@ def _score_article(article):
 
     return (score, f"cats={categories_hit} sig={signals} dyn={dynamic_hits}")
 
-def _learning_bonus(data, source, pattern=None, hook=None):
-    """Bounded feedback. Never changes article/body/grounding gates."""
+FEEDBACK_MIN_SAMPLES = 3
+FEEDBACK_BONUS_CAP = 2.0
+
+
+def _learning_bonus(data, source, pattern=None, hook=None, arc=None, lane=None, lens=None):
+    """Bounded mature-post feedback; never changes body or publish gates."""
     stats = _compute_performance_stats(data)
-    values = list(stats["source_avg"].values())
-    if not values or stats["source_count"].get(source, 0) < 3:
-        return 0.0
-    baseline = sum(values) / len(values)
-    score = stats["source_avg"].get(source, baseline)
-    bonus = (score - baseline) * 2
-    if pattern and stats["pattern_count"].get(pattern, 0) >= 3:
-        pvalues = list(stats["pattern_avg"].values())
-        pbaseline = sum(pvalues) / len(pvalues) if pvalues else 0.0
-        bonus += (stats["pattern_avg"].get(pattern, pbaseline) - pbaseline) * 2
-    if hook and stats["hook_count"].get(hook, 0) >= 3:
-        hvalues = list(stats["hook_avg"].values())
-        hbaseline = sum(hvalues) / len(hvalues) if hvalues else 0.0
-        bonus += (stats["hook_avg"].get(hook, hbaseline) - hbaseline) * 2
-    return max(-0.06, min(0.06, bonus))
+    dimensions = (
+        ("source", source), ("pattern", pattern), ("hook", hook),
+        ("arc", arc), ("lane", lane), ("lens", lens),
+    )
+    bonus = 0.0
+    for name, value in dimensions:
+        if not value or stats[f"{name}_count"].get(value, 0) < FEEDBACK_MIN_SAMPLES:
+            continue
+        averages = stats[f"{name}_avg"]
+        values = list(averages.values())
+        if values:
+            baseline = sum(values) / len(values)
+            bonus += (averages[value] - baseline) * 20
+    return max(-FEEDBACK_BONUS_CAP, min(FEEDBACK_BONUS_CAP, bonus))
 
 
 def _source_diversity_penalty(data, source):
@@ -786,7 +791,7 @@ def _is_administrative_distribution_story(title, body):
     return operational and subsidy_context and not material_change
 
 
-def _verify_one(candidate, now):
+def _verify_one(candidate, now, data=None):
     """Single-candidate body fetch + gate check. Returns dict or None. Used by scout_hot_topics."""
     title, url, source = candidate.get("title", ""), candidate.get("url", ""), candidate.get("source", "")
     if not title or not url or not source:
@@ -805,19 +810,22 @@ def _verify_one(candidate, now):
     topic_score, economy_score, impact_score = _topic_score(title, body)
     source_quality = SOURCES.get(source, {}).get("score", candidate.get("score", 0))
     freshness = max(0.0, 24 - ((now - published_ts) / 3600)) / 24
+    _, arc, hook = _content_metadata(title, body)
+    lane = _story_lane(title, body)
+    lens = _editorial_lens(title, body)
     hot_score = round(topic_score * 10 + confidence * 10 + freshness * 10 + source_quality
-                      + _learning_bonus({}, source, pattern)
+                      + _learning_bonus(data or {}, source, pattern, hook, arc, lane, lens)
                       + _engagement_priority_bonus(title, body), 3)
     return {
         "cluster": _hot_topic_cluster(title, pattern), "title": title,
         "canonical_url": _canonical_url(url), "source": source,
         "published_ts": published_ts, "timestamp_source": timestamp_source,
         "pattern": pattern, "pattern_confidence": round(confidence, 3),
+        "arc": arc, "hook_pattern": hook, "lane": lane, "editorial_lens": lens,
         "topic_score": topic_score, "economy_score": economy_score, "impact_score": impact_score,
         "hot_score": hot_score, "body_verified": True, "image_available": bool(image),
         "indonesia_relevance": indonesia_relevance, "reason": reason,
         "has_material_economic_signal": True,
-        "lane": _story_lane(title, body),
         "impact_channel": _international_impact_channel(title, body),
         "global_event": _is_global_event(title, body),
         "_body": body, "_image": image,
@@ -834,7 +842,7 @@ def scout_hot_topics(articles, now=None, limit=HOT_TOPIC_LIMIT, per_source_limit
             title, url, source = candidate.get("title", ""), candidate.get("url", ""), candidate.get("source", "")
             if not title or not url or not source:
                 continue
-            fut_map[ex.submit(_verify_one, candidate, now)] = candidate
+            fut_map[ex.submit(_verify_one, candidate, now, data)] = candidate
         for f in as_completed(fut_map):
             try:
                 item = f.result()
@@ -947,10 +955,14 @@ def _pick_article(articles, posted_urls, data=None):
         src_cfg = SOURCES.get(a["source"], {})
         source_quality = src_cfg.get("score", 5)
         # Learning is capped. It cannot rescue an editorially weak candidate.
-        _, _, hook = _content_metadata(a.get("title", ""), a.get("body", ""))
-        learning = _learning_bonus(data or {}, a["source"], a.get("pattern"), hook)
-        a["learning_bonus"] = learning
+        _, arc, hook = _content_metadata(a.get("title", ""), a.get("body", ""))
+        a["arc"] = a.get("arc") or arc
+        a["hook_pattern"] = a.get("hook_pattern") or hook
         a["lane"] = _story_lane(a.get("title", ""), a.get("body", ""))
+        a["editorial_lens"] = _editorial_lens(a.get("title", ""), a.get("body", ""))
+        learning = _learning_bonus(data or {}, a["source"], a.get("pattern"), a["hook_pattern"],
+                                   a["arc"], a["lane"], a["editorial_lens"])
+        a["learning_bonus"] = learning
         a["impact_channel"] = _international_impact_channel(a.get("title", ""), a.get("body", ""))
         a["_weight"] = (eco_score + freshness + relevance + source_quality + learning
                          + _engagement_priority_bonus(a.get("title", ""), a.get("body", ""))
@@ -1702,6 +1714,20 @@ def _pattern_label(pattern_name):
     return ECONOMY_PATTERNS.get(pattern_name, {}).get("label", "Tidak terklasifikasi")
 
 
+def _editorial_lens(title, body):
+    """Assign one repeatable creator lens from literal economy signals."""
+    text = f"{title} {body}".lower()
+    if re.search(r"\b(pajak|subsidi|tarif|biaya|beban|anggaran|utang)\b", text):
+        return "siapa_yang_bayar"
+    if re.search(r"\b(harga|gaji|upah|umr|ump|daya beli|cicilan|kredit|konsumen)\b", text):
+        return "angka_ke_dompet"
+    if _is_global_event(title, body) and re.search(r"\b(dampak|berdampak|risiko|menekan|mendorong|memicu|akibat)\b", text):
+        return "global_shock_ke_lokal"
+    if re.search(r"\b(untung|penerima|manfaat|laba|dividen|investasi|pemegang saham)\b", text):
+        return "siapa_yang_untung"
+    return "mekanisme_ekonomi"
+
+
 def _content_metadata(title, body):
     """Derive auditable content labels; never silently default every post."""
     pattern, _ = _classify_pattern(title, body)
@@ -2319,9 +2345,9 @@ def _topic_timestamp(topic):
 
 def _compute_performance_stats(data):
     """Engagement quality, not raw reach, drives bounded source/arc preference."""
-    buckets = {"source_avg": {}, "source_count": {}, "pattern_avg": {}, "pattern_count": {},
-               "hook_avg": {}, "hook_count": {}}
-    grouped = {"source_avg": {}, "pattern_avg": {}, "hook_avg": {}}
+    dimensions = ("source", "pattern", "hook", "arc", "lane", "lens")
+    buckets = {f"{name}_{kind}": {} for name in dimensions for kind in ("avg", "count")}
+    grouped = {f"{name}_avg": {} for name in dimensions}
     for topic in data.get("topics", []):
         if _is_current_topic(topic) is False:
             continue
@@ -2330,19 +2356,22 @@ def _compute_performance_stats(data):
             continue
         score = ((topic.get("likes") or 0) + 2 * (topic.get("replies") or 0)
                  + 3 * (topic.get("reposts") or 0) + 2 * (topic.get("quotes") or 0)) / views
-        grouped["source_avg"].setdefault(topic.get("article_source", ""), []).append(score)
-        pattern = topic.get("pattern")
-        if pattern:
-            grouped["pattern_avg"].setdefault(pattern, []).append(score)
-        hook = topic.get("hook_pattern")
-        if hook:
-            grouped["hook_avg"].setdefault(hook, []).append(score)
+        values = {
+            "source": topic.get("article_source"),
+            "pattern": topic.get("pattern"),
+            "hook": topic.get("hook_pattern"),
+            "arc": topic.get("arc"),
+            "lane": topic.get("lane"),
+            "lens": topic.get("editorial_lens"),
+        }
+        for name, value in values.items():
+            if value:
+                grouped[f"{name}_avg"].setdefault(value, []).append(score)
 
     for name, values in grouped.items():
         buckets[name] = {key: sum(items) / len(items) for key, items in values.items() if key}
-    buckets["source_count"] = {key: len(items) for key, items in grouped["source_avg"].items() if key}
-    buckets["pattern_count"] = {key: len(items) for key, items in grouped["pattern_avg"].items() if key}
-    buckets["hook_count"] = {key: len(items) for key, items in grouped["hook_avg"].items() if key}
+        dimension = name.removesuffix("_avg")
+        buckets[f"{dimension}_count"] = {key: len(items) for key, items in values.items() if key}
     return buckets
 
 
@@ -2768,6 +2797,8 @@ def build_user_prompt(article):
         *claim_lines,
         f"LANE: {_story_lane(article.get('title', ''), article.get('body', ''))}",
         f"KANAL DAMPAK INDONESIA: {_international_impact_channel(article.get('title', ''), article.get('body', '')) or 'tidak ada'}",
+        f"EDITORIAL LENS: {_editorial_lens(article.get('title', ''), article.get('body', ''))}",
+        "LENS WAJIB: gunakan lens ini sebagai cara memilih fakta dan judgment, bukan sebagai izin menambah klaim.",
         "PILIHAN CTA BERBASIS BUKTI:",
         *[f"- {sentence}" for sentence in cta_evidence],
         "Pilih dua pihak, biaya, manfaat, risiko, status, atau dampak yang muncul literal di ISI ARTIKEL.",
@@ -3831,7 +3862,10 @@ def main():
                 "story_functions": STORY_FUNCTIONS,
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+07:00"),
                 "eco_score": article.get("eco_score"), "selection_weight": article.get("_weight"),
-                "pattern": article.get("pattern"), "arc": result.get("arc", ""), "slides": posts,
+                "pattern": article.get("pattern"), "arc": result.get("arc", ""),
+                "hook_pattern": article.get("hook_pattern"),
+                "editorial_lens": article.get("editorial_lens") or _editorial_lens(article["title"], article.get("body", "")),
+                "slides": posts,
                 "likes": None, "replies": None, "reposts": None, "views": None, "quotes": None,
                 "cohort": CURRENT_COHORT,
             },
@@ -3855,6 +3889,7 @@ def main():
                 "pattern": article.get("pattern") or _content_metadata(article["title"], article.get("body", ""))[0],
                 "arc": result.get("arc") or article.get("arc") or _content_metadata(article["title"], article.get("body", ""))[1],
                 "hook_pattern": article.get("hook_pattern") or _content_metadata(article["title"], article.get("body", ""))[2],
+                "editorial_lens": article.get("editorial_lens") or _editorial_lens(article["title"], article.get("body", "")),
                 "slides": posts,
                 "likes": None,
                 "replies": None,

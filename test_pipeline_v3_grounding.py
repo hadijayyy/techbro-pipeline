@@ -694,8 +694,23 @@ def test_learning_bonus_is_bounded_and_needs_three_samples():
         [{"article_source": "A", "arc": "x", "views": 1000, "likes": 100}] * 3
         + [{"article_source": "B", "arc": "x", "views": 1000, "likes": 1}] * 3
     )}
-    assert 0 < pipeline._learning_bonus(data, "A") <= 0.06
-    assert -0.06 <= pipeline._learning_bonus(data, "B") < 0
+    assert 0 < pipeline._learning_bonus(data, "A") <= pipeline.FEEDBACK_BONUS_CAP
+    assert -pipeline.FEEDBACK_BONUS_CAP <= pipeline._learning_bonus(data, "B") < 0
+
+
+def test_editorial_lens_is_repeatable_and_literal():
+    assert pipeline._editorial_lens("Subsidi Rp10 triliun", "Anggaran negara membayar subsidi") == "siapa_yang_bayar"
+    assert pipeline._editorial_lens("Harga beras naik", "Harga beras menekan konsumen") == "angka_ke_dompet"
+
+
+def test_performance_stats_tracks_editorial_dimensions():
+    topic = {"article_source": "A", "pattern": "PASAR", "hook_pattern": "number_shock",
+             "arc": "market_shock", "lane": "national", "editorial_lens": "angka_ke_dompet",
+             "views": 1000, "likes": 10}
+    stats = pipeline._compute_performance_stats({"topics": [topic] * 3})
+    assert stats["arc_count"]["market_shock"] == 3
+    assert stats["lane_count"]["national"] == 3
+    assert stats["lens_count"]["angka_ke_dompet"] == 3
 
 
 def test_personal_finance_gets_distinct_arc_and_hook():
