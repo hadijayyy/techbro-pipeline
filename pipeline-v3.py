@@ -22,7 +22,7 @@ for i, a in enumerate(sys.argv):
         break
 DRY_RUN = "--dry-run" in sys.argv
 CANDIDATE_POOL_LIMIT = 10
-DISCOVERY_POOL_LIMIT = 15
+DISCOVERY_POOL_LIMIT = 25
 SCRAPE_ARTICLE_LIMIT = 100
 HOT_TOPIC_LIMIT = CANDIDATE_POOL_LIMIT
 LLM_REQUEST_BUDGET = 4  # writer/verifier plus one revision/verifier; transport retries disabled.
@@ -141,6 +141,7 @@ SOURCE_ARTICLE_CAPS = {
     "bbc_business": 15,
     "tempo_bisnis": 15,
     "republika_ekonomi": 15,
+    "katadata_ekonomi": 15,
 }
 SOURCE_TIERS = {
     "bi_release": ("primary_official", 12),
@@ -156,6 +157,7 @@ SOURCE_TIERS = {
     "dailysocial": ("secondary_media", 3),
     "tempo_bisnis": ("secondary_media", 7),
     "republika_ekonomi": ("secondary_media", 6),
+    "katadata_ekonomi": ("secondary_media", 8),
 }
 CURRENT_COHORT = "techbro_v3_current"
 LEGACY_COHORT = "legacy"
@@ -560,8 +562,9 @@ def scrape_all():
 # ── Economy Relevance Scoring ────────────────────────────────────────────────
 
 def _matches_keyword(text, keyword):
-    """Short terms require word boundaries; phrases keep natural substring matching."""
-    return bool(re.search(rf"\b{re.escape(keyword)}\b", text)) if len(keyword) <= 4 else keyword in text
+    """Match whole terms; prevent substring false positives (e.g. artis/partisipasi)."""
+    keyword = str(keyword).strip().lower()
+    return bool(re.search(rf"(?<!\w){re.escape(keyword)}(?!\w)", text.lower()))
 
 
 def _score_article(article):
@@ -577,7 +580,7 @@ def _score_article(article):
     # Hard reject (instant fail)
     for kw in HARD_REJECT:
         if _matches_keyword(tl, kw):
-            return (0, "hard_reject:" + kw)
+            return (0, "hard_reject:" + kw.strip())
     for name in NAMED_BLACKLIST:
         if _matches_keyword(tl, name):
             return (0, "blacklist:" + name)
@@ -1417,6 +1420,14 @@ def _is_eligible_candidate(title, body, source):
     title_lower = title.lower()
     # Viral routing: title angle is editorial input, not proof of falsehood.
     # Body grounding and publish validators remain authoritative.
+    for kw in HARD_REJECT:
+        if _matches_keyword(title_lower, kw):
+            return False, "hard_reject:" + kw.strip()
+    for name in NAMED_BLACKLIST:
+        if _matches_keyword(title_lower, name):
+            return False, "blacklist:" + name
+    if title_lower.startswith("video:"):
+        return False, "video_article"
     if not body or len(body) < 500:
         return False, "body_under_500_chars"
     # English-only feeds repeatedly produce untranslatable drafts; reject before

@@ -76,5 +76,11 @@
     "score": 7,
     "type": "rss",
     "domain": "republika.co.id/"
+  },
+  "katadata_ekonomi": {
+    "url": "https://katadata.co.id/rss",
+    "score": 8,
+    "type": "rss",
+    "domain": "katadata.co.id/"
   }
 }

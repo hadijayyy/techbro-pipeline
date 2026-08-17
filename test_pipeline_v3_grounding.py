@@ -1786,9 +1786,30 @@ def test_source_config_invalid_json_falls_back_to_empty(monkeypatch, tmp_path):
     assert pipeline.load_sources() == {}
 
 
+def test_katadata_rss_is_admitted_as_economy_source():
+    cfg = pipeline.SOURCES["katadata_ekonomi"]
+    assert cfg["url"] == "https://katadata.co.id/rss"
+    assert cfg["type"] == "rss"
+    assert pipeline.SOURCE_TIERS["katadata_ekonomi"][1] == 8
+
+
 def test_short_keyword_matching_does_not_match_inside_another_word():
     assert not pipeline._matches_keyword("kemasan makanan", "emas")
     assert pipeline._matches_keyword("harga emas naik", "emas")
+
+
+def test_reject_keyword_does_not_match_inside_longer_word():
+    assert not pipeline._matches_keyword("Partisipasi Pembuatan Kebijakan", "artis")
+    assert pipeline._matches_keyword("Promo Bank", "promo")
+
+
+def test_eligibility_reapplies_hard_reject_before_llm():
+    body = "Kegiatan ekonomi dan kebijakan pemerintah dibahas dalam laporan ini. " * 20
+    ok, reason = pipeline._is_eligible_candidate(
+        "Acara Ekonomi Pemerintah", body, "katadata_ekonomi"
+    )
+    assert not ok
+    assert reason == "hard_reject:acara"
 
 
 def test_html_scraper_resolves_relative_links(monkeypatch):

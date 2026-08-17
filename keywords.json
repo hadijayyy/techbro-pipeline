@@ -10,8 +10,8 @@
     "retail_markers": ["pusat belanja", "mal", "mall", "ritel", "retail", "toko", "belanja"],
     "promotion_markers": ["diskon", "hadiah", "promo", "promosi", "festival", "target transaksi", "long weekend", "voucher", "cashback"],
     "event_markers": ["event", "acara", "festival", "pameran", "momen", "long weekend"],
-    "material_topic_markers": ["apbn", "pajak", "subsidi", "anggaran", "utang negara", "defisit", "suku bunga", "bi rate", "inflasi", "pdb", "pertumbuhan ekonomi", "ekspor", "impor", "neraca perdagangan", "phk", "pengangguran", "upah", "harga pangan", "bbm", "tarif", "investasi", "pabrik", "industri", "bank", "rupiah", "dolar", "ihsg", "saham", "obligasi", "perdagangan global", "resesi global", "perang dagang", "tarif dagang", "opec"],
-    "material_change_markers": ["apbn", "pajak", "subsidi", "menetapkan", "menetapkan harga", "ubah", "diubah", "naik", "turun", "berlaku", "aturan baru", "kebijakan", "anggaran", "defisit", "utang", "phk", "pabrik tutup", "bangkrut", "pailit", "investasi", "ekspor", "impor", "suku bunga", "inflasi", "pertumbuhan", "melambat", "melonjak", "anjlok", "krisis", "resesi", "perang dagang", "tarif" ]
+    "material_topic_markers": ["apbn", "pajak", "subsidi", "anggaran", "utang negara", "defisit", "suku bunga", "bi rate", "inflasi", "pdb", "pertumbuhan ekonomi", "ekspor", "impor", "neraca perdagangan", "phk", "pengangguran", "upah", "harga pangan", "bbm", "tarif", "investasi", "pabrik", "industri", "bank", "rupiah", "dolar", "ihsg", "saham", "obligasi", "perdagangan global", "resesi global", "perang dagang", "tarif dagang", "opec", "hilirisasi", "smelter", "nikel", "energi", "minyak", "gas", "penerimaan negara", "belanja negara", "kerugian negara", "korupsi", "audit bpk", "putusan mk", "kredit umkm", "konsumsi rumah tangga", "biaya hidup"],
+    "material_change_markers": ["apbn", "pajak", "subsidi", "menetapkan", "menetapkan harga", "ubah", "diubah", "naik", "turun", "berlaku", "aturan baru", "kebijakan", "anggaran", "defisit", "utang", "phk", "pabrik tutup", "bangkrut", "pailit", "investasi", "ekspor", "impor", "suku bunga", "inflasi", "pertumbuhan", "melambat", "melonjak", "anjlok", "krisis", "resesi", "perang dagang", "tarif", "hilirisasi", "smelter", "energi", "harga minyak", "penerimaan negara", "belanja negara", "kerugian negara", "korupsi", "audit", "putusan", "kredit umkm", "konsumsi rumah tangga", "biaya hidup" ]
   },
   "score_categories": [
     {
@@ -464,6 +464,7 @@
     "acara ",
     "pameran ",
     "ajang tahunan",
+    "upacara",
     "helat",
     "kompetisi",
     "penghargaan",
