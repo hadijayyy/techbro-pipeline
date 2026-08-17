@@ -1483,6 +1483,29 @@ def test_ranked_candidate_pool_uses_next_rank_when_top_is_posted():
     assert picked["url"] == "https://example.test/2"
 
 
+def test_discovery_pool_keeps_later_editorially_eligible_candidate():
+    articles = [
+        {"url": f"https://example.test/{i}", "title": f"Rupiah dan APBN seri {i}",
+         "source": "cnn_ekonomi", "ts": 1_800_000_000}
+        for i in range(1, 12)
+    ]
+    articles[-1]["title"] = "Pemerintah Tetapkan APBN Rp11 Triliun"
+    topics = [
+        {"canonical_url": article["url"], "_body": (
+            "Pemerintah Indonesia membahas layanan publik dan kegiatan masyarakat. " * 12
+            if i < 11 else
+            "Pemerintah Indonesia menetapkan kebijakan APBN senilai Rp11 triliun untuk anggaran negara. " * 12
+        )}
+        for i, article in enumerate(articles, 1)
+    ]
+    pool = pipeline._ranked_candidate_pool(articles, topics, limit=15)
+
+    assert len(pool) == 11
+    assert pipeline._is_eligible_candidate(
+        pool[-1]["title"], pool[-1]["body"], pool[-1]["source"]
+    )[0] is True
+
+
 def test_literal_fact_allowlist_is_embedded_in_writer_prompt():
     body = "Bank Indonesia menetapkan suku bunga menjadi 5 persen. Nilai rupiah tercatat Rp17.000 per dolar AS."
     prompt = pipeline.build_user_prompt({"body": body})

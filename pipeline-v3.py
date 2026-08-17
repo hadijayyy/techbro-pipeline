@@ -24,6 +24,7 @@ IMAGE_DISABLED = "--no-image" in sys.argv
 DRY_RUN = "--dry-run" in sys.argv
 PREPARE_NEXT = "--prepare-next" in sys.argv
 CANDIDATE_POOL_LIMIT = 10
+DISCOVERY_POOL_LIMIT = 15
 SCRAPE_ARTICLE_LIMIT = 100
 HOT_TOPIC_LIMIT = CANDIDATE_POOL_LIMIT
 LLM_REQUEST_BUDGET = 4  # writer/verifier plus one revision/verifier; transport retries disabled.
@@ -872,20 +873,18 @@ def _is_administrative_distribution_story(title, body):
 
 
 def _verify_one(candidate, now, data=None):
-    """Single-candidate body fetch + gate check. Returns dict or None. Used by scout_hot_topics."""
+    """Fetch body and rank candidate; editorial gate is metadata, not discovery filter."""
     title, url, source = candidate.get("title", ""), candidate.get("url", ""), candidate.get("source", "")
     if not title or not url or not source:
         return None
     body, image, article_ts = _fetch_article_body(url)
+    if not body or len(body) < 500:
+        return None
     published_ts, timestamp_source, _ = _resolve_published_timestamp(article_ts, candidate.get("ts", 0), now)
     if not published_ts:
         return None
     eligible, reason = _is_eligible_candidate(title, body, source)
-    if not eligible:
-        return None
     indonesia_relevance = _indonesia_topic_relevance(title, body)
-    if not indonesia_relevance:
-        return None
     pattern, confidence = _classify_pattern(title, body)
     topic_score, economy_score, impact_score = _topic_score(title, body)
     source_quality = SOURCES.get(source, {}).get("score", candidate.get("score", 0))
@@ -907,7 +906,8 @@ def _verify_one(candidate, now, data=None):
         "story_selection_score": story_selection,
         "hot_score": hot_score, "body_verified": True, "image_available": bool(image),
         "indonesia_relevance": indonesia_relevance, "reason": reason,
-        "has_material_economic_signal": True,
+        "editorial_eligible": eligible, "editorial_reason": reason,
+        "has_material_economic_signal": has_material_economic_signal(title, body),
         "impact_channel": _international_impact_channel(title, body),
         "global_event": _is_global_event(title, body),
         "_body": body, "_image": image,
@@ -915,7 +915,7 @@ def _verify_one(candidate, now, data=None):
 
 def scout_hot_topics(articles, now=None, limit=HOT_TOPIC_LIMIT, per_source_limit=2, data=None,
                      allow_cluster_repeats=False):
-    """Read-only body-verified ranking; fallback may reuse a cluster after primary fails."""
+    """Body-first ranked discovery; editorial gate runs at selection boundary."""
     now = time.time() if now is None else now
     verified = []
     with ThreadPoolExecutor(max_workers=10) as ex:
@@ -1031,18 +1031,8 @@ def _pick_article(articles, posted_urls, data=None, ranked_urls=None):
         a["title"] = re.sub(r'^\d+', '', a["title"]).strip()
         a["title"] = re.sub(r'(Energi|Ekbis|Bisnis|Keuangan|Finance|Ekonomi|Nasional|Market)\d{2}/\d{2}/\d{4}$', '', a["title"]).strip()
         a["title"] = re.sub(r'(Energi|Ekbis|Bisnis|Keuangan|Finance|Ekonomi|Nasional)$', '', a["title"]).strip()
-    # Score only editorially valid candidates; numeric keyword hits cannot rescue advice/promo.
-    filtered = []
-    for a in candidates:
-        editorial_reason = _editorial_candidate_gate(a.get("title", ""), a.get("body", ""))
-        if editorial_reason:
-            a["eco_score"] = 0
-            a["_reason"] = editorial_reason
-            continue
-        filtered.append(a)
-    candidates = filtered
-    if not candidates:
-        return None
+    # Pressbox pattern: rank body-verified discovery candidates first. Full
+    # editorial eligibility is checked by main() before generation.
     for a in candidates:
         eco_score, reason = _score_article(a)
         a["eco_score"] = eco_score
@@ -3867,34 +3857,25 @@ def main():
     log.info("Scraping economy sources...")
     articles = scrape_all()
     log.info(f"  Got {len(articles)} raw articles")
-    # Scout is the publisher's only candidate pool: ten body-verified ranked topics.
-    hot_topics = scout_hot_topics(articles, data=data)
-    fallback_topics = scout_hot_topics(
-        articles, data=data, per_source_limit=6, allow_cluster_repeats=True,
+    # Pressbox shape: one broad body-first ranking; full editorial gate once.
+    hot_topics = scout_hot_topics(
+        articles, data=data, limit=DISCOVERY_POOL_LIMIT, per_source_limit=6,
     )
     for topic in hot_topics:
         log.info(f"  Hot #{topic['rank']}: [{topic['lane']}] {topic['title'][:70]} (score={topic['hot_score']})")
-    international_topics = international_dry_run_candidates(hot_topics, fallback_topics)
+    international_topics = international_dry_run_candidates(hot_topics)
     if DRY_RUN and not international_topics:
         log.error("International dry-run gate failed: no body-verified lane=international candidate")
         print("NO_INTERNATIONAL_CANDIDATE", flush=True)
         return
-    if international_topics:
-        log.info(f"  International candidates: {len(international_topics)}")
     if not DRY_RUN:
         save_hot_topics(hot_topics)
-    ranked_topics = []
-    seen_topic_urls = set()
-    for topic in (*hot_topics, *fallback_topics):
-        topic_url = _canonical_url(topic.get("canonical_url", ""))
-        if topic_url and topic_url not in seen_topic_urls:
-            ranked_topics.append(topic)
-            seen_topic_urls.add(topic_url)
-    articles = _ranked_candidate_pool(articles, ranked_topics)
+    ranked_topics = hot_topics
+    articles = _ranked_candidate_pool(articles, ranked_topics, limit=DISCOVERY_POOL_LIMIT)
     ranked_urls = [article["url"] for article in articles]
-    log.info(f"  Ranked candidate pool: {len(articles)}/{CANDIDATE_POOL_LIMIT}")
+    log.info(f"  Ranked discovery pool: {len(articles)}/{DISCOVERY_POOL_LIMIT}")
 
-    # Step 2: Search ranked pool. Top 1 used means top 2, through top 10.
+    # Step 2: Search discovery pool in rank order; stop at first safe article.
     from collections import Counter
     skipped_urls = set()
     reject_reasons = Counter()
