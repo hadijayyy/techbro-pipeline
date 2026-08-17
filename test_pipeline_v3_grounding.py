@@ -1592,6 +1592,10 @@ def test_writer_prompt_encodes_high_signal_creator_voice_without_weakening_groun
 def test_writer_prompt_uses_conversational_personal_story_pattern_without_fabrication():
     prompt = pipeline.SYSTEM_PROMPT
     assert "conversational, tajam, konkret" in prompt
+    assert "Kalibrasi referensi positif" in prompt
+    assert "belokan conversational" in prompt
+    assert "judgment kecil yang terasa personal" in prompt
+    assert "Jangan mulai dengan konteks panjang atau ringkasan headline" in prompt
     assert "Orang pertama hanya untuk opini editorial" in prompt
     assert "Jangan memaksa lo/gue di setiap slide" in prompt
     assert "masalah nyata di artikel" in prompt
