@@ -1739,6 +1739,8 @@ def test_source_config_keeps_only_active_sources_with_required_fields():
     assert {cfg["type"] for cfg in pipeline.SOURCES.values()} <= {"rss", "html"}
     assert "cnbc_global" in pipeline.SOURCES
     assert "bbc_business" in pipeline.SOURCES
+    assert "tempo_bisnis" in pipeline.SOURCES
+    assert "republika_ekonomi" in pipeline.SOURCES
 
 
 def test_cnbc_body_selector_reads_generated_article_body(monkeypatch):
@@ -1751,6 +1753,21 @@ def test_cnbc_body_selector_reads_generated_article_body(monkeypatch):
     body, _, _ = pipeline._fetch_article_body("https://www.cnbc.com/test-body")
 
     assert len(body) > 500
+
+
+def test_jsonld_article_body_selector_reads_publisher_body(monkeypatch):
+    body_text = "Anggaran pemerintah berubah setelah keputusan resmi. " * 20
+    html = ('<html><head><script type="application/ld+json">'
+            + json.dumps({"@type": "NewsArticle", "articleBody": body_text,
+                          "datePublished": "2026-08-17T10:30:00+07:00"})
+            + '</script></head><body><div id="unrelated">menu</div></body></html>')
+    monkeypatch.setattr(pipeline, "_http_get", lambda *_args, **_kwargs: (200, html))
+    pipeline._BODY_CACHE.pop("https://example.test/jsonld-body", None)
+
+    body, _, published_ts = pipeline._fetch_article_body("https://example.test/jsonld-body")
+
+    assert len(body) > 500
+    assert published_ts > 0
 
 
 def test_economic_foreign_story_has_no_indonesia_anchor_penalty():

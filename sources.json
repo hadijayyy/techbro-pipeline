@@ -64,5 +64,17 @@
     "score": 7,
     "type": "rss",
     "domain": "bbc.co.uk/news/"
+  },
+  "tempo_bisnis": {
+    "url": "https://rss.tempo.co/bisnis",
+    "score": 8,
+    "type": "rss",
+    "domain": "bisnis.tempo.co/"
+  },
+  "republika_ekonomi": {
+    "url": "https://www.republika.co.id/rss/ekonomi",
+    "score": 7,
+    "type": "rss",
+    "domain": "republika.co.id/"
   }
 }

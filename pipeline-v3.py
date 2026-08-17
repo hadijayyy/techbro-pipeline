@@ -139,6 +139,8 @@ SOURCE_ARTICLE_CAPS = {
     "dailysocial": 15,
     "cnbc_global": 15,
     "bbc_business": 15,
+    "tempo_bisnis": 15,
+    "republika_ekonomi": 15,
 }
 SOURCE_TIERS = {
     "bi_release": ("primary_official", 12),
@@ -152,6 +154,8 @@ SOURCE_TIERS = {
     "cnbc_global": ("secondary_media", 5),
     "bbc_business": ("secondary_media", 6),
     "dailysocial": ("secondary_media", 3),
+    "tempo_bisnis": ("secondary_media", 7),
+    "republika_ekonomi": ("secondary_media", 6),
 }
 CURRENT_COHORT = "techbro_v3_current"
 LEGACY_COHORT = "legacy"
@@ -391,7 +395,7 @@ def _normalize_title(title):
 
 # ── HTTP Helpers ─────────────────────────────────────────────────────────────
 
-UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+UA = "Mozilla/5.0"
 
 def _http_get(url, timeout=12):
     """GET with one immediate fallback retry for flaky official pages."""
@@ -445,6 +449,8 @@ def _scrape_rss(url, source, base_score):
         code, text = _http_get(url)
         if code != 200:
             return articles
+        # Some feeds contain stray control bytes; discard only invalid XML chars.
+        text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
         root = ET.fromstring(text)
         ns = {"media": "http://search.yahoo.com/mrss/",
               "content": "http://purl.org/rss/1.0/modules/content/"}
@@ -1141,6 +1147,25 @@ def _fetch_article_body(url):
             return "", None, 0
         soup = BeautifulSoup(raw, "html.parser")
         published_ts = _published_timestamp(soup)
+        jsonld_body = ""
+        jsonld_image = None
+        for tag in soup.find_all("script", type="application/ld+json"):
+            try:
+                payload = json.loads(tag.string or tag.get_text())
+            except (TypeError, json.JSONDecodeError):
+                continue
+            stack = payload if isinstance(payload, list) else [payload]
+            while stack:
+                item = stack.pop()
+                if not isinstance(item, dict):
+                    continue
+                body_value = item.get("articleBody")
+                if body_value and len(str(body_value)) > len(jsonld_body):
+                    jsonld_body = html.unescape(str(body_value))
+                if not jsonld_image and item.get("image"):
+                    image = item["image"]
+                    jsonld_image = image if isinstance(image, str) else (image.get("url") if isinstance(image, dict) else None)
+                stack.extend(value for value in item.values() if isinstance(value, (dict, list)))
         # og:image — logos are not lead images, fall through to body images.
         og_tag = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
         if og_tag and og_tag.get("content"):
@@ -1159,6 +1184,8 @@ def _fetch_article_body(url):
                             log.warning(f"Reject logo-as-og:image: {og_stem} alt='{img_alt[:40]}'")
                             og_image = None
                             break
+        if not og_image and jsonld_image:
+            og_image = validate_article_image(_hd_image_url(jsonld_image))
         # Article body — CNBC uses generated class names not covered by local selectors.
         host = urllib.parse.urlsplit(url).netloc.lower()
         body_el = None
@@ -1175,6 +1202,10 @@ def _fetch_article_body(url):
             or soup.find("article")
             or soup.find("main")
         )
+        if not body_el and jsonld_body:
+            body_el = BeautifulSoup(
+                f"<div><p>{html.escape(jsonld_body)}</p></div>", "html.parser"
+            ).div
         if not body_el:
             return "", og_image, published_ts
         # Fallback: og:image was missing/logo — find the first real photo in the article body.
