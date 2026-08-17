@@ -809,6 +809,26 @@ def test_claim_markers_block_unsupported_wallet_conclusion():
     assert "unsupported claim marker 'untung bersih'" in issues[0]
 
 
+def test_unsupported_editorial_claims_block_unbacked_blame_and_loss():
+    issues = pipeline._validate_unsupported_editorial_claims(
+        {
+            "post_1": "Yang rugi? APBN.",
+            "post_2": "Kenapa baru sekarang ada tindakan?",
+        },
+        "Tujuh pekerja meninggal dalam kecelakaan tambang. Perusahaan menyampaikan belasungkawa.",
+    )
+    assert any("unsupported loss framing" in issue for issue in issues)
+    assert any("unsupported timing/motive framing" in issue for issue in issues)
+
+
+def test_duplicate_material_numbers_are_hard_quality_gate():
+    posts = {f"post_{i}": "Fakta berbeda dari artikel. Bukti lain menambah konteks." for i in range(1, 7)}
+    posts["post_1"] = "652 perusahaan akan dipangkas."
+    posts["post_2"] = "Targetnya tinggal 652 perusahaan."
+    posts["post_3"] = "Dari 652 perusahaan, sebagian akan bertahan."
+    assert not pipeline._quality_gate({"body": "x"}, {"status": "success"}, posts, [])
+
+
 def test_grounding_validation_is_deterministic_and_keeps_editorial_shape_out(monkeypatch):
     def fail_if_called(*args, **kwargs):
         raise AssertionError("grounding must not call LLM")

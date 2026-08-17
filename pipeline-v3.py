@@ -2339,6 +2339,24 @@ def _validate_audience_lens(article, posts):
     return issues
 
 
+def _validate_unsupported_editorial_claims(posts, body):
+    """Block blame, loss, and motive framing unless source states it."""
+    source = _normalize_grounding_text(body)
+    patterns = (
+        (r"\byang\s+rugi\??\s+apbn\b", "unsupported loss framing"),
+        (r"\b(?:kenapa|kok)\s+baru\s+sekarang\b", "unsupported timing/motive framing"),
+        (r"\bsejarah\s+macam\s+apa\b", "unsupported moral framing"),
+    )
+    issues = []
+    for key in [f"post_{i}" for i in range(1, 7)]:
+        text = _normalize_grounding_text(posts.get(key, ""))
+        for pattern, label in patterns:
+            match = re.search(pattern, text)
+            if match and match.group(0) not in source:
+                issues.append(f"{key}: {label} '{match.group(0)}'")
+    return issues
+
+
 def deterministic_grounding_validate(article, posts):
     body = article.get("body") or ""
     return (_validate_numbers(posts, body) + _validate_years(posts, body)
@@ -2347,6 +2365,7 @@ def deterministic_grounding_validate(article, posts):
             + _validate_unsupported_economic_relationships(posts, body)
             + _validate_unsupported_financial_framing(posts, body)
             + _validate_unsupported_inferences(posts, body) + _validate_range_direction(posts, body)
+            + _validate_unsupported_editorial_claims(posts, body)
             + _validate_source_evidence_map(posts, body))
 
 
@@ -2528,6 +2547,7 @@ Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi
 - Hook S1 dimulai dari fakta literal yang membuat pembaca berhenti: angka, perbandingan yang memang ada, kutipan, keputusan, atau kontradiksi nyata. Reaksi boleh muncul dulu, tetapi fakta harus ada di kalimat yang sama atau berikutnya. Jangan mulai dengan konteks panjang atau ringkasan headline.
 - Pakai bahasa ngobrol secukupnya: lo, gue/gua, nah, tapi, padahal, soalnya, makanya. Sapaan hanya dipakai bila membuat kontras terasa lebih dekat; slang bukan hiasan wajib. Jangan memaksa lo/gue di setiap slide.
 - Satu post satu pukulan: fakta konkret, belokan/kontras singkat, lalu reaksi atau judgment yang langsung ditopang fakta tersebut. Variasikan ritme; jangan membuat semua slide mengikuti pola fakta-artinya-dampak-kesimpulan.
+- Pisahkan tiga lapis: FAKTA = apa yang artikel nyatakan; OPINI = penilaian lo yang jelas ditandai sebagai pandangan; TUDUHAN/MOTIF/AKIBAT = jangan tulis kecuali artikel menyatakannya. Jangan ubah kematian, biaya, atau keputusan menjadi klaim siapa yang rugi, siapa yang salah, atau kenapa tindakan terlambat tanpa bukti literal.
 - Punchline harus berbasis evidence span. Jangan menambah motif, dampak, korban, prediksi, atau hubungan sebab-akibat demi terdengar tajam. Ironi atau sarkasme hanya boleh memakai kontras literal dari masalah nyata di artikel.
 - Akui batas sumber secara natural: "yang belum jelas...", "artikel ini cuma menyebut...", atau "sumbernya belum menjelaskan...". Jangan mengisi lubang informasi dengan asumsi.
 - POV boleh tegas bila lahir dari kontras literal. Orang pertama hanya untuk opini editorial, bukan pengalaman, investasi, percakapan, akses, atau fakta pribadi yang dibuat-buat.
@@ -3375,9 +3395,9 @@ def _quality_gate(article, data, posts, warnings):
     if data.get("status") != "success" or not posts:
         return False
     if posts:
-        style_issues = deterministic_validate(posts)
+        style_issues = deterministic_validate(posts) + _duplicate_fact_warnings(posts)
         # Style warnings advisory; structural empty/length/sentence/CTA issues remain hard.
-        soft_markers = ("slop '", "too many sentences", "too many questions", "too many CTA questions", "stand-alone", "hard word", "rewrite ", "passive construction", "duplicate", "repeats material numbers", "voice:", "audience lens:")
+        soft_markers = ("slop '", "too many sentences", "too many questions", "too many CTA questions", "stand-alone", "hard word", "rewrite ", "passive construction", "duplicate", "voice:", "audience lens:")
         hard = [w for w in style_issues if not any(marker in w for marker in soft_markers)]
         if hard:
             return False
@@ -3446,7 +3466,8 @@ def generate_thread(article):
         # All 6 posts required.
         missing = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4","post_5","post_6"] if not posts.get(k, "").strip()]
         # Style warnings are advisory. Grounding, names, claims, empty/structure remain hard.
-        style_warnings = deterministic_validate(posts) + _duplicate_fact_warnings(posts)
+        style_warnings = deterministic_validate(posts)
+        duplicate_warnings = _duplicate_fact_warnings(posts)
         noun_warnings = _validate_proper_nouns(posts, article["body"])
         claim_warnings = _validate_claim_markers(posts, article["body"])
         voice_warnings = _voice_warnings(posts)
@@ -3454,7 +3475,8 @@ def generate_thread(article):
         grounding_warnings = grounding_validate(article, posts)
         hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "English-dominant", "S1 WAJIB", "weak winning hook", "generic winning CTA", "generic editorial close", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence", "template opening", "unsupported drama", "generic moral CTA", "emoji/emote forbidden"))]
         engagement_warnings = _validate_s1_hook(posts, article["body"], article) + _validate_s6_cta(posts, article["body"])
-        warnings = missing + grounding_warnings + noun_warnings + claim_warnings + hard_style_warnings + engagement_warnings
+        warnings = (missing + grounding_warnings + noun_warnings + claim_warnings
+                    + duplicate_warnings + hard_style_warnings + engagement_warnings)
         soft_warnings = style_warnings + voice_warnings + jargon_warnings
         if soft_warnings:
             log.info(f"  Soft style warnings (advisory): {soft_warnings}")
