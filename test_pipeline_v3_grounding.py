@@ -65,6 +65,23 @@ def test_language_gate_accepts_indonesian_output_with_english_proper_nouns():
     assert pipeline._indonesian_language_issues(posts) == []
 
 
+def test_english_only_global_source_rejected_before_llm_generation():
+    body = ("The market has been more resilient than expected and investors are watching earnings. " * 20)
+    ok, reason = pipeline._is_eligible_candidate(
+        "Global earnings lift stocks", body, "cnbc_global"
+    )
+    assert not ok
+    assert reason == "source_body_english_only"
+
+
+def test_indonesian_source_not_rejected_by_english_body_heuristic():
+    body = ("Pemerintah menetapkan aturan investasi dan perusahaan membuka lapangan kerja. " * 20)
+    ok, reason = pipeline._is_eligible_candidate(
+        "Pemerintah tetapkan aturan investasi", body, "cnn_ekonomi"
+    )
+    assert ok, reason
+
+
 def test_candidate_selection_allows_body_above_relaxed_minimum():
     body = "Pemerintah menetapkan subsidi energi untuk rumah tangga Indonesia. " * 14
     ok, reason = pipeline._is_eligible_candidate(

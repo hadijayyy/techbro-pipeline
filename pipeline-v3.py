@@ -1368,6 +1368,18 @@ def _editorial_candidate_gate(title, body):
     return None
 
 
+def _english_source_body(body):
+    """Detect obvious English-only source bodies before spending writer calls."""
+    english = {"a", "an", "and", "are", "as", "at", "been", "but", "by", "for", "from",
+               "has", "have", "in", "is", "more", "of", "on", "or", "said", "since",
+               "than", "that", "the", "their", "this", "to", "was", "were", "with"}
+    indonesian = {"akan", "atau", "bagi", "banyak", "bisa", "bukan", "dan", "dari", "dengan",
+                  "di", "dalam", "ini", "itu", "jadi", "juga", "karena", "kalau", "ke", "menurut",
+                  "pada", "untuk", "yang", "sudah", "tapi", "tidak"}
+    words = set(re.findall(r"[A-Za-z]+", (body or "").lower()))
+    return len(words & english) >= 5 and len(words & indonesian) <= 1
+
+
 def _is_eligible_candidate(title, body, source):
     """Full economy gate shared by main pick and retry path.
     Returns (eligible: bool, reason: str)."""
@@ -1376,6 +1388,10 @@ def _is_eligible_candidate(title, body, source):
     # Body grounding and publish validators remain authoritative.
     if not body or len(body) < 500:
         return False, "body_under_500_chars"
+    # English-only feeds repeatedly produce untranslatable drafts; reject before
+    # LLM generation so retry can use Indonesian candidates instead.
+    if source in {"cnbc_global", "bbc_business"} and _english_source_body(body):
+        return False, "source_body_english_only"
     # Stable reject order: source noise, specific advice/promo, routine copy, material gate.
     if not _has_source_title_signal(title, source):
         return False, "source_title_not_material"
