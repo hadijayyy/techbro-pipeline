@@ -4008,7 +4008,7 @@ def main():
     discovery_limit = len(ranked_urls) if not article else 0
     eligible_candidates = []
     for _ in range(discovery_limit):
-        candidate = _pick_article(articles, skipped_urls, data, ranked_urls)
+        candidate = _pick_article(articles, posted_urls | skipped_urls, data, ranked_urls)
         if not candidate:
             break
         # Consume candidate once. Without this, eligible candidate repeats until pool fills.

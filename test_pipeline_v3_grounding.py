@@ -1496,6 +1496,19 @@ def test_ranked_candidate_pool_uses_next_rank_when_top_is_posted():
     assert picked["url"] == "https://example.test/2"
 
 
+def test_candidate_selection_excludes_persisted_posted_urls():
+    articles = [
+        {"url": "https://example.test/repeat", "title": "Pajak APBN Repeat", "source": "cnn_ekonomi", "ts": 1_800_000_000},
+        {"url": "https://example.test/fresh", "title": "Pajak APBN Fresh", "source": "cnn_ekonomi", "ts": 1_800_000_000},
+    ]
+    picked = pipeline._pick_article(
+        articles,
+        {"https://example.test/repeat?utm_source=rss"},
+        ranked_urls=[article["url"] for article in articles],
+    )
+    assert picked["url"] == "https://example.test/fresh"
+
+
 def test_discovery_hot_score_prefers_editorially_valid_story(monkeypatch):
     now = 1_800_000_000
     articles = [
