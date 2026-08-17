@@ -4,7 +4,7 @@ Techbro v3 — EKONOMI NASIONAL + POV PRIBADI + 6 Script Hack Elements
 Article-based: scrape economy RSS/HTML → 6 threads with personal POV.
 """
 
-import html, httpx, json, logging, os, random, re, statistics, struct, sys, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET
+import html, httpx, json, logging, os, random, re, struct, sys, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 
@@ -20,9 +20,7 @@ for i, a in enumerate(sys.argv):
     if a == "--image-url" and i + 1 < len(sys.argv):
         IMAGE_URL = sys.argv[i + 1]
         break
-IMAGE_DISABLED = "--no-image" in sys.argv
 DRY_RUN = "--dry-run" in sys.argv
-PREPARE_NEXT = "--prepare-next" in sys.argv
 CANDIDATE_POOL_LIMIT = 10
 DISCOVERY_POOL_LIMIT = 15
 SCRAPE_ARTICLE_LIMIT = 100
@@ -33,10 +31,8 @@ LLM_REQUEST_BUDGET = 4  # writer/verifier plus one revision/verifier; transport 
 
 BASE = Path(__file__).parent
 POSTED_FILE = BASE / "posted_topics_v2.json"
-HOT_TOPICS_FILE = BASE / "hot_today.json"
 KEYWORDS_FILE = BASE / "keywords.json"
 SOURCES_FILE = BASE / "sources.json"
-PREPARED_ARTICLE_FILE = BASE / "prepared_article.json"
 INFLIGHT_FILE = BASE / "inflight_chain.json"
 
 # ── Env ───────────────────────────────────────────────────────────────────────
@@ -308,63 +304,6 @@ def threads_permalink(post_id):
     except Exception as e:
         log.warning(f"Permalink lookup failed: {e}")
     return f"https://www.threads.com/@ryanhadiii/post/{post_id}"
-
-
-def load_prepared_article(posted_urls):
-    """Load one immutable, validated draft; stale data never reaches publishing."""
-    try:
-        article = json.loads(PREPARED_ARTICLE_FILE.read_text())
-        stale = article.get("url") in posted_urls or time.time() > article.get("expires_at", 0)
-        if stale:
-            if not DRY_RUN:
-                PREPARED_ARTICLE_FILE.unlink(missing_ok=True)
-            return None
-        required = ("title", "url", "body", "og_image", "posts", "prepared_at", "expires_at")
-        if not all(article.get(k) for k in required):
-            return None
-        posts = article["posts"]
-        if not isinstance(posts, dict):
-            return None
-        eligible, reason = _is_eligible_candidate(
-            article.get("title", ""), article.get("body", ""), article.get("source", "prepared")
-        )
-        if not eligible:
-            log.warning("Prepared article rejected by current eligibility gate: %s", reason)
-            return None
-        if thread_contract_issues(posts, article["url"]):
-            return None
-        # Prose style warnings are advisory. Contract and grounding remain hard gates.
-        if deterministic_grounding_validate(article, posts):
-            return None
-        if _validate_source_evidence_map(posts, article.get("body", "")):
-            return None
-        return article
-    except (OSError, json.JSONDecodeError, TypeError):
-        return None
-
-
-def save_prepared_article(article, result, image_url):
-    """Persist only a fully validated seven-post draft for one later publish."""
-    if DRY_RUN:
-        return False
-    payload = dict(article)
-    # Always persist a source timestamp so the 24h freshness check works on reload.
-    # Prefer published_ts (source page), fall back to ts (RSS), then prepared_at.
-    if not payload.get("published_ts"):
-        payload["published_ts"] = article.get("ts") or payload["prepared_at"] or time.time()
-    pattern, arc, hook = _content_metadata(article.get("title", ""), article.get("body", ""))
-    payload.update({"posts": result["posts"], "angle": result.get("angle", ""),
-                    "story_functions": STORY_FUNCTIONS,
-                    "pattern": article.get("pattern") or pattern,
-                    "arc": result.get("arc") or article.get("arc") or arc,
-                    "hook_pattern": article.get("hook_pattern") or hook,
-                    "editorial_lens": article.get("editorial_lens") or _editorial_lens(article.get("title", ""), article.get("body", "")),
-                    "og_image": image_url,
-                    "cohort": CURRENT_COHORT,
-                    "prepared_at": time.time(), "expires_at": time.time() + 86400})
-    tmp = PREPARED_ARTICLE_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
-    tmp.replace(PREPARED_ARTICLE_FILE)
 
 
 def _topic_entities(title):
@@ -737,29 +676,6 @@ def _score_article(article):
 
     return (score, f"cats={categories_hit} sig={signals} dyn={dynamic_hits}")
 
-FEEDBACK_MIN_SAMPLES = 3
-FEEDBACK_BONUS_CAP = 2.0
-
-
-def _learning_bonus(data, source, pattern=None, hook=None, arc=None, lane=None, lens=None):
-    """Bounded mature-post feedback; never changes body or publish gates."""
-    stats = _compute_performance_stats(data)
-    dimensions = (
-        ("source", source), ("pattern", pattern), ("hook", hook),
-        ("arc", arc), ("lane", lane), ("lens", lens),
-    )
-    bonus = 0.0
-    for name, value in dimensions:
-        if not value or stats[f"{name}_count"].get(value, 0) < FEEDBACK_MIN_SAMPLES:
-            continue
-        averages = stats[f"{name}_avg"]
-        values = list(averages.values())
-        if values:
-            baseline = sum(values) / len(values)
-            bonus += (averages[value] - baseline) * 20
-    return max(-FEEDBACK_BONUS_CAP, min(FEEDBACK_BONUS_CAP, bonus))
-
-
 def _source_diversity_penalty(data, source):
     """Bound recent source repetition; never override body/editorial gates."""
     recent = [topic for topic in (data or {}).get("topics", [])[:10]
@@ -906,7 +822,6 @@ def _verify_one(candidate, now, data=None):
     quality = 100 if eligible else -40
     material = 20 if has_material_economic_signal(title, body) else -20
     hot_score = round(quality + material + topic_score * 10 + confidence * 10 + freshness * 10 + source_quality
-                      + _learning_bonus(data or {}, source, pattern, hook, arc, lane, lens)
                       + _engagement_priority_bonus(title, body) + story_selection, 3)
     image_provenance = _image_provenance(url, image, declared_on_page=bool(image))
     _IMAGE_PROVENANCE_CACHE[_canonical_url(url)] = image_provenance
@@ -964,50 +879,6 @@ def scout_hot_topics(articles, now=None, limit=HOT_TOPIC_LIMIT, per_source_limit
             break
     return selected
 
-
-def international_dry_run_candidates(hot_topics, fallback_topics=()):
-    """Return body-verified international topics available to dry-run output."""
-    return [topic for topic in (*hot_topics, *fallback_topics)
-            if topic.get("lane") == "international"]
-
-
-def save_hot_topics(topics, generated_ts=None):
-    if DRY_RUN:
-        return False
-    payload = {"generated_ts": generated_ts or time.time(), "topics": topics}
-    tmp = HOT_TOPICS_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
-    tmp.replace(HOT_TOPICS_FILE)
-
-
-def _publish_candidates_from_hot_topics(articles, topics, fallback_topics=()):
-    """Return primary then fallback body-verified scout choices, in rank order."""
-    by_url = {_canonical_url(article.get("url", "")): article for article in articles}
-    seen = set()
-    candidates = []
-    for topic in (*topics, *fallback_topics):
-        url = topic.get("canonical_url")
-        if url in by_url and url not in seen:
-            candidates.append(by_url[url])
-            seen.add(url)
-    return candidates
-
-
-def _publisher_pool(articles, hot_topics, verified_topics):
-    """Hot topics boost order; verified RSS pool remains available as fallback."""
-    by_url = {_canonical_url(article.get("url", "")): article for article in articles}
-    ordered_urls = []
-    for topic in (*hot_topics, *verified_topics):
-        url = topic.get("canonical_url")
-        if url in by_url and url not in ordered_urls:
-            # Reuse body verification during ranking; do not rank title-only again.
-            if topic.get("_body"):
-                by_url[url]["body"] = topic["_body"]
-            ordered_urls.append(url)
-    return [by_url[url] for url in ordered_urls] + [
-        article for article in articles
-        if _canonical_url(article.get("url", "")) not in ordered_urls
-    ]
 
 
 def _ranked_candidate_pool(articles, topics, limit=CANDIDATE_POOL_LIMIT):
@@ -1069,18 +940,14 @@ def _pick_article(articles, posted_urls, data=None, ranked_urls=None):
         # Source quality: base from SOURCES config
         src_cfg = SOURCES.get(a["source"], {})
         source_quality = src_cfg.get("score", 5)
-        # Learning is capped. It cannot rescue an editorially weak candidate.
         _, arc, hook = _content_metadata(a.get("title", ""), a.get("body", ""))
         a["arc"] = a.get("arc") or arc
         a["hook_pattern"] = a.get("hook_pattern") or hook
         a["lane"] = _story_lane(a.get("title", ""), a.get("body", ""))
         a["editorial_lens"] = _editorial_lens(a.get("title", ""), a.get("body", ""))
-        learning = _learning_bonus(data or {}, a["source"], a.get("pattern"), a["hook_pattern"],
-                                   a["arc"], a["lane"], a["editorial_lens"])
-        a["learning_bonus"] = learning
         a["impact_channel"] = _international_impact_channel(a.get("title", ""), a.get("body", ""))
         a["story_selection_score"] = _story_selection_bonus(a.get("title", ""), a.get("body", ""))
-        a["_weight"] = (eco_score + freshness + relevance + source_quality + learning
+        a["_weight"] = (eco_score + freshness + relevance + source_quality
                          + _engagement_priority_bonus(a.get("title", ""), a.get("body", ""))
                          + a["story_selection_score"]
                          + _source_diversity_penalty(data, a["source"]))
@@ -1148,7 +1015,7 @@ def _image_provenance(article_url, image_url, declared_on_page=False):
 
 def _publishable_image(article, image_url):
     """Return image only when tied to canonical article or publisher domain."""
-    if not image_url or IMAGE_DISABLED:
+    if not image_url:
         return None
     article_url = article.get("url", article.get("canonical_url", ""))
     provenance = article.get("image_provenance")
@@ -2576,107 +2443,6 @@ def thread_contract_issues(posts, article_url):
     return issues
 
 
-def refresh_performance_metrics(data, now=None):
-    """Refresh published S1 metrics. API failure preserves prior data and never blocks publish."""
-    if not THREADS_TOKEN:
-        return False
-    now = now or time.time()
-    changed = False
-    for topic in data.get("topics", [])[:50]:
-        post_id = topic.get("post_id")
-        checked_at = topic.get("metrics_checked_at", 0)
-        if not post_id or now - checked_at < 6 * 3600:
-            continue
-        try:
-            response = httpx.get(
-                f"{GRAPH}/{post_id}/insights",
-                # Media insights accepts metric list; period is for user insights.
-                params={"access_token": THREADS_TOKEN,
-                        "metric": "likes,replies,reposts,views,quotes"},
-                timeout=15,
-            )
-            if response.status_code != 200:
-                log.warning("Metrics %s: HTTP %s", post_id, response.status_code)
-                continue
-            metrics = {item.get("name"): item.get("values", [{}])[0].get("value", 0)
-                       for item in response.json().get("data", [])}
-            for name in ("likes", "replies", "reposts", "views", "quotes"):
-                topic[name] = metrics.get(name, topic.get(name) or 0)
-            topic["metrics_checked_at"] = now
-            changed = True
-        except (httpx.RequestError, ValueError, IndexError, TypeError) as exc:
-            log.warning("Metrics %s: %s", post_id, exc)
-    return changed
-
-
-def evaluate_published_content(data, now=None):
-    """Score mature posts against same-cohort median; persist explainable evaluation."""
-    now = now or time.time()
-    scored = [t for t in data.get("topics", [])
-              if _is_current_topic(t)
-              if (t.get("views") or 0) >= 100 and t.get("likes") is not None]
-    if len(scored) < 3:
-        return False
-    rates = [((t.get("likes") or 0) + 2 * (t.get("replies") or 0)
-              + 3 * (t.get("reposts") or 0) + 2 * (t.get("quotes") or 0))
-             / max(t.get("views") or 1, 1) for t in scored]
-    baseline = statistics.median(rates)
-    changed = False
-    for topic, rate in zip(scored, rates):
-        if now - _topic_timestamp(topic) < 6 * 3600:
-            continue
-        evaluation = {
-            "engagement_rate": round(rate, 6),
-            "cohort_median": round(baseline, 6),
-            "relative_score": round(rate / baseline, 3) if baseline else 0.0,
-            "label": "strong" if rate >= baseline * 1.25 else "weak" if rate < baseline * 0.75 else "normal",
-            "evaluated_at": now,
-        }
-        if topic.get("performance_evaluation") != evaluation:
-            topic["performance_evaluation"] = evaluation
-            changed = True
-    return changed
-
-
-def _topic_timestamp(topic):
-    try:
-        return datetime.fromisoformat(topic.get("timestamp", "")).timestamp()
-    except (TypeError, ValueError, OverflowError):
-        return 0.0
-
-
-def _compute_performance_stats(data):
-    """Engagement quality, not raw reach, drives bounded source/arc preference."""
-    dimensions = ("source", "pattern", "hook", "arc", "lane", "lens")
-    buckets = {f"{name}_{kind}": {} for name in dimensions for kind in ("avg", "count")}
-    grouped = {f"{name}_avg": {} for name in dimensions}
-    for topic in data.get("topics", []):
-        if _is_current_topic(topic) is False:
-            continue
-        views = topic.get("views") or 0
-        if views < 100:
-            continue
-        score = ((topic.get("likes") or 0) + 2 * (topic.get("replies") or 0)
-                 + 3 * (topic.get("reposts") or 0) + 2 * (topic.get("quotes") or 0)) / views
-        values = {
-            "source": topic.get("article_source"),
-            "pattern": topic.get("pattern"),
-            "hook": topic.get("hook_pattern"),
-            "arc": topic.get("arc"),
-            "lane": topic.get("lane"),
-            "lens": topic.get("editorial_lens"),
-        }
-        for name, value in values.items():
-            if value:
-                grouped[f"{name}_avg"].setdefault(value, []).append(score)
-
-    for name, values in grouped.items():
-        buckets[name] = {key: sum(items) / len(items) for key, items in values.items() if key}
-        dimension = name.removesuffix("_avg")
-        buckets[f"{dimension}_count"] = {key: len(items) for key, items in values.items() if key}
-    return buckets
-
-
 # ── LLM Call ─────────────────────────────────────────────────────────────────
 
 # ── LLM Call ─────────────────────────────────────────────────────────────────
@@ -3175,6 +2941,14 @@ def _indonesian_language_issues(posts):
 def deterministic_validate(posts):
     warnings = []
     warnings.extend(_indonesian_language_issues(posts))
+    emoji_emote = re.compile(
+        r"[\U0001F1E6-\U0001FAFF\u2600-\u27BF\u2300-\u23FF\u2B00-\u2BFF\uFE0F\u200D\u20E3]"
+        r"|(?<![\w/])(?:[:;=8][-^']?[)(/\\DPp]|[xX][dD]|<3)"
+    )
+    # Editorial contract: no emoji or ASCII emotes in published slides.
+    for i in range(1, 7):
+        if emoji_emote.search(posts.get(f"post_{i}", "")):
+            warnings.append(f"post_{i}: emoji/emote forbidden")
     # STOP-SLOP patterns — 50+ Indonesian AI template phrases + structural tells
     slop_phrases = [
         # Throat-clearing openers
@@ -3678,7 +3452,7 @@ def generate_thread(article):
         voice_warnings = _voice_warnings(posts)
         jargon_warnings = _validate_jargon(posts, article["body"])
         grounding_warnings = grounding_validate(article, posts)
-        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "English-dominant", "S1 WAJIB", "weak winning hook", "generic winning CTA", "generic editorial close", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence", "template opening", "unsupported drama", "generic moral CTA"))]
+        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "English-dominant", "S1 WAJIB", "weak winning hook", "generic winning CTA", "generic editorial close", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence", "template opening", "unsupported drama", "generic moral CTA", "emoji/emote forbidden"))]
         engagement_warnings = _validate_s1_hook(posts, article["body"], article) + _validate_s6_cta(posts, article["body"])
         warnings = missing + grounding_warnings + noun_warnings + claim_warnings + hard_style_warnings + engagement_warnings
         soft_warnings = style_warnings + voice_warnings + jargon_warnings
@@ -3707,6 +3481,7 @@ def generate_thread(article):
                     jargon_w2 = _validate_jargon(p2, article["body"])
                     w2.extend(_validate_s1_hook(p2, article["body"], article))
                     w2.extend(_validate_s6_cta(p2, article["body"]))
+                    w2.extend(w for w in style_w2 if "emoji/emote forbidden" in w)
                     voice_w2 = _voice_warnings(p2)
                     if style_w2 or voice_w2:
                         log.info(f"  Soft style warnings after revision: {style_w2 + voice_w2}")
@@ -3928,12 +3703,8 @@ def main():
     started_at = time.monotonic()
     data = load_data()
     cohorts_changed = normalize_topic_cohorts(data)
-    # Dry-run must not write analytics or alter future selection.
-    if not DRY_RUN:
-        metrics_changed = refresh_performance_metrics(data)
-        evaluation_changed = evaluate_published_content(data)
-        if metrics_changed or evaluation_changed or cohorts_changed:
-            save_data(data)
+    if cohorts_changed and not DRY_RUN:
+        save_data(data)
     inflight = load_inflight()
     if inflight:
         posts = inflight["posts"]
@@ -3961,7 +3732,6 @@ def main():
                 rc[k] = rc[k][:10]
             save_data(data)
             INFLIGHT_FILE.unlink(missing_ok=True)
-            PREPARED_ARTICLE_FILE.unlink(missing_ok=True)
             log.info(f"Posted: {pub['post_ids'][0]}")
             send_success_report(article["title"], article.get("pattern", "UNKNOWN"),
                                 time.monotonic() - started_at, threads_permalink(pub["post_ids"][0]))
@@ -3973,13 +3743,9 @@ def main():
         for t in data.get("topics", [])
     }
 
-    # Step 1: Pressbox-style single-run flow. Scrape, generate, validate, then
-    # publish (or render on --dry-run). No prepared draft staging.
+    # Step 1: scrape, generate, validate, publish/render.
     article = body = og_image = None
-    prepared_result = None
     articles = []
-    if PREPARE_NEXT:
-        log.warning("--prepare-next deprecated; running single-pass flow")
     log.info("Scraping economy sources...")
     articles = scrape_all()
     log.info(f"  Got {len(articles)} raw articles")
@@ -3989,13 +3755,6 @@ def main():
     )
     for topic in hot_topics:
         log.info(f"  Hot #{topic['rank']}: [{topic['lane']}] {topic['title'][:70]} (score={topic['hot_score']})")
-    international_topics = international_dry_run_candidates(hot_topics)
-    if DRY_RUN and not international_topics:
-        log.error("International dry-run gate failed: no body-verified lane=international candidate")
-        print("NO_INTERNATIONAL_CANDIDATE", flush=True)
-        return
-    if not DRY_RUN:
-        save_hot_topics(hot_topics)
     ranked_topics = hot_topics
     articles = _ranked_candidate_pool(articles, ranked_topics, limit=DISCOVERY_POOL_LIMIT)
     ranked_urls = [article["url"] for article in articles]
@@ -4029,7 +3788,7 @@ def main():
         pattern_name, pattern_confidence = _classify_pattern(candidate["title"], candidate_body)
         eligible_ok, eligible_reason = _is_eligible_candidate(candidate["title"], candidate_body, candidate["source"])
         if eligible_ok:
-            if candidate_image is None and not IMAGE_DISABLED:
+            if candidate_image is None:
                 reject_reasons["image_invalid"] += 1
                 log.warning("  Skip: no valid HD image — trying next candidate")
                 skipped_urls.add(candidate["url"])
@@ -4073,27 +3832,24 @@ def main():
     if IMAGE_URL:
         image_url = _publishable_image(article, IMAGE_URL)
         log.info("  Image: manual --image-url")
-    elif not IMAGE_DISABLED:
+    else:
         image_url = _publishable_image(article, og_image)
-        log.info(f"  Image: {image_url[:80] if image_url else 'disabled'}")
+        log.info(f"  Image: {image_url[:80] if image_url else 'missing'}")
     if image_url:
         log.info(f"  Image URL: {image_url[:80]}...")
     else:
-        log.info("  Image: disabled via --no-image")
+        log.info("  Image: missing or rejected")
 
-    # Step 5: Prepared drafts are never regenerated; new drafts use bounded requests.
-    result = prepared_result
+    # Step 5: generate with bounded requests.
+    result = None
     error = None
     recent_openings = data.get("recent_content", {}).get("openings", [])
     # Failure fingerprint — track systemic writer failures to circuit-break candidate churn
     failure_counts = {}  # {fingerprint: count}
-    if result:
-        log.info("Using immutable prepared draft...")
-    else:
-        log.info("Generating thread...")
-        if recent_openings:
-            article["recent_openings"] = recent_openings[:5]
-        result, error = generate_thread(article)
+    log.info("Generating thread...")
+    if recent_openings:
+        article["recent_openings"] = recent_openings[:5]
+    result, error = generate_thread(article)
     # Soft writer failure may use source-only fallback; hard gates stay mandatory.
     if error in {"revision_failed", "quality_gate", "revision_json_error", "generation_failed"}:
         fallback_posts = _source_fallback_posts(article)
@@ -4128,8 +3884,8 @@ def main():
             article["image_hint"] = _image_hint(og_image)
             if IMAGE_URL:
                 image_url = IMAGE_URL
-            elif not IMAGE_DISABLED:
-                image_url = og_image
+            else:
+                image_url = _publishable_image(article, og_image)
             # Restore original article object for downstream use.
             article["pattern"] = article.get("pattern") or _classify_pattern(article["title"], article["body"])[0]
             article["pattern_label"] = _pattern_label(article["pattern"])
@@ -4157,9 +3913,7 @@ def main():
             article = retry_article
             body = article["body"]
             og_image = article.get("_image")
-            image_url = IMAGE_URL if IMAGE_URL else (
-                _publishable_image(article, og_image) if not IMAGE_DISABLED else None
-            )
+            image_url = IMAGE_URL if IMAGE_URL else _publishable_image(article, og_image)
             break
 
         if not result:
@@ -4250,7 +4004,6 @@ def main():
             for k in ["openings", "ctas"]:
                 rc[k] = rc[k][:10]
             save_data(data)
-            PREPARED_ARTICLE_FILE.unlink(missing_ok=True)
             INFLIGHT_FILE.unlink(missing_ok=True)
             send_success_report(article["title"], article.get("pattern", "UNKNOWN"),
                                 time.monotonic() - started_at, threads_permalink(pub["post_ids"][0]))

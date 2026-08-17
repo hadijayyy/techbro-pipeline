@@ -12,6 +12,4 @@ hot-cache.json
 *.db-shm
 *.db-wal
 
-prepared_article.json
-hot_today.json
 posted_topics_v2.json

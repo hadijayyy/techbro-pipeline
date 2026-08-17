@@ -734,15 +734,6 @@ def test_time_phrase_is_not_flagged_as_invented_name():
     ))
 
 
-def test_learning_bonus_is_bounded_and_needs_three_samples():
-    sparse = {"topics": [{"article_source": "A", "arc": "x", "views": 1000, "likes": 100}]}
-    assert pipeline._learning_bonus(sparse, "A") == 0
-    data = {"topics": (
-        [{"article_source": "A", "arc": "x", "views": 1000, "likes": 100}] * 3
-        + [{"article_source": "B", "arc": "x", "views": 1000, "likes": 1}] * 3
-    )}
-    assert 0 < pipeline._learning_bonus(data, "A") <= pipeline.FEEDBACK_BONUS_CAP
-    assert -pipeline.FEEDBACK_BONUS_CAP <= pipeline._learning_bonus(data, "B") < 0
 
 
 def test_editorial_lens_is_repeatable_and_literal():
@@ -750,14 +741,6 @@ def test_editorial_lens_is_repeatable_and_literal():
     assert pipeline._editorial_lens("Harga beras naik", "Harga beras menekan konsumen") == "angka_ke_dompet"
 
 
-def test_performance_stats_tracks_editorial_dimensions():
-    topic = {"article_source": "A", "pattern": "PASAR", "hook_pattern": "number_shock",
-             "arc": "market_shock", "lane": "national", "editorial_lens": "angka_ke_dompet",
-             "views": 1000, "likes": 10}
-    stats = pipeline._compute_performance_stats({"topics": [topic] * 3})
-    assert stats["arc_count"]["market_shock"] == 3
-    assert stats["lane_count"]["national"] == 3
-    assert stats["lens_count"]["angka_ke_dompet"] == 3
 
 
 def test_personal_finance_gets_distinct_arc_and_hook():
@@ -798,55 +781,12 @@ def test_thread_contract_allows_repeated_s6_numbers_when_grounded():
                    for issue in pipeline.thread_contract_issues(posts, "https://x.test/a"))
 
 
-def test_learning_bonus_can_use_hook_performance():
-    data = {"topics": [
-        {"article_source": "A", "pattern": "PASAR", "hook_pattern": "finance_practical",
-         "views": 1000, "likes": 100, "replies": 20, "reposts": 10, "quotes": 2}
-    ] * 3 + [
-        {"article_source": "B", "pattern": "PASAR", "hook_pattern": "number_shock",
-         "views": 1000, "likes": 1, "replies": 0, "reposts": 0, "quotes": 0}
-    ] * 3}
-    assert pipeline._learning_bonus(data, "A", "PASAR", "finance_practical") > 0
 
 
-def test_refresh_metrics_preserves_data_on_api_failure(monkeypatch):
-    topic = {"post_id": "p1", "likes": 7}
-    data = {"topics": [topic]}
-
-    def fail(*args, **kwargs):
-        raise pipeline.httpx.RequestError("offline")
-
-    monkeypatch.setattr(pipeline, "THREADS_TOKEN", "token")
-    monkeypatch.setattr(pipeline.httpx, "get", fail)
-    assert pipeline.refresh_performance_metrics(data, now=999999) is False
-    assert topic == {"post_id": "p1", "likes": 7}
 
 
-def test_metrics_request_omits_media_period(monkeypatch):
-    captured = {}
-    class Response:
-        status_code = 200
-        def json(self):
-            return {"data": [{"name": "views", "values": [{"value": 100}]}]}
-    def fake_get(*args, **kwargs):
-        captured.update(kwargs)
-        return Response()
-    topic = {"post_id": "p1", "timestamp": "2026-08-11T00:00:00+07:00"}
-    monkeypatch.setattr(pipeline, "THREADS_TOKEN", "token")
-    monkeypatch.setattr(pipeline.httpx, "get", fake_get)
-    assert pipeline.refresh_performance_metrics({"topics": [topic]}, now=999999) is True
-    assert "period" not in captured["params"]
 
 
-def test_performance_evaluator_labels_against_cohort_median():
-    topics = [{"views": 1000, "likes": 100, "replies": 10, "reposts": 5, "quotes": 0,
-               "timestamp": "2026-08-01T00:00:00+07:00"},
-              {"views": 1000, "likes": 1, "replies": 0, "reposts": 0, "quotes": 0,
-               "timestamp": "2026-08-01T00:00:00+07:00"},
-              {"views": 1000, "likes": 10, "replies": 1, "reposts": 0, "quotes": 0,
-               "timestamp": "2026-08-01T00:00:00+07:00"}]
-    assert pipeline.evaluate_published_content({"topics": topics}, now=9999999999) is True
-    assert {t["performance_evaluation"]["label"] for t in topics} == {"strong", "weak", "normal"}
 
 
 def test_grounding_validation_does_not_spend_verifier_call(monkeypatch):
@@ -902,15 +842,6 @@ def test_rate_limit_error_retries_twice_with_cooldown_then_stops(monkeypatch):
     assert not pipeline.is_rate_limit_error("LLM failed: HTTP 500")
 
 
-def test_publish_candidates_append_only_body_verified_scout_fallbacks():
-    articles = [
-        {"url": "https://example.test/global", "title": "Global generic"},
-        {"url": "https://example.test/indonesia", "title": "Dampak Indonesia"},
-        {"url": "https://example.test/fallback", "title": "Cadangan terverifikasi"},
-    ]
-    topics = [{"canonical_url": "https://example.test/indonesia", "rank": 1}]
-    fallback_topics = [{"canonical_url": "https://example.test/fallback", "rank": 2}]
-    assert pipeline._publish_candidates_from_hot_topics(articles, topics, fallback_topics) == [articles[1], articles[2]]
 
 
 def test_revision_requires_independent_grounding_verifier(monkeypatch):
@@ -1023,6 +954,19 @@ def test_style_warnings_do_not_block_quality_gate():
 def test_quality_gate_blocks_revision_style_violation():
     posts = {f"post_{i}": "Fakta sumber cukup panjang untuk memenuhi batas minimum. Konteks sumber menambah rincian berbeda." for i in range(1, 7)}
     posts["post_1"] = "x" * 141
+    assert not pipeline._quality_gate({}, {"status": "success"}, posts, [])
+
+
+def test_deterministic_validate_rejects_emoji_emote():
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk memenuhi batas minimum. Konteks sumber menambah rincian berbeda." for i in range(1, 7)}
+    posts["post_1"] += " 🔥 :)"
+    issues = pipeline.deterministic_validate(posts)
+    assert any("emoji/emote" in issue for issue in issues), issues
+
+
+def test_quality_gate_blocks_emoji_emote():
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk memenuhi batas minimum. Konteks sumber menambah rincian berbeda." for i in range(1, 7)}
+    posts["post_1"] += " 🔥"
     assert not pipeline._quality_gate({}, {"status": "success"}, posts, [])
 
 
@@ -1575,10 +1519,6 @@ def test_proper_noun_validator_accepts_title_prefix_with_source_name():
     assert pipeline._validate_proper_nouns(posts, body) == []
 
 
-def test_prepared_article_requires_unexpired_validated_posts(tmp_path, monkeypatch):
-    monkeypatch.setattr(pipeline, "PREPARED_ARTICLE_FILE", tmp_path / "prepared.json")
-    pipeline.PREPARED_ARTICLE_FILE.write_text(json.dumps({"title": "T", "url": "u", "body": "b", "og_image": "i", "posts": {}, "prepared_at": 1, "expires_at": 9_999_999_999}))
-    assert pipeline.load_prepared_article(set()) is None
 
 
 def test_runtime_has_one_active_system_prompt():
@@ -1676,57 +1616,10 @@ def test_topic_cohort_separates_explicit_current_from_legacy():
     assert pipeline.topic_cohort({"title": "old"}) == pipeline.LEGACY_COHORT
 
 
-def test_publisher_pool_keeps_verified_rss_fallback_after_hot_topics():
-    articles = [
-        {"url": "https://example.test/hot", "title": "Hot"},
-        {"url": "https://example.test/rss", "title": "RSS fallback"},
-    ]
-    hot = [{"canonical_url": "https://example.test/hot"}]
-    verified = [{"canonical_url": "https://example.test/hot"}, {"canonical_url": "https://example.test/rss"}]
-    assert pipeline._publisher_pool(articles, hot, verified) == articles
 
 
-def test_prepared_article_normalizes_old_double_url_draft(tmp_path, monkeypatch):
-    monkeypatch.setattr(pipeline, "PREPARED_ARTICLE_FILE", tmp_path / "prepared.json")
-    posts = {f"post_{i}": "Dua fakta sumber yang cukup panjang. Fakta kedua lengkap dan berbeda." for i in range(1, 7)}
-    posts["post_1"] = "Angka sumber penting untuk pembaca. Dampaknya perlu dilihat bersama."
-    posts["post_6"] = "Dua posisi netral. Mana yang lebih masuk akal?\n\nhttps://tautan-lama.test"
-    body = " ".join([
-        "Pemerintah menetapkan subsidi energi untuk rumah tangga Indonesia.",
-        "Angka sumber penting untuk pembaca.",
-        "Dua fakta sumber yang cukup panjang.",
-        "Fakta kedua lengkap dan berbeda.",
-        "Konteks kebijakan ekonomi tersedia.",
-        "Data sumber memberi rincian tambahan.",
-        "Dua posisi netral yang lebih masuk akal perlu dipantau.",
-    ] * 10)
-    article = {"title": "Pemerintah Tetapkan Subsidi Energi", "url": "https://sumber.test", "body": body,
-               "og_image": "i", "posts": posts, "prepared_at": 1, "expires_at": 9_999_999_999}
-    pipeline.PREPARED_ARTICLE_FILE.write_text(json.dumps(article))
-    loaded = pipeline.load_prepared_article(set())
-    assert loaded is not None
-    assert "http" not in loaded["posts"]["post_6"]
-    assert loaded["posts"]["post_7"] == "Sumber: https://sumber.test"
 
 
-def test_prepared_article_rechecks_current_eligibility_gate(tmp_path, monkeypatch):
-    monkeypatch.setattr(pipeline, "PREPARED_ARTICLE_FILE", tmp_path / "prepared.json")
-    body = " ".join([
-        "Dalam autobiografinya, tokoh itu mengaku penghasilannya sebagai pensiunan tidak cukup.",
-        "Ia lahir 124 tahun lalu dan mundur dari pemerintahan pada 1957.",
-        "Putrinya pernah membantu membayar tagihan listrik dan air.",
-        "Kisah tersebut dimuat dalam biografi dan surat-surat lama.",
-        "Keluarganya hidup pas-pasan setelah tokoh itu pensiun.",
-    ] * 4)
-    posts = {f"post_{i}": "Fakta sumber yang cukup panjang. Fakta kedua berbeda dan lengkap." for i in range(1, 7)}
-    posts["post_7"] = "Sumber: https://example.test/article"
-    pipeline.PREPARED_ARTICLE_FILE.write_text(json.dumps({
-        "title": "Cerita Pejabat Lama Tak Bisa Bayar Pajak dan Tagihan Rumah",
-        "url": "https://example.test/article", "source": "cnbc_entrepreneur",
-        "body": body, "og_image": "https://example.test/image.jpg", "posts": posts,
-        "prepared_at": 1, "expires_at": 9_999_999_999,
-    }))
-    assert pipeline.load_prepared_article(set()) is None
 
 
 def test_hot_topic_scout_accepts_global_story_without_indonesia_connection(monkeypatch):
@@ -1831,11 +1724,6 @@ def test_economic_foreign_story_has_no_indonesia_anchor_penalty():
     assert global_score == local_score
 
 
-def test_dry_run_requires_body_verified_international_topic():
-    assert pipeline.international_dry_run_candidates(
-        [{"lane": "national"}], [{"lane": "international"}]
-    )
-    assert not pipeline.international_dry_run_candidates([{"lane": "national"}])
 
 
 def test_source_config_invalid_json_falls_back_to_empty(monkeypatch, tmp_path):
@@ -1855,13 +1743,6 @@ def test_html_scraper_resolves_relative_links(monkeypatch):
     assert articles[0]["url"] == "https://example.go.id/rilis/ekonomi"
 
 
-def test_engagement_prefers_reposts_replies_and_likes_per_view():
-    data = {"topics": [
-        {"article_source": "good", "arc": "market_shock", "views": 1000, "likes": 80, "replies": 20, "reposts": 30},
-        {"article_source": "bad", "arc": "debt_trap", "views": 3000, "likes": 5, "replies": 0, "reposts": 0},
-    ]}
-    stats = pipeline._compute_performance_stats(data)
-    assert stats["source_avg"]["good"] > stats["source_avg"]["bad"]
 
 
 def test_hook_metadata_is_deterministic_and_not_market_default():
@@ -1873,16 +1754,6 @@ def test_hook_metadata_is_deterministic_and_not_market_default():
     assert hook in {"number_shock", "decision_impact", "wallet_impact", "named_decision"}
 
 
-def test_pattern_feedback_requires_three_samples():
-    data = {"topics": [
-        {"article_source": "A", "pattern": "PASAR", "views": 1000, "likes": 10},
-        {"article_source": "A", "pattern": "PASAR", "views": 1000, "likes": 10},
-        {"article_source": "A", "pattern": "PASAR", "views": 1000, "likes": 10},
-        {"article_source": "A", "pattern": "KEBIJAKAN", "views": 1000, "likes": 1},
-        {"article_source": "A", "pattern": "KEBIJAKAN", "views": 1000, "likes": 1},
-        {"article_source": "A", "pattern": "KEBIJAKAN", "views": 1000, "likes": 1},
-    ]}
-    assert pipeline._learning_bonus(data, "A", "PASAR") > pipeline._learning_bonus(data, "A", "KEBIJAKAN")
 
 
 def test_claim_markers_block_unsupported_editorial_leaps():
