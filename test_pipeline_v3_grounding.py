@@ -1490,6 +1490,29 @@ def test_candidate_selection_excludes_persisted_posted_urls():
     assert picked["url"] == "https://example.test/fresh"
 
 
+def test_exact_posted_candidate_accounting_uses_canonical_urls():
+    urls = [
+        "https://example.test/repeat?utm_source=rss",
+        "https://example.test/fresh",
+    ]
+    assert pipeline._count_exact_posted_candidates(
+        urls, {"https://example.test/repeat"}
+    ) == 1
+
+
+def test_rss_thumbnail_fallback_survives_empty_media_content(monkeypatch):
+    xml = (
+        '<rss xmlns:media="http://search.yahoo.com/mrss/"><channel><item>'
+        '<title>Pertumbuhan ekonomi nasional melambat</title><link>https://example.test/story</link>'
+        '<pubDate>Mon, 17 Aug 2026 12:00:00 +0000</pubDate>'
+        '<media:content/><media:thumbnail url="https://example.test/thumb.jpg"/>'
+        '</item></channel></rss>'
+    )
+    monkeypatch.setattr(pipeline, "_http_get", lambda *_: (200, xml))
+    rows = pipeline._scrape_rss("https://example.test/feed", "test", 1)
+    assert rows[0]["og_image"] == "https://example.test/thumb.jpg"
+
+
 def test_discovery_hot_score_prefers_editorially_valid_story(monkeypatch):
     now = 1_800_000_000
     articles = [

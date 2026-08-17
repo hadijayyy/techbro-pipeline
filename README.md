@@ -94,10 +94,10 @@ python3 pipeline-v3.py
 
 | File | Purpose |
 |------|---------|
-| `pipeline-v3.py` | Main pipeline (V5 prompt, anti-hallucination, retry logic) |
+| `pipeline-v3.py` | Main pipeline, embedded writer contract, grounding, retry logic |
 | `posted_topics_v2.json` | Dedup tracker |
-| `pov_affiliate.json` | S7 affiliate rotation |
 | `keywords.json` | Economy keyword categories |
+| `sources.json` | RSS/HTML source configuration |
 
 ## License
 

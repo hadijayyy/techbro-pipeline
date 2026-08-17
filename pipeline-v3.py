@@ -468,7 +468,9 @@ def _scrape_rss(url, source, base_score):
                     pub_ts = time.time()
             # og:image from RSS media:content or media:thumbnail
             og_image = None
-            mc = item.find("media:content", ns) or item.find("media:thumbnail", ns)
+            mc = item.find("media:content", ns)
+            if mc is None or not mc.get("url"):
+                mc = item.find("media:thumbnail", ns)
             if mc is not None:
                 og_image = mc.get("url")
             if not title or not link or "/live/" in link or "/liveblog/" in link:
@@ -908,6 +910,12 @@ def _ranked_candidate_pool(articles, topics, limit=CANDIDATE_POOL_LIMIT):
         if len(selected) == limit:
             break
     return selected
+
+
+def _count_exact_posted_candidates(urls, posted_urls):
+    """Count ranked discovery URLs already present in posted ledger."""
+    posted = {_canonical_url(url) for url in posted_urls}
+    return sum(_canonical_url(url) in posted for url in urls)
 
 
 def _pick_article(articles, posted_urls, data=None, ranked_urls=None):
@@ -3844,6 +3852,10 @@ def main():
     from collections import Counter
     skipped_urls = set()
     reject_reasons = Counter()
+    exact_posted = _count_exact_posted_candidates(ranked_urls, posted_urls)
+    if exact_posted:
+        reject_reasons["already_posted"] = exact_posted
+    log.info(f"  Discovery accounting: {len(ranked_urls)} ranked, {exact_posted} exact canonical URLs already posted")
     discovery_limit = len(ranked_urls) if not article else 0
     eligible_candidates = []
     for _ in range(discovery_limit):

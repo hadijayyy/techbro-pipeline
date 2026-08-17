@@ -9,6 +9,7 @@ output/
 .pipeline.pid
 pipeline.db
 hot-cache.json
+inflight_chain.json
 *.db-shm
 *.db-wal
 
