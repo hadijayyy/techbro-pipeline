@@ -144,6 +144,19 @@ SOURCE_ARTICLE_CAPS = {
     "cnbc_global": 15,
     "bbc_business": 15,
 }
+SOURCE_TIERS = {
+    "bi_release": ("primary_official", 12),
+    "kemenkeu_release": ("primary_official", 12),
+    "esdm_news": ("primary_official", 10),
+    "cnn_ekonomi": ("secondary_media", 5),
+    "detik_finance": ("secondary_media", 5),
+    "cnbc_market": ("secondary_media", 5),
+    "cnbc_entrepreneur": ("secondary_media", 5),
+    "antara_ekonomi": ("secondary_media", 6),
+    "cnbc_global": ("secondary_media", 5),
+    "bbc_business": ("secondary_media", 6),
+    "dailysocial": ("secondary_media", 3),
+}
 CURRENT_COHORT = "techbro_v3_current"
 LEGACY_COHORT = "legacy"
 
@@ -191,6 +204,8 @@ def normalize_topic_cohorts(data):
     return changed
 
 def save_data(data):
+    if DRY_RUN:
+        return False
     tmp = POSTED_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False))
     tmp.replace(POSTED_FILE)
@@ -221,17 +236,44 @@ def load_inflight():
         return None
 
 def save_inflight(data):
+    if DRY_RUN:
+        return False
     tmp = INFLIGHT_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False))
     tmp.replace(INFLIGHT_FILE)
 
 
 def _publish_complete(pub, posts):
-    """Only a complete seven-post chain may enter dedup/analytics state."""
+    """Only verified complete seven-post chain may enter dedup/analytics state."""
     expected = 7
     complete_posts = all(posts.get(f"post_{i}", "").strip() for i in range(1, expected + 1))
-    return bool(pub and not pub.get("error") and complete_posts
+    return bool(pub and not pub.get("error") and pub.get("root_verified") and complete_posts
                 and len(pub.get("post_ids", [])) == expected)
+
+
+def _verify_published_root(post_id):
+    """Require Graph proof that root is image media and has permalink."""
+    if not post_id or not THREADS_TOKEN:
+        return None
+    try:
+        response = httpx.get(
+            f"{GRAPH}/{post_id}",
+            params={"fields": "id,media_type,permalink", "access_token": THREADS_TOKEN},
+            timeout=15,
+        )
+        if response.status_code != 200:
+            log.warning("Root verification HTTP %s for %s", response.status_code, post_id)
+            return None
+        payload = response.json()
+        media_type = str(payload.get("media_type", "")).upper()
+        permalink = payload.get("permalink")
+        if media_type not in {"IMAGE", "IMAGE_POST"} or not permalink:
+            log.warning("Root verification failed for %s: media_type=%s permalink=%s", post_id, media_type, bool(permalink))
+            return None
+        return {"media_type": media_type, "permalink": permalink}
+    except (httpx.RequestError, ValueError, TypeError) as exc:
+        log.warning("Root verification failed for %s: %s", post_id, exc)
+        return None
 
 
 def send_success_report(title, pattern, elapsed, permalink):
@@ -303,6 +345,8 @@ def load_prepared_article(posted_urls):
 
 def save_prepared_article(article, result, image_url):
     """Persist only a fully validated seven-post draft for one later publish."""
+    if DRY_RUN:
+        return False
     payload = dict(article)
     # Always persist a source timestamp so the 24h freshness check works on reload.
     # Prefer published_ts (source page), fall back to ts (RSS), then prepared_at.
@@ -405,49 +449,6 @@ def _title_numbers(title):
 def _normalize_title(title):
     return " ".join(re.findall(r"[a-z0-9]+", title.lower()))
 
-
-def _is_repeat_issue(title, topics, hours=72, url=""):
-    """Block duplicate issue signals; same actor alone never blocks."""
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-    entities, words = _topic_entities(title), _title_words(title)
-    issue_terms, issue_words = _issue_terms(title), _issue_words(title)
-    events, numbers = _event_terms(title), _title_numbers(title)
-    normalized_title = _normalize_title(title)
-    canonical_url = _canonical_url(url) if url else ""
-    for topic in topics:
-        try:
-            published = datetime.fromisoformat(topic.get("timestamp", "")).astimezone(timezone.utc)
-        except (TypeError, ValueError):
-            continue
-        if published < cutoff:
-            continue
-        previous = topic.get("title", "")
-        previous_url = topic.get("article_url") or topic.get("url") or topic.get("canonical_url") or ""
-        if canonical_url and previous_url and canonical_url == _canonical_url(previous_url):
-            return True, set(), set()
-        if normalized_title and normalized_title == _normalize_title(previous):
-            return True, set(), words
-        shared_entities = entities & _topic_entities(previous)
-        shared_words = words & _title_words(previous)
-        strong_entities = shared_entities - {"apbn", "bumn", "bi", "bei", "ojk", "spbu"}
-        prior_words = _title_words(previous)
-        similarity = len(shared_words) / max(1, min(len(words), len(prior_words)))
-        prior_issue_terms = _issue_terms(previous)
-        shared_issue_terms = issue_terms & prior_issue_terms
-        shared_issue_words = issue_words & _issue_words(previous)
-        shared_events = events & _event_terms(previous)
-        prior_numbers = _title_numbers(previous)
-        numbers_differ = bool(numbers and prior_numbers and numbers != prior_numbers)
-        same_issue = (
-            (len(shared_issue_words) >= 2 and not numbers_differ)
-            or (shared_issue_terms and shared_events and not numbers_differ
-                and len(shared_words - strong_entities) >= 2 and similarity >= 0.85)
-            or (not shared_issue_terms and len(shared_words) >= 3 and similarity >= 0.85)
-        )
-        near_duplicate = similarity >= 0.85 and len(shared_words) >= 4 and not numbers_differ
-        if (strong_entities and same_issue) or near_duplicate:
-            return True, strong_entities, shared_words
-    return False, set(), set()
 
 # ── HTTP Helpers ─────────────────────────────────────────────────────────────
 
@@ -877,6 +878,13 @@ def _verify_one(candidate, now, data=None):
     title, url, source = candidate.get("title", ""), candidate.get("url", ""), candidate.get("source", "")
     if not title or not url or not source:
         return None
+    title_lower = title.lower()
+    if re.search(r"\b(perang|konflik|serangan|militer|rudal|gencatan senjata|memanas)\b", title_lower) and not any(
+        term in title_lower for term in ("tarif", "sanksi", "minyak", "energi", "dagang", "ekonomi", "inflasi", "pangan", "ekspor", "impor", "pasar", "harga", "investasi", "bursa")
+    ):
+        return None
+    if re.search(r"\b(stock picks?|dividend stocks?|analysts? like|steady income|unloved stock)\b", title_lower):
+        return None
     body, image, article_ts = _fetch_article_body(url)
     if not body or len(body) < 500:
         return None
@@ -893,9 +901,15 @@ def _verify_one(candidate, now, data=None):
     lane = _story_lane(title, body)
     lens = _editorial_lens(title, body)
     story_selection = _story_selection_bonus(title, body)
-    hot_score = round(topic_score * 10 + confidence * 10 + freshness * 10 + source_quality
+    # Rank body-backed editorially valid economy stories first. Title-only score
+    # previously let corporate/event noise consume the finite discovery pool.
+    quality = 100 if eligible else -40
+    material = 20 if has_material_economic_signal(title, body) else -20
+    hot_score = round(quality + material + topic_score * 10 + confidence * 10 + freshness * 10 + source_quality
                       + _learning_bonus(data or {}, source, pattern, hook, arc, lane, lens)
                       + _engagement_priority_bonus(title, body) + story_selection, 3)
+    image_provenance = _image_provenance(url, image, declared_on_page=bool(image))
+    _IMAGE_PROVENANCE_CACHE[_canonical_url(url)] = image_provenance
     return {
         "cluster": _hot_topic_cluster(title, pattern), "title": title,
         "canonical_url": _canonical_url(url), "source": source,
@@ -905,6 +919,7 @@ def _verify_one(candidate, now, data=None):
         "topic_score": topic_score, "economy_score": economy_score, "impact_score": impact_score,
         "story_selection_score": story_selection,
         "hot_score": hot_score, "body_verified": True, "image_available": bool(image),
+        "image_provenance": image_provenance,
         "indonesia_relevance": indonesia_relevance, "reason": reason,
         "editorial_eligible": eligible, "editorial_reason": reason,
         "has_material_economic_signal": has_material_economic_signal(title, body),
@@ -957,6 +972,8 @@ def international_dry_run_candidates(hot_topics, fallback_topics=()):
 
 
 def save_hot_topics(topics, generated_ts=None):
+    if DRY_RUN:
+        return False
     payload = {"generated_ts": generated_ts or time.time(), "topics": topics}
     tmp = HOT_TOPICS_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -1112,10 +1129,44 @@ def _image_size(data):
     return None
 
 
+def _image_provenance(article_url, image_url, declared_on_page=False):
+    """Record image provenance; page-declared image beats CDN host heuristics."""
+    if not image_url:
+        return {"status": "missing", "source_page": article_url or "", "image_url": ""}
+    article_host = urllib.parse.urlsplit(article_url or "").netloc.lower().removeprefix("www.")
+    image_host = urllib.parse.urlsplit(image_url).netloc.lower().removeprefix("www.")
+    same_publisher = bool(article_host and (image_host == article_host or image_host.endswith("." + article_host)))
+    status = "page_declared" if declared_on_page else ("same_publisher" if same_publisher else "foreign_host")
+    return {
+        "status": status,
+        "source_page": article_url or "",
+        "image_url": image_url,
+        "same_publisher": same_publisher,
+        "declared_on_page": bool(declared_on_page),
+    }
+
+
+def _publishable_image(article, image_url):
+    """Return image only when tied to canonical article or publisher domain."""
+    if not image_url or IMAGE_DISABLED:
+        return None
+    article_url = article.get("url", article.get("canonical_url", ""))
+    provenance = article.get("image_provenance")
+    if not provenance or provenance.get("image_url") != image_url:
+        cached = _IMAGE_PROVENANCE_CACHE.get(_canonical_url(article_url))
+        provenance = cached if cached and cached.get("image_url") == image_url else None
+    provenance = provenance or _image_provenance(article_url, image_url)
+    return image_url if provenance.get("status") in {"page_declared", "same_publisher"} else None
+
+
 def validate_article_image(url):
     """Require a real HD article lead image; tolerate 1px CDN rounding."""
     try:
         response = httpx.get(url, headers={"User-Agent": UA}, timeout=15, follow_redirects=True)
+        content_type = response.headers.get("content-type", "") if hasattr(response, "headers") else ""
+        if content_type and not content_type.lower().startswith("image/"):
+            log.warning(f"Reject non-image article image: {content_type} {url[:80]}")
+            return None
         size = _image_size(response.content) if response.status_code == 200 else None
         if size and size[0] >= 800 and size[1] >= 450:
             return url
@@ -1205,8 +1256,9 @@ def _resolve_published_timestamp(article_ts, rss_ts, now):
     return 0, "missing", "missing"
 
 
-# In-memory body cache — avoids double-fetch between scout_hot_topics and main()
+# In-memory body/image provenance cache — avoids double-fetch between scout and main.
 _BODY_CACHE = {}
+_IMAGE_PROVENANCE_CACHE = {}
 
 def _fetch_article_body(url):
     """Fetch article HTML, extract clean text + og:image + source publish time."""
@@ -1293,6 +1345,8 @@ def _fetch_article_body(url):
         text = text if len(text) > 200 else ""
     except Exception as e:
         log.warning(f"Fetch body: {url[:60]} — {e}")
+    if og_image:
+        _IMAGE_PROVENANCE_CACHE[cache_key] = _image_provenance(url, og_image, declared_on_page=True)
     result = (text, og_image, published_ts)
     _BODY_CACHE[cache_key] = result
     return result
@@ -1410,6 +1464,24 @@ def _editorial_candidate_gate(title, body):
     material = cfg.get("material_change_markers", ())
     topic = cfg.get("material_topic_markers", ())
     title_lower = title.lower()
+    if (re.search(r"\b(perang|konflik|serangan|militer|rudal|gencatan senjata|memanas)\b", title_lower)
+            and not any(term in title_lower for term in (
+                "tarif", "sanksi", "minyak", "energi", "dagang", "ekonomi", "inflasi", "pangan",
+                "ekspor", "impor", "pasar", "harga", "investasi", "bursa",
+            ))):
+        return "non_economic_geopolitical_story"
+    if (re.search(r"\b(luncurkan|hadirkan|perkuat ekosistem|solusi|kartu kredit)\b", title_lower)
+            and not any(term in title_lower for term in (
+                "aturan", "regulasi", "sanksi", "denda", "akuisisi", "merger", "ipo", "phk", "laba",
+                "rugi", "pendapatan", "investasi senilai", "kontrak",
+            ))):
+        return "routine_product_announcement"
+    if (re.search(r"\b(stock picks?|dividend stocks?|analysts? like|steady income|unloved stock)\b", title_lower)
+            and not any(term in title_lower for term in (
+                "regulator", "regulasi", "sanksi", "denda", "akuisisi", "merger", "phk", "laba",
+                "rugi", "pendapatan", "investasi senilai", "kontrak",
+            ))):
+        return "investment_advice"
     if any(term in title_lower for term in cfg.get("non_economic_title_markers", ())):
         return "non_economic_title"
     historical_hits = sum(term in title_lower for term in cfg.get("historical_title_markers", ()))
@@ -1441,7 +1513,10 @@ def _is_eligible_candidate(title, body, source):
     if not _has_source_title_signal(title, source):
         return False, "source_title_not_material"
     editorial_reason = _editorial_candidate_gate(title, body)
-    if editorial_reason == "personal_finance_advice":
+    if editorial_reason in {
+        "personal_finance_advice", "non_economic_geopolitical_story", "routine_product_announcement",
+        "investment_advice",
+    }:
         return False, editorial_reason
     if _is_corporate_promo(title, body):
         return False, "corporate_promo"
@@ -1500,7 +1575,7 @@ MATERIAL_ECONOMIC_SIGNALS = (
     "bangkrut", "pailit", "kontrak", "tender", "ekspor", "impor", "dividen",
     "restrukturisasi", "utang baru", "sanksi", "denda", "audit", "harga saham",
     # Economy-wide household, labour, and market impact.
-    "inflasi", "daya beli", "bi rate", "suku bunga", "ojk", "upah minimum",
+    "inflasi", "daya beli", "bi rate", "suku bunga", "bunga utang", "pembayaran bunga", "ojk", "upah minimum",
     "lapangan kerja", "pengangguran", "biaya rumah tangga", "harga pangan",
     "harga bbm", "harga listrik", "kredit umkm", "pembiayaan umkm", "electric vehicle",
     "vehicle sales", "car makers", "jobs", "employment",
@@ -2023,14 +2098,39 @@ def _format_sentence_blanks(text):
     return s.strip()
 
 
+def evidence_plan(article):
+    """Build bounded source-only units before writer sees article body."""
+    sentences = []
+    seen = set()
+    for sentence in _source_sentences(article.get("body", "")):
+        key = sentence.lower()
+        if key not in seen:
+            seen.add(key)
+            sentences.append(sentence)
+    units = sentences[:12]
+    claim_map = source_claim_map({**article, "body": " ".join(units)})
+    slide_seeds = {
+        slide: [claim["sentence"] for claim in claims]
+        for slide, claims in claim_map.items()
+        if claims
+    }
+    return {"units": units, "slide_seeds": slide_seeds}
+
+
 def article_evidence_gate(article):
-    """Fail closed before LLM spend: body must support six non-repeated factual posts."""
+    """Fail closed before LLM spend: body must support six grounded slide seeds."""
     body = _clean_source_body(article.get("body"))
     if len(body) < 500:
         return "body_under_500_chars"
-    # Four distinct source claims gives writer room without rejecting compact news.
-    if len(source_claim_plan(article).splitlines()) < 4:
+    plan = evidence_plan(article)
+    if len(plan["units"]) < 4:
         return "insufficient_source_claims_for_four_posts"
+    # Six distinct source units are enough when each slide has its own seed.
+    # Requiring eight rejects valid six-paragraph reports before writer can run.
+    if len(plan["units"]) < 6:
+        return "insufficient_evidence_units"
+    if len(plan["slide_seeds"]) < 6:
+        return "insufficient_slide_evidence"
     return None
 
 
@@ -2642,7 +2742,7 @@ def _call_llm(system, user, model=None, max_retries=3, temperature=None):
 
 # Active writer contract: RCTOE adapted to Techbro runtime and validators.
 SYSTEM_PROMPT = """# ROLE
-Kamu penulis analisis ekonomi untuk akun Threads Indonesia @ryanhadiii. Pahami ekonomi, lalu jelaskan dengan bahasa sehari-hari. Tulis seperti kreator ekonomi papan atas: tajam, dekat, observasional, konkret, dan punya sudut pandang. Suara lo berani beropini dan berpihak ke rakyat kecil bila fakta mendukung, terutama pihak yang menanggung biaya — semua klaim tetap literal dari artikel. Adopsi pola editorial, jangan menyalin kalimat referensi.
+Kamu penulis analisis ekonomi untuk akun Threads Indonesia @ryanhadiii. Pahami ekonomi, lalu jelaskan dengan bahasa sehari-hari. Tulis seperti kreator ekonomi papan atas: tajam, dekat, observasional, konkret, dan punya sudut pandang. Suara lo berani beropini dan berpihak ke rakyat kecil bila fakta mendukung — semua klaim tetap literal dari artikel. Adopsi prinsip editorial, jangan menyalin kalimat referensi.
 
 # EDITORIAL LANE
 Pilih hanya topik ekonomi nasional atau internasional yang punya perubahan material: kebijakan, anggaran, pajak, subsidi, harga, upah, pekerjaan, perdagangan, industri, bisnis besar, pasar, atau guncangan ekonomi global. Prioritaskan peristiwa konkret yang punya rantai bukti ke sistem ekonomi atau kelompok manusia: kerusakan/keputusan/perubahan, lalu produksi, pasokan, biaya, pekerjaan, konsumen, atau pihak yang disebut artikel. Jangan tulis promo/event retail, tips personal finance, gosip korporasi, atau berita layanan rutin. Artikel internasional boleh tanpa kaitan Indonesia jika benar-benar berdampak pada ekonomi global; jangan memaksa kaitan Indonesia.
@@ -2654,30 +2754,30 @@ Tulis untuk pembaca umum dan pembaca awam, bukan ekonom. Hindari jargon teknis. 
 Seluruh `post_1` sampai `post_6` wajib Bahasa Indonesia santai. Bahasa sumber boleh Inggris, tetapi jangan menyalin kalimat Inggris. Nama resmi dan istilah teknis boleh tetap asli; terjemahkan kalimat sekitarnya. Jika enam post Bahasa Indonesia tidak bisa ditulis tanpa mengarang fakta, balas `insufficient_evidence`.
 
 # CONTEXT
-Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi cerita yang tajam, cepat, dan enak dibagikan. Jangan terdengar seperti ringkasan berita atau laporan korporat. Buka dengan angka, perubahan, kontras, kutipan, atau konsekuensi paling mahal dari artikel. Pakai bahasa gw–lo, kalimat pendek, dan detail konkret. Opini boleh tegas jika fakta dan opini jelas terpisah. Jangan menambah fakta, angka, motif, atau dampak yang tidak ada di artikel.
+Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi cerita yang tajam, cepat, dan enak dibagikan. Jangan terdengar seperti ringkasan berita atau laporan korporat. Buka dengan angka, perubahan, kontras, kutipan, atau fakta paling mengganggu dari artikel. Pakai bahasa gw–lo, kalimat pendek, dan detail konkret. Opini boleh tegas jika fakta dan opini jelas terpisah. Jangan menambah fakta, angka, motif, atau dampak yang tidak ada di artikel.
 
-# VOICE — CRITICAL, CONVERSATIONAL BUSINESS OBSERVER
-- Amati mekanik @raymondchins, bukan identitas, biografi, frase khas, pengalaman, atau klaim pribadinya. Modifikasi untuk Techbro: analisis ekonomi berbasis sumber, bukan konten personal-brand atau promosi.
-- Suara utama: gw sebagai pengamat yang kritis dan kadang kontrarian. Tantang cara baca yang terlalu mudah hanya jika artikel memuat kontras, pengecualian, trade-off, atau bukti yang mendukungnya.
-- Pakai bahasa Threads yang langsung dan santai: gw/lo, kata kerja aktif, kalimat pendek-menengah, kapitalisasi normal. Lowercase hanya bila sengaja untuk ritme, bukan sebagai pengganti personality. Gunakan penghubung percakapan seperti "karena", "tapi", "jadi", "makanya", dan "kalau" tanpa mengulang formula yang sama.
-- Tulis seperti ngomong ke satu teman cerdas, bukan mengajar kelas. Jangan pakai sapaan, disclaimer, atau pembuka basa-basi sebelum fakta.
-- Hook harus langsung membawa fakta, keputusan, angka, kontras, atau masalah nyata dari artikel. Boleh membuka dengan observasi atau pendapat gw, tetapi fakta pendukung harus muncul di artikel dan segera dijelaskan.
-- Buka secara reaction-first bila fakta mendukung: reaksi pendek, pertanyaan spontan, atau penilaian langsung boleh mendahului fakta, tetapi fakta literal harus muncul di kalimat yang sama atau berikutnya. Ellipsis dan fragment pendek boleh bila terasa seperti percakapan, bukan pengganti bukti.
-- Gunakan pola kontra bila bukti mendukung: tampilkan anggapan umum, tunjukkan fakta yang mengganggunya, lalu jelaskan kenapa itu penting. Jangan memaksa semua artikel menjadi kontroversi.
-- Ironi atau sarkasme hanya boleh memakai kontras literal dari artikel. Jangan menambah motif, dampak, atau fakta demi punchline.
-- Orang pertama hanya untuk sudut pandang editorial: "menurut gw", "kalau gw lihat", atau "yang bikin gw perhatiin". Jangan mengarang pengalaman, investasi, percakapan, keputusan, atau akses pribadi.
-- Satu post satu pukulan. Fokus pada satu benturan per post. Fakta utama dulu, lalu arti atau pertanyaan yang lahir dari fakta itu. Jangan menumpuk tiga opini dalam satu slide.
-- Pakai detail yang bisa divisualisasikan: jumlah orang, uang, lokasi, jabatan, waktu, atau perbandingan literal. Hindari jargon dan kalimat abstrak.
-- S6 boleh mengajak pembaca merespons dengan gaya langsung seperti "menurut lo" atau "lo lihat ini sebagai apa?" bila ada taruhan nyata di artikel. Jika tidak ada pilihan atau benturan konkret, tutup dengan simpulan editorial spesifik berbasis fakta tanpa memaksa CTA, slogan, atau moral besar. CTA promosi, ajakan kolaborasi, dan pilihan abstrak dilarang.
-- Jika sumber cuma berisi klaim, tampilkan klaim dan batas buktinya. Gaya kritis bukan izin untuk mengarang dampak.
-- Jangan menyalin frase referensi secara literal. Variasi alami lebih penting daripada meniru pola kalimat.
+# VOICE CONTRACT — TECHBRO
+- Suara: conversational, tajam, konkret, sedikit nyeletuk. Tulis seperti menjelaskan temuan ekonomi ke satu teman cerdas, bukan seperti news anchor, siaran pers, atau esai kebijakan.
+- Hook S1 dimulai dari fakta literal yang membuat pembaca berhenti: angka, perbandingan yang memang ada, kutipan, keputusan, atau kontradiksi nyata. Reaksi boleh muncul dulu, tetapi fakta harus ada di kalimat yang sama atau berikutnya.
+- Pakai bahasa ngobrol secukupnya: lo, gue/gua, nah, tapi, padahal, soalnya, makanya. Slang bukan hiasan wajib. Jangan memaksa lo/gue di setiap slide.
+- Satu post satu pukulan. Fakta konkret dulu, lalu satu kontras, reaksi, atau judgment yang langsung ditopang fakta tersebut. Variasikan ritme; jangan membuat semua slide mengikuti pola fakta-artinya-dampak-kesimpulan.
+- Punchline harus berbasis evidence span. Jangan menambah motif, dampak, korban, prediksi, atau hubungan sebab-akibat demi terdengar tajam. Ironi atau sarkasme hanya boleh memakai kontras literal dari masalah nyata di artikel.
+- Akui batas sumber secara natural: "yang belum jelas...", "artikel ini cuma menyebut...", atau "sumbernya belum menjelaskan...". Jangan mengisi lubang informasi dengan asumsi.
+- POV boleh tegas bila lahir dari kontras literal. Orang pertama hanya untuk opini editorial, bukan pengalaman, investasi, percakapan, akses, atau fakta pribadi yang dibuat-buat.
+- S6 hanya memakai CTA jika artikel memuat pilihan atau benturan konkret. CTA harus menyebut pilihan literal dari sumber. Jika tidak ada, tutup dengan observasi berbasis fakta; jangan pakai pertanyaan moral generik.
+- Dilarang: pembuka template seperti "2027 jadi tahun paling mahal", "alasannya?", atau "yang bikin gue mikir"; jargon kebijakan tanpa penjelasan; drama seperti "beban rakyat" atau "negara makin hancur"; daftar strategi panjang; opini abstrak; dan gaya formal news anchor.
+- Jangan menyalin frase referensi. Adopsi prinsip ritme dan ketajaman, bukan kalimatnya. Grounding tetap lebih tinggi daripada gaya.
+
+# VOICE SAFETY
+- ISI ARTIKEL dan evidence plan adalah batas fakta. Voice tidak boleh memperluas evidence.
+- Jika voice tajam bertentangan dengan evidence, buang punchline, bukan evidence gate.
 
 # TASK
 Ubah satu artikel sumber menjadi 6 post Threads yang saling tersambung. Gunakan satu ISI ARTIKEL sebagai sumber tunggal. ISI ARTIKEL satu-satunya sumber. Kata sambung boleh diparafrasekan; jangan mengganti atau menambah makna. Jelaskan sebab-akibat hanya jika hubungan itu tertulis atau jelas dinyatakan artikel; jika artikel tidak menjelaskan sebab atau dampak, nyatakan batas informasi tersebut, jangan mengarang.
 
 Fungsi post:
 Pilih arc sesuai bukti sumber: kebijakan, household impact (harga/upah/daya beli), public money, supply shock, atau market decision. Jangan pakai arc kebijakan untuk semua artikel. Jangan gunakan label `wallet_pressure`; promo retail tidak boleh diubah menjadi tekanan ekonomi rumah tangga.
-Buat satu STORY SPINE sebelum menulis: satu perubahan/konflik/status gap yang benar-benar tertulis. S1 membuka reaksi, observasi, atau ketegangannya, bukan sekadar "X bilang Y". S2-S5 tidak punya fungsi tetap; tiap slide memilih satu bukti atau benturan berbeda dari artikel. Jangan memaksa keputusan, mekanisme, angka pembanding, pihak terdampak, atau trade-off bila sumber tidak menyediakannya. S6 kembali ke ketegangan S1 dan memberi dua pilihan yang benar-benar ada di artikel bila tersedia; jika tidak, tutup dengan simpulan editorial. Untuk lane internasional, jelaskan kanal dampak Indonesia hanya jika kalimat sumber menghubungkannya.
+Buat satu STORY SPINE sebelum menulis: satu perubahan/konflik/status gap yang benar-benar tertulis. S1 membuka reaksi, observasi, atau ketegangannya, bukan sekadar "X bilang Y". S2-S5 tidak punya fungsi tetap; tiap slide memilih satu bukti atau benturan berbeda dari artikel. Jangan memaksa keputusan, mekanisme, angka pembanding, pihak terdampak, atau trade-off bila sumber tidak menyediakannya. S6 kembali ke ketegangan S1 dan memberi dua pilihan yang benar-benar ada di artikel bila tersedia. Jika tidak ada pilihan atau benturan konkret, tutup dengan simpulan editorial. Simpulan harus spesifik berbasis fakta. Untuk lane internasional, jelaskan kanal dampak Indonesia hanya jika kalimat sumber menghubungkannya.
 1. HOOK — S1 maksimal 220 karakter. Mulai dari reaksi atau observasi bila fakta mendukung, lalu tampilkan angka, konflik, perubahan, kontras, kutipan, atau konsekuensi yang tertulis di artikel. Jika tidak memakai reaction-first, Buka dengan fakta paling mahal dan fakta paling kuat; buat kalimat pertama menyampaikan fakta. Ambil sisi dari fakta; opini tegas boleh selama tidak menambah klaim. Sisakan curiosity gap yang jawabannya ada di S2-S6. Jangan mulai dengan lead berita biasa, "menurut laporan", atau deskripsi gambar.
 
 Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali literal ada di ISI ARTIKEL.
@@ -2733,6 +2833,10 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 10.RITME: variasikan panjang kalimat dan struktur slide. Jangan membuat semua slide mengikuti pola fakta lalu penjelasan lalu kesimpulan.
 11.KAPITALISASI: gunakan kapitalisasi normal. Jangan lowercase seluruh kalimat untuk terlihat santai.
 12.BAHASA: seluruh `post_1` sampai `post_6` wajib Bahasa Indonesia. Jangan mengembalikan kalimat Inggris dari sumber.
+13.VOICE CONTRACT: conversational, tajam, konkret, sedikit nyeletuk; bukan news anchor, siaran pers, atau esai kebijakan. Mulai S1 dari fakta literal yang mengganggu. Satu slide satu pukulan. Pakai lo/gue/gua hanya bila natural.
+14.PUNCHLINE: setiap reaksi, kontras, dan judgment harus punya evidence span. Jika sumber tidak menjelaskan motif, dampak, korban, prediksi, atau sebab-akibat, hapus punchline tersebut; jangan isi lubang dengan asumsi.
+15.S6: pakai CTA hanya jika pilihan atau benturan konkret muncul literal di sumber. Jika tidak ada, pertahankan penutup observasional berbasis fakta; jangan membuat pertanyaan moral generik.
+16.HINDARI: pembuka template, "alasannya?", "yang bikin gue mikir", jargon kebijakan tanpa penjelasan, drama buatan, daftar strategi, dan gaya formal news anchor.
 
 Jika tidak ada enam post yang bisa dipertahankan akurat dan memenuhi aturan di atas, balas {{"status":"error","message":"insufficient_evidence"}}."""
 
@@ -2994,11 +3098,12 @@ def literal_entity_allowlist(body):
 
 
 def build_user_prompt(article):
-    """Pass source facts only; code owns validation and URL injection."""
-    body = article.get("body", "")[:10000]
+    """Pass evidence-plan facts only; code owns validation and URL injection."""
+    plan = evidence_plan(article)
+    body = " ".join(plan["units"])
     facts = literal_fact_allowlist(body)
     entities = literal_entity_allowlist(body)
-    claim_map = source_claim_map(article)
+    claim_map = source_claim_map({**article, "body": body})
     cta_evidence = []
     for slide in ("post_5", "post_6"):
         cta_evidence.extend(claim["sentence"] for claim in claim_map.get(slide, []))
@@ -3021,6 +3126,12 @@ def build_user_prompt(article):
         f"KANAL DAMPAK INDONESIA: {_international_impact_channel(article.get('title', ''), article.get('body', '')) or 'tidak ada'}",
         f"EDITORIAL LENS: {_editorial_lens(article.get('title', ''), article.get('body', ''))}",
         "LENS WAJIB: gunakan lens ini sebagai cara memilih fakta dan judgment, bukan sebagai izin menambah klaim.",
+        "VOICE CONTRACT AKTIF: conversational, tajam, konkret, sedikit nyeletuk; bukan news anchor atau esai kebijakan.",
+        "HOOK: mulai S1 dari angka, keputusan, kutipan, kontras, atau fakta literal paling mengganggu. Reaksi boleh dulu, tetapi fakta harus muncul di kalimat yang sama atau berikutnya.",
+        "RITME: satu slide satu pukulan. Fakta konkret dulu, lalu satu kontras, reaksi, atau judgment berbasis evidence span. Variasikan panjang dan struktur slide.",
+        "BAHASA: pakai lo/gue/gua/nah/tapi/padahal/soalnya/makanya hanya bila natural; jangan memaksa slang di setiap slide.",
+        "BATAS VOICE: jangan membuat punchline dari motif, dampak, korban, prediksi, hubungan sebab-akibat, atau lubang informasi yang tidak ada di evidence plan.",
+        "LARANGAN VOICE: pembuka template, jargon kebijakan tanpa penjelasan, drama buatan, daftar strategi, opini abstrak, news-anchor framing, dan CTA moral generik.",
         "PILIHAN CTA BERBASIS BUKTI (opsional):",
         *[f"- {sentence}" for sentence in cta_evidence],
         "Jika CTA dipakai, pilih dua pihak, biaya, manfaat, risiko, status, atau dampak yang muncul literal di ISI ARTIKEL.",
@@ -3067,6 +3178,7 @@ def deterministic_validate(posts):
     slop_phrases = [
         # Throat-clearing openers
         "tau gak sih", "gak bakal percaya", "coba resapin", "let that sink in",
+        "alasannya?", "yang bikin gue mikir", "yang bikin gw mikir",
         "bayangin", "yang rugi siapa", "patut dicatat",
         # Report-template framing (AI synthetic voice)
         "faktanya", "nyatanya", "inilah yang", "inilah kenapa",
@@ -3088,7 +3200,7 @@ def deterministic_validate(posts):
         "foto ini", "terlihat", "di gambar", "nampak", "tampak",
         "seperti terlihat", "seperti tampak",
         # Other slop
-        "tapi ternyata", "padahal", "memang", "sembari",
+        "tapi ternyata", "padahal", "sembari",
         "bukan hanya", "namun juga", "baik itu",
     ]
     for i in range(1, 7):
@@ -3438,6 +3550,12 @@ def _voice_warnings(posts):
     """Flag structural AI/synthetic patterns — NOT in slop_phrases but equally damning.
     These are architectural tells that slop_phrases doesn't catch."""
     warnings = []
+    forbidden_voice = (
+        (r"\b2027\s+jadi\s+tahun\s+paling\s+mahal\b", "template opening"),
+        (r"\bbeban\s+rakyat\b", "unsupported drama"),
+        (r"\bnegara\s+makin\s+hancur\b", "unsupported drama"),
+        (r"\bsiapa\s+yang\s+sebenarnya\s+bayar\b", "generic moral CTA"),
+    )
     structural = [
         # "Yang X bukan Y, tapi Z" — formulaic contrast, cold open
         (r'^yang\s+\S+\s+bukan\s+\S+[,，]\s+tapi\s+', 'rewrite contrast opener'),
@@ -3456,6 +3574,9 @@ def _voice_warnings(posts):
     ]
     for key in [f"post_{i}" for i in range(1, 7)]:
         text = posts.get(key, "")
+        for pat, label in forbidden_voice:
+            if re.search(pat, text, re.I):
+                warnings.append(f"{key}: {label}")
         for pat, label in structural:
             if re.search(pat, text, re.I):
                 warnings.append(f"{key}: {label}")
@@ -3556,7 +3677,7 @@ def generate_thread(article):
         voice_warnings = _voice_warnings(posts)
         jargon_warnings = _validate_jargon(posts, article["body"])
         grounding_warnings = grounding_validate(article, posts)
-        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "English-dominant", "S1 WAJIB", "weak winning hook", "generic winning CTA", "generic editorial close", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence"))]
+        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "English-dominant", "S1 WAJIB", "weak winning hook", "generic winning CTA", "generic editorial close", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence", "template opening", "unsupported drama", "generic moral CTA"))]
         engagement_warnings = _validate_s1_hook(posts, article["body"], article) + _validate_s6_cta(posts, article["body"])
         warnings = missing + grounding_warnings + noun_warnings + claim_warnings + hard_style_warnings + engagement_warnings
         soft_warnings = style_warnings + voice_warnings + jargon_warnings
@@ -3712,26 +3833,11 @@ def post_to_threads(article_title, posts, image_url=None, inflight=None):
                 log.warning(f"  {key} create attempt {retry+1}: {e}")
             time.sleep(2)
         if not container_id:
-            if use_image:
-                log.warning(f"  IMAGE container failed for {key}, falling back to TEXT")
-                use_image = False
-                image_used = True
-                data["media_type"] = "TEXT"
-                data.pop("image_url", None)
-                for retry in range(2):
-                    try:
-                        r = httpx.post(f"{GRAPH}/{uid}/threads", data=data, timeout=15)
-                        if r.status_code == 200:
-                            container_id = r.json().get("id")
-                            break
-                        log.warning(f"  {key} TEXT fallback attempt {retry+1}: HTTP {r.status_code}")
-                    except (httpx.RequestError, json.JSONDecodeError) as e:
-                        log.warning(f"  {key} TEXT fallback attempt {retry+1}: {e}")
-                    time.sleep(2)
-            if not container_id:
-                log.error(f"  {key} create failed")
-                return {"error": f"{key} create failed", "post_ids": published_ids}
+            # Root image is publish contract. Never silently downgrade IMAGE to TEXT.
+            log.error(f"  {key} create failed; image fallback disabled")
+            return {"error": f"{key} create failed", "post_ids": published_ids}
         if use_image:
+            image_ready = False
             for poll in range(15):
                 try:
                     sr = httpx.get(f"{GRAPH}/{container_id}",
@@ -3740,13 +3846,17 @@ def post_to_threads(article_title, posts, image_url=None, inflight=None):
                     if sr.status_code == 200:
                         status = sr.json().get("status", "")
                         if status == "FINISHED":
+                            image_ready = True
                             break
                         if status == "ERROR":
-                            log.warning(f"  {key} image error: {sr.json().get('error_message', '')}")
-                            break
-                except Exception:
+                            log.error(f"  {key} image error: {sr.json().get('error_message', '')}")
+                            return {"error": f"{key} image processing failed", "post_ids": published_ids}
+                except (httpx.RequestError, ValueError, TypeError):
                     pass
                 time.sleep(2)
+            if not image_ready:
+                log.error(f"  {key} image processing timeout")
+                return {"error": f"{key} image processing timeout", "post_ids": published_ids}
             image_used = True
         time.sleep(1)
         post_id = None
@@ -3771,7 +3881,12 @@ def post_to_threads(article_title, posts, image_url=None, inflight=None):
             save_inflight(inflight)
         log.info(f"  {key} {'IMAGE' if use_image else 'TEXT'} → {post_id}")
         time.sleep(2)
-    return {"post_ids": published_ids, "media_ids": published_ids}
+    root = _verify_published_root(published_ids[0] if published_ids else None)
+    if not root:
+        return {"error": "root verification failed", "post_ids": published_ids,
+                "media_ids": published_ids}
+    return {"post_ids": published_ids, "media_ids": published_ids,
+            "root_verified": root}
 
 # ══════════════════════════════════════════════
 #   MAIN
@@ -3793,9 +3908,20 @@ def _source_fallback_dangling_refs(posts):
         if not text:
             continue
         first = text.split(". ")[0].split(".")[0]
+        # Concessive source phrasing ("kendati begitu", "meski demikian")
+        # has an explicit antecedent; only reject bare demonstratives.
+        if re.match(r"^(?:kendati|meski|meskipun|walau|walaupun|namun|tetapi|tapi)\s+(?:ini|tersebut|demikian|begini|begitu)\b", first, re.I):
+            continue
         if opener.match(first):
             issues.append(f"{k}: dangling demonstrative opener")
     return issues
+
+def _remaining_eligible_candidates(candidates, failed_url):
+    """Reuse body-verified candidates after generation failure; do not re-pick skipped URLs."""
+    failed = _canonical_url(failed_url)
+    return [candidate for candidate in candidates
+            if _canonical_url(candidate.get("url", "")) != failed]
+
 
 def main():
     started_at = time.monotonic()
@@ -3845,7 +3971,6 @@ def main():
         _canonical_url(t.get("article_url", t.get("title", "")))
         for t in data.get("topics", [])
     }
-    recent_topics = data.get("topics", [])
 
     # Step 1: Pressbox-style single-run flow. Scrape, generate, validate, then
     # publish (or render on --dry-run). No prepared draft staging.
@@ -3875,23 +4000,18 @@ def main():
     ranked_urls = [article["url"] for article in articles]
     log.info(f"  Ranked discovery pool: {len(articles)}/{DISCOVERY_POOL_LIMIT}")
 
-    # Step 2: Search discovery pool in rank order; stop at first safe article.
+    # Step 2: Scan broad discovery pool, then keep bounded safe candidates for generation.
     from collections import Counter
     skipped_urls = set()
     reject_reasons = Counter()
-    candidate_limit = len(ranked_urls) if not article else 0
-    for _ in range(candidate_limit):
-        candidate = _pick_article(articles, posted_urls | skipped_urls, data, ranked_urls)
+    discovery_limit = len(ranked_urls) if not article else 0
+    eligible_candidates = []
+    for _ in range(discovery_limit):
+        candidate = _pick_article(articles, skipped_urls, data, ranked_urls)
         if not candidate:
             break
-        is_repeat, shared_entities, shared_words = _is_repeat_issue(
-            candidate["title"], recent_topics, url=candidate.get("url", "")
-        )
-        if is_repeat:
-            reject_reasons["repeat_issue"] += 1
-            skipped_urls.add(candidate["url"])
-            log.info(f"  Skip: repeat issue within 72h (entities={sorted(shared_entities)}, title_words={len(shared_words)})")
-            continue
+        # Consume candidate once. Without this, eligible candidate repeats until pool fills.
+        skipped_urls.add(candidate["url"])
         log.info(f"Picked: {candidate['title']}")
         log.info(f"  Source: {candidate['source']} | Score: {candidate.get('eco_score', 0)} | Reason: {candidate.get('_reason', '')} | Weight: {candidate.get('_weight', 0)}")
         log.info("Fetching article body...")
@@ -3913,37 +4033,47 @@ def main():
                 log.warning("  Skip: no valid HD image — trying next candidate")
                 skipped_urls.add(candidate["url"])
                 continue
-            article, body, og_image = candidate, candidate_body, candidate_image
-            article["body"] = body
-            article["published_ts"] = source_ts
-            article["image_hint"] = _image_hint(og_image)
-            article["pattern"] = pattern_name
-            article["pattern_label"] = _pattern_label(pattern_name)
-            article["pattern"] = article.get("pattern") or _content_metadata(article["title"], body)[0]
-            article["arc"] = _content_metadata(article["title"], body)[1]
-            article["hook_pattern"] = _content_metadata(article["title"], body)[2]
-            article["lane"] = _story_lane(article["title"], body)
-            article["impact_channel"] = _international_impact_channel(article["title"], body)
-            log.info(f"  Lane: {article['lane']} | Impact channel: {article['impact_channel'] or 'n/a'}")
-            log.info(f"  Body: {len(body)} chars | Pattern: {pattern_name} ({article['pattern_label']}, confidence={pattern_confidence:.2f})")
-            break
+            candidate["body"] = candidate_body
+            candidate["published_ts"] = source_ts
+            candidate["_image"] = candidate_image
+            candidate["image_hint"] = _image_hint(candidate_image)
+            candidate["pattern"] = pattern_name
+            candidate["pattern_label"] = _pattern_label(pattern_name)
+            candidate["pattern"] = candidate.get("pattern") or _content_metadata(candidate["title"], candidate_body)[0]
+            candidate["arc"] = _content_metadata(candidate["title"], candidate_body)[1]
+            candidate["hook_pattern"] = _content_metadata(candidate["title"], candidate_body)[2]
+            candidate["lane"] = _story_lane(candidate["title"], candidate_body)
+            candidate["impact_channel"] = _international_impact_channel(candidate["title"], candidate_body)
+            eligible_candidates.append(candidate)
+            log.info(f"  Eligible candidate {len(eligible_candidates)}/{CANDIDATE_POOL_LIMIT}: {candidate['title'][:70]}")
+            if len(eligible_candidates) == CANDIDATE_POOL_LIMIT:
+                break
+            continue
         reject_reasons[eligible_reason] += 1
         skipped_urls.add(candidate["url"])
         log.warning(f"  Skip: {eligible_reason} ({topic_score}/10, economy={economy_score}, impact={impact_score})")
+    if eligible_candidates:
+        article = eligible_candidates[0]
+        body = article["body"]
+        og_image = eligible_candidates[0].get("_image")
+        log.info(f"  Eligible pool: {len(eligible_candidates)}/{CANDIDATE_POOL_LIMIT}; selected rank {article.get('candidate_rank', '?')}")
+        log.info(f"  Lane: {article['lane']} | Impact channel: {article['impact_channel'] or 'n/a'}")
+        log.info(f"  Body: {len(body)} chars | Pattern: {article['pattern']} ({article['pattern_label']}, confidence={_classify_pattern(article['title'], body)[1]:.2f})")
     if not article:
         summary = ", ".join(f"{reason}={count}" for reason, count in reject_reasons.most_common()) or "none"
         log.error(f"Candidate rejection summary: {summary}")
-        log.error(f"No eligible article among {candidate_limit} ranked candidates")
+        log.error(f"No eligible article among {discovery_limit} ranked discovery candidates")
         print("NO_SAFE_CANDIDATE", flush=True)
         return
+    candidate_limit = len(eligible_candidates)
 
     # Step 4: Resolve image for slide 1
     image_url = None
     if IMAGE_URL:
-        image_url = IMAGE_URL
+        image_url = _publishable_image(article, IMAGE_URL)
         log.info("  Image: manual --image-url")
     elif not IMAGE_DISABLED:
-        image_url = og_image
+        image_url = _publishable_image(article, og_image)
         log.info(f"  Image: {image_url[:80] if image_url else 'disabled'}")
     if image_url:
         log.info(f"  Image URL: {image_url[:80]}...")
@@ -4006,84 +4136,30 @@ def main():
         else:
             goto_step5 = False
 
-        # Try next-best candidate from remaining pool (fast retry)
-        retry_article = None
-        for _ in range(min(2, candidate_limit)):
+        # Retry only candidates already body-fetched and editorially validated above.
+        # Re-picking from skipped_urls made every eligible fallback unreachable.
+        retry_candidates = _remaining_eligible_candidates(eligible_candidates, article["url"])
+        for retry_article in retry_candidates[:max(0, CANDIDATE_POOL_LIMIT - 1)]:
             if goto_step5:
                 break
-            retry_article = _pick_article(articles, posted_urls | skipped_urls, data, ranked_urls)
-            if retry_article is None:
-                break
-            retry_repeat, retry_entities, retry_words = _is_repeat_issue(
-                retry_article["title"], recent_topics, url=retry_article.get("url", "")
-            )
-            if retry_repeat:
-                reject_reasons["repeat_issue"] += 1
-                skipped_urls.add(retry_article["url"])
-                log.info(f"  Retry skip: repeat issue within 72h (entities={sorted(retry_entities)}, title_words={len(retry_words)})")
-                continue
-            log.info(f"  Retry candidate: {retry_article['title'][:80]}")
-            # Quick gate on retry candidate
-            retry_body, retry_img, retry_article_ts = _fetch_article_body(retry_article["url"])
-            retry_ts, retry_ts_source, retry_ts_reason = _resolve_published_timestamp(
-                retry_article_ts, retry_article.get("ts", 0), time.time()
-            )
-            if not retry_ts:
-                reject_reasons[f"retry_timestamp_{retry_ts_reason}"] += 1
-                log.info(f"  Retry skip: timestamp {retry_ts_reason}")
-                skipped_urls.add(retry_article["url"])
-                continue
-            if retry_ts_source == "rss_fallback":
-                log.info("  Retry timestamp: rss_fallback (fresh RSS only)")
-            if not retry_body or len(retry_body) < 500:
-                skipped_urls.add(retry_article["url"])
-                continue
-            if retry_img is None and not IMAGE_DISABLED:
-                skipped_urls.add(retry_article["url"])
-                continue
-            # Same full economy gate as main path — retry must not bypass relevance checks
-            retry_ok, retry_reason = _is_eligible_candidate(retry_article["title"], retry_body, retry_article["source"])
-            if not retry_ok:
-                log.info(f"  Retry skip: {retry_reason}")
-                skipped_urls.add(retry_article["url"])
-                continue
-            retry_article["body"] = retry_body
-            retry_article["published_ts"] = retry_ts
-            retry_article["image_hint"] = _image_hint(retry_img)
-            retry_article["pattern"], retry_confidence = _classify_pattern(retry_article["title"], retry_body)
-            retry_article["pattern_label"] = _pattern_label(retry_article["pattern"])
-            retry_article["pattern"] = retry_article.get("pattern") or _content_metadata(retry_article["title"], retry_body)[0]
-            retry_article["arc"] = _content_metadata(retry_article["title"], retry_body)[1]
-            retry_article["hook_pattern"] = _content_metadata(retry_article["title"], retry_body)[2]
-            retry_article["lane"] = _story_lane(retry_article["title"], retry_body)
-            retry_article["impact_channel"] = _international_impact_channel(retry_article["title"], retry_body)
-            og_image = retry_img
-            if IMAGE_URL:
-                image_url = IMAGE_URL
-            elif not IMAGE_DISABLED:
-                image_url = retry_img  # keep slide-1 image in sync with retried article
+            log.info(f"  Retry eligible candidate: {retry_article['title'][:80]}")
             if recent_openings:
                 retry_article["recent_openings"] = recent_openings[:5]
-            # Cooldown between candidates — reduced from 60-75s to 10-20s (was major bottleneck)
-            cooldown = 10 + random.randint(0, 10)
-            log.info(f"  Cooldown {cooldown}s before retry generation...")
-            time.sleep(cooldown)
             result, error = generate_thread(retry_article)
             if error:
-                # Track failure fingerprint — if same issue repeats 3+ times, circuit-break
-                fprint = f"{error}"
-                failure_counts[fprint] = failure_counts.get(fprint, 0) + 1
-                log.error(f"Retry generation also failed: {error} (fingerprint count: {failure_counts[fprint]})")
-                if failure_counts[fprint] >= 3:
-                    log.error(f"CIRCUIT BREAK — same failure '{error}' seen {failure_counts[fprint]} times — stopping candidate churn")
-                    return
+                failure_counts[error] = failure_counts.get(error, 0) + 1
+                log.error(f"Retry generation also failed: {error} (fingerprint count: {failure_counts[error]})")
                 if is_rate_limit_error(error):
                     log.error("Generation stopped: Mistral rate limit; skip candidate churn")
                     return
-                skipped_urls.add(retry_article["url"])
                 continue
-            article = retry_article  # update article ref for downstream use
-            break  # generation succeeded — go straight to save/post
+            article = retry_article
+            body = article["body"]
+            og_image = article.get("_image")
+            image_url = IMAGE_URL if IMAGE_URL else (
+                _publishable_image(article, og_image) if not IMAGE_DISABLED else None
+            )
+            break
 
         if not result:
             log.error("Generation failed: no verified LLM draft after retry")
@@ -4108,12 +4184,17 @@ def main():
         for i in range(1, 7):
             print(f"S{i}: {posts.get(f'post_{i}', '')}")
         print(f"S7: Sumber: {article.get('url', '')}")
-        print("=== END TECHBRO DRY RUN ===\n", flush=True)
+        print("=== END TECHBRO DRY RUN ===")
+        print("DRY_RUN_OK", flush=True)
     for i in range(1, 8):
         first_line = posts.get(f"post_{i}", "").split("\n")[0][:80] or "(empty)"
         log.info(f"  S{i}: {first_line}")
 
-    # Step 6: Post
+    # Step 6: Post. Live root must carry validated article image.
+    if not DRY_RUN and not image_url:
+        log.error("Live publish blocked: validated root image required")
+        print("NO_SAFE_CANDIDATE", flush=True)
+        return
     if not DRY_RUN:
         inflight = {
             "article": article, "posts": posts, "post_ids": [], "image_url": image_url,

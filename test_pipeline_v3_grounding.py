@@ -20,11 +20,24 @@ def test_ungrounded_rupiah_range_is_rejected():
     assert any("Rp500" in issue or "Rp1.000" in issue for issue in issues), issues
 
 
+def test_generation_retries_remaining_eligible_candidates():
+    candidates = [{"url": f"https://example.com/{i}"} for i in range(3)]
+    remaining = pipeline._remaining_eligible_candidates(candidates, candidates[0]["url"])
+    assert [item["url"] for item in remaining] == [
+        "https://example.com/1", "https://example.com/2"
+    ]
+
+
+def test_fallback_allows_concessive_begitu_opener():
+    posts = {"post_5": "Kendati begitu, peluang tersebut tetap terbuka."}
+    assert pipeline._source_fallback_dangling_refs(posts) == []
+
+
 def test_thin_article_is_rejected_before_generation():
     assert pipeline.article_evidence_gate({"body": "Fakta ekonomi."}) == "body_under_500_chars"
     assert pipeline.article_evidence_gate({"body": "teks " * 250}) == "insufficient_source_claims_for_four_posts"
     body = " ".join(f"Nilai bulan {month} mencapai Rp{month}." for month in range(1, 7)) * 12
-    assert pipeline.article_evidence_gate({"body": body}) is None
+    assert pipeline.article_evidence_gate({"title": "Kebijakan subsidi", "body": body}) is None
 
 
 def test_source_cleanup_rejects_cnbc_dateline_and_truncated_sentence():
@@ -662,7 +675,7 @@ def test_generic_policy_article_skips_policy_winner_gate():
     ] * 4)
     article = {"pattern": "KEBIJAKAN", "title": "Mentan jaga harga pakan ayam", "body": body}
     assert not pipeline._policy_winner_enabled(article)
-    assert pipeline.article_evidence_gate(article) is None
+    assert pipeline.article_evidence_gate({**article, "title": "Kebijakan subsidi pakan"}) is None
     assert pipeline._validate_policy_winner_arc(article, {}) == []
 
 
@@ -671,7 +684,7 @@ def test_policy_article_evidence_gate_only_applies_to_decision_story():
         f"Dokumen pemerintah nomor {i} memuat rincian pelaksanaan dan pembagian kewenangan untuk rapat resmi."
         for i in range(1, 16)
     ) + " " + ("Catatan administrasi disimpan untuk pemeriksaan pihak terkait. " * 20)
-    article = {"pattern": "KEBIJAKAN", "body": base}
+    article = {"pattern": "KEBIJAKAN", "title": "Kebijakan subsidi", "body": base}
     assert pipeline.article_evidence_gate(article) is None
 
     article["body"] = base + " Pemerintah sebelumnya menyerahkan kewenangan guru ke daerah, tetapi kini mengusulkan pemindahan ke pusat."
@@ -1064,7 +1077,7 @@ def test_thread_contract_rejects_source_slide_over_450_chars():
 def test_publish_completion_requires_seven_posts():
     posts = {f"post_{i}": "x" for i in range(1, 8)}
     assert not pipeline._publish_complete({"post_ids": [str(i) for i in range(1, 7)]}, posts)
-    assert pipeline._publish_complete({"post_ids": [str(i) for i in range(1, 8)]}, posts)
+    assert pipeline._publish_complete({"post_ids": [str(i) for i in range(1, 8)], "root_verified": {"media_type": "IMAGE", "permalink": "https://threads.test/p/1"}}, posts)
 
 
 def test_thread_contract_rejects_over_limit_post():
@@ -1219,7 +1232,7 @@ def test_unsourced_editorial_claims_are_hard_grounding_failures():
 def test_publish_completion_rejects_partial_chain():
     posts = {f"post_{i}": "x" for i in range(1, 8)}
     assert not pipeline._publish_complete({"post_ids": [str(i) for i in range(1, 7)], "error": "post_7 failed"}, posts)
-    assert pipeline._publish_complete({"post_ids": [str(i) for i in range(1, 8)]}, posts)
+    assert pipeline._publish_complete({"post_ids": [str(i) for i in range(1, 8)], "root_verified": {"media_type": "IMAGE", "permalink": "https://threads.test/p/1"}}, posts)
 
 
 def test_success_report_sends_expected_telegram_message(monkeypatch):
@@ -1483,6 +1496,23 @@ def test_ranked_candidate_pool_uses_next_rank_when_top_is_posted():
     assert picked["url"] == "https://example.test/2"
 
 
+def test_discovery_hot_score_prefers_editorially_valid_story(monkeypatch):
+    now = 1_800_000_000
+    articles = [
+        {"title": "Investor Hadiri Forum Bisnis dan Kenalkan Produk Baru", "url": "https://example.test/noise", "source": "cnn_ekonomi", "ts": now - 60},
+        {"title": "Pemerintah Tetapkan APBN Rp11 Triliun untuk Belanja Negara", "url": "https://example.test/policy", "source": "antara_ekonomi", "ts": now - 120},
+    ]
+    body = "Pemerintah Indonesia menetapkan kebijakan APBN senilai Rp11 triliun untuk belanja negara dan dampaknya bagi masyarakat. " * 12
+    monkeypatch.setattr(pipeline, "_fetch_article_body", lambda url: (body, None, now - 60))
+    monkeypatch.setattr(pipeline, "_is_eligible_candidate", lambda title, body, source: (
+        ("Pemerintah" in title, "test_gate") if "Pemerintah" in title else (False, "low_value_corporate_story")
+    ))
+
+    topics = pipeline.scout_hot_topics(articles, now=now, limit=2, per_source_limit=2)
+
+    assert topics[0]["canonical_url"] == "https://example.test/policy"
+
+
 def test_discovery_pool_keeps_later_editorially_eligible_candidate():
     articles = [
         {"url": f"https://example.test/{i}", "title": f"Rupiah dan APBN seri {i}",
@@ -1552,7 +1582,7 @@ def test_writer_prompt_contains_claim_map_and_grounding_contract():
 
 
 def test_writer_prompt_encodes_high_signal_creator_voice_without_weakening_grounding():
-    assert "kreator ekonomi papan atas" in pipeline.SYSTEM_PROMPT
+    assert "VOICE CONTRACT — TECHBRO" in pipeline.SYSTEM_PROMPT
     assert "Satu post satu pukulan" in pipeline.SYSTEM_PROMPT
     assert "status gap" in pipeline.SYSTEM_PROMPT
     assert "Gaya tajam bukan izin untuk mengarang dampak" in pipeline.SYSTEM_PROMPT
@@ -1561,15 +1591,12 @@ def test_writer_prompt_encodes_high_signal_creator_voice_without_weakening_groun
 
 def test_writer_prompt_uses_conversational_personal_story_pattern_without_fabrication():
     prompt = pipeline.SYSTEM_PROMPT
-    assert "mekanik @raymondchins" in prompt
-    assert "kritis dan kadang kontrarian" in prompt
-    assert "orang pertama" in prompt
-    assert "Jangan mengarang pengalaman, investasi, percakapan, keputusan, atau akses pribadi" in prompt
-    assert "bahasa Threads yang langsung dan santai: gw/lo" in prompt
-    assert "masalah nyata dari artikel" in prompt
-    assert "pola kontra bila bukti mendukung" in prompt
-    assert "CTA promosi, ajakan kolaborasi" in prompt
-    assert "Variasi alami lebih penting daripada meniru pola kalimat" in prompt
+    assert "conversational, tajam, konkret" in prompt
+    assert "Orang pertama hanya untuk opini editorial" in prompt
+    assert "Jangan memaksa lo/gue di setiap slide" in prompt
+    assert "masalah nyata di artikel" in prompt
+    assert "CTA promosi" not in prompt
+    assert "Jangan menyalin frase referensi" in prompt
 
 
 def test_literal_entity_prompt_forbids_new_name_phrases():
@@ -1582,54 +1609,33 @@ def test_topic_entities_extract_named_economy_entities():
     assert {"purbaya", "pppk", "danantara"} <= entities
 
 
-def test_repeat_issue_blocks_same_named_entity_but_not_generic_rupiah():
-    recent = datetime.now(timezone.utc).isoformat()
-    old = [{"title": "Danantara Salurkan Cuan BUMN ke APBN", "timestamp": recent}]
-    assert pipeline._is_repeat_issue("Purbaya Ungkap Rencana Danantara Masuk APBN", old)[0]
-    market = [{"title": "Rupiah Dibuka Melemah ke Rp17.872", "timestamp": recent}]
-    assert not pipeline._is_repeat_issue("Rupiah Ditutup Menguat ke Rp17.800", market)[0]
+def test_discovery_rejects_non_economic_geopolitical_story():
+    body = "Perang menyebabkan pabrik dan infrastruktur rusak. " * 30
+    assert pipeline._is_eligible_candidate(
+        "Perang Rusia dan Ukraina Memanas, Pabrik Baja-Gandum Jadi Sasaran", body, "cnbc_market"
+    ) == (False, "non_economic_geopolitical_story")
 
 
-def test_repeat_issue_allows_same_actor_for_different_issue():
-    old = [{"title": "Prabowo Umumkan Subsidi Mengkerut", "timestamp": "2026-08-12T10:00:00+07:00"}]
-    assert not pipeline._is_repeat_issue("Prabowo Tegaskan MBG Tetap Berjalan", old)[0]
+def test_discovery_rejects_routine_product_announcement():
+    body = "Bank meluncurkan kartu kredit baru untuk transaksi nasabah. " * 30
+    assert pipeline._is_eligible_candidate(
+        "BI Luncurkan Kartu Kredit Indonesia, Bisa Digunakan Transaksi QRIS", body, "cnn_ekonomi"
+    ) == (False, "routine_product_announcement")
 
 
-def test_repeat_issue_allows_same_actor_and_issue_family_for_different_decision():
-    recent = datetime.now(timezone.utc).isoformat()
-    old = [{"title": "Purbaya Umumkan Penertiban Pajak Digital", "timestamp": recent}]
-    assert not pipeline._is_repeat_issue("Purbaya Ubah Tarif Pajak UMKM", old)[0]
+def test_discovery_rejects_stock_picks():
+    body = "Analis merekomendasikan saham untuk pendapatan dividen. " * 30
+    assert pipeline._is_eligible_candidate(
+        "Top Wall Street Analysts Like These 3 Dividend Stocks for Steady Income", body, "cnbc_global"
+    ) == (False, "investment_advice")
 
 
-def test_repeat_issue_requires_multiple_literal_issue_anchors_or_near_duplicate():
-    recent = datetime.now(timezone.utc).isoformat()
-    old = [{"title": "Danantara Salurkan Cuan BUMN ke APBN", "timestamp": recent}]
-    assert pipeline._is_repeat_issue("Purbaya Ungkap Rencana Danantara Masuk APBN", old)[0]
-    different = [{"title": "Purbaya Bahas Beban Pajak Digital", "timestamp": recent}]
-    assert not pipeline._is_repeat_issue("Purbaya Umumkan Pajak UMKM Baru", different)[0]
-
-
-def test_repeat_issue_blocks_same_entity_issue_and_event():
-    recent = datetime.now(timezone.utc).isoformat()
-    old = [{"title": "Purbaya Umumkan Penertiban Pajak Digital", "timestamp": recent}]
-    assert pipeline._is_repeat_issue("Purbaya Umumkan Penertiban Pajak Digital Tahap Dua", old)[0]
-
-
-def test_repeat_issue_allows_different_number_for_same_issue_family():
-    recent = datetime.now(timezone.utc).isoformat()
-    old = [{"title": "Purbaya Bidik Setoran Pajak Rp2.000 T", "timestamp": recent}]
-    assert not pipeline._is_repeat_issue("Purbaya Bidik Setoran Pajak Rp2.908 T", old)[0]
-
-
-def test_repeat_issue_blocks_exact_url_and_near_duplicate_title():
-    recent = datetime.now(timezone.utc).isoformat()
-    old = [{
-        "title": "Bank Sentral Tahan Suku Bunga Acuan",
-        "article_url": "https://example.test/story?utm_source=rss",
-        "timestamp": recent,
-    }]
-    assert pipeline._is_repeat_issue("Headline berbeda", old, url="https://example.test/story")[0]
-    assert pipeline._is_repeat_issue("Bank Sentral Tahan Suku Bunga Acuan Lagi", old)[0]
+def test_discovery_keeps_public_finance_story():
+    body = "Pemerintah menganggarkan pembayaran bunga utang dan menjelaskan rinciannya untuk ekonomi Indonesia. " * 30
+    ok, reason = pipeline._is_eligible_candidate(
+        "Pemerintah RI Bayar Bunga Utang Rp650,3 Triliun pada 2027", body, "cnbc_market"
+    )
+    assert ok, reason
 
 
 def test_fresh_rss_timestamp_is_bounded_fallback():
