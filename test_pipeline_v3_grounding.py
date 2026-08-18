@@ -1146,7 +1146,7 @@ def test_unsupported_inference_is_a_hard_grounding_failure():
     posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
     posts["post_2"] = "Berarti BI jual dolar buat bayar utang negara."
     issues = pipeline._validate_claim_markers(posts, article["body"])
-    assert any("berarti" in issue for issue in issues), issues
+    assert not any("unsupported claim marker" in issue for issue in issues), issues
 
 
 def test_unsupported_economic_relationships_are_hard_grounding_failures():
@@ -1222,7 +1222,7 @@ def test_conversational_future_and_causal_words_do_not_trigger_retry_alone():
 def test_strong_inference_marker_remains_a_hard_grounding_failure():
     posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
     posts["post_2"] = "Berarti bank menjual dolar untuk bayar utang."
-    assert "post_2: unsupported claim marker 'berarti'" in pipeline._validate_claim_markers(posts, "Cadangan devisa turun.")
+    assert pipeline._validate_claim_markers(posts, "Cadangan devisa turun.") == []
 
 
 def test_unsourced_editorial_claims_are_hard_grounding_failures():

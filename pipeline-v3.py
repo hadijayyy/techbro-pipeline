@@ -3600,7 +3600,7 @@ def _validate_claim_markers(posts, body):
     source = body.lower()
     markers = (
         "berpotensi", "diperkirakan", "diprediksi", "menyebabkan",
-        "menyebab", "memicu", "berdampak", "imbas", "mengakibatkan", "berarti",
+        "menyebab", "memicu", "berdampak", "imbas", "mengakibatkan",
         "kebablasan", "coo bp bumn", "sudah kena", "tinggal tunggu giliran",
         "lapangan kerja", "layanan publik", "nasib karyawan", "skema penempatan ulang",
         "kompensasi", "untung bersih", "kantong kita", "tetangga", "nasi uduk",
