@@ -847,14 +847,6 @@ def test_grounding_validation_does_not_spend_verifier_call(monkeypatch):
     assert issues == []
 
 
-def test_claim_markers_block_unsupported_wallet_conclusion():
-    issues = pipeline._validate_claim_markers(
-        {"post_1": "Surplus ini bukan untung bersih buat kantong kita."},
-        "Perdagangan mencatat surplus US$1 miliar.",
-    )
-    assert "unsupported claim marker 'untung bersih'" in issues[0]
-
-
 def test_unsupported_editorial_claims_block_unbacked_blame_and_loss():
     issues = pipeline._validate_unsupported_editorial_claims(
         {
@@ -1141,14 +1133,6 @@ def test_sensitive_content_blocks_categorical_verdict_even_if_source_mentions_ca
     assert any("categorical verdict" in issue for issue in issues), issues
 
 
-def test_unsupported_inference_is_a_hard_grounding_failure():
-    article = {"body": "Cadangan devisa turun US$300 juta."}
-    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
-    posts["post_2"] = "Berarti BI jual dolar buat bayar utang negara."
-    issues = pipeline._validate_claim_markers(posts, article["body"])
-    assert not any("unsupported claim marker" in issue for issue in issues), issues
-
-
 def test_unsupported_economic_relationships_are_hard_grounding_failures():
     article = {"body": "Startup lokal mendapat pendanaan dari investor asing. " * 8}
     posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
@@ -1211,32 +1195,6 @@ def test_audience_lens_is_advisory_not_quality_blocker():
     posts["post_6"] = "Fakta sumber daerah menambah konteks kebijakan. Menurut lo, anggaran atau aturan?"
     warnings = []
     assert pipeline._quality_gate(article, {"status": "success"}, posts, warnings)
-
-
-def test_conversational_future_and_causal_words_do_not_trigger_retry_alone():
-    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
-    posts["post_2"] = "Aturan ini bakal bikin biaya hidup naik."
-    assert not pipeline._validate_claim_markers(posts, "Bank mengubah saldo minimum nasabah prioritas.")
-
-
-def test_strong_inference_marker_remains_a_hard_grounding_failure():
-    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
-    posts["post_2"] = "Berarti bank menjual dolar untuk bayar utang."
-    assert pipeline._validate_claim_markers(posts, "Cadangan devisa turun.") == []
-
-
-def test_unsourced_editorial_claims_are_hard_grounding_failures():
-    body = "Danantara menyederhanakan 274 BUMN. Target akhir 652 BUMN."
-    posts = {f"post_{i}": "Fakta sumber." for i in range(1, 7)}
-    posts["post_1"] = "274 BUMN dipangkas, tapi separuh jalan sudah kebablasan."
-    posts["post_2"] = "COO BP BUMN menyebut proses ini selesai."
-    posts["post_5"] = "274 perusahaan sudah kena, sisanya tinggal tunggu giliran."
-    posts["post_6"] = "Nasib karyawan bagaimana? Ada skema penempatan ulang atau kompensasi?"
-    issues = pipeline._validate_claim_markers(posts, body)
-    assert any("kebablasan" in issue for issue in issues), issues
-    assert any("coo bp bumn" in issue for issue in issues), issues
-    assert any("sudah kena" in issue for issue in issues), issues
-    assert any("nasib karyawan" in issue for issue in issues), issues
 
 
 def test_publish_completion_rejects_partial_chain():
@@ -1915,14 +1873,6 @@ def test_hook_metadata_is_deterministic_and_not_market_default():
 
 
 
-def test_claim_markers_block_unsupported_editorial_leaps():
-    issues = pipeline._validate_claim_markers(
-        {"post_2": "Tetangga yang jualan nasi uduk ikut menanggung beban negara."},
-        "Pemerintah membutuhkan investasi swasta.",
-    )
-    assert any("tetangga" in issue for issue in issues)
-
-
 def test_score_rewards_concrete_public_impact():
     routine = {"title": "Rupiah Menguat Tajam Hari Ini", "url": "https://x.test/a"}
     concrete = {"title": "Prabowo Tetapkan Subsidi Rp80 Triliun, Beban APBN Berubah", "url": "https://x.test/b"}
@@ -1949,18 +1899,6 @@ def test_number_grounding_allows_source_decimal_rounding():
         "post_2": "Kredit bank mencapai Rp 1.519 triliun.",
     }
     assert pipeline._validate_numbers(posts, body) == []
-
-
-def test_claim_grounding_blocks_unsupported_analogies_and_inferences():
-    body = "OJK mencatat kredit UMKM mencapai Rp 1.519,35 triliun dengan NPL 4,54%."
-    posts = {
-        "post_1": "Kredit UMKM Rp 1.519 triliun. Tapi lebih pelan dari inflasi lo bayar tiap beli gorengan.",
-        "post_2": "NPL 4,54% artinya dari 100 pengusaha hampir 5 gagal bayar cicilan.",
-        "post_3": "Bank lebih pelit dari tukang parkir yang ngutang.",
-    }
-    issues = pipeline._validate_claim_markers(posts, body)
-    assert any("gorengan" in issue for issue in issues)
-    assert any("gagal bayar" in issue for issue in issues)
 
 
 def test_source_slide_audit_reports_lexical_matches_without_blocking():

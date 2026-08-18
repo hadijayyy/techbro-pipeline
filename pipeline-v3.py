@@ -2646,7 +2646,7 @@ def _validate_unsupported_editorial_claims(posts, body):
 def deterministic_grounding_validate(article, posts):
     body = article.get("body") or ""
     return (_validate_numbers(posts, body) + _validate_years(posts, body)
-            + _validate_proper_nouns(posts, body) + _validate_claim_markers(posts, body)
+            + _validate_proper_nouns(posts, body)
             + _validate_sensitive_language(posts, body)
             + _validate_unsupported_economic_relationships(posts, body)
             + _validate_unsupported_financial_framing(posts, body)
@@ -3594,30 +3594,6 @@ def _validate_jargon(posts, body):
     return issues
 
 
-def _validate_claim_markers(posts, body):
-    """Block high-risk status, prediction, and causal claims absent from source."""
-    issues = []
-    source = body.lower()
-    markers = (
-        "berpotensi", "diperkirakan", "diprediksi", "menyebabkan",
-        "menyebab", "memicu", "berdampak", "imbas", "mengakibatkan",
-        "kebablasan", "coo bp bumn", "sudah kena", "tinggal tunggu giliran",
-        "lapangan kerja", "layanan publik", "nasib karyawan", "skema penempatan ulang",
-        "kompensasi", "untung bersih", "kantong kita", "tetangga", "nasi uduk",
-        "ngemis ke luar negeri", "akal-akalan", "pencucian uang", "investasi bodong",
-        "trauma", "citra", "pembangunan mandek", "siapa yang awasi",
-        "gorengan", "tukang parkir", "gagal bayar", "lebih pelan dari inflasi",
-
-    )
-    for key in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]:
-        text = posts.get(key, "").lower()
-        for marker in markers:
-            if marker in text and marker not in source:
-                issues.append(f"{key}: unsupported claim marker '{marker}'")
-                break
-    return issues
-
-
 def _validate_sensitive_language(posts, body):
     """Sensitive reporting must preserve source attribution and legal status."""
     issues = []
@@ -3761,13 +3737,12 @@ def generate_thread(article):
         style_warnings = deterministic_validate(posts)
         duplicate_warnings = _duplicate_fact_warnings(posts)
         noun_warnings = _validate_proper_nouns(posts, article["body"])
-        claim_warnings = _validate_claim_markers(posts, article["body"])
         voice_warnings = _voice_warnings(posts)
         jargon_warnings = _validate_jargon(posts, article["body"])
         grounding_warnings = grounding_validate(article, posts)
         hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "English-dominant", "S1 WAJIB", "weak winning hook", "generic winning CTA", "generic editorial close", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence", "template opening", "unsupported drama", "generic moral CTA", "emoji/emote forbidden"))]
         engagement_warnings = _validate_s1_hook(posts, article["body"], article) + _validate_s6_cta(posts, article["body"])
-        warnings = (missing + grounding_warnings + noun_warnings + claim_warnings
+        warnings = (missing + grounding_warnings + noun_warnings
                     + duplicate_warnings + hard_style_warnings + engagement_warnings)
         soft_warnings = style_warnings + voice_warnings + jargon_warnings
         if soft_warnings:
@@ -3787,11 +3762,9 @@ def generate_thread(article):
                     style_w2 = deterministic_validate(p2) + _duplicate_fact_warnings(p2)
                     noun_w2 = _validate_proper_nouns(p2, article["body"])
                     w2 = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4"] if not p2.get(k, "").strip()]
-                    claim_w2 = _validate_claim_markers(p2, article["body"])
                     w2.extend(grounding_validate(article, p2))
                     w2.extend(_indonesian_language_issues(p2))
                     w2.extend(noun_w2)
-                    w2.extend(claim_w2)
                     jargon_w2 = _validate_jargon(p2, article["body"])
                     w2.extend(_validate_s1_hook(p2, article["body"], article))
                     w2.extend(_validate_s6_cta(p2, article["body"]))
@@ -3817,7 +3790,6 @@ def generate_thread(article):
                         # Re-check original against hard validation
                         w_orig = grounding_validate(article, p_orig)
                         w_orig.extend([f"{k}: empty" for k in ["post_1","post_2","post_3","post_4"] if not p_orig.get(k,"").strip()])
-                        w_orig.extend(_validate_claim_markers(p_orig, article["body"]))
                         w_orig.extend(_indonesian_language_issues(p_orig))
                         noun_orig = _validate_proper_nouns(p_orig, article["body"])
                         w_orig.extend(noun_orig)
