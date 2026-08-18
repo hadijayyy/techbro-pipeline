@@ -2616,6 +2616,30 @@ def _validate_unsupported_editorial_claims(posts, body):
     return issues
 
 
+def _validate_concept_terms(posts, body):
+    """Reject replacement of key article concepts with narrower/broader synonyms.
+
+    Catches paraphrases that shift meaning: article "biaya kendaraan" ->
+    post "harga motor", article "bahan bakar impor" -> post "BBM". A post
+    that substitutes a synonym pair absent from the source for a literal
+    source concept is flagged as a grounding violation.
+    """
+    source = _normalize_grounding_text(body)
+    issues = []
+    # Substitution pairs: (source concept, banned synonym pattern, label).
+    substitutions = (
+        ("biaya kendaraan", r"\bharga\s+motor\b", "harga motor", "cost-vs-price shift"),
+        ("bahan bakar impor", r"\bbbm\b", "BBM", "fuel-import vs BBM shift"),
+        ("bahan bakar", r"\bbbm\b", "BBM", "fuel vs BBM shift"),
+    )
+    for key in [f"post_{i}" for i in range(1, 7)]:
+        text = _normalize_grounding_text(posts.get(key, ""))
+        for concept, pattern, banned_label, label in substitutions:
+            if concept in source and re.search(pattern, text) and concept not in text:
+                issues.append(f"{key}: {label} '{banned_label}' not in article (source says '{concept}')")
+    return issues
+
+
 def deterministic_grounding_validate(article, posts):
     body = article.get("body") or ""
     return (_validate_numbers(posts, body) + _validate_years(posts, body)
@@ -2625,6 +2649,7 @@ def deterministic_grounding_validate(article, posts):
             + _validate_unsupported_financial_framing(posts, body)
             + _validate_unsupported_inferences(posts, body) + _validate_range_direction(posts, body)
             + _validate_unsupported_editorial_claims(posts, body)
+            + _validate_concept_terms(posts, body)
             + _validate_source_evidence_map(posts, body))
 
 
@@ -2852,7 +2877,7 @@ Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali l
 - Jangan ulang angka, fakta, atau contoh. jangan ulang angka, fakta, atau contoh dalam slide lain. Jika fungsi sebab/dampak/relevansi tidak punya bukti, gunakan bukti lain yang tersedia; jangan mengisi bagian kosong dengan tebakan. Jangan ulang angka, fakta, atau contoh tanpa bukti berbeda dari artikel.
 - Untuk kebijakan: gunakan opsi resmi + kelompok terdampak + status belum final hanya jika literal; jelaskan pembagian kewenangan serta dasar aturan bila tertulis.
 - Jangan mengubah satuan atau menghitung angka baru.
-- Parafrase boleh jika makna tetap sama.
+- Parafrase boleh jika makna tetap sama. Istilah/konsep kunci dari artikel (misal "biaya kendaraan", "bahan bakar impor") TIDAK BOLEH diganti sinonim yang mengubah cakupan: "biaya kendaraan" ≠ "harga motor", "bahan bakar impor" ≠ "BBM". Pertahankan minimal satu kata kunci literal dari istilah sumber (biaya/kendaraan, bahan bakar/impor). Jangan menyingkat istilah resmi jadi akronim baru yang tidak ada di artikel.
 - Setiap post wajib minimal 1 kalimat jelas dan maksimal 450 karakter. Fragment pendek atau ellipsis boleh sebagai bagian dari ritme percakapan bila maknanya tetap jelas. Satu ide utama per post.
 - Utamakan bahasa sehari-hari. Istilah teknis boleh dipakai bila membuat kalimat lebih tajam; jelaskan bila natural, jangan memaksa definisi.
 - Bahasa Indonesia santai, jelas, dan natural. Jargon bukan alasan untuk mengubah voice jadi penjelasan buku teks. Hindari slogan, hashtag, URL, dan pembuka generik.

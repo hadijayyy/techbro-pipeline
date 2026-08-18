@@ -476,6 +476,38 @@ def test_common_ministry_short_form_is_allowed_when_source_has_full_name():
     assert not any("Menkeu Purbaya" in issue for issue in pipeline._validate_proper_nouns(posts, body))
 
 
+def test_concept_term_rejects_cost_to_price_shift():
+    body = ("Pemerintah menargetkan menurunkan biaya kendaraan bagi rakyat. "
+            "Program ini juga mengurangi konsumsi bahan bakar impor. " * 8)
+    posts = {
+        "post_1": "Ini buat turunin harga motor buat rakyat. Kabar bagus?",
+        "post_2": "Pemerintah mau nurunin biaya kendaraan. Program ini mengurangi bahan bakar impor.",
+        "post_3": "Targetnya nurunin biaya kendaraan buat rakyat.",
+        "post_4": "Program ini juga mengurangi bahan bakar impor.",
+        "post_5": "Biaya kendaraan dan bahan bakar impor jadi perhatian.",
+        "post_6": "Menurut lo, bakal kejadian?",
+    }
+    issues = pipeline._validate_concept_terms(posts, body)
+    # post_1 substitutes "harga motor" for "biaya kendaraan" -> flagged.
+    assert any("post_1" in issue and "harga motor" in issue for issue in issues)
+    # posts using the literal concept are clean.
+    assert not any("post_2" in issue for issue in issues)
+    assert not any("post_3" in issue for issue in issues)
+
+
+def test_concept_term_rejects_bbm_substitution():
+    body = ("Pemerintah mengurangi konsumsi bahan bakar impor dengan program kendaraan listrik. " * 8)
+    posts = {
+        "post_1": "Biar impor BBM turun, motor listrik didorong.",
+        "post_2": "Pemerintah mengurangi konsumsi bahan bakar impor.",
+    }
+    issues = pipeline._validate_concept_terms(posts, body)
+    # post_1 uses "BBM" for "bahan bakar impor" -> flagged.
+    assert any("post_1" in issue and "BBM" in issue for issue in issues)
+    # literal usage stays clean.
+    assert not any("post_2" in issue for issue in issues)
+
+
 def test_hormuz_story_requires_indonesia_energy_impact():
     title = "Selat Hormuz Terganggu, Harga Minyak Dunia Naik"
     body = ("Gangguan di Selat Hormuz mengerek harga minyak dunia dan memicu kekhawatiran pasar. " * 12)
