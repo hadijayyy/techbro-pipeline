@@ -643,6 +643,53 @@ def test_writer_prompt_requires_evidence_backed_cta_options():
     assert "rumah tangga" in prompt.lower()
 
 
+def test_writer_prompt_encodes_hanif_base_action_hook_calibration():
+    prompt = pipeline.SYSTEM_PROMPT
+    assert "HOOK & STRUKTUR — KALIBRASI AKSI" in prompt
+    assert "masalah nyata yang pembaca alami" in prompt
+    assert "janji konkret" in prompt
+    assert "struktur aksi singkat" in prompt
+    assert "pihak yang diuntungkan dan pihak yang menanggung biaya" in prompt
+    assert "jangan menuduh motif bila tidak tertulis" in prompt
+
+
+def test_writer_prompt_encodes_fellexandro_complement_skeptic_to_data():
+    prompt = pipeline.SYSTEM_PROMPT
+    assert "skeptis-ke-data" in prompt
+    assert "sempat ngira X, ternyata data bilang Y" in prompt
+    assert "ragu → cek angka → kesimpulan" in prompt
+    assert "Angka konkret dulu, tafsir belakangan" in prompt
+    assert "pernah ngerasain X?" in prompt
+
+
+def test_revision_prompt_encodes_action_calibration_rules():
+    assert "KALIBRASI AKSI" in pipeline.REVISION_PROMPT
+    assert "SKEPTIS-KE-DATA" in pipeline.REVISION_PROMPT
+    assert "PENUTUP" in pipeline.REVISION_PROMPT
+    assert "Jangan menuduh motif institusi tanpa fakta tertulis" in pipeline.REVISION_PROMPT
+
+
+def test_quality_gate_returns_true_on_clean_thread():
+    """Regression: _quality_gate must return True for valid threads (bug: missing return True blocked ALL candidates)."""
+    article = {
+        "title": "Insentif Motor Listrik Bakal Diberikan September",
+        "body": "Pemerintah memberikan insentif motor listrik pada September 2026. " * 12,
+        "url": "https://finance.detik.com/industri/d-8624619/insentif-motor-listrik-bakal-diberikan-september",
+        "source": "detikFinance",
+    }
+    posts = {
+        "post_1": "September 2026 udah di depan mata, tapi insentif motor listrik masih ngantri PMK.",
+        "post_2": "Insentifnya besar, tapi syaratnya juga gede. Perusahaan Indonesia harus bisa produksi 1 juta motor listrik di dalam negeri.",
+        "post_3": "Kalau nggak? Nggak dapet duit negara. Presiden Prabowo bilang ini buat turunin harga motor buat rakyat.",
+        "post_4": "Tapi, coba lo pikir 1 juta unit itu target yang realistis nggak buat industri lokal?",
+        "post_5": "Insentif ini dibiayain dari APBN 2027. Artinya, uang negara yang dipakai.",
+        "post_6": "Jadi, insentif motor listrik ini adil nggak buat rakyat? Menurut lo, ini kebijakan yang beneran buat rakyat, atau cuma janji manis?",
+    }
+    data = {"status": "success", "angle": "test"}
+    assert pipeline._quality_gate(article, data, posts, []) is True
+    assert "Jangan pura-pura ragu tanpa kontras di sumber" in pipeline.REVISION_PROMPT
+
+
 def test_jargon_validator_is_advisory_for_conversational_voice():
     posts = {f"post_{i}": "" for i in range(1, 7)}
     posts["post_1"] = "Fundamental perusahaan terlihat kuat. Angkanya belum dijelaskan."

@@ -2817,6 +2817,14 @@ Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi
 - Dilarang: pembuka template seperti "2027 jadi tahun paling mahal", "alasannya?", atau "yang bikin gue mikir"; jargon kebijakan tanpa penjelasan; drama seperti "beban rakyat" atau "negara makin hancur"; daftar strategi panjang; opini abstrak; dan gaya formal news anchor.
 - Jangan menyalin frase referensi. Adopsi prinsip ritme dan ketajaman, bukan kalimatnya. Grounding tetap lebih tinggi daripada gaya.
 
+# HOOK & STRUKTUR — KALIBRASI AKSI
+- S1 boleh dibuka sebagai masalah nyata yang pembaca alami (biaya, tagihan, harga, syarat, proses) SELAMA masalah itu literal di artikel, lalu janji konkret: thread ini kasih angka/jawaban/sudut yang beda. Janji harus ditepati di S2-S6; jangan janji kosong.
+- Jika artikel memuat urutan, syarat, atau proses konkret (bertahap, alur, pembagian kewenangan), gunakan struktur aksi singkat: langkah/fakta paling penting dulu, lalu konsekuensi. Satu slide tetap satu pukulan; jangan mengubah post jadi tutorial panjang.
+- Sorot pihak yang diuntungkan dan pihak yang menanggung biaya HANYA bila artikel menyebut keduanya atau dasarnya literal. Angle "institusi bikin susah" boleh muncul sebagai opini tegas bila artikel memuat fakta yang menopangnya (biaya tersembunyi, syarat berbelit, keputusan yang merugikan kelompok); jangan menuduh motif bila tidak tertulis.
+- Mekanik skeptis-ke-data: boleh buka "sempat ngira X, ternyata data bilang Y" bila artikel punya kontras literal antara asumsi umum dan angka. Tunjukkan proses berpikir singkat (ragu → cek angka → kesimpulan), jangan pura-pura ragu.
+- Angka konkret dulu, tafsir belakangan. Kalau artikel punya angka, taruh angkanya di kalimat pembuka atau segera setelah reaksi; interpretasi mengikuti.
+- Penutup S6 boleh mengajak pembaca membandingkan pengalaman nyatanya dengan satu fakta dari artikel ("pernah ngerasain X?"), bila fakta itu literal. Ini berbeda dari pertanyaan moral generik — harus menyebut elemen konkret dari sumber.
+
 # VOICE SAFETY
 - ISI ARTIKEL dan evidence plan adalah batas fakta. Voice tidak boleh memperluas evidence.
 - Jika voice tajam bertentangan dengan evidence, buang punchline, bukan evidence gate.
@@ -2889,6 +2897,9 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 15.S6: pakai CTA hanya jika pilihan atau benturan konkret muncul literal di sumber. Jika tidak ada, pertahankan penutup observasional berbasis fakta; jangan membuat pertanyaan moral generik.
 16.HINDARI: pembuka template, "alasannya?", "yang bikin gue mikir", jargon kebijakan tanpa penjelasan, drama buatan, daftar strategi, dan gaya formal news anchor.
 17.VARIASI SUDUT: post_2 sampai post_5 wajib punya SATU fokus berbeda — misal angka/utang, proses/urutan, orang/keputusan, dampak/biaya, atau skala sistem. Jangan ulang kalimat, angka, atau penjelasan yang sama di dua slide. Bila sumber tidak menyediakan bahan untuk sudut berbeda, pertahankan sudut yang ada; jangan mengarang sudut baru.
+18.KALIBRASI AKSI: jika slide terdengar seperti ringkasan berita, ubah jadi masalah nyata pembaca + angka/fakta literal dulu, lalu tafsir. Boleh pakai struktur aksi singkat (langkah/syarat/proses) bila artikel menyediakannya. Sorot pihak yang diuntungkan/dirugikan hanya bila literal — TANPA menambah nama baru di luar NAMA/ENTITAS LITERAL (patuhi aturan 2). Jangan menuduh motif institusi tanpa fakta tertulis.
+19.SKEPTIS-KE-DATA: boleh pakai mekanik "sempat ngira X, ternyata data bilang Y" hanya bila artikel punya kontras literal antara asumsi umum dan angka. Jangan pura-pura ragu tanpa kontras di sumber.
+20.PENUTUP: S6 boleh membandingkan pengalaman pembaca dengan satu elemen konkret artikel ("pernah ngerasain X?") bila elemen itu literal; jangan pertanyaan moral generik tanpa dasar fakta.
 
 Jika tidak ada enam post yang bisa dipertahankan akurat dan memenuhi aturan di atas, balas {{"status":"error","message":"insufficient_evidence"}}."""
 
@@ -3636,14 +3647,18 @@ def _voice_warnings(posts):
 
 def _quality_gate(article, data, posts, warnings):
     """Quality gate: checks from doc. Return True = pass, False = block."""
+    log.debug("quality_gate entry: status=%s posts=%s warnings=%s", data.get("status"), bool(posts), len(warnings or []))
     if data.get("status") != "success" or not posts:
+        log.warning(f"  Quality gate early-fail: status={data.get('status')!r} posts_empty={not bool(posts)}")
         return False
     if posts:
         style_issues = deterministic_validate(posts) + _duplicate_fact_warnings(posts)
+        log.debug("quality_gate style_issues=%s", style_issues)
         # Style warnings advisory; structural empty/length/sentence/CTA issues remain hard.
         soft_markers = ("slop '", "too many sentences", "too many questions", "too many CTA questions", "stand-alone", "hard word", "rewrite ", "passive construction", "duplicate", "voice:", "audience lens:")
         hard = [w for w in style_issues if not any(marker in w for marker in soft_markers)]
         if hard:
+            log.warning(f"  Quality gate hard style issues: {hard}")
             return False
     # 1. Article eligibility is decided from full body before generation.
     # 2. Impact to Indonesia clear (local source assumed)
@@ -3655,7 +3670,9 @@ def _quality_gate(article, data, posts, warnings):
     # 6. CTA on post_6 is optional when source has no concrete choice.
     last_text = posts.get("post_6", "").lower()
     if last_text.count("?") > 2:
+        log.warning(f"  Quality gate post_6 too many questions: {last_text.count('?')} in {last_text[:80]!r}")
         warnings.append("Post 6: too many CTA questions")
+        return False
     return True
 
 # ── Thread Generation ────────────────────────────────────────────────────────
