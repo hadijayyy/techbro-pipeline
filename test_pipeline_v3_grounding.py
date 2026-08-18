@@ -28,6 +28,11 @@ def test_generation_retries_remaining_eligible_candidates():
     ]
 
 
+def test_generation_retry_is_bounded_to_one_candidate():
+    source = Path(pipeline.__file__ or "").read_text()
+    assert "for retry_article in retry_candidates[:1]:" in source
+
+
 def test_fallback_allows_concessive_begitu_opener():
     posts = {"post_5": "Kendati begitu, peluang tersebut tetap terbuka."}
     assert pipeline._source_fallback_dangling_refs(posts) == []
@@ -226,6 +231,30 @@ def test_article_body_removes_embedded_detik_marker_before_source_join(monkeypat
     body, _, _ = pipeline._fetch_article_body("https://example.test/article-embedded")
     assert "SCROLL TO CONTINUE WITH CONTENT" not in body
     assert "Fakta lanjutan artikel tetap harus dipertahankan" in body
+
+
+def test_article_body_ignores_nested_paragraph_duplicates_and_publisher_cta(monkeypatch):
+    html = """<html><article><p>Outer duplicate wrapper that must not enter evidence.
+    <p>Fakta artikel pertama cukup panjang dan hanya boleh muncul satu kali dalam badan sumber, lengkap dengan konteks ekonomi yang diperlukan pembaca.</p>
+    <p>Ikuti Whatsapp Channel Republika Sebagai kanal informasi tambahan untuk pembaca.</p>
+    <p>Fakta artikel kedua cukup panjang dan tetap menjadi bagian badan sumber yang sah, lengkap dengan angka kebijakan serta dampaknya bagi rumah tangga.</p>
+    </p></article></html>"""
+    monkeypatch.setattr(pipeline, "_http_get", lambda url, timeout=15: (200, html))
+    pipeline._BODY_CACHE.clear()
+    body, _, _ = pipeline._fetch_article_body("https://example.test/article-nested")
+    assert body.count("Fakta artikel pertama") == 1
+    assert "Whatsapp Channel" not in body
+    assert "Fakta artikel kedua" in body
+
+
+def test_article_body_cuts_embedded_publisher_cta_after_source_fact(monkeypatch):
+    html = """<html><article><p>Shein didenda regulator Italia karena manipulasi informasi lingkungan dalam pemasaran produknya. Regulator menyebut informasi keberlanjutan itu menyesatkan konsumen dan menjatuhkan sanksi setelah pemeriksaan resmi. Perusahaan juga diminta memperbaiki penjelasan dampak lingkungannya. Dapatkan akses cepat ke berita terkini dan data berharga dari WhatsApp Channel Katadata.co.id Dapatkan pengalaman membaca lebih nyaman lewat aplikasi mobile Katadata.</p></article></html>"""
+    monkeypatch.setattr(pipeline, "_http_get", lambda url, timeout=15: (200, html))
+    pipeline._BODY_CACHE.clear()
+    body, _, _ = pipeline._fetch_article_body("https://example.test/article-embedded-cta")
+    assert "Shein didenda regulator Italia" in body
+    assert "Dapatkan akses cepat" not in body
+    assert "WhatsApp Channel" not in body
 
 
 def test_source_claim_map_ranks_and_assigns_source_sentences_to_slides():
@@ -1500,6 +1529,23 @@ def test_exact_posted_candidate_accounting_uses_canonical_urls():
     ) == 1
 
 
+def test_posted_canonical_urls_reads_article_and_source_urls():
+    data = {"topics": [{
+        "article_url": "https://example.test/story?utm_source=rss",
+        "slides": {"post_7": "Sumber: https://example.test/other?utm_campaign=x"},
+    }]}
+    assert pipeline.posted_canonical_urls(data) == {
+        "https://example.test/story", "https://example.test/other"
+    }
+
+
+def test_duplicate_guard_matches_all_ledger_url_fields():
+    data = {"topics": [{
+        "canonical_url": "https://example.test/story",
+    }]}
+    assert pipeline.duplicate_ledger_match(data, "https://example.test/story?utm_medium=rss") == "https://example.test/story"
+
+
 def test_rss_thumbnail_fallback_survives_empty_media_content(monkeypatch):
     xml = (
         '<rss xmlns:media="http://search.yahoo.com/mrss/"><channel><item>'
@@ -1614,6 +1660,21 @@ def test_writer_prompt_uses_conversational_personal_story_pattern_without_fabric
     assert "masalah nyata di artikel" in prompt
     assert "CTA promosi" not in prompt
     assert "Jangan menyalin frase referensi" in prompt
+
+
+def test_writer_prompt_encodes_winning_contradiction_escalation_and_low_friction_cta():
+    prompt = pipeline.SYSTEM_PROMPT
+    assert "dua fakta literal yang saling menekan" in prompt
+    assert "jangan cuma melaporkan perubahan satu angka" in prompt
+    assert "menaikkan tensi dengan bukti baru" in prompt
+    assert "Jangan mengulang premis dengan sinonim" in prompt
+    assert "jadikan keputusan aktor itu objek penilaian" in prompt
+    assert "satu sumbu judgment yang gampang dijawab" in prompt
+    assert "Jangan mengubah CTA menjadi soal ujian kebijakan" in prompt
+
+    runtime_prompt = pipeline.build_user_prompt({"body": "Ekonomi tumbuh, tetapi konsumsi rumah tangga turun. Pemerintah memangkas belanja." * 20})
+    assert "PROGRESI: tiap slide menaikkan tensi dengan bukti baru" in runtime_prompt
+    assert "CTA: minta satu judgment sederhana" in runtime_prompt
 
 
 def test_literal_entity_prompt_forbids_new_name_phrases():

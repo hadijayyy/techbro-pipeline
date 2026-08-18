@@ -4,7 +4,7 @@ Techbro v3 — EKONOMI NASIONAL + POV PRIBADI + 6 Script Hack Elements
 Article-based: scrape economy RSS/HTML → 6 threads with personal POV.
 """
 
-import html, httpx, json, logging, os, random, re, struct, sys, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET
+import contextlib, errno, fcntl, html, httpx, json, logging, os, random, re, struct, sys, tempfile, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 
@@ -34,6 +34,20 @@ POSTED_FILE = BASE / "posted_topics_v2.json"
 KEYWORDS_FILE = BASE / "keywords.json"
 SOURCES_FILE = BASE / "sources.json"
 INFLIGHT_FILE = BASE / "inflight_chain.json"
+POST_LOCK_FILE = Path("/tmp/techbro-post-url.lock")
+
+class LedgerStateError(RuntimeError):
+    pass
+
+@contextlib.contextmanager
+def post_url_lock():
+    fd = os.open(POST_LOCK_FILE, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 # ── Env ───────────────────────────────────────────────────────────────────────
 
@@ -191,9 +205,16 @@ def _parse_number_in_title(title):
 
 def load_data():
     try:
-        return json.loads(POSTED_FILE.read_text())
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {"topics": [], "recent_content": {"urls": [], "openings": [], "ctas": []}}
+        data = json.loads(POSTED_FILE.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise LedgerStateError(f"posted ledger unreadable: {exc}") from exc
+    if not isinstance(data, dict) or not isinstance(data.get("topics"), list):
+        raise LedgerStateError("posted ledger schema invalid: topics")
+    if not isinstance(data.get("recent_content", {}), dict):
+        raise LedgerStateError("posted ledger schema invalid: recent_content")
+    if any(not isinstance(topic, dict) for topic in data["topics"]):
+        raise LedgerStateError("posted ledger schema invalid: topic row")
+    return data
 
 
 def normalize_topic_cohorts(data):
@@ -208,9 +229,29 @@ def normalize_topic_cohorts(data):
 def save_data(data):
     if DRY_RUN:
         return False
-    tmp = POSTED_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-    tmp.replace(POSTED_FILE)
+    _atomic_write_json(POSTED_FILE, data)
+    return True
+
+
+def _atomic_write_json(path, data):
+    payload = json.dumps(data, indent=2, ensure_ascii=False)
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_name, path)
+        dir_fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
+    finally:
+        try:
+            os.unlink(tmp_name)
+        except FileNotFoundError:
+            pass
 
 
 def topic_cohort(topic):
@@ -231,18 +272,21 @@ def _is_current_topic(topic):
     return topic.get("cohort") != LEGACY_COHORT
 
 def load_inflight():
+    if not INFLIGHT_FILE.exists():
+        return None
     try:
         data = json.loads(INFLIGHT_FILE.read_text())
-        return data if isinstance(data, dict) and data.get("posts") else None
-    except (OSError, json.JSONDecodeError):
-        return None
+    except (OSError, json.JSONDecodeError) as exc:
+        raise LedgerStateError(f"inflight journal unreadable: {exc}") from exc
+    if not isinstance(data, dict) or not isinstance(data.get("posts"), dict):
+        raise LedgerStateError("inflight journal schema invalid")
+    return data
 
 def save_inflight(data):
     if DRY_RUN:
         return False
-    tmp = INFLIGHT_FILE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-    tmp.replace(INFLIGHT_FILE)
+    _atomic_write_json(INFLIGHT_FILE, data)
+    return True
 
 
 def _publish_complete(pub, posts):
@@ -251,6 +295,28 @@ def _publish_complete(pub, posts):
     complete_posts = all(posts.get(f"post_{i}", "").strip() for i in range(1, expected + 1))
     return bool(pub and not pub.get("error") and pub.get("root_verified") and complete_posts
                 and len(pub.get("post_ids", [])) == expected)
+
+
+def _topic_canonical_urls(topic):
+    """Collect every URL-bearing ledger field under one canonicalizer."""
+    urls = [topic.get("article_url"), topic.get("canonical_url"), topic.get("source_url")]
+    slides = topic.get("slides") or {}
+    urls.extend(re.findall(r"https?://[^\s<>\"']+", str(slides.get("post_7", ""))))
+    return {_canonical_url(url) for url in urls if _canonical_url(url)}
+
+
+def posted_canonical_urls(data):
+    return {url for topic in data.get("topics", []) for url in _topic_canonical_urls(topic)}
+
+
+def duplicate_ledger_match(data, article_url):
+    canonical = _canonical_url(article_url)
+    return canonical if canonical and canonical in posted_canonical_urls(data) else None
+
+
+def _mark_inflight(inflight, **updates):
+    inflight.update(updates)
+    save_inflight(inflight)
 
 
 def _verify_published_root(post_id):
@@ -420,8 +486,12 @@ def _http_get(url, timeout=12):
 
 def _canonical_url(url):
     """Drop tracking parameters so one article has one posted-state key."""
-    parts = urllib.parse.urlsplit(url)
-    return urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path.rstrip("/"), "", ""))
+    if not isinstance(url, str):
+        return ""
+    parts = urllib.parse.urlsplit(url.strip())
+    if not parts.scheme or not parts.netloc:
+        return ""
+    return urllib.parse.urlunsplit((parts.scheme.lower(), parts.netloc.lower(), parts.path.rstrip("/"), "", ""))
 
 # ── RSS Scraping ─────────────────────────────────────────────────────────────
 
@@ -1236,9 +1306,19 @@ def _fetch_article_body(url):
             tag.decompose()
         paras = []
         for p in body_el.find_all("p"):
+            # Malformed publisher markup can nest paragraphs. Keep leaves only or each
+            # outer paragraph duplicates all following article text.
+            if p.find("p"):
+                continue
             txt = p.get_text(separator=" ", strip=True)
             # Remove publisher UI noise before paragraph enters source body/evidence.
             txt = re.sub(r"(?i)^\s*scroll\s+to\s+continue\s+with\s+content\s*", "", txt).strip()
+            txt = re.split(
+                r"(?i)\b(?:ikuti\s+whatsapp channel|dapatkan akses cepat ke berita terkini|dapatkan pengalaman membaca lebih nyaman)\b",
+                txt, maxsplit=1,
+            )[0].strip()
+            if re.search(r"(?i)^view this post on instagram\b", txt):
+                continue
             if len(txt) > 20:
                 paras.append(txt)
         if not paras:
@@ -2611,13 +2691,16 @@ Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi
 - Suara: conversational, tajam, konkret, sedikit nyeletuk. Tulis seperti menjelaskan temuan ekonomi ke satu teman cerdas, bukan seperti news anchor, siaran pers, atau esai kebijakan.
 - Kalibrasi referensi positif: mulai dari benda, angka, keputusan, atau ucapan yang konkret; segera beri belokan conversational yang menyorot gap/kontras; tutup dengan judgment kecil yang terasa personal. Jangan meniru kalimat, persona, atau pengalaman referensi.
 - Hook S1 dimulai dari fakta literal yang membuat pembaca berhenti: angka, perbandingan yang memang ada, kutipan, keputusan, atau kontradiksi nyata. Reaksi boleh muncul dulu, tetapi fakta harus ada di kalimat yang sama atau berikutnya. Jangan mulai dengan konteks panjang atau ringkasan headline.
+- Jika sumber menyediakan kontras, buka dengan dua fakta literal yang saling menekan; jangan cuma melaporkan perubahan satu angka. Contoh mekanik: hasil terlihat bagus, tetapi ukuran lain memburuk. Jangan membuat kontras jika sumber hanya punya satu sisi.
 - Pakai bahasa ngobrol secukupnya: lo, gue/gua, nah, tapi, padahal, soalnya, makanya. Sapaan hanya dipakai bila membuat kontras terasa lebih dekat; slang bukan hiasan wajib. Jangan memaksa lo/gue di setiap slide.
 - Satu post satu pukulan: fakta konkret, belokan/kontras singkat, lalu reaksi atau judgment yang langsung ditopang fakta tersebut. Variasikan ritme; jangan membuat semua slide mengikuti pola fakta-artinya-dampak-kesimpulan.
+- S2-S5 harus menaikkan tensi dengan bukti baru: konsekuensi, pihak terdampak, pihak yang tetap untung, keputusan aktor, atau gap yang belum terjawab—hanya yang literal tersedia. Jangan mengulang premis dengan sinonim.
+- Jika sumber menyebut aktor dan keputusan konkret, jadikan keputusan aktor itu objek penilaian; jangan mengarang motif atau menyederhanakan aktor yang tidak disebut.
 - Pisahkan tiga lapis: FAKTA = apa yang artikel nyatakan; OPINI = penilaian lo yang jelas ditandai sebagai pandangan; TUDUHAN/MOTIF/AKIBAT = jangan tulis kecuali artikel menyatakannya. Jangan ubah kematian, biaya, atau keputusan menjadi klaim siapa yang rugi, siapa yang salah, atau kenapa tindakan terlambat tanpa bukti literal.
 - Punchline harus berbasis evidence span. Jangan menambah motif, dampak, korban, prediksi, atau hubungan sebab-akibat demi terdengar tajam. Ironi atau sarkasme hanya boleh memakai kontras literal dari masalah nyata di artikel.
 - Akui batas sumber secara natural: "yang belum jelas...", "artikel ini cuma menyebut...", atau "sumbernya belum menjelaskan...". Jangan mengisi lubang informasi dengan asumsi.
 - POV boleh tegas bila lahir dari kontras literal. Orang pertama hanya untuk opini editorial, bukan pengalaman, investasi, percakapan, akses, atau fakta pribadi yang dibuat-buat.
-- S6 hanya memakai CTA jika artikel memuat pilihan atau benturan konkret. CTA harus menyebut pilihan literal dari sumber. Jika tidak ada, tutup dengan observasi berbasis fakta; jangan pakai pertanyaan moral generik.
+- S6 hanya memakai CTA jika artikel memuat pilihan atau benturan konkret. CTA harus menyebut pilihan literal dari sumber dan meminta satu sumbu judgment yang gampang dijawab. Jangan mengubah CTA menjadi soal ujian kebijakan atau meminta pembaca merancang solusi. Jika tidak ada, tutup dengan observasi berbasis fakta; jangan pakai pertanyaan moral generik.
 - Dilarang: pembuka template seperti "2027 jadi tahun paling mahal", "alasannya?", atau "yang bikin gue mikir"; jargon kebijakan tanpa penjelasan; drama seperti "beban rakyat" atau "negara makin hancur"; daftar strategi panjang; opini abstrak; dan gaya formal news anchor.
 - Jangan menyalin frase referensi. Adopsi prinsip ritme dan ketajaman, bukan kalimatnya. Grounding tetap lebih tinggi daripada gaya.
 
@@ -2981,6 +3064,8 @@ def build_user_prompt(article):
         "LENS WAJIB: gunakan lens ini sebagai cara memilih fakta dan judgment, bukan sebagai izin menambah klaim.",
         "VOICE CONTRACT AKTIF: conversational, tajam, konkret, sedikit nyeletuk; bukan news anchor atau esai kebijakan.",
         "HOOK: mulai S1 dari angka, keputusan, kutipan, kontras, atau fakta literal paling mengganggu. Reaksi boleh dulu, tetapi fakta harus muncul di kalimat yang sama atau berikutnya.",
+        "KONTRADIKSI: jika CLAIM MAP memuat dua fakta literal yang saling menekan, pasangkan di S1; jangan cuma melaporkan perubahan satu angka dan jangan menciptakan kontras baru.",
+        "PROGRESI: tiap slide menaikkan tensi dengan bukti baru; jangan mengulang premis memakai sinonim. Gunakan konsekuensi, pihak, keputusan aktor, atau gap hanya jika ada di CLAIM MAP.",
         "RITME: satu slide satu pukulan. Fakta konkret dulu, lalu satu kontras, reaksi, atau judgment berbasis evidence span. Variasikan panjang dan struktur slide.",
         "BAHASA: pakai lo/gue/gua/nah/tapi/padahal/soalnya/makanya hanya bila natural; jangan memaksa slang di setiap slide.",
         "BATAS VOICE: jangan membuat punchline dari motif, dampak, korban, prediksi, hubungan sebab-akibat, atau lubang informasi yang tidak ada di evidence plan.",
@@ -2988,6 +3073,7 @@ def build_user_prompt(article):
         "PILIHAN CTA BERBASIS BUKTI (opsional):",
         *[f"- {sentence}" for sentence in cta_evidence],
         "Jika CTA dipakai, pilih dua pihak, biaya, manfaat, risiko, status, atau dampak yang muncul literal di ISI ARTIKEL.",
+        "CTA: minta satu judgment sederhana yang gampang dijawab; jangan meminta pembaca merancang kebijakan atau memilih prioritas teknis.",
         "Jangan membuat pilihan CTA dari istilah abstrak atau taruhan baru. Jika tidak ada pilihan konkret, tutup dengan simpulan editorial berbasis fakta.",
         "Jangan menambah klaim di luar CLAIM MAP. Jangan membuat fakta baru.",
         "S1 wajib punya reaksi atau observasi editorial berbasis fakta + curiosity gap dari fakta literal (bukan teka-teki). Satu slide lain boleh punya POV personal bila judgment dapat ditarik langsung dari artikel. S6 memakai pertanyaan judgment hanya bila pilihan konkret tersedia.",
@@ -3686,16 +3772,20 @@ def post_to_threads(article_title, posts, image_url=None, inflight=None):
         if last_post_id:
             data["reply_to_id"] = last_post_id
         container_id = None
-        for retry in range(2):
-            try:
-                r = httpx.post(f"{GRAPH}/{uid}/threads", data=data, timeout=15)
-                if r.status_code == 200:
-                    container_id = r.json().get("id")
-                    break
-                log.warning(f"  {key} create attempt {retry+1}: HTTP {r.status_code}")
-            except (httpx.RequestError, json.JSONDecodeError) as e:
-                log.warning(f"  {key} create attempt {retry+1}: {e}")
-            time.sleep(2)
+        if inflight is not None:
+            if inflight.get("attempting_key"):
+                return {"error": "PUBLISH_AMBIGUOUS: journal contains unfinished request", "post_ids": published_ids}
+            _mark_inflight(inflight, attempting_key=key, attempting_phase="create",
+                           attempting_started_at=datetime.now(WIB).isoformat())
+        try:
+            r = httpx.post(f"{GRAPH}/{uid}/threads", data=data, timeout=15)
+            if r.status_code == 200:
+                container_id = r.json().get("id")
+            else:
+                log.warning(f"  {key} create: HTTP {r.status_code}")
+        except (httpx.RequestError, json.JSONDecodeError) as e:
+            log.error(f"  {key} create ambiguous: {e}")
+            return {"error": "PUBLISH_AMBIGUOUS: create request outcome unknown", "post_ids": published_ids}
         if not container_id:
             # Root image is publish contract. Never silently downgrade IMAGE to TEXT.
             log.error(f"  {key} create failed; image fallback disabled")
@@ -3722,19 +3812,20 @@ def post_to_threads(article_title, posts, image_url=None, inflight=None):
                 log.error(f"  {key} image processing timeout")
                 return {"error": f"{key} image processing timeout", "post_ids": published_ids}
             image_used = True
+        if inflight is not None:
+            _mark_inflight(inflight, attempting_phase="publish", creation_id=container_id)
         time.sleep(1)
         post_id = None
-        for retry in range(2):
-            try:
-                r = httpx.post(f"{GRAPH}/{uid}/threads_publish",
-                              data={"access_token": THREADS_TOKEN, "creation_id": container_id}, timeout=15)
-                if r.status_code == 200:
-                    post_id = r.json().get("id")
-                    break
-                log.warning(f"  {key} publish attempt {retry+1}: HTTP {r.status_code}")
-            except (httpx.RequestError, json.JSONDecodeError) as e:
-                log.warning(f"  {key} publish attempt {retry+1}: {e}")
-            time.sleep(2)
+        try:
+            r = httpx.post(f"{GRAPH}/{uid}/threads_publish",
+                           data={"access_token": THREADS_TOKEN, "creation_id": container_id}, timeout=15)
+            if r.status_code == 200:
+                post_id = r.json().get("id")
+            else:
+                log.warning(f"  {key} publish: HTTP {r.status_code}")
+        except (httpx.RequestError, json.JSONDecodeError) as e:
+            log.error(f"  {key} publish ambiguous: {e}")
+            return {"error": "PUBLISH_AMBIGUOUS: publish request outcome unknown", "post_ids": published_ids}
         if not post_id:
             log.error(f"  {key} publish failed")
             return {"error": f"{key} publish failed", "post_ids": published_ids}
@@ -3742,6 +3833,8 @@ def post_to_threads(article_title, posts, image_url=None, inflight=None):
         last_post_id = post_id
         if inflight is not None:
             inflight["post_ids"] = published_ids
+            for field in ("attempting_key", "attempting_phase", "attempting_started_at", "creation_id"):
+                inflight.pop(field, None)
             save_inflight(inflight)
         log.info(f"  {key} {'IMAGE' if use_image else 'TEXT'} → {post_id}")
         time.sleep(2)
@@ -3787,49 +3880,118 @@ def _remaining_eligible_candidates(candidates, failed_url):
             if _canonical_url(candidate.get("url", "")) != failed]
 
 
+def _record_published(data, article, result, posts, pub, started_at):
+    topic = {
+        "title": article["title"],
+        "article_url": _canonical_url(article["url"]),
+        "canonical_url": _canonical_url(article["url"]),
+        "article_source": article["source"],
+        "lane": article.get("lane") or _story_lane(article["title"], article.get("body", "")),
+        "impact_channel": article.get("impact_channel") or _international_impact_channel(article["title"], article.get("body", "")),
+        "angle": result.get("angle", ""),
+        "post_id": pub["post_ids"][0],
+        "media_id": pub["media_ids"][0] if pub.get("media_ids") else None,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+07:00"),
+        "eco_score": article.get("eco_score"),
+        "selection_weight": article.get("_weight"),
+        "pattern": article.get("pattern") or _content_metadata(article["title"], article.get("body", ""))[0],
+        "arc": result.get("arc") or article.get("arc") or _content_metadata(article["title"], article.get("body", ""))[1],
+        "hook_pattern": article.get("hook_pattern") or _content_metadata(article["title"], article.get("body", ""))[2],
+        "editorial_lens": article.get("editorial_lens") or _editorial_lens(article["title"], article.get("body", "")),
+        "slides": posts,
+        "likes": None, "replies": None, "reposts": None, "views": None, "quotes": None,
+        "cohort": CURRENT_COHORT,
+    }
+    data.setdefault("topics", []).insert(0, topic)
+    rc = data.setdefault("recent_content", {})
+    rc.setdefault("openings", []).insert(0, posts.get("post_1", "")[:100])
+    rc.setdefault("ctas", []).insert(0, posts.get("post_6", "")[:100])
+    for key in ["openings", "ctas"]:
+        rc[key] = rc[key][:10]
+    save_data(data)
+    INFLIGHT_FILE.unlink(missing_ok=True)
+    log.info(f"Posted: {pub['post_ids'][0]}")
+    send_success_report(article["title"], article.get("pattern", "UNKNOWN"),
+                        time.monotonic() - started_at, threads_permalink(pub["post_ids"][0]))
+
+
+def _publish_new_locked(data, article, result, posts, image_url, started_at):
+    duplicate = duplicate_ledger_match(data, article["url"])
+    if duplicate:
+        log.warning("SKIP_duplicate: %s", duplicate)
+        print("SKIP_duplicate", flush=True)
+        return
+    inflight = {
+        "article": article, "posts": posts, "post_ids": [], "image_url": image_url,
+        "publish_state": "READY",
+        "topic": {
+            "title": article["title"], "article_url": _canonical_url(article["url"]),
+            "canonical_url": _canonical_url(article["url"]), "article_source": article["source"],
+            "lane": article.get("lane") or _story_lane(article["title"], article.get("body", "")),
+            "impact_channel": article.get("impact_channel") or _international_impact_channel(article["title"], article.get("body", "")),
+            "angle": result.get("angle", ""), "story_functions": STORY_FUNCTIONS,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+07:00"),
+            "eco_score": article.get("eco_score"), "selection_weight": article.get("_weight"),
+            "pattern": article.get("pattern"), "arc": result.get("arc", ""),
+            "hook_pattern": article.get("hook_pattern"),
+            "editorial_lens": article.get("editorial_lens") or _editorial_lens(article["title"], article.get("body", "")),
+            "slides": posts, "likes": None, "replies": None, "reposts": None,
+            "views": None, "quotes": None, "cohort": CURRENT_COHORT,
+        },
+    }
+    save_inflight(inflight)
+    pub = post_to_threads(article["title"], posts, image_url=image_url, inflight=inflight)
+    if _publish_complete(pub, posts):
+        _record_published(data, article, result, posts, pub, started_at)
+    elif pub and pub.get("error"):
+        log.error(f"Post error: {pub['error']}")
+
+
 def main():
     started_at = time.monotonic()
-    data = load_data()
-    cohorts_changed = normalize_topic_cohorts(data)
-    if cohorts_changed and not DRY_RUN:
-        save_data(data)
-    inflight = load_inflight()
-    if inflight:
-        posts = inflight["posts"]
-        article = inflight["article"]
-        veto = _final_publish_veto(article, {
-            "angle": inflight.get("topic", {}).get("angle", ""),
-            "arc": inflight.get("topic", {}).get("arc", ""),
-        })
-        if veto:
-            log.error(f"Final publish veto: {veto}")
-            return
-        log.warning(f"Resuming partial chain from S{len(inflight.get('post_ids', [])) + 1}")
-        pub = post_to_threads(article["title"], posts, inflight.get("image_url"), inflight)
-        if _publish_complete(pub, posts):
-            topic = inflight["topic"]
-            topic.setdefault("lane", _story_lane(article["title"], article.get("body", "")))
-            topic.setdefault("impact_channel", _international_impact_channel(article["title"], article.get("body", "")))
-            topic["post_id"] = pub["post_ids"][0]
-            topic["media_id"] = pub["media_ids"][0] if pub.get("media_ids") else None
-            data.setdefault("topics", []).insert(0, topic)
-            rc = data.setdefault("recent_content", {})
-            rc.setdefault("openings", []).insert(0, posts.get("post_1", "")[:100])
-            rc.setdefault("ctas", []).insert(0, posts.get("post_6", "")[:100])
-            for k in ["openings", "ctas"]:
-                rc[k] = rc[k][:10]
-            save_data(data)
-            INFLIGHT_FILE.unlink(missing_ok=True)
-            log.info(f"Posted: {pub['post_ids'][0]}")
-            send_success_report(article["title"], article.get("pattern", "UNKNOWN"),
-                                time.monotonic() - started_at, threads_permalink(pub["post_ids"][0]))
-        elif pub and pub.get("error"):
-            log.error(f"Post error: {pub['error']}")
+    try:
+        data = load_data()
+        inflight = load_inflight()
+    except LedgerStateError as exc:
+        log.error("CONTRACT_FAILURE: %s", exc)
+        print("CONTRACT_FAILURE", flush=True)
         return
-    posted_urls = {
-        _canonical_url(t.get("article_url", t.get("title", "")))
-        for t in data.get("topics", [])
-    }
+    normalize_topic_cohorts(data)
+    if inflight:
+        with post_url_lock():
+            try:
+                data = load_data()
+                inflight = load_inflight()
+            except LedgerStateError as exc:
+                log.error("CONTRACT_FAILURE: %s", exc)
+                print("CONTRACT_FAILURE", flush=True)
+                return
+            article = inflight["article"]
+            duplicate = duplicate_ledger_match(data, article.get("url", ""))
+            if duplicate:
+                log.error("DUPLICATE_HISTORY_UNCERTAIN: %s", duplicate)
+                print("DUPLICATE_HISTORY_UNCERTAIN", flush=True)
+                return
+            posts = inflight["posts"]
+            veto = _final_publish_veto(article, {
+                "angle": inflight.get("topic", {}).get("angle", ""),
+                "arc": inflight.get("topic", {}).get("arc", ""),
+            })
+            if veto:
+                log.error(f"Final publish veto: {veto}")
+                return
+            log.warning(f"Resuming partial chain from S{len(inflight.get('post_ids', [])) + 1}")
+            if inflight.get("attempting_key"):
+                log.error("PUBLISH_AMBIGUOUS: manual remote verification required")
+                print("PUBLISH_AMBIGUOUS", flush=True)
+                return
+            pub = post_to_threads(article["title"], posts, inflight.get("image_url"), inflight)
+            if _publish_complete(pub, posts):
+                _record_published(data, article, inflight["topic"], posts, pub, started_at)
+            elif pub and pub.get("error"):
+                log.error(f"Post error: {pub['error']}")
+        return
+    posted_urls = posted_canonical_urls(data)
 
     # Step 1: scrape, generate, validate, publish/render.
     article = body = og_image = None
@@ -3988,7 +4150,7 @@ def main():
         # Retry only candidates already body-fetched and editorially validated above.
         # Re-picking from skipped_urls made every eligible fallback unreachable.
         retry_candidates = _remaining_eligible_candidates(eligible_candidates, article["url"])
-        for retry_article in retry_candidates[:max(0, CANDIDATE_POOL_LIMIT - 1)]:
+        for retry_article in retry_candidates[:1]:
             if goto_step5:
                 break
             log.info(f"  Retry eligible candidate: {retry_article['title'][:80]}")
@@ -4043,64 +4205,14 @@ def main():
         print("NO_SAFE_CANDIDATE", flush=True)
         return
     if not DRY_RUN:
-        inflight = {
-            "article": article, "posts": posts, "post_ids": [], "image_url": image_url,
-            "topic": {
-                "title": article["title"], "article_url": article["url"], "article_source": article["source"],
-                "lane": article.get("lane") or _story_lane(article["title"], article.get("body", "")),
-                "impact_channel": article.get("impact_channel") or _international_impact_channel(article["title"], article.get("body", "")),
-                "angle": result.get("angle", ""),
-                "story_functions": STORY_FUNCTIONS,
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+07:00"),
-                "eco_score": article.get("eco_score"), "selection_weight": article.get("_weight"),
-                "pattern": article.get("pattern"), "arc": result.get("arc", ""),
-                "hook_pattern": article.get("hook_pattern"),
-                "editorial_lens": article.get("editorial_lens") or _editorial_lens(article["title"], article.get("body", "")),
-                "slides": posts,
-                "likes": None, "replies": None, "reposts": None, "views": None, "quotes": None,
-                "cohort": CURRENT_COHORT,
-            },
-        }
-        save_inflight(inflight)
-        pub = post_to_threads(article["title"], posts, image_url=image_url, inflight=inflight)
-        if _publish_complete(pub, posts):
-            log.info(f"Posted: {pub['post_ids'][0]}")
-            topic = {
-                "title": article["title"],
-                "article_url": article["url"],
-                "article_source": article["source"],
-                "lane": article.get("lane") or _story_lane(article["title"], article.get("body", "")),
-                "impact_channel": article.get("impact_channel") or _international_impact_channel(article["title"], article.get("body", "")),
-                "angle": result.get("angle", ""),
-                "post_id": pub["post_ids"][0],
-                "media_id": pub["media_ids"][0] if pub.get("media_ids") else None,
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S+07:00"),
-                "eco_score": article.get("eco_score"),
-                "selection_weight": article.get("_weight"),
-                "pattern": article.get("pattern") or _content_metadata(article["title"], article.get("body", ""))[0],
-                "arc": result.get("arc") or article.get("arc") or _content_metadata(article["title"], article.get("body", ""))[1],
-                "hook_pattern": article.get("hook_pattern") or _content_metadata(article["title"], article.get("body", ""))[2],
-                "editorial_lens": article.get("editorial_lens") or _editorial_lens(article["title"], article.get("body", "")),
-                "slides": posts,
-                "likes": None,
-                "replies": None,
-                "reposts": None,
-                "views": None,
-                "quotes": None,
-                "cohort": CURRENT_COHORT,
-            }
-            data.setdefault("topics", []).insert(0, topic)
-            rc = data.setdefault("recent_content", {})
-            rc.setdefault("openings", []).insert(0, posts.get("post_1", "")[:100])
-            rc.setdefault("ctas", []).insert(0, posts.get("post_6", "")[:100])
-            for k in ["openings", "ctas"]:
-                rc[k] = rc[k][:10]
-            save_data(data)
-            INFLIGHT_FILE.unlink(missing_ok=True)
-            send_success_report(article["title"], article.get("pattern", "UNKNOWN"),
-                                time.monotonic() - started_at, threads_permalink(pub["post_ids"][0]))
-        elif pub and pub.get("error"):
-            log.error(f"Post error: {pub['error']}")
+        with post_url_lock():
+            try:
+                data = load_data()
+            except LedgerStateError as exc:
+                log.error("CONTRACT_FAILURE: %s", exc)
+                print("CONTRACT_FAILURE", flush=True)
+                return
+            _publish_new_locked(data, article, result, posts, image_url, started_at)
     else:
         print()
         for i in range(1, 8):
