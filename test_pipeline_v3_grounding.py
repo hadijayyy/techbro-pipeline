@@ -2070,3 +2070,27 @@ def test_remaining_candidates_excludes_posted_urls_when_data_given():
     data = {"topics": [{"article_url": "https://example.com/1"}]}
     remaining = pipeline._remaining_eligible_candidates(candidates, "https://example.com/x", data)
     assert [c["url"] for c in remaining] == ["https://example.com/2"]
+
+
+def test_sync_ledger_metrics_skips_rows_without_posted_timestamp(monkeypatch):
+    monkeypatch.setattr(pipeline, "THREADS_TOKEN", "test-token")
+    called = []
+    monkeypatch.setattr(pipeline, "_fetch_engagement_metrics",
+                        lambda pid: called.append(pid) or {"views": 100, "likes": 2,
+                                                           "replies": 1, "reposts": 0, "quotes": 0})
+    monkeypatch.setattr(pipeline, "save_data", lambda *a, **k: None)
+    data = {"topics": [
+        {"post_id": "111", "views": None, "posted": "2026-07-21T10:00:00+07:00",
+         "timestamp": "2026-07-21T10:00:00+07:00"},  # legit: has posted -> fetch
+        {"post_id": "222", "views": None, "timestamp": "2026-07-21T10:00:00+07:00"},  # legacy: no posted -> skip
+        {"post_id": "333", "views": None, "posted": "2026-07-22T10:00:00+07:00",
+         "timestamp": "2026-07-22T10:00:00+07:00"},  # legit
+        {"post_id": "444", "views": 50, "posted": "2026-07-23T10:00:00+07:00"},  # already has views -> skip
+    ]}
+    updated, fetched_total, failed = pipeline.sync_ledger_metrics(data, max_fetch=40)
+    assert called == ["333", "111"]  # newest-first; only rows with posted + null views
+    assert fetched_total == 2
+    assert updated == 2
+    assert failed == 0
+    assert data["topics"][0]["views"] == 100
+    assert data["topics"][1].get("views") is None  # legacy row untouched, no API call burned

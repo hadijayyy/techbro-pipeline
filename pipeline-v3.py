@@ -449,7 +449,10 @@ def sync_ledger_metrics(data, max_fetch=40):
     if DRY_RUN or not THREADS_TOKEN:
         return 0, 0, 0
     candidates = [t for t in data.get("topics", [])
-                  if t.get("post_id") and t.get("views") is None]
+                  if t.get("post_id") and t.get("views") is None and t.get("posted")]
+    # Records without a posted timestamp are legacy rows whose Threads posts
+    # are gone (Graph API 400 object-not-exist); skip them so each run does not
+    # burn API calls on permanently-unfetchable metrics.
     # Fill newest gaps first so the freshest feedback enters scoring soonest.
     candidates.sort(key=lambda t: t.get("timestamp") or "", reverse=True)
     updated = fetched_total = failed = 0
