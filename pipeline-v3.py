@@ -563,15 +563,6 @@ def _issue_terms(title):
     }
 
 
-def _issue_words(title):
-    """Return literal issue tokens, keeping APBN/APBD distinct."""
-    text = title.lower()
-    return {
-        alias for aliases in ISSUE_TERM_ALIASES.values() for alias in aliases
-        if re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", text)
-    }
-
-
 EVENT_ALIASES = {
     "announce": ("umumkan", "mengumumkan", "ungkap", "mengungkap", "tegas", "tegaskan", "target", "bidik", "rencana"),
     "change": ("ubah", "mengubah", "revisi", "naikkan", "turunkan", "menaikkan", "menurunkan", "penyesuaian"),
@@ -593,10 +584,6 @@ def _event_terms(title):
 
 def _title_numbers(title):
     return set(re.findall(r"\d+(?:[.,]\d+)?", title.lower()))
-
-
-def _normalize_title(title):
-    return " ".join(re.findall(r"[a-z0-9]+", title.lower()))
 
 
 # ── HTTP Helpers ─────────────────────────────────────────────────────────────
@@ -2168,20 +2155,6 @@ def _topic_score(title, body):
         return 0, 0, 0
 
 
-def _is_official_mass_change(title, body):
-    """Allow one-economy-signal stories only for explicit mass public changes."""
-    text = f"{title} {body}".lower()
-    official = any(word in text for word in (
-        "ditetapkan", "berlaku", "disahkan", "putusan", "peraturan", "resmi naik",
-        "resmi turun", "tarif naik", "tarif turun",
-    ))
-    mass = any(word in text for word in (
-        "tarif transportasi", "transportasi", "listrik", "bbm", "pajak", "upah",
-        "bansos", "pangan", "konsumen", "masyarakat", "penumpang",
-    ))
-    return official and mass
-
-
 def _is_empty_commentary(title, body):
     """Reject a quote-only official reaction with no action, rule, or concrete data.
     Headline reaction words alone are not enough — check body for concrete substance too."""
@@ -2864,6 +2837,8 @@ Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali l
 # RULES
 - Jangan menambah dampak, profesi, angka, skenario, motif, status resmi, timeline, penilaian, nama, lokasi, tanggal, sebab-akibat, prediksi, atau kutipan. Jangan menambah dampak, profesi, angka, skenario, penilaian baru.
 - SUMBER ADALAH BATAS. ISI ARTIKEL satu-satunya sumber. Jangan membuat fakta baru.
+- Dilarang memakai emoji, emotikon, atau ASCII emoticon di post_1 sampai post_6. Gunakan kata, bukan simbol.
+- Nama institusi, orang, dan label kejadian (termasuk bencana) WAJIB persis dari artikel. Jangan menambah, mengganti, menyingkat, atau mengarang singkatan/label baru.
 - Kalimat pertama boleh berupa reaksi, observasi, atau fakta paling kuat. Jika dibuka dengan reaksi, fakta literal harus muncul di kalimat yang sama atau berikutnya.
 - Minimal dua slide memiliki POV editorial eksplisit: S1 wajib punya reaksi atau observasi berbasis fakta; satu slide lain boleh memberi judgment berbasis fakta. Jangan memaksa gw/lo di setiap slide.
 - Jangan ulang angka, fakta, atau contoh. jangan ulang angka, fakta, atau contoh dalam slide lain. Jika fungsi sebab/dampak/relevansi tidak punya bukti, gunakan bukti lain yang tersedia; jangan mengisi bagian kosong dengan tebakan. Jangan ulang angka, fakta, atau contoh tanpa bukti berbeda dari artikel.
