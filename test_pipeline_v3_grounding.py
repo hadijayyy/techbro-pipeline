@@ -1987,3 +1987,69 @@ if __name__ == "__main__":
     test_hook_allows_supported_policy_change_without_forced_number_or_contradiction()
     test_engagement_prefers_reposts_replies_and_likes_per_view()
     print("PASS")
+# ── Performance feedback loop & duplicate guards ────────────────────────────
+
+def test_duplicate_title_match_blocks_similar_within_24h():
+    from datetime import timedelta
+    recent = (datetime.now(pipeline.WIB) - timedelta(hours=2)).isoformat()
+    data = {"topics": [{
+        "title": "Purbaya Bakal Tarik Pajak Baru Tahun Depan, tapi Tergantung Ini",
+        "timestamp": recent,
+    }]}
+    similar = "Purbaya Bakal Tarik Pajak Baru Tahun Depan tapi Tergantung Kondisi"
+    assert pipeline.duplicate_title_match(data, similar)
+
+
+def test_duplicate_title_match_allows_different_topic():
+    data = {"topics": [{
+        "title": "Prabowo Kebut Swasembada Pangan Siapkan Rp195 T",
+        "timestamp": "2026-08-17T15:04:25+07:00",
+    }]}
+    assert pipeline.duplicate_title_match(data, "IHSG Ditutup Menguat Hari Ini") is None
+
+
+def test_duplicate_title_match_ignores_old_rows():
+    data = {"topics": [{
+        "title": "Purbaya Bakal Tarik Pajak Baru Tahun Depan",
+        "timestamp": "2026-08-01T15:04:25+07:00",
+    }]}
+    assert pipeline.duplicate_title_match(data, "Purbaya Bakal Tarik Pajak Baru Tahun Depan") is None
+
+
+def test_jaccard_zero_on_disjoint_tokens():
+    assert pipeline._jaccard(["pajak"], ["subsidi"]) == 0.0
+    assert pipeline._jaccard([], ["subsidi"]) == 0.0
+
+
+def test_performance_medians_empty_when_no_views():
+    data = {"topics": [{"pattern": "PASAR", "lane": "national", "views": None}]}
+    stats = pipeline.performance_medians(data)
+    assert stats == {"pattern_avg": {}, "lane_avg": {}}
+
+
+def test_performance_medians_computes_medians():
+    data = {"topics": [
+        {"pattern": "KEBIJAKAN", "lane": "national", "views": 100},
+        {"pattern": "KEBIJAKAN", "lane": "national", "views": 300},
+        {"pattern": "KEBIJAKAN", "lane": "national", "views": 500},
+        {"pattern": "PASAR", "lane": "international", "views": 40},
+    ]}
+    stats = pipeline.performance_medians(data)
+    assert stats["pattern_avg"]["KEBIJAKAN"] == 300
+    assert stats["pattern_avg"]["PASAR"] == 40
+    assert stats["lane_avg"]["national"] == 300
+    assert stats["lane_avg"]["international"] == 40
+
+
+def test_performance_bias_bounded_and_zero_without_stats():
+    assert pipeline._performance_bias({}, {}) == 0
+    stats = {"pattern_avg": {"KEBIJAKAN": 40000}, "lane_avg": {"national": 20000}}
+    bias = pipeline._performance_bias({"pattern": "KEBIJAKAN", "lane": "national"}, stats)
+    assert 0 <= bias <= 10  # capped, never negative for strong performers
+
+
+def test_remaining_candidates_excludes_posted_urls_when_data_given():
+    candidates = [{"url": "https://example.com/1"}, {"url": "https://example.com/2"}]
+    data = {"topics": [{"article_url": "https://example.com/1"}]}
+    remaining = pipeline._remaining_eligible_candidates(candidates, "https://example.com/x", data)
+    assert [c["url"] for c in remaining] == ["https://example.com/2"]

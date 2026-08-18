@@ -314,6 +314,49 @@ def duplicate_ledger_match(data, article_url):
     return canonical if canonical and canonical in posted_canonical_urls(data) else None
 
 
+def _title_tokens(title):
+    """Lowercase alnum tokens; drops leading section tags and filler words."""
+    tokens = re.findall(r"[a-z0-9]+", (title or "").lower())
+    stop = {"yang", "dan", "di", "ke", "dari", "untuk", "dengan", "pada", "ini",
+            "itu", "juga", "akan", "sudah", "masih", "saat", "karena", "agar",
+            "para", "terus", "bisa", "bakal", "mau", "tapi"}
+    return [t for t in tokens if t not in stop and len(t) > 1]
+
+
+def _jaccard(a, b):
+    if not a or not b:
+        return 0.0
+    sa, sb = set(a), set(b)
+    return len(sa & sb) / len(sa | sb)
+
+
+def duplicate_title_match(data, title, min_sim=0.55, hours=24):
+    """Block near-identical titles posted within `hours` (anti-spam audience guard).
+
+    Uses token Jaccard on normalized titles; exact URL dedup remains the strict gate.
+    Returns matching posted title string or None.
+    """
+    if not title:
+        return None
+    now_ts = datetime.now(WIB)
+    tokens = _title_tokens(title)
+    for topic in data.get("topics", []):
+        if not topic.get("title"):
+            continue
+        ts = topic.get("timestamp") or topic.get("posted") or ""
+        try:
+            ts = datetime.fromisoformat(ts)
+        except (TypeError, ValueError):
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=WIB)
+        if (now_ts - ts).total_seconds() > hours * 3600:
+            continue
+        if _jaccard(tokens, _title_tokens(topic["title"])) >= min_sim:
+            return topic["title"]
+    return None
+
+
 def _mark_inflight(inflight, **updates):
     inflight.update(updates)
     save_inflight(inflight)
@@ -365,6 +408,101 @@ def send_success_report(title, pattern, elapsed, permalink):
     except Exception as e:
         log.warning(f"Success report failed: {e}")
     return False
+
+
+# ── Performance Metrics (feedback loop) ─────────────────────────────────────
+
+def _fetch_engagement_metrics(post_id, token=None, timeout=15):
+    """Fetch per-post Threads insights. Returns dict of ints or None on failure.
+
+    Mirrors budakorporat evaluation: /{post_id}/insights?metric=views,likes,...
+    """
+    if not post_id:
+        return None
+    token = token or THREADS_TOKEN
+    if not token:
+        return None
+    metric_names = ("views", "likes", "replies", "reposts", "quotes")
+    try:
+        r = httpx.get(f"{GRAPH}/{post_id}/insights",
+                      params={"metric": ",".join(metric_names), "access_token": token},
+                      timeout=timeout)
+        if r.status_code != 200:
+            log.warning("Metrics HTTP %s for %s", r.status_code, post_id)
+            return None
+        result = {}
+        for item in r.json().get("data", []):
+            values = item.get("values") or [{}]
+            result[item.get("name")] = values[0].get("value")
+        return {name: result.get(name) for name in metric_names}
+    except (httpx.RequestError, ValueError, TypeError) as exc:
+        log.warning("Metrics fetch failed for %s: %s", post_id, exc)
+        return None
+
+
+def sync_ledger_metrics(data, max_fetch=40):
+    """Backfill missing engagement metrics into posted ledger (oldest gaps last).
+
+    Returns (updated, fetched_total, failed). Bounded per run to keep Graph API
+    cost sane; rows keep their None until a later run fills them.
+    """
+    if DRY_RUN or not THREADS_TOKEN:
+        return 0, 0, 0
+    candidates = [t for t in data.get("topics", [])
+                  if t.get("post_id") and t.get("views") is None]
+    # Fill newest gaps first so the freshest feedback enters scoring soonest.
+    candidates.sort(key=lambda t: t.get("timestamp") or "", reverse=True)
+    updated = fetched_total = failed = 0
+    for topic in candidates[:max_fetch]:
+        metrics = _fetch_engagement_metrics(topic.get("post_id"))
+        fetched_total += 1
+        if metrics is None:
+            failed += 1
+            continue
+        changed = False
+        for key in ("views", "likes", "replies", "reposts", "quotes"):
+            if metrics.get(key) is not None and topic.get(key) is None:
+                topic[key] = metrics[key]
+                changed = True
+        if changed:
+            updated += 1
+    if updated:
+        save_data(data)
+    return updated, fetched_total, failed
+
+
+def performance_medians(data):
+    """Compute median views per pattern/lane from measured rows. Empty dicts on no data."""
+    stats = {"pattern_avg": {}, "lane_avg": {}}
+    pattern_buckets = {}
+    lane_buckets = {}
+    for topic in data.get("topics", []):
+        views = topic.get("views")
+        if views is None:
+            continue
+        pattern_buckets.setdefault(topic.get("pattern") or "unknown", []).append(views)
+        lane_buckets.setdefault(topic.get("lane") or "unknown", []).append(views)
+    for target, buckets in (("pattern_avg", pattern_buckets), ("lane_avg", lane_buckets)):
+        for key, values in buckets.items():
+            values.sort()
+            mid = len(values) // 2
+            stats[target][key] = (values[mid] if len(values) % 2
+                                  else (values[mid - 1] + values[mid]) / 2)
+    return stats
+
+
+def _performance_bias(article, stats, max_bonus=10):
+    """Small selection bias toward historically strong pattern/lane. Never overrides gates."""
+    if not stats:
+        return 0
+    bonuses = []
+    pattern_avg = (stats.get("pattern_avg") or {}).get(article.get("pattern") or "unknown")
+    lane_avg = (stats.get("lane_avg") or {}).get(article.get("lane") or "unknown")
+    if pattern_avg is not None:
+        bonuses.append(max(-max_bonus, min(max_bonus, pattern_avg / 200)))
+    if lane_avg is not None:
+        bonuses.append(max(-max_bonus, min(max_bonus, lane_avg / 200)))
+    return int(round(max(-max_bonus, min(max_bonus, sum(bonuses))))) if bonuses else 0
 
 
 def threads_permalink(post_id):
@@ -1008,6 +1146,7 @@ def _pick_article(articles, posted_urls, data=None, ranked_urls=None):
         a["title"] = re.sub(r'(Energi|Ekbis|Bisnis|Keuangan|Finance|Ekonomi|Nasional)$', '', a["title"]).strip()
     # Pressbox pattern: rank body-verified discovery candidates first. Full
     # editorial eligibility is checked by main() before generation.
+    perf_stats = performance_medians(data) if data else {}
     for a in candidates:
         eco_score, reason = _score_article(a)
         a["eco_score"] = eco_score
@@ -1037,7 +1176,8 @@ def _pick_article(articles, posted_urls, data=None, ranked_urls=None):
         a["_weight"] = (eco_score + freshness + relevance + source_quality
                          + _engagement_priority_bonus(a.get("title", ""), a.get("body", ""))
                          + a["story_selection_score"]
-                         + _source_diversity_penalty(data, a["source"]))
+                         + _source_diversity_penalty(data, a["source"])
+                         + _performance_bias(a, perf_stats))
     if ranked_urls:
         candidates.sort(key=lambda a: rank_order[_canonical_url(a["url"])])
     else:
@@ -3873,11 +4013,13 @@ def _source_fallback_dangling_refs(posts):
             issues.append(f"{k}: dangling demonstrative opener")
     return issues
 
-def _remaining_eligible_candidates(candidates, failed_url):
+def _remaining_eligible_candidates(candidates, failed_url, data=None):
     """Reuse body-verified candidates after generation failure; do not re-pick skipped URLs."""
     failed = _canonical_url(failed_url)
+    posted = posted_canonical_urls(data) if data is not None else set()
     return [candidate for candidate in candidates
-            if _canonical_url(candidate.get("url", "")) != failed]
+            if _canonical_url(candidate.get("url", "")) != failed
+            and _canonical_url(candidate.get("url", "")) not in posted]
 
 
 def _record_published(data, article, result, posts, pub, started_at):
@@ -3957,6 +4099,17 @@ def main():
         print("CONTRACT_FAILURE", flush=True)
         return
     normalize_topic_cohorts(data)
+    # Feedback loop: backfill engagement metrics so selection learns from past
+    # performance. Bounded fetch; failures are non-fatal (keep publishing).
+    try:
+        updated, fetched_total, failed = sync_ledger_metrics(data, max_fetch=40)
+        if updated or fetched_total:
+            log.info("Metrics sync: updated=%d fetched=%d failed=%d", updated, fetched_total, failed)
+        perf_stats = performance_medians(data)
+        if perf_stats["pattern_avg"] or perf_stats["lane_avg"]:
+            log.info("Perf medians: %s", json.dumps(perf_stats, ensure_ascii=False))
+    except Exception as exc:
+        log.warning("Metrics sync skipped: %s", exc)
     if inflight:
         with post_url_lock():
             try:
@@ -4026,6 +4179,12 @@ def main():
             break
         # Consume candidate once. Without this, eligible candidate repeats until pool fills.
         skipped_urls.add(candidate["url"])
+        # Anti-spam: skip near-identical titles posted within 24h before body fetch.
+        title_dup = duplicate_title_match(data, candidate.get("title", ""))
+        if title_dup:
+            reject_reasons["title_duplicate_24h"] += 1
+            log.info(f"  Skip: title dup 24h -> {title_dup[:70]}")
+            continue
         log.info(f"Picked: {candidate['title']}")
         log.info(f"  Source: {candidate['source']} | Score: {candidate.get('eco_score', 0)} | Reason: {candidate.get('_reason', '')} | Weight: {candidate.get('_weight', 0)}")
         log.info("Fetching article body...")
@@ -4149,7 +4308,7 @@ def main():
 
         # Retry only candidates already body-fetched and editorially validated above.
         # Re-picking from skipped_urls made every eligible fallback unreachable.
-        retry_candidates = _remaining_eligible_candidates(eligible_candidates, article["url"])
+        retry_candidates = _remaining_eligible_candidates(eligible_candidates, article["url"], data)
         for retry_article in retry_candidates[:1]:
             if goto_step5:
                 break
