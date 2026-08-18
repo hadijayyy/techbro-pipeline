@@ -2888,6 +2888,7 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 14.PUNCHLINE: setiap reaksi, kontras, dan judgment harus punya evidence span. Jika sumber tidak menjelaskan motif, dampak, korban, prediksi, atau sebab-akibat, hapus punchline tersebut; jangan isi lubang dengan asumsi.
 15.S6: pakai CTA hanya jika pilihan atau benturan konkret muncul literal di sumber. Jika tidak ada, pertahankan penutup observasional berbasis fakta; jangan membuat pertanyaan moral generik.
 16.HINDARI: pembuka template, "alasannya?", "yang bikin gue mikir", jargon kebijakan tanpa penjelasan, drama buatan, daftar strategi, dan gaya formal news anchor.
+17.VARIASI SUDUT: post_2 sampai post_5 wajib punya SATU fokus berbeda — misal angka/utang, proses/urutan, orang/keputusan, dampak/biaya, atau skala sistem. Jangan ulang kalimat, angka, atau penjelasan yang sama di dua slide. Bila sumber tidak menyediakan bahan untuk sudut berbeda, pertahankan sudut yang ada; jangan mengarang sudut baru.
 
 Jika tidak ada enam post yang bisa dipertahankan akurat dan memenuhi aturan di atas, balas {{"status":"error","message":"insufficient_evidence"}}."""
 
