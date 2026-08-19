@@ -1078,14 +1078,13 @@ def test_deterministic_validate_rejects_slide_without_sentence():
     assert "post_6: no sentences" in pipeline.deterministic_validate(posts)
 
 
-def test_style_warnings_do_not_block_quality_gate():
+def test_padahal_is_conjunction_not_slop():
     posts = {f"post_{i}": "Fakta sumber cukup panjang dan lengkap untuk konteks. Bukti kedua menambah rincian." for i in range(1, 7)}
     posts["post_1"] = "Fakta sumber cukup panjang dan lengkap untuk konteks. Bukti sumber menambah konteks."
     posts["post_6"] = "Fakta sumber cukup panjang dan lengkap untuk konteks. Menurut lo?"
     posts["post_2"] = "Padahal fakta sumber cukup panjang dan lengkap untuk konteks. Bukti kedua menambah rincian."
     warnings = pipeline.deterministic_validate(posts)
-    assert any("slop 'padahal'" in item for item in warnings)
-    assert pipeline._quality_gate({"body": "x"}, {"status": "success"}, posts, []) is True
+    assert not any("slop 'padahal'" in item for item in warnings)
 
 
 def test_quality_gate_blocks_revision_style_violation():

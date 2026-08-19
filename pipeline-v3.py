@@ -3306,7 +3306,7 @@ def deterministic_validate(posts):
         "foto ini", "terlihat", "di gambar", "nampak", "tampak",
         "seperti terlihat", "seperti tampak",
         # Other slop
-        "tapi ternyata", "padahal", "sembari",
+        "tapi ternyata", "sembari",
         "bukan hanya", "namun juga", "baik itu",
     ]
     for i in range(1, 7):
