@@ -2987,6 +2987,7 @@ Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali l
 - Jangan ulang angka, fakta, atau contoh. jangan ulang angka, fakta, atau contoh dalam slide lain. Jika fungsi sebab/dampak/relevansi tidak punya bukti, gunakan bukti lain yang tersedia; jangan mengisi bagian kosong dengan tebakan. Jangan ulang angka, fakta, atau contoh tanpa bukti berbeda dari artikel.
 - Untuk kebijakan: gunakan opsi resmi + kelompok terdampak + status belum final hanya jika literal; jelaskan pembagian kewenangan serta dasar aturan bila tertulis.
 - Jangan mengubah satuan atau menghitung angka baru.
+- Grounding per-slide: setiap angka, nama, perbandingan, istilah spesifik, atau klaim di post WAJIB salin literal dari ISI ARTIKEL; jangan parafrase fakta baru dan jangan mengisi slide tanpa fakta literal dengan kalimat umum. Lebih baik slide pendek berisi fakta literal daripada slide panjang berisi tafsir tanpa sumber.
 - Parafrase boleh jika makna tetap sama. Istilah/konsep kunci dari artikel (misal "biaya kendaraan", "bahan bakar impor") TIDAK BOLEH diganti sinonim yang mengubah cakupan: "biaya kendaraan" ≠ "harga motor", "bahan bakar impor" ≠ "BBM". Pertahankan minimal satu kata kunci literal dari istilah sumber (biaya/kendaraan, bahan bakar/impor). Jangan menyingkat istilah resmi jadi akronim baru yang tidak ada di artikel.
 - Setiap post wajib minimal 1 kalimat jelas dan maksimal 480 karakter. Fragment pendek atau ellipsis boleh sebagai bagian dari ritme percakapan bila maknanya tetap jelas. Satu ide utama per post. Slide lebih panjang BOLEH bila setiap kalimat menambah bukti/judgment baru; jangan menambah slide demi padding.
 - Utamakan bahasa sehari-hari. Istilah teknis boleh dipakai bila membuat kalimat lebih tajam; jelaskan bila natural, jangan memaksa definisi.
@@ -4055,6 +4056,39 @@ def generate_thread(article):
                         log.info("  Revision fixed validation")
                     else:
                         log.warning(f"  Revision blocked: {w2 + style_w2 + voice_w2}")
+                        # Bounded 2nd revision with explicit issue list (error-feedback).
+                        # Retry polos tidak menolong halusinasi grounding; daftar issue
+                        # spesifik + draft revision 1 + literal allowlist memberi LLM
+                        # informasi yang hilang di pass pertama. Hanya untuk hard issues
+                        # yang bertahan setelah revision 1 (bukan style-only).
+                        if w2:
+                            rev2_notes = re.sub(r"'[^']*'", "'unsupported wording'", '; '.join(w2))
+                            rev2_user = user + "\n\n" + build_revision_prompt(rev2_notes, p2, article)
+                            c3, e3 = _call_llm(SYSTEM_PROMPT, rev2_user, max_retries=1, temperature=0.2)
+                            if c3:
+                                d3 = _parse_llm_json(c3)
+                                if d3 is not None:
+                                    p3 = {k: _convert_pov(d3.get(k) or "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
+                                    p3 = _normalize_s1(p3, article["body"])
+                                    style_w3 = deterministic_validate(p3) + _duplicate_fact_warnings(p3)
+                                    noun_w3 = _validate_proper_nouns(p3, article["body"])
+                                    w3 = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4"] if not p3.get(k, "").strip()]
+                                    w3.extend(grounding_validate(article, p3))
+                                    w3.extend(_indonesian_language_issues(p3))
+                                    w3.extend(noun_w3)
+                                    w3.extend(_validate_s1_hook(p3, article["body"], article))
+                                    w3.extend(_validate_s6_cta(p3, article["body"]))
+                                    w3.extend(w for w in style_w3 if "emoji/emote forbidden" in w)
+                                    voice_w3 = _voice_warnings(p3)
+                                    if style_w3 or voice_w3:
+                                        log.info(f"  Soft style warnings after revision 2: {style_w3 + voice_w3}")
+                                    if d3.get("status") == "success" and not w3:
+                                        data, posts = d3, p3
+                                        warnings = []
+                                        log.info("  Revision 2 fixed validation")
+                                    else:
+                                        log.warning(f"  Revision 2 blocked: {w3 + style_w3 + voice_w3}")
+                                        # Fall through: per-field revert to pre-revision originals below.
                         # HARD VALIDATION FAILURE — per-field revert to pre-revision originals.
                         # The LLM tends to "solve" one hard issue while introducing a new one
                         # (e.g. patching post_2's 'padahal' → creates 'padahal' in post_1).
