@@ -3147,6 +3147,42 @@ def _source_fallback_posts(article):
                 choices = clean_choices
             if not choices:
                 return None
+            if slide == 0:
+                # S1 hook gate: prefer pairs with a concrete signal (number,
+                # past-tense change, named contrast) over raw article leads like
+                # "REPUBLIKA.CO.ID, JAKARTA -- Bank Indonesia memproyeksikan...".
+                # Raw leads are journalism, not hooks — they don't stop scroll.
+                # Also drop journalism datelines ("MEDIA, CITY --") from S1 pool.
+                dateline = re.compile(
+                    r"^[A-Z][A-Za-z.]*(?:\.co\.id|\.com)?,\s*[A-Z][A-Za-z]+\s*--",
+                    re.I,
+                )
+                no_dateline = [c for c in choices if not dateline.match(c[2].strip())]
+                hook_signal = re.compile(
+                    r"(?:rp\s*)?\d|persen|%|miliar|juta|triliun|"
+                    r"\b(memutuskan|menaikkan|menurunkan|menghentikan|melarang|"
+                    r"menolak|mengumumkan|menetapkan|membatalkan|mengubah|"
+                    r"menyebutkan angka|turun|naik|melonjak|anjlok)\b",
+                    re.I,
+                )
+                weak_start = re.compile(
+                    r"^\s*(sementara itu|selain itu|kemudian|selanjutnya|di sisi lain|"
+                    r"sementara|adapun|terkait hal ini|dalam keterangan)",
+                    re.I,
+                )
+                # Strong S1: no weak transition opener AND signal in FIRST sentence.
+                strong = [
+                    c for c in no_dateline
+                    if not weak_start.match(c[2].strip())
+                    and hook_signal.search(c[2].split(". ")[0])
+                ]
+                hook_choices = [c for c in no_dateline if hook_signal.search(c[2])]
+                if strong:
+                    choices = strong
+                elif hook_choices:
+                    choices = hook_choices
+                elif no_dateline:
+                    choices = no_dateline
             i, j, text = choices[0]
             pairs.append(text)
             remaining = [s for n, s in enumerate(remaining) if n not in (i, j)]
@@ -3525,13 +3561,9 @@ def _validate_s1_hook(posts, body, article=None):
     if not s1:
         return ["post_1: empty"]
 
-    # Gate B: S1 must not end with ?
-    if s1.endswith("?"):
-        issues.append("post_1: ends with question mark — rewite to declarative hook")
-
-    # Gate C: S1 too short / generic / no content signal
-    if len(s1) < 100:
-        issues.append(f"post_1: too short ({len(s1)} chars) — target 100-150 chars")
+    # Gate B: S1 must not end with ? — REMOVED. Winning formula uses challenge
+    # question hooks ("Kamu masih nunggu...?"). Hard-rejecting '?' killed the
+    # best hook pattern. Question-mark S1 is allowed.
 
     # Gate C: source-only fallback angle pattern (generic placeholder)
     s1_lower = s1.lower()
@@ -3556,7 +3588,18 @@ def _validate_s1_hook(posts, body, article=None):
         title_names -= false_positives
         if title_names:
             body_lower = body_text.lower()
-            found = any(name.lower() in body_lower for name in title_names)
+            # Match per-word, not the whole 2-4 word phrase. "Pemerintah Usulkan
+            # Perubahan Subsidi" fails literal phrase match because body uses the
+            # inflected form "mengusulkan". Per-word substring check tolerates
+            # verb affixation while still catching hallucinated entities.
+            found = False
+            for name in title_names:
+                words = [w for w in name.split() if len(w) > 3]
+                if not words:
+                    continue
+                if all(w.lower() in body_lower for w in words):
+                    found = True
+                    break
             if not found:
                 issues.append(
                     f"post_1: headline named entity '{list(title_names)[0]}' "
@@ -3564,6 +3607,30 @@ def _validate_s1_hook(posts, body, article=None):
                 )
 
     return issues
+
+
+def _hook_signal_issues(posts):
+    """Fallback-path hook quality gate: S1 must carry a concrete hook signal.
+
+    Raw article leads (\"REPUBLIKA.CO.ID, JAKARTA -- Bank Indonesia memproyeksikan
+    kondisi ekonomi global masih bergerak melemah...\") are journalism, not hooks —
+    they don't stop scroll. Require at least one: concrete number, change verb,
+    named contrast, or challenge question. Applies ONLY to source-only fallback
+    (writer/revision path keeps advisory behavior).
+    """
+    s1 = (posts.get("post_1") or "").strip()
+    if not s1:
+        return ["post_1: empty"]
+    signal = re.compile(
+        r"(?:rp\s*)?\d|persen|%|miliar|juta|triliun|"
+        r"\b(memutuskan|menaikkan|menurunkan|menghentikan|melarang|"
+        r"menolak|mengumumkan|menetapkan|membatalkan|mengubah|turun|naik|"
+        r"melonjak|anjlok)\b|\?",
+        re.I,
+    )
+    if not signal.search(s1):
+        return ["post_1: hook has no concrete signal (number/change/contrast/question) — raw lead won't stop scroll"]
+    return []
 
 
 def _validate_s6_cta(posts, body):
@@ -4017,6 +4084,7 @@ def generate_thread(article):
                                 fallback_posts = _normalize_s1(fallback_posts, article["body"])
                                 fallback_issues = deterministic_grounding_validate(article, fallback_posts)
                                 fallback_issues += _validate_s1_hook(fallback_posts, article["body"], article)
+                                fallback_issues += _hook_signal_issues(fallback_posts)
                                 fallback_issues += _validate_s6_cta(fallback_posts, article["body"])
                                 fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
                                 fallback_issues += _source_fallback_dangling_refs(fallback_posts)
@@ -4452,6 +4520,7 @@ def main():
             fallback_posts = _normalize_s1(fallback_posts, article["body"])
             fallback_issues = deterministic_grounding_validate(article, fallback_posts)
             fallback_issues += _validate_s1_hook(fallback_posts, article["body"], article)
+            fallback_issues += _hook_signal_issues(fallback_posts)
             fallback_issues += _validate_s6_cta(fallback_posts, article["body"])
             fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
             fallback_issues += _source_fallback_dangling_refs(fallback_posts)

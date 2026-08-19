@@ -2210,3 +2210,49 @@ def test_sync_ledger_metrics_skips_rows_without_posted_timestamp(monkeypatch):
     assert failed == 0
     assert data["topics"][0]["views"] == 100
     assert data["topics"][1].get("views") is None  # legacy row untouched, no API call burned
+
+
+def test_hook_signal_gate_rejects_raw_journalism_lead():
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi." for i in range(1, 7)}
+    posts["post_1"] = ("REPUBLIKA.CO.ID, JAKARTA -- Bank Indonesia memproyeksikan "
+                       "kondisi ekonomi global masih bergerak melemah di tengah "
+                       "ketidakpastian geoekonomi dan geopolitik. Sementara itu, "
+                       "kondisi domestik dinilai tetap terjaga.")
+    issues = pipeline._hook_signal_issues(posts)
+    assert issues, "raw lead without number/change/question must fail hook gate"
+    assert "no concrete signal" in issues[0]
+
+
+def test_hook_signal_gate_accepts_number_and_change_verb():
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi." for i in range(1, 7)}
+    posts["post_1"] = "Gubernur BI Perry Warjiyo bilang ekonomi global 2026 cuma tumbuh 2,7 persen, lebih rendah dari proyeksi sebelumnya 3,0 persen."
+    assert pipeline._hook_signal_issues(posts) == []
+
+
+def test_hook_signal_gate_accepts_challenge_question():
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi." for i in range(1, 7)}
+    posts["post_1"] = "Kamu masih nunggu bakat buat mulai investasi? Padahal emas udah naik 8 persen bulan ini."
+    assert pipeline._hook_signal_issues(posts) == []
+
+
+def test_source_fallback_skips_news_dateline_for_s1():
+    body = " ".join([
+        "REPUBLIKA.CO.ID, JAKARTA -- Bank Indonesia memproyeksikan ekonomi global melemah.",
+        "Sementara itu, kondisi domestik dinilai tetap terjaga dan membaik dari proyeksi sebelumnya.",
+        "Gubernur BI Perry Warjiyo mengatakan ekonomi global 2026 diperkirakan tumbuh 2,7 persen.",
+        "Pertumbuhan ekonomi Indonesia 2026 diproyeksikan 4,7-5,5 persen.",
+        "Inflasi diperkirakan tetap terkendali di kisaran 2,5 persen.",
+        "BI mempertahankan suku bunga acuan pada 5,25 persen.",
+        "Keputusan ini diambil dalam RDG yang berlangsung di Jakarta.",
+        "Perry menegaskan kebijakan ini untuk menjaga stabilitas nilai tukar rupiah.",
+        "Daya beli masyarakat dipantau ketat oleh pemerintah.",
+        "Ekonom menilai prospek domestik masih positif karena konsumsi rumah tangga tumbuh.",
+        "Investasi diperkirakan menguat seiring perbaikan iklim usaha.",
+        "Ekspor diproyeksikan tumbuh moderat karena permintaan global melambat.",
+    ])
+    posts = pipeline._source_fallback_posts({"body": body, "pattern": "KEBIJAKAN"})
+    assert posts is not None
+    assert not posts["post_1"].startswith("REPUBLIKA.CO.ID"), (
+        "S1 must not start with news dateline"
+    )
+    assert pipeline._hook_signal_issues(posts) == []
