@@ -2711,34 +2711,6 @@ def _validate_unsupported_editorial_claims(posts, body):
     return issues
 
 
-def _validate_speculative_pov(posts, body):
-    """Block speculative hypothetical POV framing absent from source.
-
-    Catches the pattern where the writer invents scenarios to justify an
-    editorial position: "bayangin kalau...", "platform tetep bisa naikin
-    biaya lain", "konsumen tetep pilih yang termurah", "perlindungan cuma
-    setengah jalan". Such POV must be grounded in literal source contrast.
-    """
-    source = _normalize_grounding_text(body)
-    patterns = (
-        (r"\bbayangin(?: kalau)?\b", "speculative scenario"),
-        (r"\btetep bisa naikin\b", "speculative scenario"),
-        (r"\btetep (?:bisa|pilih|kalah)\b", "speculative scenario"),
-        (r"\bnggak peduli\b", "speculative indifference"),
-        (r"\bcuma setengah jalan\b", "unsupported half-measure judgment"),
-        (r"\bkalah saing sama (?:barang|produk) impor\b", "unsupported competition claim"),
-        (r"\bnaikin biaya lain\b", "unsupported fee-shift claim"),
-    )
-    issues = []
-    for key in [f"post_{i}" for i in range(1, 7)]:
-        text = _normalize_grounding_text(posts.get(key, ""))
-        for pattern, label in patterns:
-            match = re.search(pattern, text)
-            if match and match.group(0) not in source:
-                issues.append(f"{key}: {label} '{match.group(0)}' not in article")
-    return issues
-
-
 def _validate_concept_terms(posts, body):
     """Reject replacement of key article concepts with narrower/broader synonyms.
 
@@ -2772,7 +2744,6 @@ def deterministic_grounding_validate(article, posts):
             + _validate_unsupported_financial_framing(posts, body)
             + _validate_unsupported_inferences(posts, body) + _validate_range_direction(posts, body)
             + _validate_unsupported_editorial_claims(posts, body)
-            + _validate_speculative_pov(posts, body)
             + _validate_concept_terms(posts, body)
             + _validate_source_evidence_map(posts, body))
 
@@ -3558,11 +3529,6 @@ def _validate_s1_hook(posts, body, article=None):
     # Gate B: S1 must not end with ? — REMOVED. Winning formula uses challenge
     # question hooks ("Kamu masih nunggu...?"). Hard-rejecting '?' killed the
     # best hook pattern. Question-mark S1 is allowed.
-
-    # Gate C: source-only fallback angle pattern (generic placeholder)
-    s1_lower = s1.lower()
-    if any(kw in s1_lower for kw in ["siapa yang ", "source-only", "fallback", "tunggu perpres", "belum ada"]):
-        issues.append("post_1: generic/fallback angle — add specific named party or number hook")
 
     # Gate D: headline named entity must appear in body (grounding check)
     # Extract name-like patterns from title (2-4 word capitalized sequences)

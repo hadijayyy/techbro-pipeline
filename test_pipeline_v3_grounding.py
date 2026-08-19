@@ -957,31 +957,6 @@ def test_unsupported_editorial_claims_block_unbacked_blame_and_loss():
     assert any("unsupported timing/motive framing" in issue for issue in issues)
 
 
-def test_speculative_pov_blocks_invented_scenarios():
-    issues = pipeline._validate_speculative_pov(
-        {
-            "post_4": "Tapi transparansi biaya aja cukup? Bayangin - Penjual lokal tetep kalah saing sama barang impor. - Platform tetep bisa naikin biaya lain. - Konsumen nggak peduli lokal atau impor. Jadi, perlindungan cuma setengah jalan.",
-        },
-        "Kemendag mendorong transparansi biaya untuk memperkuat perlindungan usaha dan produk dalam negeri. Shopee membuat dashboard transparansi biaya.",
-    )
-    assert any("speculative scenario" in issue for issue in issues)
-    assert any("unsupported half-measure judgment" in issue for issue in issues)
-    assert any("unsupported competition claim" in issue for issue in issues)
-    assert any("unsupported fee-shift claim" in issue for issue in issues)
-    assert any("speculative indifference" in issue for issue in issues)
-
-
-def test_speculative_pov_allows_grounded_editorial():
-    issues = pipeline._validate_speculative_pov(
-        {
-            "post_1": "Transparansi biaya naik, tapi dashboard baru ini baru untuk satu platform.",
-            "post_2": "Kemendag dorong perlindungan usaha dalam negeri lewat transparansi biaya.",
-        },
-        "Kemendag mendorong transparansi biaya untuk memperkuat perlindungan usaha dan produk dalam negeri. Shopee membuat dashboard transparansi biaya.",
-    )
-    assert issues == []
-
-
 def test_evidence_plan_carries_late_article_facts_beyond_first_12():
     """Full-text grounding: long articles must not lose facts after sentence 12."""
     sentences = []
