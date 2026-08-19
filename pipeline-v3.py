@@ -2675,7 +2675,7 @@ def hook_issues(hook, body):
 
 
 SLIDE_CHAR_LIMIT = 480
-S1_CHAR_LIMIT = 220
+S1_CHAR_LIMIT = 300
 
 
 def _sentence_count(text):
@@ -2864,7 +2864,7 @@ Ubah satu artikel sumber menjadi 6 post Threads yang saling tersambung. Gunakan 
 Fungsi post:
 Pilih arc sesuai bukti sumber: kebijakan, household impact (harga/upah/daya beli), public money, supply shock, atau market decision. Jangan pakai arc kebijakan untuk semua artikel. Jangan gunakan label `wallet_pressure`; promo retail tidak boleh diubah menjadi tekanan ekonomi rumah tangga.
 Buat satu STORY SPINE sebelum menulis: satu perubahan/konflik/status gap yang benar-benar tertulis. SATU THREAD = SATU CERITA: seluruh S1-S6 membahas SATU isu utama dengan SATU angle saja; jika artikel memuat beberapa isu, pilih SATU yang paling penting bagi pembaca dan jangan mencampur isu lain (misal jangan membahas SpaceX di thread tentang Trump/Oman). S1 membuka reaksi, observasi, atau ketegangannya, bukan sekadar "X bilang Y". S2-S5 tidak punya fungsi tetap; tiap slide memilih satu bukti atau benturan berbeda dari artikel. Jangan memaksa keputusan, mekanisme, angka pembanding, pihak terdampak, atau trade-off bila sumber tidak menyediakannya. S6 kembali ke ketegangan S1 dan memberi dua pilihan yang benar-benar ada di artikel bila tersedia. Jika tidak ada pilihan atau benturan konkret, tutup dengan simpulan editorial. Simpulan harus spesifik berbasis fakta. Untuk lane internasional, jelaskan kanal dampak Indonesia hanya jika kalimat sumber menghubungkannya.
-1. HOOK — S1 maksimal 220 karakter. Mulai dari reaksi atau observasi bila fakta mendukung, lalu tampilkan angka, konflik, perubahan, kontras, kutipan, atau konsekuensi yang tertulis di artikel. Jika tidak memakai reaction-first, Buka dengan fakta paling mahal dan fakta paling kuat; buat kalimat pertama menyampaikan fakta. Ambil sisi dari fakta; opini tegas boleh selama tidak menambah klaim. Sisakan curiosity gap yang jawabannya ada di S2-S6. Jangan mulai dengan lead berita biasa, "menurut laporan", atau deskripsi gambar.
+1. HOOK — S1 maksimal 300 karakter. Mulai dari reaksi atau observasi bila fakta mendukung, lalu tampilkan angka, konflik, perubahan, kontras, kutipan, atau konsekuensi yang tertulis di artikel. Jika tidak memakai reaction-first, Buka dengan fakta paling mahal dan fakta paling kuat; buat kalimat pertama menyampaikan fakta. Ambil sisi dari fakta; opini tegas boleh selama tidak menambah klaim. Sisakan curiosity gap yang jawabannya ada di S2-S6. Jangan mulai dengan lead berita biasa, "menurut laporan", atau deskripsi gambar.
 
 Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali literal ada di ISI ARTIKEL.
 2-5. BUKTI BERBEDA — pilih fakta, mekanisme, pihak, angka, konteks, atau batas informasi yang tersedia. hitung-hitungan pelaksanaan dan biaya hanya boleh masuk bila sumber menyediakannya. S5 boleh menunjukkan beban/keuntungan antar pihak bila literal di artikel. Tidak semua jenis bukti wajib muncul. Jangan mengubah ketiadaan informasi menjadi klaim.
@@ -2914,7 +2914,7 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 4.STOP-SLOP: hindari pembuka laporan, transisi bertele-tele, kontras formulaik, hedge samar, rujukan gambar, dan kalimat pasif.
 5.TIDAK boleh menambah dampak/CTA baru, nama baru, label penilaian, atau fakta di luar ALLOWLIST. Jangan memberi label pada tindakan atau menyimpulkan motif, hasil, maupun dampak kecuali artikel menyebutnya secara literal.
 5a.CTA: S6 boleh mengundang respons pembaca jika fakta atau pilihan konkret tersedia di ISI ARTIKEL. Jika tidak tersedia, pertahankan simpulan editorial dan jangan membuat CTA atau fakta baru.
-6.S1: boleh satu kalimat tajam atau dua kalimat pendek. Maksimal 220 karakter.
+6.S1: boleh satu kalimat tajam atau dua kalimat pendek. Maksimal 300 karakter.
 7.RETURN TO ORIGINAL: Jika tidak bisa perbaiki tanpa invent nama/angka/label baru, balikan ke value asli field tersebut. Jangan tambah apa-apa.
 8.VOICE: ubah slide yang terlalu menjelaskan menjadi reaksi, observasi, atau judgment tegas berbasis fakta. Pertahankan fakta valid. Jangan menambah dampak, motif, prediksi, angka, nama, atau CTA.
 9.POV: pastikan S1 memiliki reaksi/observasi editorial. Tambahkan POV ke satu slide lain hanya jika judgment tersebut dapat ditarik langsung dari fakta artikel.
@@ -3712,7 +3712,7 @@ def _quality_gate(article, data, posts, warnings):
 # ── Thread Generation ────────────────────────────────────────────────────────
 
 def _normalize_s1(posts, article_body):
-    """Enforce compact S1 hook: keep complete sentences within 220 chars."""
+    """Enforce compact S1 hook: keep complete sentences within 300 chars."""
     s1 = posts.get("post_1", "")
     if len(s1) > S1_CHAR_LIMIT:
         posts["post_1"] = _fit_complete_sentences(s1, S1_CHAR_LIMIT)
