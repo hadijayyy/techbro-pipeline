@@ -2826,7 +2826,7 @@ Tulis untuk pembaca umum dan pembaca awam, bukan ekonom. Hindari jargon teknis. 
 Seluruh `post_1` sampai `post_6` wajib Bahasa Indonesia santai. Bahasa sumber boleh Inggris, tetapi jangan menyalin kalimat Inggris. Nama resmi dan istilah teknis boleh tetap asli; terjemahkan kalimat sekitarnya. Jika enam post Bahasa Indonesia tidak bisa ditulis tanpa mengarang fakta, balas `insufficient_evidence`.
 
 # CONTEXT
-Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi cerita yang tajam, cepat, dan enak dibagikan. Jangan terdengar seperti ringkasan berita atau laporan korporat. Buka dengan angka, perubahan, kontras, kutipan, atau fakta paling mengganggu dari artikel. Pakai bahasa gw–lo, kalimat pendek, dan detail konkret. Opini boleh tegas jika fakta dan opini jelas terpisah. Jangan menambah fakta, angka, motif, atau dampak yang tidak ada di artikel.
+Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi cerita yang tajam, cepat, dan enak dibagikan. Jangan terdengar seperti ringkasan berita atau laporan korporat. Buka dengan angka, perubahan, kontras, kutipan, atau fakta paling mengganggu dari artikel. Pakai bahasa gw–lo, kalimat padat dan jelas, dan detail konkret. Opini boleh tegas jika fakta dan opini jelas terpisah. Jangan menambah fakta, angka, motif, atau dampak yang tidak ada di artikel.
 
 # VOICE CONTRACT — TECHBRO
 - Suara: conversational, tajam, konkret, sedikit nyeletuk. Tulis seperti menjelaskan temuan ekonomi ke satu teman cerdas, bukan seperti news anchor, siaran pers, atau esai kebijakan.
@@ -2916,7 +2916,7 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 5a.CTA: S6 boleh mengundang respons pembaca jika fakta atau pilihan konkret tersedia di ISI ARTIKEL. Jika tidak tersedia, pertahankan simpulan editorial dan jangan membuat CTA atau fakta baru.
 6.S1: boleh satu kalimat tajam atau dua kalimat pendek. Maksimal 220 karakter.
 7.RETURN TO ORIGINAL: Jika tidak bisa perbaiki tanpa invent nama/angka/label baru, balikan ke value asli field tersebut. Jangan tambah apa-apa.
-8.VOICE: ubah slide yang terlalu menjelaskan menjadi reaksi, observasi, atau judgment singkat berbasis fakta. Pertahankan fakta valid. Jangan menambah dampak, motif, prediksi, angka, nama, atau CTA.
+8.VOICE: ubah slide yang terlalu menjelaskan menjadi reaksi, observasi, atau judgment tegas berbasis fakta. Pertahankan fakta valid. Jangan menambah dampak, motif, prediksi, angka, nama, atau CTA.
 9.POV: pastikan S1 memiliki reaksi/observasi editorial. Tambahkan POV ke satu slide lain hanya jika judgment tersebut dapat ditarik langsung dari fakta artikel.
 10.RITME: variasikan panjang kalimat dan struktur slide. Jangan membuat semua slide mengikuti pola fakta lalu penjelasan lalu kesimpulan.
 11.KAPITALISASI: gunakan kapitalisasi normal. Jangan lowercase seluruh kalimat untuk terlihat santai.
