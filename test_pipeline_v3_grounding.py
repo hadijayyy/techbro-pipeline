@@ -666,6 +666,17 @@ def test_writer_prompt_requires_plain_words_for_general_readers():
     assert "jargon teknis" in pipeline.SYSTEM_PROMPT
 
 
+def test_writer_prompt_carries_theoderick_calibration():
+    body = "Pemerintah mengubah kebijakan subsidi energi senilai Rp2 triliun. Rumah tangga menunggu aturan baru. " * 12
+    prompt = pipeline.build_user_prompt({"body": body})
+    assert "KALIBRASI THEODERICK" in pipeline.SYSTEM_PROMPT
+    assert "KALIBRASI THEODERICK" in prompt
+    assert "reframe paradox" in prompt
+    assert "kontra-intuitif" in prompt
+    assert "ges/ndak/gokil/bgt/krn/dg" in prompt
+    assert "hook singkat" in prompt
+
+
 def test_writer_prompt_requires_evidence_backed_cta_options():
     body = "Pemerintah mengubah subsidi energi. Rumah tangga menunggu aturan baru. " * 12
     prompt = pipeline.build_user_prompt({"body": body})
