@@ -1112,6 +1112,22 @@ def test_quality_gate_allows_grounded_s6_without_cta():
     assert pipeline._quality_gate({}, {"status": "success"}, posts, []) is True
 
 
+def test_theoderick_accent_words_pass_quality_gate():
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk memenuhi batas minimum. Konteks sumber menambah rincian berbeda." for i in range(1, 7)}
+    posts["post_2"] = "Ges, angka ini gokil bgt. Ndak ada yang ngira krn datanya dg skala besar."
+    assert pipeline._quality_gate({}, {"status": "success"}, posts, []) is True
+    issues = pipeline.deterministic_validate(posts)
+    assert not any("emoji/emote" in issue for issue in issues), issues
+
+
+def test_theoderick_reframe_does_not_relax_emoji_ban():
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk memenuhi batas minimum. Konteks sumber menambah rincian berbeda." for i in range(1, 7)}
+    posts["post_3"] = "Reframe: yang penting bukan angkanya, tapi siapa yang nanggung. Ges 🙏"
+    assert not pipeline._quality_gate({}, {"status": "success"}, posts, [])
+    issues = pipeline.deterministic_validate(posts)
+    assert any("emoji/emote" in issue for issue in issues), issues
+
+
 def test_hook_allows_supported_policy_change_without_forced_number_or_contradiction():
     assert not pipeline.hook_issues("Pemerintah ubah aturan PPN minggu depan.", "Kebijakan berlaku 1 Agustus.")
 
