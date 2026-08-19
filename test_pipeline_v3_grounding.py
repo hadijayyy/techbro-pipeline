@@ -924,6 +924,72 @@ def test_publish_timeout_with_failed_retry_returns_ambiguous(tmp_path, monkeypat
     assert result["post_ids"] == []
 
 
+def test_resolve_stranded_publish_republishes_and_continues(tmp_path, monkeypatch):
+    """A stranded publish (creation_id in journal) must resolve via idempotent
+    republish so a resumed chain continues instead of failing closed forever."""
+    monkeypatch.setattr(pipeline, "INFLIGHT_FILE", tmp_path / "inflight_chain.json")
+    monkeypatch.setattr(pipeline, "THREADS_TOKEN", "tok")
+    monkeypatch.setattr(pipeline, "THREADS_USER_ID", "uid")
+
+    class Resp:
+        status_code = 200
+
+        def json(self):
+            return {"id": "post_for_cid"}
+
+    calls = {"n": 0}
+    orig_post = pipeline.httpx.post
+
+    def fake_post(url, **kwargs):
+        if url.endswith("/threads_publish"):
+            calls["n"] += 1
+            assert kwargs["data"]["creation_id"] == "cid_123"
+            return Resp()
+        return orig_post(url, **kwargs)
+
+    monkeypatch.setattr(pipeline.httpx, "post", fake_post)
+    inflight = {
+        "article": {"url": "https://example.test/a"},
+        "posts": {"post_1": "one", "post_2": "two"},
+        "post_ids": ["p1"],
+        "attempting_key": "post_2",
+        "attempting_phase": "publish",
+        "attempting_started_at": "2026-08-19T23:00:00",
+        "creation_id": "cid_123",
+    }
+    assert pipeline._resolve_stranded_publish(inflight) is True
+    assert calls["n"] == 1
+    assert inflight["post_ids"] == ["p1", "post_for_cid"]
+    assert "attempting_key" not in inflight
+    assert "attempting_phase" not in inflight
+    assert "creation_id" not in inflight
+    assert pipeline.load_inflight()["post_ids"] == ["p1", "post_for_cid"]
+
+
+def test_resolve_stranded_publish_failure_stays_fail_closed(tmp_path, monkeypatch):
+    """If the republish also fails, remain fail-closed (no chain continuation)."""
+    monkeypatch.setattr(pipeline, "INFLIGHT_FILE", tmp_path / "inflight_chain.json")
+    monkeypatch.setattr(pipeline, "THREADS_TOKEN", "tok")
+    monkeypatch.setattr(pipeline, "THREADS_USER_ID", "uid")
+
+    def fake_post(url, **kwargs):
+        raise pipeline.httpx.ReadTimeout("still timing out")
+
+    monkeypatch.setattr(pipeline.httpx, "post", fake_post)
+    inflight = {
+        "article": {"url": "https://example.test/a"},
+        "posts": {"post_1": "one", "post_2": "two"},
+        "post_ids": ["p1"],
+        "attempting_key": "post_2",
+        "attempting_phase": "publish",
+        "attempting_started_at": "2026-08-19T23:00:00",
+        "creation_id": "cid_123",
+    }
+    assert pipeline._resolve_stranded_publish(inflight) is False
+    assert inflight["post_ids"] == ["p1"]
+    assert "attempting_key" in inflight
+
+
 def test_llm_has_room_for_complete_six_post_json():
     class Response:
         status_code = 200

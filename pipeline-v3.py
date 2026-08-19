@@ -4344,6 +4344,37 @@ def _publish_new_locked(data, article, result, posts, image_url, started_at):
         log.error(f"Post error: {pub['error']}")
 
 
+def _resolve_stranded_publish(inflight):
+    """If a publish was attempted but the outcome is unknown (stranded container),
+    re-issue threads_publish. It is idempotent: an already-PUBLISHED container
+    returns the same post id, so this resolves the ambiguity without double-posting.
+    Returns True if resolved (journal updated, chain may continue), False otherwise.
+    """
+    if inflight.get("attempting_phase") != "publish" or not inflight.get("creation_id"):
+        return False
+    cid = inflight["creation_id"]
+    log.warning(f"Resolving stranded publish for container {cid} via idempotent republish")
+    try:
+        rr = httpx.post(f"{GRAPH}/{THREADS_USER_ID}/threads_publish",
+                        data={"access_token": THREADS_TOKEN, "creation_id": cid}, timeout=15)
+        if rr.status_code != 200:
+            log.error(f"PUBLISH_AMBIGUOUS: stranded republish HTTP {rr.status_code}")
+            return False
+        pid = rr.json().get("id")
+        if not pid:
+            log.error("PUBLISH_AMBIGUOUS: stranded republish empty body")
+            return False
+        inflight.setdefault("post_ids", []).append(pid)
+        for field in ("attempting_key", "attempting_phase", "attempting_started_at", "creation_id"):
+            inflight.pop(field, None)
+        save_inflight(inflight)
+        log.info(f"  stranded publish resolved → {pid}; continuing chain")
+        return True
+    except (httpx.RequestError, json.JSONDecodeError) as exc:
+        log.error(f"PUBLISH_AMBIGUOUS: stranded republish failed: {exc}")
+        return False
+
+
 def main():
     started_at = time.monotonic()
     try:
@@ -4390,9 +4421,10 @@ def main():
                 return
             log.warning(f"Resuming partial chain from S{len(inflight.get('post_ids', [])) + 1}")
             if inflight.get("attempting_key"):
-                log.error("PUBLISH_AMBIGUOUS: manual remote verification required")
-                print("PUBLISH_AMBIGUOUS", flush=True)
-                return
+                if not _resolve_stranded_publish(inflight):
+                    log.error("PUBLISH_AMBIGUOUS: manual remote verification required")
+                    print("PUBLISH_AMBIGUOUS", flush=True)
+                    return
             pub = post_to_threads(article["title"], posts, inflight.get("image_url"), inflight)
             if _publish_complete(pub, posts):
                 _record_published(data, article, inflight["topic"], posts, pub, started_at)
