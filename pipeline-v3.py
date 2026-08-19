@@ -2941,6 +2941,11 @@ Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi
 - Angka konkret dulu, tafsir belakangan. Kalau artikel punya angka, taruh angkanya di kalimat pembuka atau segera setelah reaksi; interpretasi mengikuti.
 - Penutup S6 boleh mengajak pembaca membandingkan pengalaman nyatanya dengan satu fakta dari artikel ("pernah ngerasain X?"), bila fakta itu literal. Ini berbeda dari pertanyaan moral generik — harus menyebut elemen konkret dari sumber.
 
+# POLA TERBUKTI (dari analisis post viral @ryanhadiii)
+- Analogi sehari-hari 1 kalimat: jelaskan angka/statistik dengan gambaran akrab ("pesta mewah di tengah kampung paceklik", "mesin jalan tapi olinya bocor"). Analogi hanya untuk memperjelas, JANGAN menambah fakta, angka, pihak, atau hubungan sebab-akibat yang tidak ada di artikel.
+- Pertanyaan retoris boleh dipakai sebagai bridge di S2-S5: satu pertanyaan menggantung ("Siapa yang sebenarnya untung?", "Uangnya kabur ke mana?") untuk memancing lanjut baca; jawabannya harus tersedia di slide berikutnya atau di akhir thread, dan pertanyaan tidak boleh menuduh motif tanpa bukti literal.
+- Tease aktor: bila artikel menyebut aktor bernama, S1 boleh memberi hint deskriptif tanpa nama ("tiga orang ngobrol") dan membuka nama di S2. Jangan menahan nama bila S1 tidak punya deskripsi kuat; jangan mengarang ciri aktor.
+
 # VOICE SAFETY
 - ISI ARTIKEL dan evidence plan adalah batas fakta. Voice tidak boleh memperluas evidence.
 - Opini boleh tegas, tetapi opini tidak boleh mengubah fakta: jangan membalik arah fakta (misal artikel bilang X naik, opini tidak boleh bilang X turun), jangan menambah angka, jangan mengganti nama/pihak, jangan menciptakan hubungan sebab-akibat. Opini adalah penilaian terhadap fakta, bukan revisi fakta.
