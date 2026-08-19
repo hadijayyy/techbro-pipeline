@@ -3538,6 +3538,31 @@ def _validate_s1_hook(posts, body, article=None):
     if any(kw in s1_lower for kw in ["siapa yang ", "source-only", "fallback", "tunggu perpres", "belum ada"]):
         issues.append("post_1: generic/fallback angle — add specific named party or number hook")
 
+    # Gate D: headline named entity must appear in body (grounding check)
+    # Extract name-like patterns from title (2-4 word capitalized sequences)
+    # and verify at least one appears in body. Prevents hallucinated attribution.
+    if article and article.get("body"):
+        title = (article.get("title") or "").strip()
+        body_text = article["body"]
+        # Extract potential named entities: 2-4 consecutive capitalized words
+        name_pattern = re.compile(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b')
+        title_names = set(name_pattern.findall(title))
+        # Filter common false positives (generic words that happen to be capitalized)
+        false_positives = {
+            "Jakarta", "Indonesia", "Jakarta Pusat", "Hari Ini", "Tahun Ini",
+            "Kementerian", "Pemerintah", "Negara", "Dalam Negeri", "Untuk Anda",
+            "Jakarta Utara", "Jakarta Selatan", "Aceh", "Sumatera", "Jawa",
+        }
+        title_names -= false_positives
+        if title_names:
+            body_lower = body_text.lower()
+            found = any(name.lower() in body_lower for name in title_names)
+            if not found:
+                issues.append(
+                    f"post_1: headline named entity '{list(title_names)[0]}' "
+                    "not found in article body — verify attribution before quoting"
+                )
+
     return issues
 
 
