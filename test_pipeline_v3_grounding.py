@@ -2063,6 +2063,30 @@ def test_score_boosts_number_shock_and_wallet_impact():
     assert pipeline._score_article(shock)[0] > pipeline._score_article(plain)[0]
 
 
+def test_engagement_bonus_boosts_wallet_and_status_topics():
+    gaji = "Pemerintah menaikkan gaji PPPK dan tunjangan guru mulai tahun depan"
+    tarif = "Tarif Transjakarta naik menjadi Rp15.000 per perjalanan"
+    pasar = "Rupiah menguat tipis di pasar valas hari ini"
+    assert pipeline._engagement_priority_bonus(gaji, "") > 0
+    assert pipeline._engagement_priority_bonus(tarif, "") > 0
+    assert pipeline._engagement_priority_bonus(pasar, "") <= 0
+
+
+def test_international_indonesia_penalty_demotes_lane():
+    # Direct story with no Indonesia impact channel -> lane international, no penalty
+    intl = "Harga minyak mentah global naik ke US$100 per barel menyusul keputusan OPEC"
+    assert pipeline._international_indonesia_penalty(intl, "") == 0
+    # Story with Indonesia impact channel -> international_indonesia lane -> penalty
+    intl_id = "Bank Indonesia merespons keputusan OPEC menaikkan harga minyak global"
+    body = "OPEC menaikkan harga minyak global. Bank Indonesia menyatakan dampak ke rupiah dan APBN."
+    assert pipeline._international_indonesia_penalty(intl_id, body) == -30
+
+
+def test_international_indonesia_penalty_zero_without_channel():
+    body = "OPEC menaikkan harga minyak global ke US$100. Harga di pasar Eropa naik."
+    assert pipeline._international_indonesia_penalty("OPEC Naikkan Harga Minyak", body) == 0
+
+
 def test_number_grounding_allows_source_decimal_rounding():
     body = "Total pembiayaan UMKM mencapai Rp 1.948,72 triliun. Kredit bank Rp 1.519,35 triliun."
     posts = {

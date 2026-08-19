@@ -494,6 +494,13 @@ def performance_medians(data):
     return stats
 
 
+def _international_indonesia_penalty(title, body):
+    """Strong selection demotion for the international_indonesia lane.
+    Ledger 2026-08-19: median 153 views (n=5, max 739) vs national 568 (max 41K).
+    Keeps lane eligible (gates unchanged) but ranks it below national policy stories."""
+    return -30 if _story_lane(title, body) == "international_indonesia" else 0
+
+
 def _performance_bias(article, stats, max_bonus=10):
     """Small selection bias toward historically strong pattern/lane. Never overrides gates."""
     if not stats:
@@ -1031,7 +1038,8 @@ def _verify_one(candidate, now, data=None):
     quality = 100 if eligible else -40
     material = 20 if has_material_economic_signal(title, body) else -20
     hot_score = round(quality + material + topic_score * 10 + confidence * 10 + freshness * 10 + source_quality
-                      + _engagement_priority_bonus(title, body) + story_selection, 3)
+                      + _engagement_priority_bonus(title, body) + story_selection
+                      + _international_indonesia_penalty(title, body), 3)
     image_provenance = _image_provenance(url, image, declared_on_page=bool(image))
     _IMAGE_PROVENANCE_CACHE[_canonical_url(url)] = image_provenance
     return {
@@ -1166,6 +1174,7 @@ def _pick_article(articles, posted_urls, data=None, ranked_urls=None):
         a["_weight"] = (eco_score + freshness + relevance + source_quality
                          + _engagement_priority_bonus(a.get("title", ""), a.get("body", ""))
                          + a["story_selection_score"]
+                         + _international_indonesia_penalty(a.get("title", ""), a.get("body", ""))
                          + _source_diversity_penalty(data, a["source"])
                          + _performance_bias(a, perf_stats))
     if ranked_urls:
@@ -1884,7 +1893,11 @@ def _engagement_priority_bonus(title, body):
         (("kebijakan", "aturan", "peraturan", "putusan", "ditetapkan", "disahkan"), 12),
         (("anggaran", "apbn", "apbd", "subsidi", "pajak", "belanja pemerintah"), 10),
         (("korupsi", "kerugian negara", "audit bpk", "temuan bpk"), 10),
-        (("harga", "biaya", "tarif", "daya beli", "rumah tangga", "konsumen"), 6),
+        (("gaji", "upah", "umk", "tunjangan", "honor", "pppk", "asn", "pns",
+          "pegawai", "karyawan", "pekerja", "buruh", "guru"), 10),
+        (("tarif", "ongkos", "biaya", "harga", "bbm", "pertalite", "pertamax",
+          "elpiji", "lpg", "listrik", "air", "transportasi", "kebutuhan pokok",
+          "daya beli", "rumah tangga", "konsumen"), 8),
         (("siapa membayar", "pihak yang membayar", "pihak yang menerima", "penerima manfaat", "untuk subsidi"), 8),
         (("konflik", "berhadapan", "dibandingkan", "sementara", "belum jelas", "masih menunggu"), 5),
         (("rupiah melemah", "rupiah menguat", "ihsg", "harga emas", "harga minyak"), -12),
@@ -3336,7 +3349,7 @@ def build_user_prompt(article):
         "VOICE CONTRACT AKTIF: conversational, tajam, konkret, sedikit nyeletuk; bukan news anchor atau esai kebijakan.",
         "POV EDITORIAL: S1 wajib punya reaksi/judgment; minimal satu slide lain harus punya POV editorial eksplisit (misal \"siapa yang beneran kena\", \"uang siapa yang hilang\", \"siapa yang untung\"). POV boleh tegas HANYA bila lahir dari kontras literal artikel; jangan mengarang motif, korban, atau pihak terdampak yang tidak ada di CLAIM MAP. Jika artikel tidak memuat kontras yang cukup, slide boleh TANPA POV — jangan memproduksi skenario hipotesis (\"tetep bisa\", \"bayangin kalau\", \"bakal\", \"nggak peduli\") atau judgment yang tidak tertopang sumber.",
         "KALIBRASI THEODERICK: reframe paradox — bungkus dua fakta literal yang saling menekan jadi pernyataan kontra-intuitif (kontras HARUS dari artikel, bukan asumsi); aksen khas terbatas ges/ndak/gokil/bgt/krn/dg hanya natural, jangan tiap slide; struktur hook singkat → ekspansi → afirmasi; campur Inggris ringan hanya kata kunci (progress, impact, growth).",
-        "HOOK: mulai S1 dari angka, keputusan, kutipan, kontras, atau fakta literal paling mengganggu. Reaksi boleh dulu, tetapi fakta harus muncul di kalimat yang sama atau berikutnya.",
+        "HOOK: mulai S1 dari angka, keputusan, kutipan, kontras, atau fakta literal paling mengganggu. Reaksi boleh dulu, tetapi fakta harus muncul di kalimat yang sama atau berikutnya. PRIORITAS HOOK: jika CLAIM MAP memuat angka spesifik (nominal rupiah, persen, jumlah orang) yang kontras dengan ekspektasi umum, buka S1 dengan angka itu (contoh: 'Rp2,71 triliun, melonjak 804,7%'; 'Rp17.100 per saham padahal cuma rumor'). Angka di S1 TERBUKTI menaikkan performa; hindari membuka dengan kata tanya atau pengantar berita.",
         "KONTRADIKSI: jika CLAIM MAP memuat dua fakta literal yang saling menekan, pasangkan di S1; jangan cuma melaporkan perubahan satu angka dan jangan menciptakan kontras baru.",
         "PROGRESI: tiap slide menaikkan tensi dengan bukti baru; jangan mengulang premis memakai sinonim. Gunakan konsekuensi, pihak, keputusan aktor, atau gap hanya jika ada di CLAIM MAP.",
         "RITME: satu slide satu pukulan. Fakta konkret dulu, lalu satu kontras, reaksi, atau judgment berbasis evidence span. Variasikan panjang dan struktur slide. Slide boleh lebih panjang (hingga 480 karakter) selama setiap kalimat menambah bukti/judgment baru; jangan padding.",
