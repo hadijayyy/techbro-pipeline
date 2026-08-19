@@ -3005,35 +3005,17 @@ Jika artikel tidak memiliki cukup bukti untuk 6 post akurat:
 {"status":"error","message":"insufficient_evidence"}
 """
 
-REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah field lain. JANGAN membuat ulang slide yang tidak disebut issue. Balas JSON lengkap dengan field yang sudah diperbaiki.
+REVISION_PROMPT = """PERBAIKI HANYA field yang disebut di bawah. JANGAN ubah field lain. JANGAN membuat ulang slide yang tidak disebut issue.
+{revision_notes}
 
-Issues: {revision_notes}
-
-ATURAN KRITICAL — JANGAN LANGGAR:
-1.grounding: hapus seluruh frasa yang disebut issue, ganti dengan fakta literal dari ISI ARTIKEL; gunakan fakta yang muncul literal di ISI ARTIKEL.
-2.nama/entitas: HANYA pakai nama dari daftar NAMA/ENTITAS LITERAL. JANGAN tambah nama baru.
-3.institution/acronym: JANGAN mengarang istilah yang tidak ada di artikel — HAPUS saja.
-4.STOP-SLOP: hindari pembuka laporan, transisi bertele-tele, kontras formulaik, hedge samar, rujukan gambar, dan kalimat pasif.
-5.TIDAK boleh menambah dampak/CTA baru, nama baru, label penilaian, atau fakta di luar ALLOWLIST. Jangan memberi label pada tindakan atau menyimpulkan motif, hasil, maupun dampak kecuali artikel menyebutnya secara literal.
-5a.CTA: S6 boleh mengundang respons pembaca jika fakta atau pilihan konkret tersedia di ISI ARTIKEL. Jika tidak tersedia, pertahankan simpulan editorial dan jangan membuat CTA atau fakta baru.
-6.S1: boleh satu kalimat tajam atau dua kalimat pendek. Maksimal 480 karakter.
-7.RETURN TO ORIGINAL: Jika tidak bisa perbaiki tanpa invent nama/angka/label baru, balikan ke value asli field tersebut. Jangan tambah apa-apa.
-8.VOICE: ubah slide yang terlalu menjelaskan menjadi reaksi, observasi, atau judgment tegas berbasis fakta. Pertahankan fakta valid. Jangan menambah dampak, motif, prediksi, angka, nama, atau CTA.
-9.POV: pastikan S1 memiliki reaksi/observasi editorial. Tambahkan POV ke satu slide lain hanya jika judgment tersebut dapat ditarik langsung dari fakta artikel.
-10.RITME: variasikan panjang kalimat dan struktur slide. Jangan membuat semua slide mengikuti pola fakta lalu penjelasan lalu kesimpulan.
-11.KAPITALISASI: gunakan kapitalisasi normal. Jangan lowercase seluruh kalimat untuk terlihat santai.
-12.BAHASA: seluruh `post_1` sampai `post_6` wajib Bahasa Indonesia. Jangan mengembalikan kalimat Inggris dari sumber.
-13.VOICE CONTRACT: conversational, tajam, konkret, sedikit nyeletuk; bukan news anchor, siaran pers, atau esai kebijakan. Mulai S1 dari fakta literal yang mengganggu. Satu slide satu pukulan. Pakai lo/gue/gua hanya bila natural.
-14.PUNCHLINE: setiap reaksi, kontras, dan judgment harus punya evidence span. Jika sumber tidak menjelaskan motif, dampak, korban, prediksi, atau sebab-akibat, hapus punchline tersebut; jangan isi lubang dengan asumsi.
-15.S6: pakai CTA hanya jika pilihan atau benturan konkret muncul literal di sumber. Jika tidak ada, pertahankan penutup observasional berbasis fakta; jangan membuat pertanyaan moral generik.
-16.HINDARI: pembuka template, "alasannya?", "yang bikin gue mikir", jargon kebijakan tanpa penjelasan, drama buatan, daftar strategi, dan gaya formal news anchor.
-17.VARIASI SUDUT: post_2 sampai post_5 wajib punya SATU fokus berbeda — misal angka/utang, proses/urutan, orang/keputusan, dampak/biaya, atau skala sistem. Jangan ulang kalimat, angka, atau penjelasan yang sama di dua slide. Bila sumber tidak menyediakan bahan untuk sudut berbeda, pertahankan sudut yang ada; jangan mengarang sudut baru.
-18.KALIBRASI AKSI: jika slide terdengar seperti ringkasan berita, ubah jadi masalah nyata pembaca + angka/fakta literal dulu, lalu tafsir. Boleh pakai struktur aksi singkat (langkah/syarat/proses) bila artikel menyediakannya. Sorot pihak yang diuntungkan/dirugikan hanya bila literal — TANPA menambah nama baru di luar NAMA/ENTITAS LITERAL (patuhi aturan 2). Jangan menuduh motif institusi tanpa fakta tertulis.
-19.SKEPTIS-KE-DATA: boleh pakai mekanik "sempat ngira X, ternyata data bilang Y" hanya bila artikel punya kontras literal antara asumsi umum dan angka. Jangan pura-pura ragu tanpa kontras di sumber.
-20.PENUTUP: S6 boleh membandingkan pengalaman pembaca dengan satu elemen konkret artikel ("pernah ngerasain X?") bila elemen itu literal; jangan pertanyaan moral generik tanpa dasar fakta.
-21.DEBAT 2 SISI (S6): SAAT pilihan/benturan literal ADA di artikel, S6 WAJIB memancing perdebatan 2 sisi yang bisa dibantah — rumuskan pertanyaan yang membelah pembaca ke dua kubu yang masing-masing bisa dipertahankan (misal "Lo setuju X atau Y?" dengan X/Y opsi/risiko literal), bukan pertanyaan setuju-tidak-setuju datar atau "gimana menurut kalian". Satu kubu harus punya downside/argumen tandingan yang bikin pembaca pengen ngebantah. Jangan menambah opsi yang tidak ada di artikel; dua sisi harus literal dari sumber. CTA WAJIB menyebut elemen konkret yang sama dengan S1 (angka, nama, atau kontras literal yang sama), supaya S6 menutup kembali ke tension S1; jangan pertanyaan yang terlepas dari S1. Jika tidak ada pilihan/benturan, pertahankan penutup observasional berbasis fakta; jangan memaksa CTA.
-22.SATU THREAD SATU CERITA: S1-S6 harus membahas SATU isu utama dengan SATU angle. Jika artikel memuat beberapa isu, pilih SATU yang paling penting bagi pembaca; jangan mencampur isu lain di slide mana pun. Hapus slide yang melompat ke isu/berita lain di luar angle utama (misal slide tentang SpaceX di thread yang angle-nya Trump/Oman), atau ubah slide itu agar kembali ke isu utama.
-23.KALIBRASI THEODERICK: jika slide terdengar datar/news-anchor, reframe jadi kontra-intuitif yang lahir dari kontras literal artikel (dua fakta yang saling menekan); boleh pakai aksen khas terbatas (ges, ndak, gokil, bgt, krn, dg) dan campur Inggris ringan untuk kata kunci (progress, impact, growth, purpose, step by step) — tapi jangan setiap slide, dan jangan pernah menambah fakta/angka/nama di luar ALLOWLIST. Emoji tetap dilarang.
+ATURAN REVISI:
+1. hapus seluruh frasa yang disebut issue; ganti dengan fakta yang muncul literal di ISI ARTIKEL. Jangan menambah angka, nama, label penilaian, motif, dampak, atau klaim baru di luar ALLOWLIST di bawah.
+2. Gunakan fakta yang muncul literal di ISI ARTIKEL; jangan parafrase fakta baru, jangan mengubah satuan atau menghitung angka baru.
+3. Nama/entitas: HANYA pakai nama dari daftar NAMA/ENTITAS LITERAL. JANGAN tambah nama baru. Institution/acronym: JANGAN mengarang istilah yang tidak ada di artikel — HAPUS saja.
+4. STOP-SLOP: hindari pembuka laporan, transisi bertele-tele, kontras formulaik, hedge samar, rujukan gambar, dan kalimat pasif.
+5. S6: CTA hanya jika pilihan/benturan konkret literal di artikel; jika tidak, pertahankan simpulan editorial. Jika tidak bisa perbaiki tanpa invent nama/angka/label baru, kembalikan ke value asli field tersebut.
+6. S1 maksimal 480 karakter. Seluruh post wajib Bahasa Indonesia. KALIBRASI AKSI: jangan ringkasan berita; ubah jadi masalah nyata pembaca + angka/fakta literal. SKEPTIS-KE-DATA: mekanik "sempat ngira X, ternyata data bilang Y" hanya bila artikel punya kontras literal; Jangan pura-pura ragu tanpa kontras di sumber. PENUTUP: S6 boleh membandingkan pengalaman pembaca dengan elemen konkret artikel bila literal; jangan pertanyaan moral generik. Jangan menuduh motif institusi tanpa fakta tertulis.
+7. RETURN TO ORIGINAL: jika tidak ada perbaikan yang aman, kembalikan ke value asli field tersebut. Jangan tambah apa-apa.
 
 Jika tidak ada enam post yang bisa dipertahankan akurat dan memenuhi aturan di atas, balas {{"status":"error","message":"insufficient_evidence"}}."""
 
@@ -3978,6 +3960,102 @@ def _normalize_s1(posts, article_body):
     return posts
 
 
+def _collect_hard_warnings(posts, article, require_all_six=False, include_engagement=True):
+    """Kumpulkan hard validation warnings untuk satu set posts (satu sumber duplikasi)."""
+    keys = ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"] if require_all_six else ["post_1", "post_2", "post_3", "post_4"]
+    missing = [f"{k}: empty" for k in keys if not posts.get(k, "").strip()]
+    style_warnings = deterministic_validate(posts)
+    duplicate_warnings = _duplicate_fact_warnings(posts)
+    noun_warnings = _validate_proper_nouns(posts, article["body"])
+    voice_warnings = _voice_warnings(posts)
+    jargon_warnings = _validate_jargon(posts, article["body"])
+    grounding_warnings = grounding_validate(article, posts)
+    hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "English-dominant", "S1 WAJIB", "weak winning hook", "generic winning CTA", "generic editorial close", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence", "template opening", "unsupported drama", "generic moral CTA", "emoji/emote forbidden"))]
+    engagement_warnings = (_validate_s1_hook(posts, article["body"], article) + _validate_s6_cta(posts, article["body"])) if include_engagement else []
+    hard = missing + grounding_warnings + noun_warnings + duplicate_warnings + hard_style_warnings + engagement_warnings
+    soft = style_warnings + voice_warnings + jargon_warnings
+    return hard, soft
+
+
+def _try_revision(user, posts, article, warnings):
+    """Bounded revision (max 2) with per-field revert + source-only fallback.
+    Returns (data, posts) if fixed, (None, None) if blocked."""
+    # Do not feed validator marker vocabulary back to model; models mirror it.
+    revision_notes = re.sub(r"'[^']*'", "'unsupported wording'", '; '.join(warnings))
+    rev_user = user + "\n\n" + build_revision_prompt(revision_notes, posts, article)
+    c2, e2 = _call_llm(SYSTEM_PROMPT, rev_user, max_retries=1, temperature=0.2)
+    if not c2:
+        log.warning("  Revision blocked: LLM error")
+        return None, None
+    d2 = _parse_llm_json(c2)
+    if d2 is None:
+        log.warning("  Revision blocked: bad JSON")
+        return None, None
+    p2 = {k: _convert_pov(d2.get(k) or "") for k in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]}
+    p2 = _normalize_s1(p2, article["body"])
+    w2, soft2 = _collect_hard_warnings(p2, article)
+    if soft2:
+        log.info(f"  Soft style warnings after revision: {soft2}")
+    if d2.get("status") == "success" and not w2:
+        log.info("  Revision fixed validation")
+        return d2, p2
+    log.warning(f"  Revision blocked: {w2 + soft2}")
+    # Bounded 2nd revision with explicit issue list (error-feedback). Only for
+    # hard issues that survived revision 1 (not style-only).
+    if not w2:
+        return None, None
+    rev2_notes = re.sub(r"'[^']*'", "'unsupported wording'", '; '.join(w2))
+    rev2_user = user + "\n\n" + build_revision_prompt(rev2_notes, p2, article)
+    c3, e3 = _call_llm(SYSTEM_PROMPT, rev2_user, max_retries=1, temperature=0.2)
+    if not c3:
+        log.warning("  Revision 2 blocked: LLM error")
+        return None, None
+    d3 = _parse_llm_json(c3)
+    if d3 is None:
+        log.warning("  Revision 2 blocked: bad JSON")
+        return None, None
+    p3 = {k: _convert_pov(d3.get(k) or "") for k in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]}
+    p3 = _normalize_s1(p3, article["body"])
+    w3, soft3 = _collect_hard_warnings(p3, article)
+    if soft3:
+        log.info(f"  Soft style warnings after revision 2: {soft3}")
+    if d3.get("status") == "success" and not w3:
+        log.info("  Revision 2 fixed validation")
+        return d3, p3
+    log.warning(f"  Revision 2 blocked: {w3 + soft3}")
+    # HARD VALIDATION FAILURE — per-field revert to pre-revision originals.
+    # The LLM tends to "solve" one hard issue while introducing a new one
+    # (e.g. patching post_2's 'padahal' → creates 'padahal' in post_1).
+    # Instead of returning "revision_failed", revert each post_ that has
+    # hard validation warnings back to its original value and re-validate.
+    # If original still fails → article skipped naturally via hard validation.
+    log.info("  Revision introduced new hard issues — per-field revert to originals")
+    p_orig = {k: _convert_pov(posts.get(k) or "") for k in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]}
+    p_orig = _normalize_s1(p_orig, article["body"])
+    w_orig, _ = _collect_hard_warnings(p_orig, article)
+    if not w_orig:
+        # Original was actually valid — revision just made noise
+        log.info("  Per-field revert: original was valid, revision was noise")
+        return {"status": "success", "angle": ""}, p_orig
+    # Model can repeatedly invent names/quotes while repairing. Use
+    # deterministic source-only fallback before rejecting candidate.
+    log.warning(f"  Original posts also hard-fail: {w_orig}")
+    fallback_posts = _source_fallback_posts(article)
+    if fallback_posts:
+        fallback_posts = _normalize_s1(fallback_posts, article["body"])
+        fallback_issues = deterministic_grounding_validate(article, fallback_posts)
+        fallback_issues += _validate_s1_hook(fallback_posts, article["body"], article)
+        fallback_issues += _hook_signal_issues(fallback_posts)
+        fallback_issues += _validate_s6_cta(fallback_posts, article["body"])
+        fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
+        fallback_issues += _source_fallback_dangling_refs(fallback_posts)
+        if not fallback_issues:
+            log.info("  Source-only fallback passed deterministic validation")
+            return {"status": "success", "angle": "source-only fallback"}, fallback_posts
+        log.warning(f"  Source-only fallback blocked: {fallback_issues[:3]}")
+    return None, None
+
+
 def generate_thread(article):
     """Generate six source-grounded posts. Returns (data, error)."""
     evidence_error = article_evidence_gate(article)
@@ -4001,137 +4079,26 @@ def generate_thread(article):
             continue
         if data.get("status") == "error":
             return None, data.get("message", "LLM error")
-        posts = {k: _convert_pov(data.get(k) or "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
+        posts = {k: _convert_pov(data.get(k) or "") for k in ["post_1", "post_2", "post_3", "post_4", "post_5", "post_6"]}
         posts = _normalize_s1(posts, article["body"])
 
-        # All 6 posts required.
-        missing = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4","post_5","post_6"] if not posts.get(k, "").strip()]
-        # Style warnings are advisory. Grounding, names, claims, empty/structure remain hard.
-        style_warnings = deterministic_validate(posts)
-        duplicate_warnings = _duplicate_fact_warnings(posts)
-        noun_warnings = _validate_proper_nouns(posts, article["body"])
-        voice_warnings = _voice_warnings(posts)
-        jargon_warnings = _validate_jargon(posts, article["body"])
-        grounding_warnings = grounding_validate(article, posts)
-        hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "English-dominant", "S1 WAJIB", "weak winning hook", "generic winning CTA", "generic editorial close", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence", "template opening", "unsupported drama", "generic moral CTA", "emoji/emote forbidden"))]
-        engagement_warnings = _validate_s1_hook(posts, article["body"], article) + _validate_s6_cta(posts, article["body"])
-        warnings = (missing + grounding_warnings + noun_warnings
-                    + duplicate_warnings + hard_style_warnings + engagement_warnings)
-        soft_warnings = style_warnings + voice_warnings + jargon_warnings
+        # All 6 posts required. Style warnings are advisory; grounding, names,
+        # claims, empty/structure remain hard.
+        warnings, soft_warnings = _collect_hard_warnings(posts, article, require_all_six=True)
         if soft_warnings:
             log.info(f"  Soft style warnings (advisory): {soft_warnings}")
         if warnings:
             log.warning(f"  Hard validation: {warnings}")
-            # Do not feed validator marker vocabulary back to model; models mirror it.
-            revision_notes = re.sub(r"'[^']*'", "'unsupported wording'", '; '.join(warnings))
-            rev_user = user + "\n\n" + build_revision_prompt(revision_notes, posts, article)
-            # One bounded revision; no rapid provider churn.
-            c2, e2 = _call_llm(SYSTEM_PROMPT, rev_user, max_retries=1, temperature=0.2)
-            if c2:
-                d2 = _parse_llm_json(c2)
-                if d2 is not None:
-                    p2 = {k: _convert_pov(d2.get(k) or "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
-                    p2 = _normalize_s1(p2, article["body"])
-                    style_w2 = deterministic_validate(p2) + _duplicate_fact_warnings(p2)
-                    noun_w2 = _validate_proper_nouns(p2, article["body"])
-                    w2 = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4"] if not p2.get(k, "").strip()]
-                    w2.extend(grounding_validate(article, p2))
-                    w2.extend(_indonesian_language_issues(p2))
-                    w2.extend(noun_w2)
-                    jargon_w2 = _validate_jargon(p2, article["body"])
-                    w2.extend(_validate_s1_hook(p2, article["body"], article))
-                    w2.extend(_validate_s6_cta(p2, article["body"]))
-                    w2.extend(w for w in style_w2 if "emoji/emote forbidden" in w)
-                    voice_w2 = _voice_warnings(p2)
-                    if style_w2 or voice_w2:
-                        log.info(f"  Soft style warnings after revision: {style_w2 + voice_w2}")
-                    if d2.get("status") == "success" and not w2:
-                        data, posts = d2, p2
-                        warnings = []
-                        log.info("  Revision fixed validation")
-                    else:
-                        log.warning(f"  Revision blocked: {w2 + style_w2 + voice_w2}")
-                        # Bounded 2nd revision with explicit issue list (error-feedback).
-                        # Retry polos tidak menolong halusinasi grounding; daftar issue
-                        # spesifik + draft revision 1 + literal allowlist memberi LLM
-                        # informasi yang hilang di pass pertama. Hanya untuk hard issues
-                        # yang bertahan setelah revision 1 (bukan style-only).
-                        if w2:
-                            rev2_notes = re.sub(r"'[^']*'", "'unsupported wording'", '; '.join(w2))
-                            rev2_user = user + "\n\n" + build_revision_prompt(rev2_notes, p2, article)
-                            c3, e3 = _call_llm(SYSTEM_PROMPT, rev2_user, max_retries=1, temperature=0.2)
-                            if c3:
-                                d3 = _parse_llm_json(c3)
-                                if d3 is not None:
-                                    p3 = {k: _convert_pov(d3.get(k) or "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
-                                    p3 = _normalize_s1(p3, article["body"])
-                                    style_w3 = deterministic_validate(p3) + _duplicate_fact_warnings(p3)
-                                    noun_w3 = _validate_proper_nouns(p3, article["body"])
-                                    w3 = [f"{k}: empty" for k in ["post_1","post_2","post_3","post_4"] if not p3.get(k, "").strip()]
-                                    w3.extend(grounding_validate(article, p3))
-                                    w3.extend(_indonesian_language_issues(p3))
-                                    w3.extend(noun_w3)
-                                    w3.extend(_validate_s1_hook(p3, article["body"], article))
-                                    w3.extend(_validate_s6_cta(p3, article["body"]))
-                                    w3.extend(w for w in style_w3 if "emoji/emote forbidden" in w)
-                                    voice_w3 = _voice_warnings(p3)
-                                    if style_w3 or voice_w3:
-                                        log.info(f"  Soft style warnings after revision 2: {style_w3 + voice_w3}")
-                                    if d3.get("status") == "success" and not w3:
-                                        data, posts = d3, p3
-                                        warnings = []
-                                        log.info("  Revision 2 fixed validation")
-                                    else:
-                                        log.warning(f"  Revision 2 blocked: {w3 + style_w3 + voice_w3}")
-                                        # Fall through: per-field revert to pre-revision originals below.
-                        # HARD VALIDATION FAILURE — per-field revert to pre-revision originals.
-                        # The LLM tends to "solve" one hard issue while introducing a new one
-                        # (e.g. patching post_2's 'padahal' → creates 'padahal' in post_1).
-                        # Instead of returning "revision_failed", revert each post_ that has
-                        # hard validation warnings back to its original value and re-validate.
-                        # If original still fails → article skipped naturally via hard validation.
-                        log.info("  Revision introduced new hard issues — per-field revert to originals")
-                        p_orig = {k: _convert_pov(data.get(k) or "") for k in ["post_1","post_2","post_3","post_4","post_5","post_6"]}
-                        p_orig = _normalize_s1(p_orig, article["body"])
-                        # Re-check original against hard validation
-                        w_orig = grounding_validate(article, p_orig)
-                        w_orig.extend([f"{k}: empty" for k in ["post_1","post_2","post_3","post_4"] if not p_orig.get(k,"").strip()])
-                        w_orig.extend(_indonesian_language_issues(p_orig))
-                        noun_orig = _validate_proper_nouns(p_orig, article["body"])
-                        w_orig.extend(noun_orig)
-                        if not w_orig:
-                            # Original was actually valid — revision just made noise
-                            posts = p_orig
-                            warnings = []
-                            log.info("  Per-field revert: original was valid, revision was noise")
-                        else:
-                            # Model can repeatedly invent names/quotes while repairing. Use
-                            # deterministic source-only fallback before rejecting candidate.
-                            log.warning(f"  Original posts also hard-fail: {w_orig}")
-                            fallback_posts = _source_fallback_posts(article)
-                            if fallback_posts:
-                                fallback_posts = _normalize_s1(fallback_posts, article["body"])
-                                fallback_issues = deterministic_grounding_validate(article, fallback_posts)
-                                fallback_issues += _validate_s1_hook(fallback_posts, article["body"], article)
-                                fallback_issues += _hook_signal_issues(fallback_posts)
-                                fallback_issues += _validate_s6_cta(fallback_posts, article["body"])
-                                fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
-                                fallback_issues += _source_fallback_dangling_refs(fallback_posts)
-                                if not fallback_issues:
-                                    posts = fallback_posts
-                                    data = {"status": "success", "angle": "source-only fallback"}
-                                    warnings = []
-                                    log.info("  Source-only fallback passed deterministic validation")
-                                else:
-                                    log.warning(f"  Source-only fallback blocked: {fallback_issues[:3]}")
-                                    return None, "revision_failed"
-                            else:
-                                return None, "revision_failed"
-                else:
-                    log.warning("  Revision blocked: bad JSON")
-                    return None, "generation_failed"
-            if warnings:
+            # Bounded revision (max 2) with per-field revert + source-only fallback.
+            fixed_data, fixed_posts = _try_revision(user, posts, article, warnings)
+            if fixed_posts is not None:
+                data, posts = fixed_data, fixed_posts
+                warnings = []
+                log.info("  Revision/fallback fixed validation")
+            else:
+                log.warning("  Revision blocked — article skipped")
                 continue
+
         # Quality gate: check article supports the thread
         if not _quality_gate(article, data, posts, warnings):
             log.warning("Quality gate blocked — skip generation")
