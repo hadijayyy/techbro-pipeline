@@ -2619,6 +2619,34 @@ def _validate_unsupported_editorial_claims(posts, body):
     return issues
 
 
+def _validate_speculative_pov(posts, body):
+    """Block speculative hypothetical POV framing absent from source.
+
+    Catches the pattern where the writer invents scenarios to justify an
+    editorial position: "bayangin kalau...", "platform tetep bisa naikin
+    biaya lain", "konsumen tetep pilih yang termurah", "perlindungan cuma
+    setengah jalan". Such POV must be grounded in literal source contrast.
+    """
+    source = _normalize_grounding_text(body)
+    patterns = (
+        (r"\bbayangin(?: kalau)?\b", "speculative scenario"),
+        (r"\btetep bisa naikin\b", "speculative scenario"),
+        (r"\btetep (?:bisa|pilih|kalah)\b", "speculative scenario"),
+        (r"\bnggak peduli\b", "speculative indifference"),
+        (r"\bcuma setengah jalan\b", "unsupported half-measure judgment"),
+        (r"\bkalah saing sama (?:barang|produk) impor\b", "unsupported competition claim"),
+        (r"\bnaikin biaya lain\b", "unsupported fee-shift claim"),
+    )
+    issues = []
+    for key in [f"post_{i}" for i in range(1, 7)]:
+        text = _normalize_grounding_text(posts.get(key, ""))
+        for pattern, label in patterns:
+            match = re.search(pattern, text)
+            if match and match.group(0) not in source:
+                issues.append(f"{key}: {label} '{match.group(0)}' not in article")
+    return issues
+
+
 def _validate_concept_terms(posts, body):
     """Reject replacement of key article concepts with narrower/broader synonyms.
 
@@ -2652,6 +2680,7 @@ def deterministic_grounding_validate(article, posts):
             + _validate_unsupported_financial_framing(posts, body)
             + _validate_unsupported_inferences(posts, body) + _validate_range_direction(posts, body)
             + _validate_unsupported_editorial_claims(posts, body)
+            + _validate_speculative_pov(posts, body)
             + _validate_concept_terms(posts, body)
             + _validate_source_evidence_map(posts, body))
 
@@ -2877,7 +2906,7 @@ Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali l
 - Dilarang memakai emoji, emotikon, atau ASCII emoticon di post_1 sampai post_6. Gunakan kata, bukan simbol.
 - Nama institusi, orang, dan label kejadian (termasuk bencana) WAJIB persis dari artikel. Jangan menambah, mengganti, menyingkat, atau mengarang singkatan/label baru.
 - Kalimat pertama boleh berupa reaksi, observasi, atau fakta paling kuat. Jika dibuka dengan reaksi, fakta literal harus muncul di kalimat yang sama atau berikutnya.
-- Minimal dua slide memiliki POV editorial eksplisit: S1 wajib punya reaksi atau observasi berbasis fakta; satu slide lain boleh memberi judgment berbasis fakta. Jangan memaksa gw/lo di setiap slide.
+- Minimal dua slide memiliki POV editorial eksplisit: S1 wajib punya reaksi atau observasi berbasis fakta; satu slide lain boleh memberi judgment berbasis fakta. Jangan memaksa gw/lo di setiap slide. POV hanya boleh lahir dari fakta/kontras literal artikel; jika artikel tidak memuat kontras atau konflik yang cukup, slide boleh TANPA POV editorial — laporkan fakta dengan bersih. JANGAN memproduksi konflik, skenario hipotesis ("tetep bisa", "bayangin kalau", "bakal"), atau judgment yang tidak tertopang sumber.
 - Jangan ulang angka, fakta, atau contoh. jangan ulang angka, fakta, atau contoh dalam slide lain. Jika fungsi sebab/dampak/relevansi tidak punya bukti, gunakan bukti lain yang tersedia; jangan mengisi bagian kosong dengan tebakan. Jangan ulang angka, fakta, atau contoh tanpa bukti berbeda dari artikel.
 - Untuk kebijakan: gunakan opsi resmi + kelompok terdampak + status belum final hanya jika literal; jelaskan pembagian kewenangan serta dasar aturan bila tertulis.
 - Jangan mengubah satuan atau menghitung angka baru.
@@ -3222,7 +3251,7 @@ def build_user_prompt(article):
         f"EDITORIAL LENS: {_editorial_lens(article.get('title', ''), article.get('body', ''))}",
         "LENS WAJIB: gunakan lens ini sebagai cara memilih fakta dan judgment, bukan sebagai izin menambah klaim.",
         "VOICE CONTRACT AKTIF: conversational, tajam, konkret, sedikit nyeletuk; bukan news anchor atau esai kebijakan.",
-        "POV EDITORIAL: S1 wajib punya reaksi/judgment; minimal satu slide lain harus punya POV editorial eksplisit (misal \"siapa yang beneran kena\", \"uang siapa yang hilang\", \"siapa yang untung\"). POV boleh tegas HANYA bila lahir dari kontras literal artikel; jangan mengarang motif, korban, atau pihak terdampak yang tidak ada di CLAIM MAP.",
+        "POV EDITORIAL: S1 wajib punya reaksi/judgment; minimal satu slide lain harus punya POV editorial eksplisit (misal \"siapa yang beneran kena\", \"uang siapa yang hilang\", \"siapa yang untung\"). POV boleh tegas HANYA bila lahir dari kontras literal artikel; jangan mengarang motif, korban, atau pihak terdampak yang tidak ada di CLAIM MAP. Jika artikel tidak memuat kontras yang cukup, slide boleh TANPA POV — jangan memproduksi skenario hipotesis (\"tetep bisa\", \"bayangin kalau\", \"bakal\", \"nggak peduli\") atau judgment yang tidak tertopang sumber.",
         "KALIBRASI THEODERICK: reframe paradox — bungkus dua fakta literal yang saling menekan jadi pernyataan kontra-intuitif (kontras HARUS dari artikel, bukan asumsi); aksen khas terbatas ges/ndak/gokil/bgt/krn/dg hanya natural, jangan tiap slide; struktur hook singkat → ekspansi → afirmasi; campur Inggris ringan hanya kata kunci (progress, impact, growth).",
         "HOOK: mulai S1 dari angka, keputusan, kutipan, kontras, atau fakta literal paling mengganggu. Reaksi boleh dulu, tetapi fakta harus muncul di kalimat yang sama atau berikutnya.",
         "KONTRADIKSI: jika CLAIM MAP memuat dua fakta literal yang saling menekan, pasangkan di S1; jangan cuma melaporkan perubahan satu angka dan jangan menciptakan kontras baru.",
