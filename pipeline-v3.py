@@ -3588,7 +3588,11 @@ def _validate_s1_hook(posts, body, article=None):
             # verb affixation while still catching hallucinated entities.
             found = False
             for name in title_names:
-                words = [w for w in name.split() if len(w) > 3]
+                words = [w for w in name.split()
+                         if len(w) > 3 and w.lower() not in {
+                             "bakal", "akan", "sudah", "masih", "bisa", "mau",
+                             "tidak", "juga", "dengan", "untuk", "dari", "dalam",
+                         }]
                 if not words:
                     continue
                 if all(w.lower() in body_lower for w in words):
@@ -3774,7 +3778,7 @@ def _validate_proper_nouns(posts, body):
             # when substantive name "Airlangga" appears literally in source.
             clean = name.lower()
             known_name = False
-            for prefix in ("menteri koordinator ", "menteri ", "menkeu ", "dirjen ", "wakil ", "menko ", "pak ", "bu ", "bos "):
+            for prefix in ("menteri koordinator ", "menteri ", "menkeu ", "dirjen ", "direktur ", "wakil ", "menko ", "pak ", "bu ", "bos "):
                 if clean.startswith(prefix) and clean[len(prefix):] in article_lower:
                     known_name = True
                     break

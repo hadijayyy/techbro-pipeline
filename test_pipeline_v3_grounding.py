@@ -1506,6 +1506,43 @@ def test_s1_hook_is_not_a_hard_gate_for_policy_decision_article():
     assert pipeline._validate_s1_hook(posts, article["body"], article) == []
 
 
+def test_s1_hook_ignores_function_words_in_title_entity():
+    # "Bakal" is an auxiliary verb, not a named entity: body uses "akan" instead.
+    article = {
+        "title": "Ekspor Listrik Bersih Bakal Dongkrak Pendapatan Negara",
+        "body": ("Pemerintah mendorong ekspor listrik bersih ke negara tetangga. "
+                 "Pendapatan negara diproyeksikan naik tahun depan. " * 10),
+    }
+    posts = {f"post_{i}": "Fakta sumber cukup panjang. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
+    posts["post_1"] = "Ekspor listrik bersih bakal mendongkrak pendapatan negara."
+    issues = pipeline._validate_s1_hook(posts, article["body"], article)
+    assert not any("headline named entity" in issue for issue in issues), issues
+
+
+def test_named_entity_accepts_role_prefix_before_substantive_name():
+    # "Direktur Djap Tet Fa": role prefix stripped, substantive name found in body.
+    article = {
+        "title": "Direktur Borong Saham",
+        "body": "Direktur Utama Astra International Djap Tet Fa membeli saham perseroan. " * 8,
+    }
+    posts = {f"post_{i}": "Fakta sumber cukup panjang. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
+    posts["post_1"] = "Direktur Djap Tet Fa borong saham Astra."
+    issues = pipeline.deterministic_grounding_validate(article, posts)
+    assert not any("name 'Direktur Djap Tet Fa' not in article" in issue for issue in issues), issues
+
+
+def test_named_entity_still_rejects_absent_name():
+    # Name not in article must still be rejected — the gate stays hard.
+    article = {
+        "title": "Direktur Borong Saham",
+        "body": "Perusahaan membeli saham perseroan tahun ini. " * 8,
+    }
+    posts = {f"post_{i}": "Fakta sumber cukup panjang. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
+    posts["post_1"] = "Direktur Djap Tet Fa borong saham."
+    issues = pipeline.deterministic_grounding_validate(article, posts)
+    assert any("name 'Direktur Djap Tet Fa' not in article" in issue for issue in issues), issues
+
+
 def test_s6_accepts_one_source_anchored_cta():
     body = "Pemerintah mengubah anggaran subsidi energi. Pembahasan masih menunggu persetujuan DPR. " * 12
     posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi. Kalimat kedua menjelaskan konteks." for i in range(1, 7)}
