@@ -173,6 +173,22 @@ SOURCE_TIERS = {
     "republika_ekonomi": ("secondary_media", 6),
     "katadata_ekonomi": ("secondary_media", 8),
 }
+SOURCE_DISPLAY_NAMES = {
+    "cnn_ekonomi": "CNN Indonesia",
+    "detik_finance": "Detik Finance",
+    "cnbc_market": "CNBC Indonesia",
+    "cnbc_entrepreneur": "CNBC Indonesia",
+    "antara_ekonomi": "Antara News",
+    "bi_release": "Bank Indonesia",
+    "kemenkeu_release": "Kementerian Keuangan",
+    "esdm_news": "Kementerian ESDM",
+    "dailysocial": "DailySocial",
+    "cnbc_global": "CNBC International",
+    "bbc_business": "BBC",
+    "tempo_bisnis": "Tempo Bisnis",
+    "republika_ekonomi": "Republika",
+    "katadata_ekonomi": "Katadata",
+}
 CURRENT_COHORT = "techbro_v3_current"
 LEGACY_COHORT = "legacy"
 
@@ -2818,8 +2834,8 @@ def _fit_complete_sentences_with_url(text, limit):
     return f"{fitted}\n\n{url}" if fitted else url
 
 
-def thread_contract_issues(posts, article_url):
-    """Finalize S1-S6 plus S7 source URL; strip legacy URLs from S6."""
+def thread_contract_issues(posts, article_url, source_key=None):
+    """Finalize S1-S6 plus S7 source label; strip legacy URLs from S6."""
     issues = []
     for i in range(1, 7):
         text = posts.get(f"post_{i}", "")
@@ -2840,7 +2856,7 @@ def thread_contract_issues(posts, article_url):
         for i in range(1, 7):
             text = posts.get(f"post_{i}", "")
             posts[f"post_{i}"] = text.strip()
-        posts["post_7"] = f"Sumber: {article_url}"
+        posts["post_7"] = f"Sumber: {SOURCE_DISPLAY_NAMES.get(source_key or '', article_url)}"
         if len(posts["post_7"]) > SLIDE_CHAR_LIMIT:
             issues.append(f"post_7: over {SLIDE_CHAR_LIMIT} chars")
     elif "post_7" not in posts:
@@ -4047,7 +4063,7 @@ def _try_revision(user, posts, article, warnings):
         fallback_issues += _validate_s1_hook(fallback_posts, article["body"], article)
         fallback_issues += _hook_signal_issues(fallback_posts)
         fallback_issues += _validate_s6_cta(fallback_posts, article["body"])
-        fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
+        fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""), article.get("source"))
         fallback_issues += _source_fallback_dangling_refs(fallback_posts)
         if not fallback_issues:
             log.info("  Source-only fallback passed deterministic validation")
@@ -4111,7 +4127,7 @@ def generate_thread(article):
         if evidence_issues:
             log.warning("  Source evidence map blocked: %s", evidence_issues)
             return None, "source_evidence_map_failed"
-        contract_issues = thread_contract_issues(posts, article.get("url", ""))
+        contract_issues = thread_contract_issues(posts, article.get("url", ""), article.get("source"))
         if contract_issues:
             log.warning(f"  Thread contract blocked: {contract_issues}")
             continue
@@ -4518,7 +4534,7 @@ def main():
             fallback_issues += _validate_s1_hook(fallback_posts, article["body"], article)
             fallback_issues += _hook_signal_issues(fallback_posts)
             fallback_issues += _validate_s6_cta(fallback_posts, article["body"])
-            fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""))
+            fallback_issues += thread_contract_issues(fallback_posts, article.get("url", ""), article.get("source"))
             fallback_issues += _source_fallback_dangling_refs(fallback_posts)
             if not fallback_issues:
                 result = {"posts": fallback_posts, "angle": "source-only fallback",

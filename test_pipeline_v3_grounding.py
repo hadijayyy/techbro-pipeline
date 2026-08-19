@@ -1211,10 +1211,10 @@ def test_hook_allows_supported_policy_change_without_forced_number_or_contradict
 def test_thread_contract_moves_source_url_to_s7():
     posts = {f"post_{i}": "Fakta sumber. Konteks sumber." for i in range(1, 7)}
     posts["post_6"] = "Takeaway. Apa yang perlu dipantau?"
-    issues = pipeline.thread_contract_issues(posts, "https://contoh.go.id/dokumen")
+    issues = pipeline.thread_contract_issues(posts, "https://contoh.go.id/dokumen", "cnn_ekonomi")
     assert issues == [], issues
     assert posts["post_6"] == "Takeaway. Apa yang perlu dipantau?"
-    assert posts["post_7"] == "Sumber: https://contoh.go.id/dokumen"
+    assert posts["post_7"] == "Sumber: CNN Indonesia"
 
 
 def test_thread_contract_requires_one_complete_sentence_and_allows_480_chars():
@@ -1233,11 +1233,11 @@ def test_thread_contract_requires_one_complete_sentence_and_allows_480_chars():
 def test_thread_contract_removes_legacy_url_from_s6_and_adds_s7():
     posts = {f"post_{i}": "Fakta sumber. Konteks tambahan." for i in range(1, 7)}
     posts["post_6"] = "Baca fakta sumber. Menurut lo perlu dipantau?\n\nhttps://tautan-lama.test"
-    issues = pipeline.thread_contract_issues(posts, "https://contoh.go.id/dokumen")
+    issues = pipeline.thread_contract_issues(posts, "https://contoh.go.id/dokumen", "detik_finance")
     assert issues == [], issues
     assert "http" not in posts["post_6"]
     assert "[URL" not in posts["post_6"]
-    assert posts["post_7"] == "Sumber: https://contoh.go.id/dokumen"
+    assert posts["post_7"] == "Sumber: Detik Finance"
 
 
 def test_thread_contract_rejects_source_slide_over_480_chars():
