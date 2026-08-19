@@ -4396,7 +4396,7 @@ def main():
             log.info("Perf medians: %s", json.dumps(perf_stats, ensure_ascii=False))
     except Exception as exc:
         log.warning("Metrics sync skipped: %s", exc)
-    if inflight:
+    if inflight and inflight.get("article"):
         with post_url_lock():
             try:
                 data = load_data()
