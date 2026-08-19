@@ -982,6 +982,39 @@ def test_speculative_pov_allows_grounded_editorial():
     assert issues == []
 
 
+def test_evidence_plan_carries_late_article_facts_beyond_first_12():
+    """Full-text grounding: long articles must not lose facts after sentence 12."""
+    sentences = []
+    for i in range(1, 25):
+        sentences.append(f"Fakta penting nomor {i} yang menyebutkan jumlah {i*100} juta rupiah untuk program ini.")
+    body = " ".join(sentences)
+    plan = pipeline.evidence_plan({"title": "T", "body": body})
+    assert len(plan["units"]) > 12, f"expected >12 units, got {len(plan['units'])}"
+    joined = " ".join(plan["units"])
+    assert "Fakta penting nomor 24" in joined, "late-article fact (sentence 24) missing from plan"
+    assert "jumlah 2400 juta rupiah" in joined, "late-article number (2400) missing from plan"
+
+
+def test_source_claim_plan_carries_late_article_facts():
+    """source_claim_plan must not truncate to first 12 sentences."""
+    sentences = []
+    for i in range(1, 20):
+        sentences.append(f"Kalimat sumber penting {i} tentang dampak kebijakan yang berlaku tahun ini.")
+    body = " ".join(sentences)
+    plan = pipeline.source_claim_plan({"title": "T", "body": body})
+    lines = [l for l in plan.split("\n") if l.startswith("- ")]
+    assert len(lines) > 12, f"expected >12 claim lines, got {len(lines)}"
+    assert any("Kalimat sumber penting 19" in l for l in lines), "late claim (19) missing"
+
+
+def test_revision_allowlist_covers_late_article_numbers():
+    """Revision must keep allowlist facts from beyond first 10k chars of body."""
+    body = "Awal: satu kebijakan baru untuk industri tekstil. " * 400
+    body += "Angka penting terakhir 998877 juta untuk ekspor tekstil tahun ini."
+    facts = pipeline.literal_fact_allowlist(body[:25000])
+    assert "998877" in " ".join(facts), "late-article number missing from revision allowlist"
+
+
 def test_duplicate_material_numbers_are_hard_quality_gate():
     posts = {f"post_{i}": "Fakta berbeda dari artikel. Bukti lain menambah konteks." for i in range(1, 7)}
     posts["post_1"] = "652 perusahaan akan dipangkas."

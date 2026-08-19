@@ -2228,7 +2228,12 @@ def _format_sentence_blanks(text):
 
 
 def evidence_plan(article):
-    """Build bounded source-only units before writer sees article body."""
+    """Build bounded source-only units from FULL article text (no first-12 cap).
+
+    Facts for writing must come from the complete article body, not just the
+    lead paragraphs. Late-article facts (impact, quotes, next steps) would be
+    missing from a [:12] slice and the writer would invent them.
+    """
     sentences = []
     seen = set()
     for sentence in _source_sentences(article.get("body", "")):
@@ -2236,7 +2241,30 @@ def evidence_plan(article):
         if key not in seen:
             seen.add(key)
             sentences.append(sentence)
-    units = sentences[:12]
+    # Bound by characters, not sentence count, so long articles keep their
+    # full fact set while degenerate feeds cannot blow the prompt.
+    units = sentences
+    body_text = " ".join(units)
+    if len(body_text) > 18000:
+        # Keep first + last halves so early decisions and late impact both
+        # reach the writer; drop only the middle when the article is huge.
+        head = []
+        tail = []
+        total = 0
+        for s in units:
+            if total + len(s) <= 9000:
+                head.append(s)
+                total += len(s)
+            else:
+                break
+        tail_total = 0
+        for s in reversed(units):
+            if tail_total + len(s) <= 9000:
+                tail.append(s)
+                tail_total += len(s)
+            else:
+                break
+        units = head + list(reversed(tail))
     claim_map = source_claim_map({**article, "body": " ".join(units)})
     slide_seeds = {
         slide: [claim["sentence"] for claim in claims]
@@ -2264,7 +2292,11 @@ def article_evidence_gate(article):
 
 
 def source_claim_plan(article):
-    """Give writer distinct substantive source sentences, never title-derived facts."""
+    """Give writer distinct substantive source sentences, never title-derived facts.
+
+    Full-article coverage: no [:12] cap — late-article facts (impact, quotes,
+    next steps) must reach the writer so the thread does not invent them.
+    """
     body = _clean_source_body(article.get("body"))
     selected = []
     seen = set()
@@ -2274,7 +2306,26 @@ def source_claim_plan(article):
         if _usable_source_sentence(sentence) and key not in seen:
             seen.add(key)
             selected.append(sentence)
-    return "\n".join(f"- {s}" for s in selected[:12])
+    # Bound by characters (not sentence count) so huge feeds stay prompt-safe.
+    units = selected
+    joined = " ".join(units)
+    if len(joined) > 18000:
+        head, tail, total = [], [], 0
+        for s in units:
+            if total + len(s) <= 9000:
+                head.append(s)
+                total += len(s)
+            else:
+                break
+        tail_total = 0
+        for s in reversed(units):
+            if tail_total + len(s) <= 9000:
+                tail.append(s)
+                tail_total += len(s)
+            else:
+                break
+        units = head + list(reversed(tail))
+    return "\n".join(f"- {s}" for s in units)
 
 
 def source_claim_map(article):
@@ -2885,6 +2936,7 @@ Audiens masyarakat umum Indonesia, bukan investor. Ubah berita ekonomi kaku jadi
 
 # VOICE SAFETY
 - ISI ARTIKEL dan evidence plan adalah batas fakta. Voice tidak boleh memperluas evidence.
+- Opini boleh tegas, tetapi opini tidak boleh mengubah fakta: jangan membalik arah fakta (misal artikel bilang X naik, opini tidak boleh bilang X turun), jangan menambah angka, jangan mengganti nama/pihak, jangan menciptakan hubungan sebab-akibat. Opini adalah penilaian terhadap fakta, bukan revisi fakta.
 - Jika voice tajam bertentangan dengan evidence, buang punchline, bukan evidence gate.
 
 # TASK
@@ -2975,7 +3027,7 @@ def build_revision_prompt(revision_notes, posts, article=None):
     draft.update({f"post_{i}": posts.get(f"post_{i}", "") for i in range(1, 7)})
     source = ""
     if article:
-        body = article.get("body", "")[:10000]
+        body = article.get("body", "")[:25000]
         facts = literal_fact_allowlist(body)
         entities = literal_entity_allowlist(body)
         source = "\n\nSUMBER REVISI — FAKTA LITERAL SAJA:\n" + "\n".join(
@@ -3173,9 +3225,31 @@ def _source_fallback_posts(article):
 
 
 def literal_fact_allowlist(body):
-    """Literal body sentences are the only permitted facts for writer and revision."""
+    """Literal body sentences are the only permitted facts for writer and revision.
+
+    Bounded by characters (25k) instead of sentence count so late-article facts
+    (impact, quotes, next steps) stay available to the writer.
+    """
     sentences = re.split(r"(?<=[.!?])\s+", _clean_source_body(body))
-    return [sentence for sentence in sentences if _usable_source_sentence(sentence)][:80]
+    selected = [sentence for sentence in sentences if _usable_source_sentence(sentence)]
+    joined = " ".join(selected)
+    if len(joined) <= 25000:
+        return selected
+    head, tail, total = [], [], 0
+    for s in selected:
+        if total + len(s) <= 12500:
+            head.append(s)
+            total += len(s)
+        else:
+            break
+    tail_total = 0
+    for s in reversed(selected):
+        if tail_total + len(s) <= 12500:
+            tail.append(s)
+            tail_total += len(s)
+        else:
+            break
+    return head + list(reversed(tail))
 
 
 def source_slide_audit(body, posts):
@@ -3218,11 +3292,20 @@ def literal_entity_allowlist(body):
             "Setelah", "Sebelum", "Dengan", "Untuk", "Dari", "Lalu", "Sementara",
             "Sedangkan", "Risikonya", "Soalnya", "Alasan", "Alasannya",
             "URL", "HTTP", "HTTPS", "WWW", "COM", "CO", "ID", "ORG", "NET"}
-    return sorted(e for e in entities if e not in drop)[:40]
+    clean = sorted(e for e in entities if e not in drop)
+    # Full-article coverage: keep head+tail entities (no [:40] first-only cap)
+    # so late-article names/institutions reach the writer and validator.
+    if len(clean) > 40:
+        clean = clean[:20] + clean[-20:]
+    return clean
 
 
 def build_user_prompt(article):
-    """Pass evidence-plan facts only; code owns validation and URL injection."""
+    """Pass FULL article text plus evidence-plan facts; code owns validation.
+
+    Facts in the post must come from the complete article body. We send the
+    full cleaned body so the writer never needs to invent late-article facts.
+    """
     plan = evidence_plan(article)
     body = " ".join(plan["units"])
     facts = literal_fact_allowlist(body)
