@@ -186,6 +186,10 @@ HARD_REJECT = KW["hard_reject"]
 SOFT_REJECT = KW["soft_reject"]
 NAMED_BLACKLIST = KW["named_blacklist"]
 SCORE_THRESHOLDS = KW["score_thresholds"]
+# Forensik winner/loser @ryanhadiii — non-event hard/soft gates
+NON_EVENT_HARD = KW.get("non_event_hard", [])
+NON_EVENT_SOFT = KW.get("non_event_soft", [])
+DECISION_MARKERS = KW.get("decision_markers", [])
 
 # ── Number Parsing ──────────────────────────────────────────────────────────────
 
@@ -1653,6 +1657,14 @@ def _is_eligible_candidate(title, body, source):
     for name in NAMED_BLACKLIST:
         if _matches_keyword(title_lower, name):
             return False, "blacklist:" + name
+    # Gate A: non-event hard reject — no decision marker found in title
+    # Losers @ryanhadiii: "sinyal", "tunggu", "respons X soal Y" without any decision action
+    if NON_EVENT_HARD:
+        hit_hard = [kw for kw in NON_EVENT_HARD if _matches_keyword(title_lower, kw)]
+        if hit_hard:
+            has_decision = any(_matches_keyword(title_lower, dm) for dm in DECISION_MARKERS)
+            if not has_decision:
+                return False, "non_event_hard:" + hit_hard[0].strip()
     if title_lower.startswith("video:"):
         return False, "video_article"
     if not body or len(body) < 500:
@@ -3504,8 +3516,29 @@ def deterministic_validate(posts):
 
 
 def _validate_s1_hook(posts, body, article=None):
-    """Hook quality is editorial guidance; grounding remains hard validation."""
-    return []
+    """Hook quality editorial guidance + forensik winner/loser gates.
+    B: reject S1 ending with ?  (0% winner vs 24% loser pattern)
+    C: warn on generic/short angle (<80 char) or source-only fallback
+    """
+    issues = []
+    s1 = (posts.get("post_1") or "").strip()
+    if not s1:
+        return ["post_1: empty"]
+
+    # Gate B: S1 must not end with ?
+    if s1.endswith("?"):
+        issues.append("post_1: ends with question mark — rewite to declarative hook")
+
+    # Gate C: S1 too short / generic / no content signal
+    if len(s1) < 100:
+        issues.append(f"post_1: too short ({len(s1)} chars) — target 100-150 chars")
+
+    # Gate C: source-only fallback angle pattern (generic placeholder)
+    s1_lower = s1.lower()
+    if any(kw in s1_lower for kw in ["siapa yang ", "source-only", "fallback", "tunggu perpres", "belum ada"]):
+        issues.append("post_1: generic/fallback angle — add specific named party or number hook")
+
+    return issues
 
 
 def _validate_s6_cta(posts, body):
