@@ -2674,7 +2674,7 @@ def hook_issues(hook, body):
     return []
 
 
-SLIDE_CHAR_LIMIT = 450
+SLIDE_CHAR_LIMIT = 600
 S1_CHAR_LIMIT = 220
 
 
@@ -2882,7 +2882,7 @@ Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali l
 - Untuk kebijakan: gunakan opsi resmi + kelompok terdampak + status belum final hanya jika literal; jelaskan pembagian kewenangan serta dasar aturan bila tertulis.
 - Jangan mengubah satuan atau menghitung angka baru.
 - Parafrase boleh jika makna tetap sama. Istilah/konsep kunci dari artikel (misal "biaya kendaraan", "bahan bakar impor") TIDAK BOLEH diganti sinonim yang mengubah cakupan: "biaya kendaraan" ≠ "harga motor", "bahan bakar impor" ≠ "BBM". Pertahankan minimal satu kata kunci literal dari istilah sumber (biaya/kendaraan, bahan bakar/impor). Jangan menyingkat istilah resmi jadi akronim baru yang tidak ada di artikel.
-- Setiap post wajib minimal 1 kalimat jelas dan maksimal 450 karakter. Fragment pendek atau ellipsis boleh sebagai bagian dari ritme percakapan bila maknanya tetap jelas. Satu ide utama per post.
+- Setiap post wajib minimal 1 kalimat jelas dan maksimal 600 karakter. Fragment pendek atau ellipsis boleh sebagai bagian dari ritme percakapan bila maknanya tetap jelas. Satu ide utama per post. Slide lebih panjang BOLEH bila setiap kalimat menambah bukti/judgment baru; jangan menambah slide demi padding.
 - Utamakan bahasa sehari-hari. Istilah teknis boleh dipakai bila membuat kalimat lebih tajam; jelaskan bila natural, jangan memaksa definisi.
 - Bahasa Indonesia santai, jelas, dan natural. Jargon bukan alasan untuk mengubah voice jadi penjelasan buku teks. Hindari slogan, hashtag, URL, dan pembuka generik.
 - Jangan memaksa bagian sebab, dampak, atau relevansi jika bukti tidak tersedia.
@@ -3227,7 +3227,7 @@ def build_user_prompt(article):
         "HOOK: mulai S1 dari angka, keputusan, kutipan, kontras, atau fakta literal paling mengganggu. Reaksi boleh dulu, tetapi fakta harus muncul di kalimat yang sama atau berikutnya.",
         "KONTRADIKSI: jika CLAIM MAP memuat dua fakta literal yang saling menekan, pasangkan di S1; jangan cuma melaporkan perubahan satu angka dan jangan menciptakan kontras baru.",
         "PROGRESI: tiap slide menaikkan tensi dengan bukti baru; jangan mengulang premis memakai sinonim. Gunakan konsekuensi, pihak, keputusan aktor, atau gap hanya jika ada di CLAIM MAP.",
-        "RITME: satu slide satu pukulan. Fakta konkret dulu, lalu satu kontras, reaksi, atau judgment berbasis evidence span. Variasikan panjang dan struktur slide.",
+        "RITME: satu slide satu pukulan. Fakta konkret dulu, lalu satu kontras, reaksi, atau judgment berbasis evidence span. Variasikan panjang dan struktur slide. Slide boleh lebih panjang (hingga 600 karakter) selama setiap kalimat menambah bukti/judgment baru; jangan padding.",
         "BAHASA: pakai lo/gue/gua/nah/tapi/padahal/soalnya/makanya hanya bila natural; jangan memaksa slang di setiap slide.",
         "BATAS VOICE: jangan membuat punchline dari motif, dampak, korban, prediksi, hubungan sebab-akibat, atau lubang informasi yang tidak ada di evidence plan.",
         "LARANGAN VOICE: pembuka template, jargon kebijakan tanpa penjelasan, drama buatan, daftar strategi, opini abstrak, news-anchor framing, dan CTA moral generik.",
@@ -3329,7 +3329,7 @@ def deterministic_validate(posts):
             warnings.append(f"{k}: no sentences")
         if sent_count > 6:
             warnings.append(f"{k}: too many sentences ({sent_count})")
-        # Enforce 450-char limit on every slide; keep complete sentences only.
+        # Enforce 600-char limit on every slide; keep complete sentences only.
         limit = S1_CHAR_LIMIT if i == 1 else SLIDE_CHAR_LIMIT
         if len(p) > limit:
             p = _fit_complete_sentences_with_url(p, limit)
