@@ -4202,7 +4202,25 @@ def post_to_threads(article_title, posts, image_url=None, inflight=None):
                 log.warning(f"  {key} publish: HTTP {r.status_code}")
         except (httpx.RequestError, json.JSONDecodeError) as e:
             log.error(f"  {key} publish ambiguous: {e}")
-            return {"error": "PUBLISH_AMBIGUOUS: publish request outcome unknown", "post_ids": published_ids}
+            # threads_publish is idempotent: re-issuing on an already-PUBLISHED
+            # container returns the same post id (no duplicate). Retry once so a
+            # timed-out publish does not strand the rest of the chain.
+            try:
+                time.sleep(1)
+                r = httpx.post(f"{GRAPH}/{uid}/threads_publish",
+                               data={"access_token": THREADS_TOKEN, "creation_id": container_id}, timeout=15)
+                if r.status_code == 200:
+                    post_id = r.json().get("id")
+                    if post_id:
+                        log.info(f"  {key} publish resolved via idempotent retry → {post_id}")
+                    else:
+                        log.warning(f"  {key} publish retry: empty body")
+                else:
+                    log.warning(f"  {key} publish retry: HTTP {r.status_code}")
+            except (httpx.RequestError, json.JSONDecodeError) as e2:
+                log.error(f"  {key} publish retry ambiguous: {e2}")
+            if not post_id:
+                return {"error": "PUBLISH_AMBIGUOUS: publish request outcome unknown", "post_ids": published_ids}
         if not post_id:
             log.error(f"  {key} publish failed")
             return {"error": f"{key} publish failed", "post_ids": published_ids}

@@ -845,6 +845,85 @@ def test_inflight_chain_round_trip_preserves_partial_post_ids(tmp_path, monkeypa
     assert pipeline.load_inflight() == state
 
 
+def test_publish_timeout_resolves_via_idempotent_retry(tmp_path, monkeypatch):
+    """A timed-out threads_publish must be retried (idempotent) so the chain
+    continues instead of stranding slides 3..7."""
+    monkeypatch.setattr(pipeline, "INFLIGHT_FILE", tmp_path / "inflight_chain.json")
+    monkeypatch.setattr(pipeline, "THREADS_TOKEN", "tok")
+    monkeypatch.setattr(pipeline, "THREADS_USER_ID", "uid")
+    monkeypatch.setattr(pipeline, "DRY_RUN", False)
+    posts = {f"post_{i}": f"Slide {i} text cukup panjang untuk publish." for i in range(1, 4)}
+    image_url = "https://img.test/a.jpg"
+
+    publish_calls = {"n": 0}
+    container_seq = {"n": 0}
+
+    class Resp:
+        def __init__(self, payload, status=200):
+            self.status_code = status
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    def fake_post(url, **kwargs):
+        data = kwargs.get("data", {})
+        if url.endswith("/threads"):
+            container_seq["n"] += 1
+            return Resp({"id": f"container_{container_seq['n']}"})
+        if url.endswith("/threads_publish"):
+            publish_calls["n"] += 1
+            cid = data.get("creation_id")
+            if cid == "container_2" and publish_calls["n"] == 2:
+                raise pipeline.httpx.ReadTimeout("first publish timed out")
+            return Resp({"id": f"post_for_{cid}"})
+        return Resp({})
+
+    def fake_get(url, **kwargs):
+        fields = kwargs.get("params", {}).get("fields", "")
+        if "status" in fields:
+            return Resp({"status": "FINISHED"})
+        return Resp({"id": "root_id", "media_type": "IMAGE", "permalink": "https://threads.test/@u/post/root"})
+
+    monkeypatch.setattr(pipeline.httpx, "post", fake_post)
+    monkeypatch.setattr(pipeline.httpx, "get", fake_get)
+    result = pipeline.post_to_threads("Judul", posts, image_url=image_url, inflight={})
+    assert "error" not in result
+    assert result["post_ids"] == ["post_for_container_1", "post_for_container_2", "post_for_container_3"]
+    assert publish_calls["n"] == 4  # p1, p2 timeout, p2 retry, p3
+
+
+def test_publish_timeout_with_failed_retry_returns_ambiguous(tmp_path, monkeypatch):
+    """If the idempotent retry also fails, stay fail-closed (no partial chain)."""
+    monkeypatch.setattr(pipeline, "INFLIGHT_FILE", tmp_path / "inflight_chain.json")
+    monkeypatch.setattr(pipeline, "THREADS_TOKEN", "tok")
+    monkeypatch.setattr(pipeline, "THREADS_USER_ID", "uid")
+    monkeypatch.setattr(pipeline, "DRY_RUN", False)
+    posts = {f"post_{i}": f"Slide {i} text cukup panjang untuk publish." for i in range(1, 4)}
+
+    class Resp:
+        def __init__(self, payload, status=200):
+            self.status_code = status
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    def fake_post(url, **kwargs):
+        if url.endswith("/threads"):
+            return Resp({"id": "container_1"})
+        if url.endswith("/threads_publish"):
+            raise pipeline.httpx.ReadTimeout("always times out")
+        return Resp({})
+
+    monkeypatch.setattr(pipeline.httpx, "post", fake_post)
+    monkeypatch.setattr(pipeline.httpx, "get",
+                        lambda url, **kwargs: Resp({"id": "root_id", "media_type": "IMAGE", "permalink": "https://threads.test/@u/post/root"}))
+    result = pipeline.post_to_threads("Judul", posts, inflight={})
+    assert result.get("error") == "PUBLISH_AMBIGUOUS: publish request outcome unknown"
+    assert result["post_ids"] == []
+
+
 def test_llm_has_room_for_complete_six_post_json():
     class Response:
         status_code = 200
