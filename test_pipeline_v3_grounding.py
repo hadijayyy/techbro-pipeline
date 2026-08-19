@@ -1159,7 +1159,7 @@ def test_thread_contract_moves_source_url_to_s7():
     assert posts["post_7"] == "Sumber: https://contoh.go.id/dokumen"
 
 
-def test_thread_contract_requires_one_complete_sentence_and_allows_600_chars():
+def test_thread_contract_requires_one_complete_sentence_and_allows_480_chars():
     posts = {f"post_{i}": "Fakta pertama. Konteks kedua." for i in range(1, 7)}
     assert pipeline.thread_contract_issues(posts, "") == []
 
@@ -1169,7 +1169,7 @@ def test_thread_contract_requires_one_complete_sentence_and_allows_600_chars():
 
     posts["post_2"] = "Kalimat pertama. " + "Konteks tambahan. " * 40
     pipeline.thread_contract_issues(posts, "")
-    assert len(posts["post_2"]) <= 600
+    assert len(posts["post_2"]) <= 480
 
 
 def test_thread_contract_removes_legacy_url_from_s6_and_adds_s7():
@@ -1182,11 +1182,11 @@ def test_thread_contract_removes_legacy_url_from_s6_and_adds_s7():
     assert posts["post_7"] == "Sumber: https://contoh.go.id/dokumen"
 
 
-def test_thread_contract_rejects_source_slide_over_600_chars():
+def test_thread_contract_rejects_source_slide_over_480_chars():
     posts = {f"post_{i}": "Fakta sumber. Konteks tambahan." for i in range(1, 7)}
-    url = "https://contoh.go.id/" + "x" * 580
+    url = "https://contoh.go.id/" + "x" * 460
     issues = pipeline.thread_contract_issues(posts, url)
-    assert any("post_7: over 600 chars" in issue for issue in issues)
+    assert any("post_7: over 480 chars" in issue for issue in issues)
 
 
 def test_publish_completion_requires_seven_posts():
@@ -1197,8 +1197,8 @@ def test_publish_completion_requires_seven_posts():
 
 def test_thread_contract_rejects_over_limit_post():
     posts = {f"post_{i}": "Fakta sumber. Konteks tambahan." for i in range(1, 7)}
-    posts["post_3"] = "x" * 601
-    assert "post_3: over 600 chars" in pipeline.thread_contract_issues(posts, "")
+    posts["post_3"] = "x" * 481
+    assert "post_3: over 480 chars" in pipeline.thread_contract_issues(posts, "")
 
 
 def test_normalize_s1_uses_compact_limit_and_complete_sentences():
@@ -1221,20 +1221,20 @@ def test_thread_contract_rejects_s1_over_compact_limit():
     assert any("post_1: over 220 char compact-hook limit" in issue for issue in issues), issues
 
 
-def test_slide_limit_is_600_and_truncation_keeps_complete_sentences():
+def test_slide_limit_is_480_and_truncation_keeps_complete_sentences():
     posts = {f"post_{i}": "Fakta sumber. Konteks tambahan." for i in range(1, 7)}
     posts["post_2"] = "Kalimat pertama lengkap. " + "Kalimat kedua sangat panjang " * 30
     issues = pipeline.deterministic_validate(posts)
-    assert len(posts["post_2"]) <= 600
+    assert len(posts["post_2"]) <= 480
     assert posts["post_2"].endswith(".")
     assert "Kalimat kedua sangat panjang Kalimat kedua sangat panjang Kalimat kedua sangat panjang" not in posts["post_2"]
     assert not any("post_2: over" in issue for issue in issues)
 
 
-def test_thread_contract_all_slides_use_600_char_limit():
+def test_thread_contract_all_slides_use_480_char_limit():
     posts = {f"post_{i}": "Kalimat lengkap. " + "Konteks tambahan. " * 30 for i in range(1, 7)}
     pipeline.thread_contract_issues(posts, "")
-    assert all(len(posts[f"post_{i}"]) <= 600 for i in range(1, 7))
+    assert all(len(posts[f"post_{i}"]) <= 480 for i in range(1, 7))
     assert all(posts[f"post_{i}"].endswith(".") for i in range(1, 7))
 
 
