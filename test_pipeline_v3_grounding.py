@@ -677,6 +677,14 @@ def test_writer_prompt_carries_theoderick_calibration():
     assert "hook singkat" in prompt
 
 
+def test_writer_prompt_carries_pov_editorial():
+    body = "Pemerintah mengubah kebijakan subsidi energi senilai Rp2 triliun. Rumah tangga menunggu aturan baru. " * 12
+    prompt = pipeline.build_user_prompt({"body": body})
+    assert "POV EDITORIAL" in prompt
+    assert "S1 wajib punya reaksi/judgment" in prompt
+    assert "jangan mengarang motif" in prompt
+
+
 def test_writer_prompt_requires_evidence_backed_cta_options():
     body = "Pemerintah mengubah subsidi energi. Rumah tangga menunggu aturan baru. " * 12
     prompt = pipeline.build_user_prompt({"body": body})

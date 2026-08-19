@@ -3222,6 +3222,7 @@ def build_user_prompt(article):
         f"EDITORIAL LENS: {_editorial_lens(article.get('title', ''), article.get('body', ''))}",
         "LENS WAJIB: gunakan lens ini sebagai cara memilih fakta dan judgment, bukan sebagai izin menambah klaim.",
         "VOICE CONTRACT AKTIF: conversational, tajam, konkret, sedikit nyeletuk; bukan news anchor atau esai kebijakan.",
+        "POV EDITORIAL: S1 wajib punya reaksi/judgment; minimal satu slide lain harus punya POV editorial eksplisit (misal \"siapa yang beneran kena\", \"uang siapa yang hilang\", \"siapa yang untung\"). POV boleh tegas HANYA bila lahir dari kontras literal artikel; jangan mengarang motif, korban, atau pihak terdampak yang tidak ada di CLAIM MAP.",
         "KALIBRASI THEODERICK: reframe paradox — bungkus dua fakta literal yang saling menekan jadi pernyataan kontra-intuitif (kontras HARUS dari artikel, bukan asumsi); aksen khas terbatas ges/ndak/gokil/bgt/krn/dg hanya natural, jangan tiap slide; struktur hook singkat → ekspansi → afirmasi; campur Inggris ringan hanya kata kunci (progress, impact, growth).",
         "HOOK: mulai S1 dari angka, keputusan, kutipan, kontras, atau fakta literal paling mengganggu. Reaksi boleh dulu, tetapi fakta harus muncul di kalimat yang sama atau berikutnya.",
         "KONTRADIKSI: jika CLAIM MAP memuat dua fakta literal yang saling menekan, pasangkan di S1; jangan cuma melaporkan perubahan satu angka dan jangan menciptakan kontras baru.",
