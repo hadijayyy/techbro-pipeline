@@ -2780,7 +2780,6 @@ def hook_issues(hook, body):
 
 
 SLIDE_CHAR_LIMIT = 480
-S1_CHAR_LIMIT = 300
 
 
 def _sentence_count(text):
@@ -2831,11 +2830,7 @@ def thread_contract_issues(posts, article_url):
         text = re.sub(r'\[URL[^\]]*\]', '', text, flags=re.I)
         text = re.sub(r'\n*\s*https?://\S+', '', text).strip()
         posts[f"post_{i}"] = text
-        if i == 1 and len(text) > S1_CHAR_LIMIT:
-            posts[f"post_{i}"] = _fit_complete_sentences(text, S1_CHAR_LIMIT)
-            if len(posts[f"post_{i}"]) > S1_CHAR_LIMIT:
-                issues.append(f"post_{i}: over {S1_CHAR_LIMIT} char compact-hook limit")
-        elif len(text) > SLIDE_CHAR_LIMIT:
+        if len(text) > SLIDE_CHAR_LIMIT:
             posts[f"post_{i}"] = _fit_complete_sentences(text, SLIDE_CHAR_LIMIT)
             if len(posts[f"post_{i}"]) > SLIDE_CHAR_LIMIT:
                 issues.append(f"post_{i}: over {SLIDE_CHAR_LIMIT} chars")
@@ -2970,7 +2965,7 @@ Ubah satu artikel sumber menjadi 6 post Threads yang saling tersambung. Gunakan 
 Fungsi post:
 Pilih arc sesuai bukti sumber: kebijakan, household impact (harga/upah/daya beli), public money, supply shock, atau market decision. Jangan pakai arc kebijakan untuk semua artikel. Jangan gunakan label `wallet_pressure`; promo retail tidak boleh diubah menjadi tekanan ekonomi rumah tangga.
 Buat satu STORY SPINE sebelum menulis: satu perubahan/konflik/status gap yang benar-benar tertulis. SATU THREAD = SATU CERITA: seluruh S1-S6 membahas SATU isu utama dengan SATU angle saja; jika artikel memuat beberapa isu, pilih SATU yang paling penting bagi pembaca dan jangan mencampur isu lain (misal jangan membahas SpaceX di thread tentang Trump/Oman). S1 membuka reaksi, observasi, atau ketegangannya, bukan sekadar "X bilang Y". S2-S5 tidak punya fungsi tetap; tiap slide memilih satu bukti atau benturan berbeda dari artikel. Jangan memaksa keputusan, mekanisme, angka pembanding, pihak terdampak, atau trade-off bila sumber tidak menyediakannya. S6 kembali ke ketegangan S1 dan memberi dua pilihan yang benar-benar ada di artikel bila tersedia. Jika tidak ada pilihan atau benturan konkret, tutup dengan simpulan editorial. Simpulan harus spesifik berbasis fakta. Untuk lane internasional, jelaskan kanal dampak Indonesia hanya jika kalimat sumber menghubungkannya.
-1. HOOK — S1 maksimal 300 karakter. Mulai dari reaksi atau observasi bila fakta mendukung, lalu tampilkan angka, konflik, perubahan, kontras, kutipan, atau konsekuensi yang tertulis di artikel. Jika tidak memakai reaction-first, Buka dengan fakta paling mahal dan fakta paling kuat; buat kalimat pertama menyampaikan fakta. Ambil sisi dari fakta; opini tegas boleh selama tidak menambah klaim. Sisakan curiosity gap yang jawabannya ada di S2-S6. Jangan mulai dengan lead berita biasa, "menurut laporan", atau deskripsi gambar.
+1. HOOK — S1 maksimal 480 karakter. Mulai dari reaksi atau observasi bila fakta mendukung, lalu tampilkan angka, konflik, perubahan, kontras, kutipan, atau konsekuensi yang tertulis di artikel. Jika tidak memakai reaction-first, Buka dengan fakta paling mahal dan fakta paling kuat; buat kalimat pertama menyampaikan fakta. Ambil sisi dari fakta; opini tegas boleh selama tidak menambah klaim. Sisakan curiosity gap yang jawabannya ada di S2-S6. Jangan mulai dengan lead berita biasa, "menurut laporan", atau deskripsi gambar.
 
 Jangan menyebut PHK, nasib karyawan, kompensasi, atau penempatan ulang kecuali literal ada di ISI ARTIKEL.
 2-5. BUKTI BERBEDA — pilih fakta, mekanisme, pihak, angka, konteks, atau batas informasi yang tersedia. hitung-hitungan pelaksanaan dan biaya hanya boleh masuk bila sumber menyediakannya. S5 boleh menunjukkan beban/keuntungan antar pihak bila literal di artikel. Tidak semua jenis bukti wajib muncul. Jangan mengubah ketiadaan informasi menjadi klaim.
@@ -3021,7 +3016,7 @@ ATURAN KRITICAL — JANGAN LANGGAR:
 4.STOP-SLOP: hindari pembuka laporan, transisi bertele-tele, kontras formulaik, hedge samar, rujukan gambar, dan kalimat pasif.
 5.TIDAK boleh menambah dampak/CTA baru, nama baru, label penilaian, atau fakta di luar ALLOWLIST. Jangan memberi label pada tindakan atau menyimpulkan motif, hasil, maupun dampak kecuali artikel menyebutnya secara literal.
 5a.CTA: S6 boleh mengundang respons pembaca jika fakta atau pilihan konkret tersedia di ISI ARTIKEL. Jika tidak tersedia, pertahankan simpulan editorial dan jangan membuat CTA atau fakta baru.
-6.S1: boleh satu kalimat tajam atau dua kalimat pendek. Maksimal 300 karakter.
+6.S1: boleh satu kalimat tajam atau dua kalimat pendek. Maksimal 480 karakter.
 7.RETURN TO ORIGINAL: Jika tidak bisa perbaiki tanpa invent nama/angka/label baru, balikan ke value asli field tersebut. Jangan tambah apa-apa.
 8.VOICE: ubah slide yang terlalu menjelaskan menjadi reaksi, observasi, atau judgment tegas berbasis fakta. Pertahankan fakta valid. Jangan menambah dampak, motif, prediksi, angka, nama, atau CTA.
 9.POV: pastikan S1 memiliki reaksi/observasi editorial. Tambahkan POV ke satu slide lain hanya jika judgment tersebut dapat ditarik langsung dari fakta artikel.
@@ -3140,7 +3135,7 @@ def _source_fallback_posts(article):
             for i, first in enumerate(remaining):
                 for j, second in enumerate(remaining[i + 1:], i + 1):
                     text = f"{first} {second}"
-                    limit = S1_CHAR_LIMIT if slide == 0 else SLIDE_CHAR_LIMIT
+                    limit = SLIDE_CHAR_LIMIT if slide == 0 else SLIDE_CHAR_LIMIT
                     if len(text) <= limit:
                         choices.append((i, j, text))
             clean_choices = [choice for choice in choices if not dangling_opener.match(choice[2].strip())]
@@ -3235,7 +3230,7 @@ def _source_fallback_posts(article):
         if tradeoff_sentence:
             reserved_tradeoff = tradeoff_sentence
     for slide, signals in roles:
-        limit = S1_CHAR_LIMIT if not pairs else SLIDE_CHAR_LIMIT
+        limit = SLIDE_CHAR_LIMIT if not pairs else SLIDE_CHAR_LIMIT
         pool = remaining
         if reserved_tradeoff and slide != "post_5":
             pool = [sentence for sentence in remaining if sentence != reserved_tradeoff]
@@ -3504,7 +3499,7 @@ def deterministic_validate(posts):
         if sent_count > 6:
             warnings.append(f"{k}: too many sentences ({sent_count})")
         # Enforce 480-char limit on every slide; keep complete sentences only.
-        limit = S1_CHAR_LIMIT if i == 1 else SLIDE_CHAR_LIMIT
+        limit = SLIDE_CHAR_LIMIT if i == 1 else SLIDE_CHAR_LIMIT
         if len(p) > limit:
             p = _fit_complete_sentences_with_url(p, limit)
             posts[k] = p
@@ -3963,10 +3958,10 @@ def _quality_gate(article, data, posts, warnings):
 # ── Thread Generation ────────────────────────────────────────────────────────
 
 def _normalize_s1(posts, article_body):
-    """Enforce compact S1 hook: keep complete sentences within 300 chars."""
+    """Trim text to complete sentences within SLIDE_CHAR_LIMIT."""
     s1 = posts.get("post_1", "")
-    if len(s1) > S1_CHAR_LIMIT:
-        posts["post_1"] = _fit_complete_sentences(s1, S1_CHAR_LIMIT)
+    if len(s1) > SLIDE_CHAR_LIMIT:
+        posts["post_1"] = _fit_complete_sentences(s1, SLIDE_CHAR_LIMIT)
     # Auto-split 1-sentence S1 using article facts
     sent_count = _sentence_count(posts.get("post_1", ""))
     if sent_count < 2:
@@ -3974,7 +3969,7 @@ def _normalize_s1(posts, article_body):
         body_facts = literal_fact_allowlist(article_body)
         for fact in body_facts:
             candidate = f"{s1_text} {fact}"
-            if len(fact) > 20 and fact[:40] not in s1_text[:100] and len(candidate) <= S1_CHAR_LIMIT:
+            if len(fact) > 20 and fact[:40] not in s1_text[:100] and len(candidate) <= SLIDE_CHAR_LIMIT:
                 posts["post_1"] = candidate
                 break
         sent_count = _sentence_count(posts["post_1"])

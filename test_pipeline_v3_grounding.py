@@ -1140,7 +1140,7 @@ def test_claim_level_gate_blocks_live_airlangga_overclaims():
 
 
 def test_writer_prompt_allows_compact_s1_hook():
-    assert "S1 maksimal 300 karakter" in pipeline.SYSTEM_PROMPT
+    assert "S1 maksimal 480 karakter" in pipeline.SYSTEM_PROMPT
     assert "Jangan mulai dengan lead berita biasa" in pipeline.SYSTEM_PROMPT
 
 
@@ -1262,21 +1262,21 @@ def test_thread_contract_rejects_over_limit_post():
 def test_normalize_s1_uses_compact_limit_and_complete_sentences():
     posts = {"post_1": "Kalimat pertama lengkap. " + "Kalimat kedua sangat panjang " * 30}
     pipeline._normalize_s1(posts, "Fakta sumber cukup panjang. Fakta tambahan cukup panjang.")
-    assert len(posts["post_1"]) <= pipeline.S1_CHAR_LIMIT
+    assert len(posts["post_1"]) <= pipeline.SLIDE_CHAR_LIMIT
     assert posts["post_1"].endswith(".")
 
 
-def test_normalize_s1_uses_compact_300_char_limit():
+def test_normalize_s1_uses_480_char_limit():
     posts = {"post_1": "Kalimat hook pertama yang cukup panjang tetapi tetap lengkap. Konteks hook kedua juga harus tetap lengkap."}
     pipeline._normalize_s1(posts, "Fakta sumber tambahan yang tidak boleh dipaksakan masuk ke hook.")
-    assert len(posts["post_1"]) <= pipeline.S1_CHAR_LIMIT
+    assert len(posts["post_1"]) <= pipeline.SLIDE_CHAR_LIMIT
 
 
-def test_thread_contract_rejects_s1_over_compact_limit():
+def test_thread_contract_rejects_s1_over_480_limit():
     posts = {f"post_{i}": "Fakta pertama. Konteks kedua." for i in range(1, 7)}
-    posts["post_1"] = "Kalimat pertama " + "sangat panjang " * 30 + ". Kalimat kedua tetap bersumber."
+    posts["post_1"] = "Kalimat pertama " + "sangat panjang " * 40 + ". Kalimat kedua tetap bersumber."
     issues = pipeline.thread_contract_issues(posts, "")
-    assert any("post_1: over 300 char compact-hook limit" in issue for issue in issues), issues
+    assert any("post_1: over 480 chars" in issue for issue in issues), issues
 
 
 def test_slide_limit_is_480_and_truncation_keeps_complete_sentences():
