@@ -647,7 +647,8 @@
   "perubahan iklim",
   "pemanasan global",
   "emisi karbon",
-  "emisi co2"
+  "emisi co2",
+  "transisi energi"
 ],
  "soft_reject": [
   "pilkada",
@@ -661,8 +662,7 @@
   "gempa",
   "tsunami",
   "cuaca",
-  "drama personal",
-  "transisi energi"
+  "drama personal"
 ],
  "commercial_reject": [
   "promo",
