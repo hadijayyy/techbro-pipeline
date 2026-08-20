@@ -1055,7 +1055,9 @@ def _verify_one(candidate, now, data=None):
     material = 20 if has_material_economic_signal(title, body) else -20
     hot_score = round(quality + material + topic_score * 10 + confidence * 10 + freshness * 10 + source_quality
                       + _engagement_priority_bonus(title, body) + story_selection
-                      + _international_indonesia_penalty(title, body), 3)
+                      + _international_indonesia_penalty(title, body)
+                      + _performance_bias({"pattern": pattern, "lane": lane}, performance_medians(data) if data else {}),
+                      3)
     image_provenance = _image_provenance(url, image, declared_on_page=bool(image))
     _IMAGE_PROVENANCE_CACHE[_canonical_url(url)] = image_provenance
     return {
@@ -1187,6 +1189,9 @@ def _pick_article(articles, posted_urls, data=None, ranked_urls=None):
         a["editorial_lens"] = _editorial_lens(a.get("title", ""), a.get("body", ""))
         a["impact_channel"] = _international_impact_channel(a.get("title", ""), a.get("body", ""))
         a["story_selection_score"] = _story_selection_bonus(a.get("title", ""), a.get("body", ""))
+        # Pattern must be set BEFORE _performance_bias reads it; otherwise the
+        # historical pattern/lane bias silently never fires at runtime.
+        a["pattern"] = a.get("pattern") or _content_metadata(a.get("title", ""), a.get("body", ""))[0]
         a["_weight"] = (eco_score + freshness + relevance + source_quality
                          + _engagement_priority_bonus(a.get("title", ""), a.get("body", ""))
                          + a["story_selection_score"]

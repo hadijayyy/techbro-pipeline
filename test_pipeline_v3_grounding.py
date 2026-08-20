@@ -1757,6 +1757,43 @@ def test_hot_topic_allows_same_issue_with_different_numbers(monkeypatch):
     assert all(topic["body_verified"] for topic in fallback)
 
 
+def test_performance_bias_affects_verify_one_hot_score(monkeypatch):
+    now = 1_800_000_000
+    articles = [
+        {"title": "Kebijakan APBN Resmi Ditetapkan Rp9 Triliun", "url": "https://a.test/pb1", "source": "cnn_ekonomi", "ts": now - 60},
+        {"title": "Kebijakan APBN Resmi Ditetapkan Rp9 Triliun", "url": "https://a.test/pb2", "source": "cnn_ekonomi", "ts": now - 60},
+    ]
+    body = "Pemerintah Indonesia menetapkan kebijakan APBN senilai Rp9 triliun untuk penerimaan negara. " * 12
+    monkeypatch.setattr(pipeline, "_fetch_article_body", lambda _url: (body, None, now - 60))
+    # Pattern produced by the classifier for this title (case-sensitive key).
+    pat = pipeline._classify_pattern("Kebijakan APBN Resmi Ditetapkan Rp9 Triliun", body)[0]
+    lane = pipeline._story_lane("Kebijakan APBN Resmi Ditetapkan Rp9 Triliun", body)
+    # Historical pattern with strong median views gets a boost in hot_score.
+    data = {"topics": [{"pattern": pat, "lane": lane, "views": 5000}]}
+    topics = pipeline.scout_hot_topics(articles, now=now, limit=5, per_source_limit=2, data=data)
+    assert topics
+    # With data, the hot_score must differ from the no-data baseline (bias active).
+    baseline = pipeline.scout_hot_topics(articles, now=now, limit=5, per_source_limit=2, data=None)
+    assert baseline
+    assert [t["hot_score"] for t in topics] != [t["hot_score"] for t in baseline]
+
+
+def test_performance_bias_sets_pattern_before_scoring(monkeypatch):
+    now = 1_800_000_000
+    articles = [
+        {"title": "Kebijakan APBN Resmi Ditetapkan Rp9 Triliun", "url": "https://a.test/pbp", "source": "cnn_ekonomi", "ts": now - 60},
+    ]
+    body = "Pemerintah Indonesia menetapkan kebijakan APBN senilai Rp9 triliun untuk penerimaan negara. " * 12
+    monkeypatch.setattr(pipeline, "_fetch_article_body", lambda _url: (body, None, now - 60))
+    # Pattern must be populated before _performance_bias reads it.
+    topics = pipeline.scout_hot_topics(articles, now=now, limit=5, per_source_limit=2, data=None)
+    assert topics
+    assert topics[0].get("pattern") is not None
+    assert "_weight" not in topics[0]  # _weight is set in _ranked_candidate_pool, not scout
+
+
+
+
 def test_hot_topic_default_pool_is_top_15_and_cluster_deduped(monkeypatch):
     now = 1_800_000_000
     articles = [
