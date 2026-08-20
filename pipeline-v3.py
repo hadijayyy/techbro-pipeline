@@ -25,7 +25,6 @@ CANDIDATE_POOL_LIMIT = 10
 DISCOVERY_POOL_LIMIT = 25
 SCRAPE_ARTICLE_LIMIT = 100
 HOT_TOPIC_LIMIT = CANDIDATE_POOL_LIMIT
-LLM_REQUEST_BUDGET = 4  # writer/verifier plus one revision/verifier; transport retries disabled.
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 
@@ -3529,10 +3528,6 @@ def _validate_s1_hook(posts, body, article=None):
     s1 = (posts.get("post_1") or "").strip()
     if not s1:
         return ["post_1: empty"]
-
-    # Gate B: S1 must not end with ? — REMOVED. Winning formula uses challenge
-    # question hooks ("Kamu masih nunggu...?"). Hard-rejecting '?' killed the
-    # best hook pattern. Question-mark S1 is allowed.
 
     # Gate D: headline named entity must appear in body (grounding check)
     # Extract name-like patterns from title (2-4 word capitalized sequences)
