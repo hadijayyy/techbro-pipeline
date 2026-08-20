@@ -1724,6 +1724,14 @@ def _is_eligible_candidate(title, body, source):
         return False, "routine market story"
     if _is_administrative_distribution_story(title, body):
         return False, "administrative_distribution_story"
+    # Thin international stories lack context for Indonesian readers; the writer
+    # tends to hallucinate neighboring hot titles (e.g. Rupiah close) as hooks.
+    # Skip them before LLM generation so retry uses Indonesian candidates.
+    # (Runs after specific advice/promo gates so specific rejects stay specific.)
+    if (len(body) < 3000
+            and _is_global_finance_story(title, body)
+            and _indonesia_topic_relevance(title, body) == "international"):
+        return False, "body_under_3000_chars_international"
     if _is_empty_commentary(title, body):
         return False, "empty commentary"
 
@@ -4361,9 +4369,22 @@ def _remaining_eligible_candidates(candidates, failed_url, data=None):
     """Reuse body-verified candidates after generation failure; do not re-pick skipped URLs."""
     failed = _canonical_url(failed_url)
     posted = posted_canonical_urls(data) if data is not None else set()
-    return [candidate for candidate in candidates
-            if _canonical_url(candidate.get("url", "")) != failed
-            and _canonical_url(candidate.get("url", "")) not in posted]
+    seen_clusters = set()
+    kept = []
+    for candidate in candidates:
+        if _canonical_url(candidate.get("url", "")) == failed:
+            continue
+        if _canonical_url(candidate.get("url", "")) in posted:
+            continue
+        # Dedup cluster: keep one candidate per entity+issue cluster so retry
+        # never mixes two articles about the same topic into one thread.
+        cluster = candidate.get("cluster") or _hot_topic_cluster(
+            candidate.get("title", ""), candidate.get("pattern") or candidate.get("lane", ""))
+        if cluster and cluster in seen_clusters:
+            continue
+        seen_clusters.add(cluster)
+        kept.append(candidate)
+    return kept
 
 
 def _record_published(data, article, result, posts, pub, started_at):

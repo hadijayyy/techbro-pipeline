@@ -23,8 +23,21 @@ def test_ungrounded_rupiah_range_is_rejected():
 def test_generation_retries_remaining_eligible_candidates():
     candidates = [{"url": f"https://example.com/{i}"} for i in range(3)]
     remaining = pipeline._remaining_eligible_candidates(candidates, candidates[0]["url"])
+    # Cluster dedup keeps one candidate per topic: the two remaining URLs share
+    # an identical fallback cluster (no titles), so only the first survives.
+    assert [item["url"] for item in remaining] == ["https://example.com/1"]
+
+
+def test_remaining_eligible_candidates_keeps_distinct_clusters():
+    candidates = [
+        {"url": "https://example.com/rupiah", "title": "Rupiah Ditutup Melesat 0,48 Persen", "pattern": "PASAR"},
+        {"url": "https://example.com/bea", "title": "Bea Masuk Impor Naik", "pattern": "KEBIJAKAN"},
+        {"url": "https://example.com/rupiah-2", "title": "Rupiah Kembali Menguat ke Level Terbaik", "pattern": "PASAR"},
+    ]
+    remaining = pipeline._remaining_eligible_candidates(candidates, candidates[0]["url"])
+    # Same-topic (Rupiah) deduped to one; distinct topic (bea cukai) still kept.
     assert [item["url"] for item in remaining] == [
-        "https://example.com/1", "https://example.com/2"
+        "https://example.com/bea", "https://example.com/rupiah-2"
     ]
 
 
@@ -449,6 +462,30 @@ def test_global_economy_story_requires_indonesia_impact():
     title = "The Fed Naikkan Suku Bunga, Pasar Global Bergejolak"
     body = ("Federal Reserve menaikkan suku bunga dan pasar global bereaksi terhadap inflasi Amerika Serikat. " * 12)
     assert pipeline._indonesia_topic_relevance(title, body) == "international"
+
+
+def test_thin_international_story_is_rejected_before_generation():
+    # Regression: thin international article (body < 3000 chars) must be skipped
+    # before LLM generation so the writer never hallucinates neighboring hot
+    # titles (e.g. Rupiah close) as S1 hooks.
+    title = "AS Gandakan Buyback Surat Utang, Purbaya Tiru Kita"
+    body = ("Pemerintah Amerika Serikat menggandakan program buyback surat utang. "
+            "Menkeu menyebut langkah ini meniru kebijakan Indonesia. " * 5)
+    ok, reason = pipeline._is_eligible_candidate(title, body, "detik_finance")
+    assert not ok
+    assert reason == "body_under_3000_chars_international"
+
+
+def test_thick_international_story_still_eligible():
+    # A long, well-sourced international economy story must NOT be blocked by
+    # the thin-body gate.
+    title = "AS Gandakan Buyback Surat Utang, Purbaya Tiru Kita"
+    body = ("Pemerintah Amerika Serikat menggandakan program buyback surat utang dari US$2 miliar "
+            "menjadi US$4 miliar dengan tenor 10-30 tahun. Menkeu Purbaya menyebut langkah ini "
+            "meniru kebijakan Indonesia. Dampak pada pasar obligasi global dan arus modal asing "
+            "ke pasar negara berkembang dipantau pelaku pasar. " * 12)
+    ok, reason = pipeline._is_eligible_candidate(title, body, "detik_finance")
+    assert ok, reason
 
     connected = body + (" Kebijakan ini menekan rupiah dan meningkatkan biaya impor Indonesia, "
                         "sehingga daya beli masyarakat ikut terdampak.")
