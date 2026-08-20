@@ -3137,13 +3137,15 @@ def _source_fallback_posts(article):
                     r"sementara|adapun|terkait hal ini|dalam keterangan)",
                     re.I,
                 )
-                # Strong S1: no weak transition opener AND signal in FIRST sentence.
+                # Strong S1: no weak transition opener AND signal in FIRST sentence,
+                # AND hook contract OK (no flat quote opening without contrast).
                 strong = [
                     c for c in no_dateline
                     if not weak_start.match(c[2].strip())
                     and hook_signal.search(c[2].split(". ")[0])
+                    and _s1_hook_signal_ok(c[2])
                 ]
-                hook_choices = [c for c in no_dateline if hook_signal.search(c[2])]
+                hook_choices = [c for c in no_dateline if _s1_hook_signal_ok(c[2])]
                 if strong:
                     choices = strong
                 elif hook_choices:
@@ -3575,6 +3577,66 @@ def _validate_s1_hook(posts, body, article=None):
     return issues
 
 
+def _s1_hook_signal_ok(text):
+    """Budakorporat-style S1 hook contract for a single hook text.
+
+    True only when the hook carries a concrete stop-scroll signal: a number,
+    change verb, named contrast/challenge, or a flat-quote opening that is
+    paired with a change/contrast anchor (\"X bilang Y 2,7 persen, lebih
+    rendah dari proyeksi sebelumnya\"). Raw news leads (\"REPUBLIKA.CO.ID,
+    JAKARTA -- Bank Indonesia memproyeksikan...\", \"Pejabat BI bilang
+    ekonomi tumbuh 4,7 persen\") are journalism, not hooks.
+    """
+    if not text or not text.strip():
+        return False
+    s1 = text.strip()
+    # Strip wire-service dateline ("REPUBLIKA.CO.ID LABUAN BAJO -- ..." /
+    # "JAKARTA -- ...") before hook analysis: dateline-prefixed leads are
+    # journalism, and the actor flat-quote check must see the actual opening.
+    s1 = re.sub(
+        r"^\s*(?:[A-Z][A-Za-z]*(?:\.[A-Za-z]{2,3})+\s+)?"
+        r"[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*\s*--\s*",
+        "",
+        s1,
+        count=1,
+    )
+    if not s1.strip():
+        return False
+    s1 = s1.strip()
+    signal = re.compile(
+        r"(?:rp\s*)?\d|persen|%|miliar|juta|triliun|"
+        r"\b(memutuskan|menaikkan|menurunkan|menghentikan|melarang|"
+        r"menolak|mengumumkan|menetapkan|membatalkan|mengubah|turun|naik|"
+        r"melonjak|anjlok)\b|\?|"
+        r"\b(padahal|ternyata|sedangkan|berbeda|bantah|membantah|tapi)\b|"
+        r"\b(?:dulu|sebelumnya)\b.{0,60}\b(?:sekarang|kini|baru)\b|"
+        r"\byang bikin\b|\bbikin (?:gue|kamu|kita|lo|lu)\b|\bgaruk kepala\b",
+        re.I,
+    )
+    if not signal.search(s1):
+        return False
+    flat_quote_opening = re.compile(
+        r"^(?:pejabat|gubernur|menteri|presiden|wakil|kepala|dirut|direktur|"
+        r"komisaris|ekonom|pemerintah|kemenkeu|bank indonesia|bi|kemendag|bappenas|"
+        r"pln|pt\b)\b"
+        r"(?:[^.!?]{0,80}?)\b(?:mengatakan|bilang|menyebut|menuturkan|mengungkapkan|"
+        r"memproyeksikan|memperkirakan|menegaskan|menyatakan|berkata|berambisi|"
+        r"berencana|mengumumkan|menetapkan|berniat|berjanji|menargetkan|bertekad)\b",
+        re.I,
+    )
+    contrast_or_change = re.compile(
+        r"\b(?:lebih (?:rendah|tinggi|besar|kecil|cepat|lambat)|turun|naik|"
+        r"melonjak|anjlok|menaikkan|menurunkan|memutuskan|membatalkan|mengubah|"
+        r"menolak|melarang|menghentikan|tetapi|sedangkan|"
+        r"namun|berbeda|bantah|membantah|dibantah|vs|versus|jauh dari|"
+        r"padahal)\b",
+        re.I,
+    )
+    if flat_quote_opening.search(s1) and not contrast_or_change.search(s1):
+        return False
+    return True
+
+
 def _hook_signal_issues(posts):
     """Fallback-path hook quality gate: S1 must carry a concrete hook signal.
 
@@ -3587,15 +3649,10 @@ def _hook_signal_issues(posts):
     s1 = (posts.get("post_1") or "").strip()
     if not s1:
         return ["post_1: empty"]
-    signal = re.compile(
-        r"(?:rp\s*)?\d|persen|%|miliar|juta|triliun|"
-        r"\b(memutuskan|menaikkan|menurunkan|menghentikan|melarang|"
-        r"menolak|mengumumkan|menetapkan|membatalkan|mengubah|turun|naik|"
-        r"melonjak|anjlok)\b|\?",
-        re.I,
-    )
-    if not signal.search(s1):
-        return ["post_1: hook has no concrete signal (number/change/contrast/question) — raw lead won't stop scroll"]
+    if not _s1_hook_signal_ok(s1):
+        if not re.search(r"(?:rp\s*)?\d|persen|%|miliar|juta|triliun|\b(memutuskan|menaikkan|menurunkan|menghentikan|melarang|menolak|mengumumkan|menetapkan|membatalkan|mengubah|turun|naik|melonjak|anjlok)\b|\?", s1, re.I):
+            return ["post_1: hook has no concrete signal (number/change/contrast/question) — raw lead won't stop scroll"]
+        return ["post_1: flat quote opening ('X bilang Y') with number but no change/contrast — news lead won't stop scroll"]
     # Economy gate: a fallback S1 must carry a material economic term, not just
     # a number/change hook. Prevents environment/climate-first raw leads
     # ("emisi CO2 37,4 gigaton + US$8 triliun kerugian") from bypassing niche.
@@ -3610,7 +3667,7 @@ def _hook_signal_issues(posts):
         "perdagangan", "ekspor", "impor", "upah", "gaji", "tenaga kerja",
         "usaha", "bisnis", "perusahaan", "saham", "investor", "keuangan",
         "anggaran", "pemerintah", "kemenkeu", "pajak", "subsidi", "umkm",
-        "kredit", "konsumsi", "daya beli",
+        "kredit", "konsumsi", "daya beli", "ojol", "kurir", "tarif",
     )
     if not any(term in s1_lower for term in economy_terms):
         return [
@@ -3981,6 +4038,13 @@ def _collect_hard_warnings(posts, article, require_all_six=False, include_engage
     grounding_warnings = grounding_validate(article, posts)
     hard_style_warnings = [w for w in style_warnings + voice_warnings if any(x in w for x in ("empty", "too short", "no sentences", "minimum 2 sentences", "only 0 sentence", "English-dominant", "S1 WAJIB", "weak winning hook", "generic winning CTA", "generic editorial close", "S6 must not", "does not follow policy winning arc", "missing winning arc evidence", "template opening", "unsupported drama", "generic moral CTA", "emoji/emote forbidden"))]
     engagement_warnings = (_validate_s1_hook(posts, article["body"], article) + _validate_s6_cta(posts, article["body"])) if include_engagement else []
+    # Budakorporat lesson: hook emotion is a HARD contract on every publish path,
+    # not advisory. S1 must carry a concrete hook signal (number/change/contrast/
+    # question) + material economic term; raw news leads and flat "X bilang Y"
+    # openings don't stop scroll. This gate already ran on the fallback path —
+    # now it also runs on writer/revision output before publish.
+    if include_engagement:
+        engagement_warnings += _hook_signal_issues(posts)
     hard = missing + grounding_warnings + noun_warnings + duplicate_warnings + hard_style_warnings + engagement_warnings
     soft = style_warnings + voice_warnings + jargon_warnings
     return hard, soft

@@ -619,7 +619,11 @@ def test_source_fallback_uses_winning_story_arc_not_generic_cta():
     ])
     posts = pipeline._source_fallback_posts({"body": body, "pattern": "KEBIJAKAN"})
     assert posts is not None
-    assert "menetapkan" in posts["post_1"].lower()
+    # S1 must not be a flat "Pemerintah menetapkan..." news lead (S1_GENERIC_HOOK
+    # adaptation from budakorporat). The extractive fallback picks the concrete
+    # timeline anchor ("Bantuan mulai berlaku Januari 2027") instead.
+    assert "menetapkan" not in posts["post_1"].lower()
+    assert "januari 2027" in posts["post_1"].lower()
     assert posts["post_1"].count(".") >= 2
     assert "persetujuan" in posts["post_6"].lower() or "biaya" in posts["post_6"].lower()
     assert "fakta ini perlu dipantau" not in posts["post_6"].lower()
@@ -2390,6 +2394,33 @@ def test_hook_signal_gate_accepts_challenge_question():
     posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi." for i in range(1, 7)}
     posts["post_1"] = "Kamu masih nunggu bakat buat mulai investasi? Padahal emas udah naik 8 persen bulan ini."
     assert pipeline._hook_signal_issues(posts) == []
+
+
+def test_hook_signal_gate_rejects_flat_quote_with_number_no_contrast():
+    """Budakorporat S1_GENERIC_HOOK adaptation: \"X bilang Y\" + number but no
+    change/contrast anchor is a news lead, not a stop-scroll hook. The 06:00
+    live case (\"Destry bilang pertumbuhan 4,7 persen\") must be blocked."""
+    posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi." for i in range(1, 7)}
+    posts["post_1"] = "Pejabat Gubernur Sementara BI Destry Damayanti mengatakan pertumbuhan ekonomi 4,7 persen."
+    issues = pipeline._hook_signal_issues(posts)
+    assert issues, "flat quote opening + number without contrast must fail hook gate"
+    assert "flat quote" in issues[0]
+
+
+def test_hook_signal_gate_accepts_emotional_tension_without_number():
+    """Budakorporat winning patterns (status-gap, curiosity, reversal) must pass
+    the hook gate even without a number/change verb. \"Indonesia produsen nikel
+    terbesar, tapi cuma jadi penonton harga\" and \"dulu...sekarang\" are proven
+    stop-scroll hooks — do not require digits for emotion."""
+    emotional = [
+        "Indonesia produsen nikel terbesar dunia, tapi selama ini cuma jadi penonton harga.",
+        "Perpres Ojol yang dulu cuma atur ojol penumpang, sekarang mau ngatur kurir juga.",
+        "Nah, ini yang bikin gue garuk kepala. Perpres Ojol yang dulu cuma atur ojol penumpang.",
+    ]
+    for s1 in emotional:
+        posts = {f"post_{i}": "Fakta sumber cukup panjang untuk validasi." for i in range(1, 7)}
+        posts["post_1"] = s1
+        assert pipeline._hook_signal_issues(posts) == [], f"emotional hook must pass: {s1}"
 
 
 def test_source_fallback_skips_news_dateline_for_s1():
