@@ -3596,6 +3596,27 @@ def _hook_signal_issues(posts):
     )
     if not signal.search(s1):
         return ["post_1: hook has no concrete signal (number/change/contrast/question) — raw lead won't stop scroll"]
+    # Economy gate: a fallback S1 must carry a material economic term, not just
+    # a number/change hook. Prevents environment/climate-first raw leads
+    # ("emisi CO2 37,4 gigaton + US$8 triliun kerugian") from bypassing niche.
+    # User directive: only talk about the economy; fallback must prove it too.
+    s1_lower = s1.lower()
+    # Economy vocabulary is broader than MATERIAL_ECONOMIC_SIGNALS for a hook:
+    # growth, markets, prices, central bank, wages all read as economy to a
+    # reader. Environment/climate leads carry none of these.
+    economy_terms = MATERIAL_ECONOMIC_SIGNALS + (
+        "ekonomi", "pertumbuhan", "ekonom", "pasar", "rupiah", "dolar",
+        "bank indonesia", "bi rate", "suku bunga", "harga", "pdb", "inflasi",
+        "perdagangan", "ekspor", "impor", "upah", "gaji", "tenaga kerja",
+        "usaha", "bisnis", "perusahaan", "saham", "investor", "keuangan",
+        "anggaran", "pemerintah", "kemenkeu", "pajak", "subsidi", "umkm",
+        "kredit", "konsumsi", "daya beli",
+    )
+    if not any(term in s1_lower for term in economy_terms):
+        return [
+            "post_1: fallback hook carries no material economic term "
+            "(economy gate) — environment/climate-first lead blocked"
+        ]
     return []
 
 

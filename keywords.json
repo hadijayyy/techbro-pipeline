@@ -640,8 +640,15 @@
   "brigade",
   "militer",
   "chef",
-  "ramalan"
- ],
+  "ramalan",
+  "ekologi",
+  "etika ekologi",
+  "krisis iklim",
+  "perubahan iklim",
+  "pemanasan global",
+  "emisi karbon",
+  "emisi co2"
+],
  "soft_reject": [
   "pilkada",
   "pilpres",
@@ -654,8 +661,9 @@
   "gempa",
   "tsunami",
   "cuaca",
-  "drama personal"
- ],
+  "drama personal",
+  "transisi energi"
+],
  "commercial_reject": [
   "promo",
   "promosi",
