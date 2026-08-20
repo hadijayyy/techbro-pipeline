@@ -2110,7 +2110,7 @@ def test_source_config_keeps_only_active_sources_with_required_fields():
     assert "cnbc_global" in pipeline.SOURCES
     assert "bbc_business" in pipeline.SOURCES
     assert "tempo_bisnis" in pipeline.SOURCES
-    assert "republika_ekonomi" in pipeline.SOURCES
+    assert "katadata_ekonomi" in pipeline.SOURCES
 
 
 def test_cnbc_body_selector_reads_generated_article_body(monkeypatch):

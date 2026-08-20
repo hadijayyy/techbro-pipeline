@@ -154,7 +154,6 @@ SOURCE_ARTICLE_CAPS = {
     "cnbc_global": 15,
     "bbc_business": 15,
     "tempo_bisnis": 15,
-    "republika_ekonomi": 15,
     "katadata_ekonomi": 15,
 }
 SOURCE_TIERS = {
@@ -170,7 +169,6 @@ SOURCE_TIERS = {
     "bbc_business": ("secondary_media", 6),
     "dailysocial": ("secondary_media", 3),
     "tempo_bisnis": ("secondary_media", 7),
-    "republika_ekonomi": ("secondary_media", 6),
     "katadata_ekonomi": ("secondary_media", 8),
 }
 SOURCE_DISPLAY_NAMES = {
@@ -186,7 +184,6 @@ SOURCE_DISPLAY_NAMES = {
     "cnbc_global": "CNBC International",
     "bbc_business": "BBC",
     "tempo_bisnis": "Tempo Bisnis",
-    "republika_ekonomi": "Republika",
     "katadata_ekonomi": "Katadata",
 }
 CURRENT_COHORT = "techbro_v3_current"

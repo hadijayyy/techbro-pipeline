@@ -71,12 +71,6 @@
     "type": "rss",
     "domain": "bisnis.tempo.co/"
   },
-  "republika_ekonomi": {
-    "url": "https://www.republika.co.id/rss/ekonomi",
-    "score": 7,
-    "type": "rss",
-    "domain": "republika.co.id/"
-  },
   "katadata_ekonomi": {
     "url": "https://katadata.co.id/rss",
     "score": 8,
